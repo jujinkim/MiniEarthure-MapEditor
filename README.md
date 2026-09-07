@@ -9,7 +9,7 @@ private repository is needed to build or edit.
 ```sh
 git submodule update --init --recursive
 cargo build --locked --manifest-path addons/mapkit/Cargo.toml -p mapkit-godot
-godot --headless --editor --import --path . --quit
+godot --headless --import --frame-delay 1000 --path .
 godot --path .
 ```
 
@@ -49,3 +49,10 @@ OSM/PBF/downloads, Overture and Copernicus import adapters are not implemented.
 Linux native build, command/save/recovery/export and rendered preview are tested.
 Native Windows export/interaction and game driving acceptance remain unverified.
 No CI/CD or private game assets are included.
+
+Cold headless import uses `--frame-delay 1000` to avoid the observed Godot
+GDExtension documentation shutdown race. Without it, a fresh import exited with
+SIGABRT although later runs succeeded; do not ignore that failure. The upstream
+[Godot issue 111048](https://github.com/godotengine/godot/issues/111048) describes a
+similar timing-sensitive failure and this workaround. Fresh import plus the
+editor validator passed with the documented command on Linux.
