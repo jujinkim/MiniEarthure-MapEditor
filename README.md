@@ -17,6 +17,7 @@ Use Godot **4.7.1**. Run the editor validator with:
 
 ```sh
 godot --headless --path . --script res://tests/editor_validator.gd
+godot --headless --path . --script res://tests/test_drive_validator.gd
 ```
 
 New creates a 1024x1024 metre map. Click road/polygon vertices, then right-click to
@@ -33,12 +34,34 @@ a snapshot. Existing project save retains `.previous`. Recovery restores a
 validated document with fresh undo history. 3D Preview generates the chosen cell
 on a worker; stale preview results never attach after document edits.
 
+## Test drive in installed Client
+
+Choose **Test Drive**, select an installed MiniEarthure Client executable, local
+x/y in metres and a terrain/road surface, then **Save, Package and Launch**.
+An unsaved map first asks for its project directory. The action saves the current
+document, exports a unique `.memap` under the editor user-data `test-drives`
+directory and validates that exact document and spawn before launching Client.
+Selected roads prefill their first segment midpoint and explicit surface ID.
+
+A missing executable, invalid surface/position or packaging failure reports an
+error. Editing or replacing the document during packaging prevents a stale
+launch. Client receives an argument vector, so spaces in paths stay literal.
+Tool path settings live in `editor_tools.cfg`, separate from map data and history.
+Snapshots are retained for inspection; close Client to end a drive. The launch
+status confirms process creation only; Client reports its own loading/readiness.
+This feature requires a Client supporting `--test-drive --map-file` and local
+`--spawn-x`, `--spawn-y`, `--surface-id`. Building/editing/packaging remain usable
+without Client. Current Client rejects custom assets until rendering support lands.
+
+The standalone validator uses a recording process adapter and needs no game.
+Optionally set `MINIEARTHURE_TEST_CLIENT` to an installed Linux executable to run
+an additional headless, bounded native launch. It does not require private source.
+
 ## Current boundaries
 
 This is an early editor, not the completed transition plan. Terrain brush/import
 UI, bridge/tunnel editing, asset library/rendering, deletion/road movement,
-full layer management, incremental multi-cell preview and client test-drive
-launch remain outstanding. Preview attachment is not yet frame-budgeted.
+full layer management and incremental multi-cell preview remain outstanding. Preview attachment is not yet frame-budgeted.
 
 Import GeoJSON asks for an explicit license and local-metre coordinates, then runs
 the isolated Python 3 adapter in a child process. It emits a new layer and warnings,

@@ -1,4 +1,14 @@
 extends Control
+const TEST_DRIVE := preload("./test_drive_launcher.gd")
+var test_drive_launcher := TEST_DRIVE.new()
+var drive_dialog: ConfirmationDialog
+var client_dialog: FileDialog
+var client_path: LineEdit
+var drive_x: SpinBox
+var drive_y: SpinBox
+var drive_surface: OptionButton
+var drive_request: Dictionary = {}
+var last_drive_result: Dictionary = {}
 const STORE := preload("./document_store.gd")
 const CANVAS := preload("./map_canvas.gd")
 const RENDERER := preload("res://addons/mapkit/godot/chunk_renderer.gd")
@@ -72,9 +82,9 @@ func _build_ui() -> void:
 	title.add_theme_color_override("font_color", Color("ffe14c"))
 	title.add_theme_font_size_override("font_size", 24)
 	column.add_child(title)
-	var bar := HBoxContainer.new()
+	var bar := HFlowContainer.new()
 	column.add_child(bar)
-	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Recover", _choose.bind("recover")], ["Undo", store.undo], ["Redo", store.redo], ["Validate", _validate], ["Import GeoJSON", _import_geojson], ["Export .memap", _export]]:
+	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Recover", _choose.bind("recover")], ["Undo", store.undo], ["Redo", store.redo], ["Validate", _validate], ["Import GeoJSON", _import_geojson], ["Export .memap", _export], ["Test Drive", _test_drive]]:
 		_button(bar, entry[0], entry[1])
 	project_label = Label.new()
 	column.add_child(project_label)
@@ -172,6 +182,7 @@ func _build_ui() -> void:
 	import_license.text_changed.connect(func(value): import_dialog.get_ok_button().disabled = value.strip_edges() == "")
 	import_dialog.confirmed.connect(func(): _choose("import"))
 	add_child(import_dialog)
+	_build_test_drive_dialog()
 
 func _button(parent: Node, text: String, action: Callable) -> Button:
 	var button := Button.new()
@@ -197,7 +208,7 @@ func _new() -> void:
 func _choose(action: String) -> void:
 	dialog_action = action
 	dialog.filters = PackedStringArray()
-	if action in ["open", "save"]:
+	if action in ["open", "save", "save_for_drive"]:
 		dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 	else:
 		dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE if action == "export" else FileDialog.FILE_MODE_OPEN_FILE
@@ -220,6 +231,12 @@ func _path_selected(path: String) -> void:
 			if failure == "":
 				failure = store.open_project(path)
 		"save": failure = store.save_project(path)
+		"save_for_drive":
+			failure = store.save_project(path)
+			if failure == "":
+				_document_changed()
+				_test_drive()
+				return
 		"recover": failure = store.recover(path)
 		"export":
 			if busy:
@@ -354,6 +371,7 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 		return
 	busy = true
 	worker_generation = generation
+	var test_request := drive_request.duplicate(true)
 	var x := int(preview_x.value)
 	var y := int(preview_y.value)
 	var import_script := ProjectSettings.globalize_path("user://importers/geojson.py")
@@ -366,6 +384,8 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 			return
 	var import_output := ProjectSettings.globalize_path("user://import-" + Crypto.new().generate_random_bytes(8).hex_encode() + ".json")
 	var err := worker.start(func():
+		if operation == "test_drive":
+			return {"operation": operation, "result": TEST_DRIVE.prepare(source, destination, test_request.document, test_request.x_cm, test_request.y_cm, test_request.surface)}
 		if operation == "import":
 			var log: Array = []
 			var exit_code := OS.execute("python3", [import_script, source, import_output, "--coordinates", "local-metres", "--license", destination], log, true)
@@ -399,7 +419,17 @@ func _process(_delta: float) -> void:
 	busy = false
 	var result: Dictionary = output.result
 	if not result.ok:
+		if output.operation == "test_drive":
+			last_drive_result = result
 		_status(store.reason(result))
+		return
+	if output.operation == "test_drive":
+		if generation != worker_generation:
+			last_drive_result = TEST_DRIVE.error("E_DOCUMENT_CHANGED", "Document changed during packaging; snapshot retained. Start test drive again.")
+			_status(store.reason(last_drive_result))
+			return
+		last_drive_result = test_drive_launcher.launch(drive_request.client, result.data.path, drive_request.x_cm, drive_request.y_cm, drive_request.surface)
+		_status("Client launched (PID %d). Close Client to end the test. Snapshot: %s" % [last_drive_result.data.pid, result.data.path] if last_drive_result.ok else store.reason(last_drive_result))
 		return
 	if output.operation == "import":
 		if generation != worker_generation:
@@ -455,3 +485,115 @@ func _exit_tree() -> void:
 		worker.wait_to_finish()
 	if store.dirty:
 		store.autosave()
+
+
+func _build_test_drive_dialog() -> void:
+	drive_dialog = ConfirmationDialog.new()
+	drive_dialog.title = "Test Drive"
+	drive_dialog.ok_button_text = "Save, Package and Launch"
+	drive_dialog.theme = theme
+	var layout := VBoxContainer.new()
+	layout.custom_minimum_size = Vector2(650, 270)
+	drive_dialog.add_child(layout)
+	_label(layout, "Saves the current project and opens a separate snapshot in installed Client.")
+	var path_row := HBoxContainer.new()
+	layout.add_child(path_row)
+	client_path = LineEdit.new()
+	client_path.placeholder_text = "Installed MiniEarthure Client executable"
+	client_path.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	path_row.add_child(client_path)
+	_button(path_row, "Browse", func(): client_dialog.popup_centered_ratio(0.8))
+	var coordinates := HBoxContainer.new()
+	layout.add_child(coordinates)
+	_label(coordinates, "x (m)")
+	drive_x = SpinBox.new()
+	coordinates.add_child(drive_x)
+	_label(coordinates, "y (m)")
+	drive_y = SpinBox.new()
+	coordinates.add_child(drive_y)
+	for spin in [drive_x, drive_y]:
+		spin.step = 0.01
+		spin.custom_minimum_size.x = 160
+	_label(layout, "Surface (validated at the chosen position before launch)")
+	drive_surface = OptionButton.new()
+	layout.add_child(drive_surface)
+	drive_dialog.confirmed.connect(_launch_test_drive)
+	add_child(drive_dialog)
+	client_dialog = FileDialog.new()
+	client_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	client_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	client_dialog.use_native_dialog = true
+	if OS.get_name() == "Windows":
+		client_dialog.filters = PackedStringArray(["*.exe ; MiniEarthure Client"])
+	client_dialog.file_selected.connect(func(path: String): client_path.text = path)
+	add_child(client_dialog)
+	var settings := ConfigFile.new()
+	if settings.load("user://editor_tools.cfg") == OK:
+		client_path.text = str(settings.get_value("test_drive", "client_executable", ""))
+
+
+func _test_drive() -> void:
+	if busy:
+		_status("Wait for the current operation before starting test drive.")
+		return
+	if store.project_path == "":
+		_status("Choose a project directory before test drive.")
+		_choose("save_for_drive")
+		return
+	var bounds: Dictionary = store.document.bounds
+	drive_x.min_value = float(bounds.min[0]) / 100
+	drive_x.max_value = float(bounds.max[0]) / 100
+	drive_y.min_value = float(bounds.min[1]) / 100
+	drive_y.max_value = float(bounds.max[1]) / 100
+	drive_x.value = (drive_x.min_value + drive_x.max_value) * 0.5
+	drive_y.value = (drive_y.min_value + drive_y.max_value) * 0.5
+	drive_surface.clear()
+	drive_surface.add_item("Terrain")
+	drive_surface.set_item_metadata(0, "terrain")
+	for road: Dictionary in store.document.roads:
+		drive_surface.add_item(str(road.id) + " · " + str(road.kind))
+		drive_surface.set_item_metadata(drive_surface.item_count - 1, road.id)
+		if selected_field == "roads" and selected_record.get("id") == road.id:
+			drive_surface.select(drive_surface.item_count - 1)
+			drive_x.value = float(road.points[0][0] + road.points[1][0]) / 200
+			drive_y.value = float(road.points[0][2] + road.points[1][2]) / 200
+	drive_dialog.popup_centered()
+
+
+func _launch_test_drive() -> void:
+	last_drive_result = {}
+	if busy:
+		_status("Another operation is running.")
+		return
+	var checked := TEST_DRIVE.check_client(client_path.text)
+	if not checked.ok:
+		last_drive_result = checked
+		_status(store.reason(checked))
+		return
+	var failure := store.save_project(store.project_path)
+	if failure != "":
+		_status(failure)
+		return
+	_document_changed()
+	var validation: Dictionary = JSON.parse_string(store.bridge.validate_document(JSON.stringify(store.document)))
+	if not validation.ok:
+		_status(store.reason(validation))
+		return
+	var directory := ProjectSettings.globalize_path("user://test-drives")
+	var error := DirAccess.make_dir_recursive_absolute(directory)
+	if error != OK:
+		_status(error_string(error))
+		return
+	var snapshot := directory.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + ".memap")
+	drive_request = {"client": client_path.text, "x_cm": roundi(drive_x.value * 100),
+		"y_cm": roundi(drive_y.value * 100), "surface": drive_surface.get_selected_metadata(),
+		"document": validation.data.canonical}
+	var settings := ConfigFile.new()
+	settings.load("user://editor_tools.cfg")
+	settings.set_value("test_drive", "client_executable", client_path.text)
+	error = settings.save("user://editor_tools.cfg")
+	if error != OK:
+		_status("Cannot save Client tool setting: " + error_string(error))
+		return
+	_start_worker("test_drive", store.project_path, snapshot)
+	_status("Validating and packaging test-drive snapshot…")
