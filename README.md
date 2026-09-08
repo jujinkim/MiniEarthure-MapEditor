@@ -1,6 +1,6 @@
 # MiniEarthure MapEditor
 
-Independent Godot 4.7.1 Windows/Linux editor foundation, licensed MIT. Requires
+Independent Godot 4.7.2 Windows/Linux editor foundation, licensed MIT. Requires
 only this repository and its public MapKit submodule; no game installation or
 private repository is needed to build or edit.
 
@@ -13,7 +13,7 @@ godot --headless --import --frame-delay 1000 --path .
 godot --path .
 ```
 
-Use Godot **4.7.1**. Run the editor validator with:
+Use Godot **4.7.2**. Run the editor validator with:
 
 ```sh
 godot --headless --path . --script res://tests/editor_validator.gd
