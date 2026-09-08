@@ -353,8 +353,8 @@ func _preview() -> void:
 	if busy:
 		_status("Preview or export already running.")
 		return
-	if not store.document.heightmaps.is_empty():
-		_status("Heightmap preview requires a saved project.")
+	if not store.document.heightmaps.is_empty() or not store.document.assets.is_empty():
+		_status("Asset/heightmap preview requires a saved project.")
 		if store.project_path == "":
 			return
 		var failure := store.save_project(store.project_path)
@@ -401,9 +401,11 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 		elif operation == "project":
 			text = bridge.open_project(source)
 			if JSON.parse_string(text).ok:
-				text = bridge.generate_chunk(x, y)
+				var prepared: Dictionary = bridge.generate_chunk_packed(x, y)
+				if prepared.ok: prepared = bridge.with_presentation(prepared.data)
+				return {"operation": operation, "result": prepared}
 		else:
-			text = bridge.preview_document(source, x, y)
+			return {"operation": operation, "result": bridge.preview_document_packed(source, x, y)}
 		return {"operation": operation, "result": JSON.parse_string(text)}
 	)
 	if err != OK:
@@ -448,10 +450,17 @@ func _process(_delta: float) -> void:
 	if generation != worker_generation:
 		_status("Document changed during preview; generate again.")
 		return
+	var staged := Node3D.new()
+	preview_world.add_child(staged)
+	var render_job := RENDERER.begin(result.data.chunk, staged)
+	while not RENDERER.advance(render_job): pass
+	if not render_job.error.is_empty():
+		staged.queue_free()
+		_status(store.reason({"ok": false, "error": render_job.error}))
+		return
 	for child in preview_world.get_children():
-		if child.name != "PreviewCamera" and child is not DirectionalLight3D:
+		if child != staged and child.name != "PreviewCamera" and child is not DirectionalLight3D:
 			child.queue_free()
-	RENDERER.attach(result.data.chunk, preview_world)
 	var bounds: Dictionary = store.document.bounds
 	var cell_size := float(store.document.cell_size_cm)
 	var center := RENDERER.scene_position([bounds.min[0] + (preview_x.value + 0.5) * cell_size, 0, bounds.min[1] + (preview_y.value + 0.5) * cell_size])

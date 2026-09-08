@@ -79,3 +79,12 @@ SIGABRT although later runs succeeded; do not ignore that failure. The upstream
 [Godot issue 111048](https://github.com/godotengine/godot/issues/111048) describes a
 similar timing-sensitive failure and this workaround. Fresh import plus the
 editor validator passed with the documented command on Linux.
+
+
+K07 asset previews now use the same MapKit packed renderer as game consumers.
+Saved projects with static GLB/PNG/WebP and declarative materials load validated
+in-memory resources; empty-file document previews use the same style decoration.
+A failed replacement leaves the previous preview visible. Asset/proxy editing
+widgets remain separate E03 work. `tests/asset_preview_validator.gd` verifies a
+synthetic project through open, preview, save/export, failed replacement and
+resource cleanup without installing the private game.
