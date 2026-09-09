@@ -9,7 +9,7 @@ func _initialize() -> void: run.call_deferred()
 func wait_import(ui: Control) -> void:
 	var deadline := Time.get_ticks_msec() + 10000
 	while ui.busy and Time.get_ticks_msec() < deadline: await process_frame
-	check(not ui.busy, "import joins within deadline: " + ui.status_label.text)
+	check(not ui.busy, "import joins within deadline: " + ui.status_label.text + (str({"pid":ui.import_job.pid, "exit":ui.import_job.exit_code, "exited":ui.import_job.exited, "progress":ui.import_job.progress, "errors":ui.import_job.errors}) if ui.import_job != null else ""))
 func click_adopt(ui: Control) -> void:
 	await process_frame
 	var button: Button = ui.import_review.get_ok_button()

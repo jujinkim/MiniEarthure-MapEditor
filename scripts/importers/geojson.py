@@ -6,6 +6,9 @@ import json
 from pathlib import Path
 import sys
 import uuid
+import os
+import threading
+import time
 from import_layer import ImportLayer, Source, MAX_INPUT, number, text, strict_json
 
 
@@ -84,6 +87,19 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     return layer
 
 
+def watch_parent_lifetime():
+    # EOF terminates this helper if its owner exits/crashes. No grandchildren.
+    def watch_parent():
+        while os.read(sys.stdin.fileno(), 1):
+            pass
+        os._exit(3)
+    threading.Thread(target=watch_parent, daemon=True).start()
+    def watchdog():
+        time.sleep(120)
+        os._exit(4)
+    threading.Thread(target=watchdog, daemon=True).start()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
@@ -92,16 +108,33 @@ def main():
     parser.add_argument("--license", required=True)
     parser.add_argument("--accuracy", default="unknown")
     parser.add_argument("--layer-id", required=True)
+    parser.add_argument("--watch-parent", action="store_true")
     args = parser.parse_args()
+    if args.watch_parent:
+        watch_parent_lifetime()
+    sequence = 0
+    def event(stage, completed, total, unit="bytes", **extra):
+        nonlocal sequence
+        sequence += 1
+        print(json.dumps(dict(request=args.layer_id, seq=sequence, stage=stage, completed=completed, total=total, unit=unit, **extra)), flush=True)
+    size = args.source.stat().st_size
+    if size > MAX_INPUT: raise ValueError("input exceeds 32 MiB")
+    event("read", 0, size)
     with args.source.open("rb") as stream:
         raw = stream.read(MAX_INPUT + 1)
-    if len(raw) > MAX_INPUT:
-        raise ValueError("input exceeds 32 MiB")
-    print(json.dumps({"stage": "parse", "completed": len(raw), "total": len(raw), "unit": "bytes"}), flush=True)
-    result = convert(strict_json(raw), args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy)
+    if len(raw) != size: raise ValueError("source size changed during read; retry")
+    event("read", len(raw), size)
+    event("parse", 0, size)
+    value = strict_json(raw)
+    event("parse", size, size)
+    result = convert(value, args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
+        progress=lambda completed, total: event("convert", completed, total, "features"))
+    encoded = result.encode()
+    event("write", 0, len(encoded))
     with args.output.open("xb") as stream:
-        stream.write(result.encode())
-    print(json.dumps({"stage": "complete", "completed": result.feature_count, "total": result.feature_count, "unit": "features"}), flush=True)
+        stream.write(encoded)
+    event("write", len(encoded), len(encoded))
+    event("complete", len(encoded), len(encoded), sha256=hashlib.sha256(encoded).hexdigest())
 
 
 if __name__ == "__main__":

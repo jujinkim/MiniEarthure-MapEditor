@@ -84,8 +84,10 @@ Import GeoJSON asks for a license and source accuracy, then prepares a typed loc
 layer in a Python 3 child process. Review extent, provenance and estimated values
 before **Adopt new layer**. Discard changes nothing; reimport creates a fresh layer
 and adoption is one Undo command. See [import contracts](docs/IMPORTS.md).
-Geographic projection, child-process cancellation/progress and external source
-adapters remain subsequent import work.
+The wizard supports Python executable selection, actual per-stage progress, Cancel
+and Retry last source. Child exit/output/identity budgets protect publication;
+owner shutdown and a parent-EOF watchdog stop helpers. Geographic projection and
+external source adapters remain subsequent import work.
 
 Linux native build, command/save/recovery/export and rendered preview are tested.
 E01 Mac pointer/key, layer/property/panel and graph-safety checks are scoped

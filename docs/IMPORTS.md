@@ -39,8 +39,48 @@ python3 scripts/check_documents.py --godot /path/to/godot --script import_layer_
 python3 scripts/check_documents.py --godot /path/to/godot --script import_layer_validator --rendered --log-dir /new/path/import-rendered
 ```
 
-I01 Mac import/native/document and rendered adoption evidence is scoped. Child
-progress/cancel/retry remains the next I03 local workflow unit; geographic/heightmap
-adapters and external OSM/Overture/DEM source workflows remain I02. Actual supported
-Windows/Linux exported filesystem/UI and installed Client acceptance remain open.
-Official geographic coordinate reference: https://www.rfc-editor.org/rfc/rfc7946
+I01/I03 Mac import/native/document, rendered adoption and compiled resource-PCK
+checks are scoped evidence. Actual Windows/Linux exported filesystem/UI and
+installed Client acceptance remain open. Geographic/heightmap adapters and external
+OSM/Overture/DEM source workflows remain I02.
+
+## Local process lifecycle (I03)
+
+One `ImportJob` owns one Python helper, fresh request ID and private job directory.
+The import wizard accepts a Python executable and preserves it separately from map
+data. Retry last source launches a new job; choose a different file through the
+normal picker. The form retains license and accuracy. The status reports selected
+source bytes before processing; a progress bar and labels report actual per-stage
+byte/feature counters, not a fabricated overall percentage.
+
+Nonblocking stdout/stderr are drained at most 16 KiB each per frame. Request ID,
+sequence, ordered stage, nondecreasing completed/total and units are checked.
+Limits are 4 KiB/event, 1 MiB total IPC and 4 KiB retained stderr. Result bytes have
+an announced size/hash and must match after a successful process exit before the
+I01 boundary accepts them. Parsing/native adoption remain bounded synchronous
+work; these quotas do not establish whole-frame latency or process RSS.
+
+Cancel, changed document and owner close kill the owned child; a 120-second job
+deadline bounds stalled work. Terminal PID state is cached because Godot kill
+reaps children. Remaining pipe bytes are drained after natural exit. The Python
+helper exits on parent-pipe EOF and has its own 120-second watchdog, including
+Editor crash. No grandchildren are spawned. Each result is consumed once; cleanup
+removes only that request's known scripts/result. If termination fails, original
+files remain protected and the failure is reported; retained scratch can be
+inspected and is never adopted automatically. No broad directory deletion occurs.
+
+Additional checks:
+
+```sh
+python3 scripts/check_documents.py --godot /path/to/godot --script import_job_validator --script import_layer_validator --log-dir /new/path/lifetimes
+python3 scripts/check_documents.py --godot /path/to/godot --script import_layer_validator --resource-pack --log-dir /new/path/resource
+```
+
+The resource mode compiles a host PCK then hides loose Editor product scripts/main
+scene before executing the validator. It is not a native OS distribution and does
+not require repeating known missing-template exports. Supported-platform process,
+Python discovery/installation, native file dialogs and exported UI need actual OS
+runners. No network/download progress is claimed before external adapters exist.
+
+Sources: [GeoJSON](https://www.rfc-editor.org/rfc/rfc7946),
+[Godot OS process API](https://docs.godotengine.org/en/stable/classes/class_os.html).

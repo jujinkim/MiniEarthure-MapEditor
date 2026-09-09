@@ -76,6 +76,11 @@ var pending_import: RefCounted
 var import_review: ConfirmationDialog
 var import_summary: TextEdit
 var import_review_generation := 0
+const IMPORT_JOB := preload("./import_job.gd")
+var import_job: RefCounted
+var import_python: LineEdit
+var last_import_source := ""
+var import_progress: ProgressBar
 var selected_field := ""
 var selected_record: Dictionary = {}
 var displayed_map_id := ""
@@ -318,6 +323,9 @@ func _build_ui() -> void:
 	status_label.custom_minimum_size.y = 48
 	status_label.text = "V Select · R Road · B Building · G Forest · O Orchard · Ctrl/Cmd+A/D/Z/Y/S · Delete · Escape cancels"
 	column.add_child(status_label)
+	import_progress = ProgressBar.new()
+	import_progress.visible = false
+	column.add_child(import_progress)
 	dialog = FileDialog.new()
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
 	dialog.use_native_dialog = true
@@ -336,6 +344,17 @@ func _build_ui() -> void:
 	import_accuracy = LineEdit.new()
 	import_accuracy.placeholder_text = "Source accuracy / resolution (unknown if omitted)"
 	import_fields.add_child(import_accuracy)
+	import_python = LineEdit.new()
+	import_python.placeholder_text = "Python 3 executable (name or absolute path)"
+	var settings := ConfigFile.new()
+	settings.load("user://editor_tools.cfg")
+	import_python.text = str(settings.get_value("import", "python", "python" if OS.get_name() == "Windows" else "python3"))
+	import_fields.add_child(import_python)
+	_button(import_fields, "Retry last source", func():
+		import_dialog.hide()
+		if last_import_source == "": _status("Choose a source file first.")
+		else: _start_import(last_import_source, import_license.text.strip_edges())
+	)
 	import_dialog.get_ok_button().disabled = true
 	import_license.text_changed.connect(func(value): import_dialog.get_ok_button().disabled = value.strip_edges() == "")
 	import_dialog.confirmed.connect(func(): _choose("import"))
@@ -443,7 +462,7 @@ func _save() -> void:
 
 func _import_geojson() -> void:
 	if not busy:
-		import_dialog.popup_centered(Vector2i(700, 180))
+		import_dialog.popup_centered(Vector2i(700, 300))
 
 func _export() -> void:
 	if store.project_path == "":
@@ -567,6 +586,7 @@ func _apply_properties() -> void:
 	if failure == "": _selection(canvas.selected)
 
 func _document_changed() -> void:
+	if import_job != null: import_job.cancel()
 	_discard_import()
 	generation += 1
 	if package_work != null: package_work.cancel()
@@ -672,6 +692,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 		_status(error_string(err))
 
 func _cancel_operation() -> void:
+	if import_job != null: import_job.cancel()
 	_discard_import()
 	generation += 1
 	preview_due = 0
@@ -797,51 +818,67 @@ func _trim_preview_cache(keep: Vector2i) -> void:
 		preview_cache[oldest].root.queue_free()
 		preview_cache.erase(oldest)
 
+func _start_import(source: String, license_name: String) -> void:
+	if busy:
+		_status("Another operation is running; wait for cancellation to finish.")
+		return
+	_discard_import()
+	if not IMPORT_LAYER._text(license_name):
+		_status("A source license is required.")
+		return
+	last_import_source = source
+	var settings := ConfigFile.new()
+	settings.load("user://editor_tools.cfg")
+	settings.set_value("import", "python", import_python.text.strip_edges())
+	settings.save("user://editor_tools.cfg")
+	import_identity = Crypto.new().generate_random_bytes(16).hex_encode()
+	var job := IMPORT_JOB.new()
+	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
+	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity)
+	if failure != "":
+		_status("E_IMPORT: " + failure)
+		return
+	import_job = job
+	worker_generation = generation
+	busy = true
+	import_progress.value = 0
+	import_progress.visible = true
+	_status("Starting import · %d source bytes · maximum 32 MiB. Cancel stops the child; Retry last source starts a new layer." % job.progress.total)
+
 func _start_worker(operation: String, source: String, destination: String) -> void:
+	if operation == "import":
+		_start_import(source, destination)
+		return
 	if busy:
 		_status("Another operation is running.")
 		return
 	busy = true
 	worker_generation = generation
 	var test_request := drive_request.duplicate(true)
-	var import_script := ProjectSettings.globalize_path("user://importers/geojson.py")
-	if operation == "import":
-		_discard_import()
-		import_identity = Crypto.new().generate_random_bytes(16).hex_encode()
-		for module in ["geojson.py", "import_layer.py"]:
-			var source_code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
-			var target := import_script.get_base_dir().path_join(module)
-			var failure := store.files.write(target, source_code, store.files.digest(target))
-			if failure != "" or source_code == "":
-				busy = false
-				_status(failure if failure != "" else "Importer module is missing.")
-				return
-	var identity := import_identity
-	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
-	var import_output := ProjectSettings.globalize_path("user://import-" + Crypto.new().generate_random_bytes(8).hex_encode() + ".json")
 	var err := worker.start(func():
 		if operation == "test_drive":
 			return {"operation": operation, "result": TEST_DRIVE.prepare(source, destination, test_request.document, test_request.x_cm, test_request.y_cm, test_request.surface)}
-		if operation == "import":
-			var log: Array = []
-			var exit_code := OS.execute("python3", [import_script, source, import_output, "--coordinates", "local-metres", "--license", destination, "--layer-id", identity, "--accuracy", accuracy], log, true)
-			var result := {"ok": false, "error": {"code": "E_IMPORT", "message": "\n".join(log)}}
-			if exit_code == 0 and FileAccess.file_exists(import_output):
-				var read := FileAccess.open(import_output, FileAccess.READ)
-				if read != null and read.get_length() <= IMPORT_LAYER.MAX_BYTES:
-					result = {"ok": true, "data": JSON.parse_string(read.get_as_text())}
-				if read != null: read.close()
-				DirAccess.remove_absolute(import_output)
-			return {"operation": operation, "result": result}
 		return {"operation": operation, "result": TEST_DRIVE.error("E_STATE", "Unsupported worker operation.")}
 	)
 	if err != OK:
 		busy = false
 		_status(error_string(err))
-	else:
-		_status("Importing local GeoJSON…" if operation == "import" else "Preparing test drive…")
+	else: _status("Preparing test drive…")
 
 func _process(_delta: float) -> void:
+	if import_job != null:
+		import_job.poll()
+		var progress: Dictionary = import_job.progress
+		if not progress.is_empty():
+			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
+			validation_label.text = "Import %s · %d / %d %s" % [progress.stage, progress.completed, progress.total, progress.unit]
+		if import_job.done:
+			var result: Dictionary = import_job.result
+			import_job = null
+			busy = false
+			import_progress.visible = false
+			_finish_import(result)
+		return
 	if not render_job.is_empty():
 		_advance_attachment()
 		return
@@ -870,22 +907,25 @@ func _process(_delta: float) -> void:
 		last_drive_result = test_drive_launcher.launch(drive_request.client, result.data.path, drive_request.x_cm, drive_request.y_cm, drive_request.surface)
 		_status("Client launched (PID %d). Close Client to end the test. Snapshot: %s" % [last_drive_result.data.pid, result.data.path] if last_drive_result.ok else store.reason(last_drive_result))
 		return
-	if output.operation == "import":
-		if generation != worker_generation:
-			_status("Document changed during import; retry to add the new layer.")
-			return
-		var layer := IMPORT_LAYER.new()
-		var failure := layer.load_value(result.data, import_identity)
-		if failure == "": failure = layer.validate_for(store)
-		if failure != "":
-			_status("E_IMPORT: " + failure)
-			return
-		pending_import = layer
-		import_review_generation = generation
-		import_summary.text = layer.summary()
-		import_review.popup_centered(Vector2i(760, 460))
-		_status("Import prepared. Review and adopt the new layer, or discard it.")
+func _finish_import(result: Dictionary) -> void:
+	if not result.ok:
+		_status(store.reason(result))
 		return
+	if generation != worker_generation:
+		_status("Document changed during import; retry to add the new layer.")
+		return
+	var layer := IMPORT_LAYER.new()
+	var failure := layer.load_value(result.data, import_identity)
+	if failure == "": failure = layer.validate_for(store)
+	if failure != "":
+		_status("E_IMPORT: " + failure)
+		return
+	pending_import = layer
+	import_review_generation = generation
+	import_summary.text = layer.summary()
+	import_review.popup_centered(Vector2i(760, 460))
+	_status("Import prepared. Review and adopt the new layer, or discard it.")
+	return
 
 func _discard_import() -> void:
 	pending_import = null
@@ -944,6 +984,7 @@ func _status(text: String) -> void:
 	status_label.text = text
 
 func _exit_tree() -> void:
+	if import_job != null: import_job.shutdown()
 	_save_workbench()
 	if package_work != null: package_work.cancel()
 	_cancel_attachment()

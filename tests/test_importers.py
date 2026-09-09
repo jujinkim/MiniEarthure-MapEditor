@@ -57,6 +57,18 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(len(result.warnings), 50)
         self.assertEqual(result.patches[2]["after"]["from"], result.patches[0]["id"])
 
+    def test_parent_pipe_eof_stops_helper(self):
+        module_path = str(Path(__file__).resolve().parents[1]/"scripts/importers")
+        code = "import sys,time;sys.path.insert(0,sys.argv[1]);from geojson import watch_parent_lifetime;watch_parent_lifetime();print('ready',flush=True);time.sleep(60)"
+        child = subprocess.Popen([sys.executable,"-B","-u","-c",code,module_path],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        try:
+            self.assertEqual(child.stdout.readline().strip(),b"ready")
+            child.stdin.close()
+            self.assertEqual(child.wait(timeout=3),3)
+        finally:
+            if child.poll() is None: child.kill();child.wait()
+            child.stdout.close();child.stderr.close()
+
     def test_cli_preserves_files(self):
         with tempfile.TemporaryDirectory() as directory:
             source, output = Path(directory)/"source with spaces.json", Path(directory)/"output.json"

@@ -18,6 +18,7 @@ def main():
     parser.add_argument('--log-dir', type=Path, required=True)
     parser.add_argument('--full', action='store_true', help='Also run edit/import/preview and installed-client adapter regressions')
     parser.add_argument('--script', action='append', help='Run only named test scripts (repeatable)')
+    parser.add_argument('--resource-pack', action='store_true', help='Build host resource PCK and run scripts with loose product scripts hidden; not a native distribution')
     parser.add_argument('--rendered', action='store_true', help='Run behavior on the native display; import remains headless')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -60,10 +61,21 @@ def main():
                     ('user-path', [godot, '--headless', '--path', str(project), '--script', 'res://check_user_path.gd'])]
         scripts = ['document_history_validator', 'document_recovery_validator']
         if args.full:
-            scripts += ['editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator', 'import_layer_validator']
+            scripts += ['editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator', 'import_layer_validator', 'import_job_validator']
         if args.script:
             scripts = args.script
-        commands += [(name, [godot, *([] if args.rendered else ['--headless']), '--path', str(project), '--script', f'res://tests/{name}.gd']) for name in scripts]
+        pack_args = []
+        if args.resource_pack:
+            shutil.copy2(root / 'export_presets.cfg', project / 'export_presets.cfg')
+            preset = {'win32': 'Windows', 'darwin': 'Mac development'}.get(sys.platform, 'Linux')
+            if sys.platform == 'darwin':
+                with (project / 'export_presets.cfg').open('a') as presets:
+                    presets.write('\n[preset.2]\nname="Mac development"\nplatform="macOS"\nrunnable=true\nexport_filter="all_resources"\ninclude_filter="scripts/importers/*.py"\nexclude_filter="tests/*,addons/mapkit/tests/*"\nscript_export_mode=2\n[preset.2.options]\nbinary_format/architecture="arm64"\n')
+            artifact = project / 'editor.pck'
+            commands.append(('resource-pack', [godot, '--headless', '--path', str(project), '--export-pack', preset, str(artifact)]))
+            pack_args = ['--main-pack', str(artifact)]
+        commands += [(name, [godot, *([] if args.rendered else ['--headless']), '--path', str(project), *pack_args,
+                             '--script', str(project / 'tests' / (name + '.gd')) if args.resource_pack else f'res://tests/{name}.gd']) for name in scripts]
         for name, command in commands:
             started = time.monotonic()
             log = args.log_dir / f'{name}.log'
@@ -76,6 +88,11 @@ def main():
             }, indent=2) + '\n')
             if result.returncode or diagnostics or (name in scripts and f'{name}: PASS' not in text):
                 raise SystemExit(f'{name}: FAIL; {log}')
+            if name == 'resource-pack':
+                (args.log_dir / 'resource-artifact.json').write_text(json.dumps({'bytes': artifact.stat().st_size,
+                    'sha256': hashlib.sha256(artifact.read_bytes()).hexdigest(), 'scope': 'compiled host resource pack; no native distribution'}, indent=2) + '\n')
+                (project / 'scripts').rename(project / 'hidden-loose-scripts')
+                (project / 'main.tscn').rename(project / 'hidden-main.tscn')
             print(f'{name}: PASS; {log}', flush=True)
 
 

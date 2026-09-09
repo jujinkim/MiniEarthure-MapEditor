@@ -1,0 +1,183 @@
+extends RefCounted
+## Owns one public adapter process and a private, disposable job directory.
+const LAYER := preload("./import_layer.gd")
+const FILES := preload("./document_files.gd")
+const PIPE_LIMIT := 1024 * 1024
+const LINE_LIMIT := 4096
+const READ_BUDGET := 16384
+var pid := -1
+var identity := ""
+var directory := ""
+var output_path := ""
+var stdio: FileAccess
+var stderr_pipe: FileAccess
+var buffer := PackedByteArray()
+var received := 0
+var errors := ""
+var exited := false
+var exit_code := -1
+var cancelled := false
+var failure := ""
+var deadline_ms := 0
+var progress := {}
+var terminal := {}
+var sequence := 0
+var phase := -1
+var done := false
+var result := {}
+var output_eof := false
+var error_eof := false
+
+func start(source: String, license_name: String, accuracy: String, python: String, token: String) -> String:
+	if pid != -1 or directory != "": return "ImportJob instances are single use."
+	identity = token
+	if not LAYER._hex(token, 32): return "Invalid import request token."
+	var input := FileAccess.open(source, FileAccess.READ)
+	if input == null: return "Cannot open selected source."
+	var size := input.get_length()
+	input.close()
+	if size > 32 * 1024 * 1024: return "Import source exceeds 32 MiB; select a smaller area."
+	directory = ProjectSettings.globalize_path("user://import-jobs/" + token)
+	if DirAccess.dir_exists_absolute(directory): return "Import job directory already exists."
+	var files := FILES.new()
+	for module in ["geojson.py", "import_layer.py"]:
+		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
+		var error := files.write(directory.path_join(module), code, "") if code != "" else "Importer module is missing."
+		if error != "":
+			cleanup()
+			return error
+	output_path = directory.path_join("layer.json")
+	var arguments := PackedStringArray(["-B", "-u", directory.path_join("geojson.py"), source, output_path,
+		"--coordinates", "local-metres", "--license", license_name, "--accuracy", accuracy, "--layer-id", token, "--watch-parent"])
+	var child := _spawn(python, arguments)
+	pid = int(child.get("pid", -1))
+	stdio = child.get("stdio")
+	stderr_pipe = child.get("stderr")
+	if pid <= 0 or stdio == null or stderr_pipe == null:
+		shutdown()
+		return "Python could not start. Choose a Python 3 executable and retry."
+	deadline_ms = Time.get_ticks_msec() + 120000
+	progress = {"stage": "starting", "completed": 0, "total": size, "unit": "bytes"}
+	return ""
+
+func _spawn(python: String, arguments: PackedStringArray) -> Dictionary:
+	return OS.execute_with_pipe(python, arguments, false)
+
+func _fail(message: String) -> void:
+	if failure == "": failure = message
+	cancel()
+
+func cancel() -> void:
+	if cancelled or done: return
+	cancelled = true
+	# Cache exit state: never repeatedly query or signal a reaped/reused PID.
+	if pid > 0 and not exited:
+		exited = not OS.is_process_running(pid)
+		if exited: exit_code = OS.get_process_exit_code(pid)
+		else:
+			var killed := OS.kill(pid)
+			if killed == OK:
+				# Godot kill reaps its child; further liveness/exit queries are invalid.
+				exited = true
+				exit_code = -1
+			elif failure == "": failure = "Could not stop importer: " + error_string(killed)
+
+func _event(line: PackedByteArray) -> void:
+	if line.size() > LINE_LIMIT:
+		_fail("Import IPC line exceeds 4 KiB.")
+		return
+	var raw: Variant = JSON.parse_string(line.get_string_from_utf8())
+	if raw is not Dictionary or raw.get("request") != identity or raw.get("seq") != sequence + 1:
+		_fail("Invalid/stale import progress event.")
+		return
+	sequence += 1
+	var stages := ["read", "parse", "convert", "write", "complete"]
+	var index := stages.find(raw.get("stage"))
+	if index < phase or index > phase + 1 or index < 0 or not terminal.is_empty() or not LAYER._count(raw.get("completed"), 32 * 1024 * 1024) or not LAYER._count(raw.get("total"), 32 * 1024 * 1024) or raw.completed > raw.total:
+		_fail("Invalid import progress counters/stage.")
+		return
+	if index == phase and (raw.total != progress.total or raw.completed < progress.completed):
+		_fail("Import progress regressed.")
+		return
+	if raw.get("unit") != ("features" if index == 2 else "bytes"):
+		_fail("Invalid import progress unit.")
+		return
+	phase = index
+	progress = raw
+	if index == 4:
+		if not LAYER._hex(raw.get("sha256"), 64) or raw.completed != raw.total or raw.total > LAYER.MAX_BYTES:
+			_fail("Invalid completed import payload.")
+		else: terminal = raw
+
+func _read() -> void:
+	if stdio != null and not output_eof:
+		var bytes := stdio.get_buffer(READ_BUDGET)
+		received += bytes.size()
+		buffer.append_array(bytes)
+		output_eof = stdio.get_error() == ERR_FILE_EOF or (exited and bytes.is_empty())
+		if received > PIPE_LIMIT:
+			_fail("Import IPC exceeds 1 MiB.")
+			buffer.clear()
+		else:
+			var newline := buffer.find(10)
+			while newline >= 0 and not cancelled:
+				_event(buffer.slice(0, newline))
+				buffer = buffer.slice(newline + 1)
+				newline = buffer.find(10)
+			if buffer.size() > LINE_LIMIT: _fail("Import IPC line exceeds 4 KiB.")
+	if stderr_pipe != null and not error_eof:
+		var bytes := stderr_pipe.get_buffer(READ_BUDGET)
+		received += bytes.size()
+		errors = (errors + bytes.get_string_from_utf8()).right(4096)
+		error_eof = stderr_pipe.get_error() == ERR_FILE_EOF or (exited and bytes.is_empty())
+		if received > PIPE_LIMIT: _fail("Import IPC exceeds 1 MiB.")
+
+func poll(now_ms: int = -1) -> void:
+	if done or pid <= 0: return
+	_read()
+	if not cancelled and (Time.get_ticks_msec() if now_ms < 0 else now_ms) >= deadline_ms: _fail("Import timed out after 120 seconds; use a smaller source or retry.")
+	if not exited:
+		exited = not OS.is_process_running(pid)
+		if exited: exit_code = OS.get_process_exit_code(pid)
+	if not exited: return
+	# Drain remaining bounded pipe bytes over frames before judging completion.
+	if not cancelled and (not output_eof or not error_eof): return
+	if cancelled:
+		result = {"ok": false, "error": {"code": "E_IMPORT_CANCELLED" if failure == "" else "E_IMPORT", "message": failure if failure != "" else "Import cancelled; existing map retained."}}
+	elif exit_code != 0 or terminal.is_empty() or not buffer.is_empty():
+		result = {"ok": false, "error": {"code": "E_IMPORT_EXIT", "message": "Importer exited without a valid result (exit %d). %s" % [exit_code, errors]}}
+	else:
+		var file := FileAccess.open(output_path, FileAccess.READ)
+		if file == null or file.get_length() != int(terminal.total):
+			result = {"ok": false, "error": {"code": "E_IMPORT_OUTPUT", "message": "Import output missing or has wrong size."}}
+		else:
+			var bytes := file.get_buffer(LAYER.MAX_BYTES + 1)
+			var digest := HashingContext.new()
+			digest.start(HashingContext.HASH_SHA256)
+			digest.update(bytes)
+			result = {"ok": true, "data": JSON.parse_string(bytes.get_string_from_utf8())} if digest.finish().hex_encode() == terminal.sha256 else {"ok": false, "error": {"code": "E_IMPORT_OUTPUT", "message": "Import output hash mismatch."}}
+		if file != null: file.close()
+	done = true
+	_close()
+	cleanup()
+
+func _close() -> void:
+	if stdio != null: stdio.close()
+	if stderr_pipe != null: stderr_pipe.close()
+	stdio = null
+	stderr_pipe = null
+	pid = -1
+
+func shutdown() -> void:
+	cancel()
+	_close()
+	# Only clean after confirmed exit; a killed child may still be finishing.
+	if exited: cleanup()
+
+func cleanup() -> void:
+	if directory == "": return
+	# Only files owned by this request; never recursively delete user inputs.
+	for name in ["geojson.py", "import_layer.py", "layer.json"]:
+		var path := directory.path_join(name)
+		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute(directory)
