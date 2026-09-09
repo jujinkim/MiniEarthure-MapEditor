@@ -1,4 +1,8 @@
 extends AcceptDialog
+const HEIGHTMAP_LAYER := preload("./heightmap_import_layer.gd")
+var heightmap_candidate: RefCounted
+var heightmap_review: ConfirmationDialog
+var heightmap_summary: RichTextLabel
 const FILES := preload("./authoring_files.gd")
 var editor: Control
 var author: RefCounted
@@ -30,6 +34,46 @@ func _ready() -> void:
 	source_picker.access = FileDialog.ACCESS_FILESYSTEM
 	source_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	add_child(source_picker)
+	heightmap_review = ConfirmationDialog.new()
+	heightmap_review.title = "Review new heightmap source layer"
+	heightmap_review.ok_button_text = "Adopt and activate tile"
+	heightmap_review.cancel_button_text = "Discard"
+	heightmap_review.min_size = Vector2i(640, 420)
+	add_child(heightmap_review)
+	heightmap_summary = RichTextLabel.new()
+	heightmap_summary.custom_minimum_size = Vector2(600, 340)
+	heightmap_review.add_child(heightmap_summary)
+	heightmap_review.confirmed.connect(_adopt_heightmap)
+	heightmap_review.canceled.connect(_discard_heightmap)
+	visibility_changed.connect(func():
+		if not visible:
+			heightmap_review.hide()
+			_discard_heightmap()
+	)
+
+func _discard_heightmap() -> void:
+	if heightmap_candidate != null: heightmap_candidate.discard()
+	heightmap_candidate = null
+
+func _exit_tree() -> void:
+	_discard_heightmap()
+
+func _stage_heightmap(path: String, cell: Vector2i, spacing: int, offset: int, step: int, accuracy: int, attribution: Dictionary) -> void:
+	_discard_heightmap()
+	heightmap_candidate = HEIGHTMAP_LAYER.new()
+	var failure: String = heightmap_candidate.stage(author.terrain, path, cell, spacing, offset, step, accuracy, attribution)
+	if failure != "":
+		_discard_heightmap()
+		report(failure)
+		return
+	heightmap_summary.text = heightmap_candidate.summary()
+	heightmap_review.popup_centered(Vector2i(680, 460))
+	feedback.text = "Validated candidate; document unchanged. Review then adopt or discard."
+
+func _adopt_heightmap() -> void:
+	if heightmap_candidate == null: return
+	report(heightmap_candidate.adopt(author.terrain))
+	_discard_heightmap()
 
 func open() -> void:
 	editor.canvas.cancel_interaction()
@@ -200,6 +244,9 @@ func _terrain() -> void:
 	var source := text(box, "Source attribution", "")
 	var license := text(box, "License", "")
 	var notice := text(box, "Notice", "")
+	button(box, "Stage heightmap for review…", func():
+		if fresh(): _stage_heightmap(path.text, Vector2i(x.value, y.value), int(author.options.grid_cm), int(offset.value), int(step.value), int(accuracy.value), {"source":source.text,"license":license.text,"notice":notice.text})
+	)
 	button(box, "Import heightmap atomically", func():
 		if fresh(): report(author.terrain.import_png(path.text, Vector2i(x.value, y.value), int(author.options.grid_cm), int(offset.value), int(step.value), int(accuracy.value), {"source": source.text, "license": license.text, "notice": notice.text}))
 	)

@@ -68,7 +68,7 @@ static func remove_scratch(path: String) -> void:
 	for child in dir.get_directories(): remove_scratch(path.path_join(child))
 	DirAccess.remove_absolute(path)
 
-static func apply(store: RefCounted, label: String, patches: Array, blobs: Dictionary, cells: Array = []) -> String:
+static func apply(store: RefCounted, label: String, patches: Array, blobs: Dictionary, cells: Array = [], validate_only: bool = false) -> String:
 	if store.has_gesture(): return "Finish or cancel the active gesture first."
 	if store.project_path.is_empty(): return "Save a project directory before editing file-backed terrain or assets."
 	var candidate: Dictionary = store.document.duplicate(true)
@@ -87,6 +87,7 @@ static func apply(store: RefCounted, label: String, patches: Array, blobs: Dicti
 	if bytes > store.HISTORY_BYTES: return "Command exceeds the shared 16 MiB binary/text undo budget."
 	failure = validate(store, candidate, blobs, cells)
 	if failure != "": return failure
+	if validate_only: return ""
 	for path: String in blobs:
 		# Only content-addressed new payloads may be installed, never original paths.
 		if path != "editor/" + digest(blobs[path]) + "." + path.get_extension(): return "Invalid immutable payload identity."

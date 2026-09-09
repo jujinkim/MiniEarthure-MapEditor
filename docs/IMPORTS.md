@@ -42,7 +42,7 @@ python3 scripts/check_documents.py --godot /path/to/godot --script import_layer_
 I01/I03 Mac import/native/document, rendered adoption and compiled resource-PCK
 checks are scoped evidence. Actual Windows/Linux exported filesystem/UI and
 installed Client acceptance remain open. WGS84 projection is implemented below;
-heightmap ImportLayer staging and external OSM/Overture/DEM workflows remain I02.
+The staged local heightmap profile is documented below; external OSM/Overture/DEM workflows remain I02.
 
 ## Local process lifecycle (I03)
 
@@ -137,9 +137,67 @@ The tests cover official north/south PROJ reference values, local-cm fixture par
 axis/radius/zone rejection, metadata/recovery/package/native generation and changed
 source → new layer → Undo/Redo without replacing an existing saved package (I04
 local vector scope). Existing E03 PNG16 authoring import remains a separate direct
-terrain-edit operation; it is not a completed staged raster ImportLayer/reimport
-workflow. That raster unit is next before external PBF/Overture/DEM adapters.
+terrain-edit operation; the staged raster ImportLayer/reimport workflow below is a separate action.
+External PBF/Overture/DEM adapters remain separate units.
 
 Projection references: [PROJ UTM](https://proj.org/en/stable/operations/projections/utm.html),
 [pyproj Transformer](https://pyproj4.github.io/pyproj/stable/api/transformer.html).
 No third-party implementation is copied; optional packages retain their own licenses.
+
+
+## Staged local heightmap (I02 raster unit)
+
+Authoring settings → Terrain → **Stage heightmap for review…** uses the same
+explicit PNG/cell/spacing/offset/step/accuracy/source/license fields as direct
+terrain editing. A saved project and unlocked terrain are required. Review shows
+the captured source SHA-256/bytes, fresh layer identity, full-cell sample grid,
+restored height range, accuracy, axes and previous active descriptor. **Discard**
+leaves document/history/project payloads unchanged. **Adopt and activate tile**
+commits the tile and source notice as one binary/text Undo command.
+
+`heightmap_import_layer.gd` is an Editor-local typed raster candidate, separate
+from the additive vector interchange. Each import has a fresh namespace and notice;
+MapKit still permits only one active heightmap per cell. Explicit adoption selects
+the new tile; reimport never automatically replaces it. Previous active references
+are included in the notice and actual old/new bytes are retained by the shared
+16 MiB Undo/Redo budget. Source notices persist after later replacements. This is
+not a persistent pending-layer library: closing/discarding a review releases its
+candidate. Inactive file references embedded in notices are provenance; Save As
+copies current and history-referenced files under its existing contract, not every
+historical notice's files. Original project payloads are never garbage-collected.
+
+PNG columns advance local x and rows local y from the cell's minimum corner;
+unsigned samples restore `offset_cm + sample * step_cm`. No flip, clipping,
+resampling, geographic/vertical CRS inference or neighbor repair occurs. Existing
+4 MiB input/513-side PNG16, 2 m minimum dividing spacing, offset ±1,000,000 cm,
+step 1–100 cm and accuracy 0 (unknown)–1,000,000 cm admission limits apply. Source
+accuracy is independent of spacing/step. Native MapKit validates exact dimensions,
+bounds, neighboring/implicit-flat seams and affected road generation before review
+and again at adoption. Candidate payload validation keeps the 64 MiB total limit.
+
+Staging captures bytes without publishing to the project. Later changes to the
+selected source do not alter this reviewed snapshot; stage again to read new bytes.
+Document change signals (including Undo then Redo), project replacement, changed
+referenced project files, locks and active gestures block stale adoption. Known
+project payload hashes are rechecked before adoption, including the replaced file.
+Consumed candidates cannot be adopted twice. Existing native validation and
+immutable file installation preserve original files and saved packages on failure.
+
+This small one-cell profile reuses E03 bounded synchronous PNG/native/file work;
+it does not claim cancellable in-stage processing, subprocess progress or RSS/frame
+latency acceptance. Cancel applies to the pending review. Larger/reprojected DEM
+and external adapters still require I03 process ownership and stage progress.
+No package schema, MapKit generator or game dependency changes are introduced.
+
+Checks (synthetic sources; isolated public project/user data):
+
+```sh
+python3 scripts/check_documents.py --godot /path/to/godot --script heightmap_import_validator --script authoring_safety_validator --script authoring_validator --script import_layer_validator --script document_history_validator --script document_recovery_validator --log-dir /new/path/raster-core
+python3 scripts/check_documents.py --godot /path/to/godot --script heightmap_import_validator --rendered --log-dir /new/path/raster-rendered
+python3 scripts/check_documents.py --godot /path/to/godot --script heightmap_import_validator --resource-pack --log-dir /new/path/raster-pack
+```
+
+Mac tests cover snapshot/discard/reimport/one-shot/stale/lock/file-conflict/seam/
+invalid-input safety, metadata save/recovery/package preservation, old/new binary
+Undo/Redo, review controls and compiled resource loading. Windows/Linux dialogs,
+exported UI and real datasets/performance remain separate acceptance gates.

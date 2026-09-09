@@ -159,3 +159,7 @@ Representative-map p95/RSS and E05 installed-Client driving remain separate gate
 affected-cell invalidation, frame-budgeted preview attachment, file-copy Save As
 and capacity/error presentation preserve these command/payload boundaries.
 E05 installed-Client authoring and final platform/performance acceptance remain open.
+
+Staged heightmap review/adoption is also available beside direct PNG editing.
+See [IMPORTS.md](IMPORTS.md#staged-local-heightmap-i02-raster-unit) for snapshot,
+active-cell replacement, source notices and review cancellation semantics.
