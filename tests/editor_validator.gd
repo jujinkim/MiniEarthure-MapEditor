@@ -83,7 +83,9 @@ func _run() -> void:
 		await create_timer(0.01).timeout
 		if not ui.busy:
 			break
-	check(not ui.busy and ui.store.document.buildings.size() == 2, "child-process GeoJSON import")
+	check(not ui.busy and ui.pending_import != null and ui.store.document.buildings.size() == 1, "child-process GeoJSON prepares without mutation")
+	ui._adopt_import()
+	check(ui.store.document.buildings.size() == 2, "explicit import adoption")
 	check(ui.store.document.attributions.size() == 1, "import retains source license")
 	ui.store.undo()
 	check(ui.store.document.buildings.size() == 1 and ui.store.document.attributions.is_empty(), "import is one undo command")

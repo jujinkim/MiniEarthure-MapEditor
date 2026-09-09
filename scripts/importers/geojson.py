@@ -1,96 +1,112 @@
 #!/usr/bin/env python3
-"""Explicit local-metre GeoJSON adapter. Emits a new layer; never edits source."""
+"""Explicit local-metre geometry adapter. Produces an unadopted ImportLayer."""
 import argparse
 import hashlib
 import json
-import math
 from pathlib import Path
 import sys
+import uuid
+from import_layer import ImportLayer, Source, MAX_INPUT, number, text, strict_json
 
-MAX_BYTES = 32 * 1024 * 1024
 
-
-def convert(value, source, license_name):
-    if value.get('type') != 'FeatureCollection':
-        raise ValueError('expected FeatureCollection')
-    patches, warnings = [], []
-    layer_id = hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()[:16]
+def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None):
+    if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or "crs" in value:
+        raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
+    raw = source_bytes if source_bytes is not None else json.dumps(value, sort_keys=True, allow_nan=False).encode()
+    layer = ImportLayer(layer_id or uuid.uuid4().hex, Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), {"mode": "local-metres", "quantization_cm": 1})
+    features = value.get("features")
+    if not isinstance(features, list) or not 1 <= len(features) <= 20_000:
+        raise ValueError("expected 1..20000 features")
+    layer.feature_count = len(features)
 
     def point(raw):
-        if not isinstance(raw, list) or len(raw) < 2:
-            raise ValueError('invalid coordinate')
-        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in raw):
-            raise ValueError('coordinates must be finite numbers')
-        if any(abs(v) > 100_000 for v in raw):
-            raise ValueError('coordinate exceeds local map profile')
-        return [round(raw[0] * 100), round(raw[1] * 100)]
+        if not isinstance(raw, list) or len(raw) != 2:
+            raise ValueError("expected exactly two coordinates; Z is not silently discarded")
+        p = [round(number(raw[0], "x") * 100), round(number(raw[1], "y") * 100)]
+        layer.point(*p)
+        return p
 
-    def add(field, record):
-        patches.append({'field': field, 'id': record['id'], 'before': None, 'after': record})
-
-    features = value.get('features', [])
-    if not isinstance(features, list) or len(features) > 20_000:
-        raise ValueError('feature count exceeds import profile')
     for index, feature in enumerate(features):
-        geometry = feature.get('geometry') or {}
-        properties = feature.get('properties') or {}
-        kind = geometry.get('type')
-        coordinates = geometry.get('coordinates', [])
-        identity = f'import-{layer_id}-{index}'
-        if kind == 'LineString':
-            points = [[p[0], round(float(properties.get('elevation_m', 0.2)) * 100), p[1]] for p in map(point, coordinates)]
+        if not isinstance(feature, dict) or feature.get("type") != "Feature":
+            raise ValueError("expected Feature")
+        geometry, properties = feature.get("geometry"), feature.get("properties")
+        if properties is None:
+            properties = {}
+        if not isinstance(geometry, dict) or not isinstance(properties, dict):
+            raise ValueError("expected geometry and properties objects")
+        kind, coordinates = geometry.get("type"), geometry.get("coordinates")
+        if not isinstance(coordinates, list):
+            raise ValueError("expected coordinate array")
+        identity = f"import-{layer.layer_id}-{index}"
+
+        def scalar(key, default, minimum=-100_000, maximum=100_000):
+            if key not in properties:
+                layer.estimate(key)
+            return number(properties.get(key, default), key, minimum, maximum)
+
+        if kind == "LineString":
+            elevation = round(scalar("elevation_m", 0.2) * 100)
+            points = [[p[0], elevation, p[1]] for p in map(point, coordinates)]
             if len(points) < 2:
-                raise ValueError('road requires two points')
-            for suffix, p in [('from', points[0]), ('to', points[-1])]:
-                add('nodes', {'id': identity + '-' + suffix, 'position': p, 'level': int(properties.get('level', 0))})
-            add('roads', {'id': identity, 'from': identity + '-from', 'to': identity + '-to', 'points': points,
-                          'widths_cm': [round(float(properties.get('width_m', 8)) * 100)] * (len(points) - 1),
-                          'surfaces': [properties.get('surface', 'asphalt')] * (len(points) - 1), 'kind': 'ground',
-                          'clearance_cm': None, 'sidewalk_cm': None})
-            warnings.append(f'{identity}: disconnected endpoints retained; connect explicitly in editor')
-        elif kind == 'Polygon':
-            if len(coordinates) != 1:
-                raise ValueError('polygon holes require explicit exclusion import; not silently flattened')
-            polygon = list(map(point, coordinates[0]))
-            if polygon and polygon[-1] == polygon[0]:
-                polygon.pop()
-            if properties.get('landuse') in ('forest', 'orchard'):
-                add('zones', {'id': identity, 'polygon': polygon, 'kind': properties['landuse'], 'spacing_cm': 800,
-                              'density_per_mille': 750, 'exclusions': []})
-                warnings.append(f'{identity}: vegetation spacing/density estimated')
+                raise ValueError("road requires two points")
+            level = scalar("level", 0, -100, 100)
+            if int(level) != level:
+                raise ValueError("level must be integral")
+            for suffix, p in [("from", points[0]), ("to", points[-1])]:
+                layer.add("nodes", {"id": identity + "-" + suffix, "position": p, "level": int(level)})
+            width = round(scalar("width_m", 8, 0.01, 1000) * 100)
+            surface = text(properties.get("surface", "asphalt"), "surface", 64)
+            if "surface" not in properties: layer.estimate("surface")
+            layer.add("roads", {"id": identity, "from": identity + "-from", "to": identity + "-to", "points": points,
+                "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": "ground", "clearance_cm": None, "sidewalk_cm": None})
+            layer.warning(f"{index}: disconnected endpoints; connect explicitly in Editor")
+        elif kind == "Polygon":
+            if len(coordinates) != 1 or not isinstance(coordinates[0], list):
+                raise ValueError("polygon holes require explicit exclusions; no silent flattening")
+            ring = coordinates[0]
+            if len(ring) < 4 or ring[0] != ring[-1]:
+                raise ValueError("polygon ring must be closed with at least four positions")
+            polygon = list(map(point, ring[:-1]))
+            if properties.get("landuse") in ("forest", "orchard"):
+                layer.add("zones", {"id": identity, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 800, "density_per_mille": 750, "exclusions": []})
+                layer.estimate("vegetation_spacing_density")
             else:
-                add('buildings', {'id': identity, 'footprint': polygon, 'base_cm': round(float(properties.get('base_m', 0)) * 100),
-                                  'height_cm': round(float(properties.get('height_m', 12)) * 100), 'usage': properties.get('usage', 'unknown'),
-                                  'material': 'concrete', 'roof': 'flat'})
-                if 'height_m' not in properties:
-                    warnings.append(f'{identity}: building height estimated at 12 m')
+                layer.add("buildings", {"id": identity, "footprint": polygon,
+                    "base_cm": round(scalar("base_m", 0) * 100), "height_cm": round(scalar("height_m", 12, 0.01, 1000) * 100),
+                    "usage": text(properties.get("usage", "unknown"), "usage", 64), "material": "concrete", "roof": "flat"})
+                layer.estimate("material_roof")
+                if "usage" not in properties: layer.estimate("usage")
         else:
-            raise ValueError(f'unsupported geometry {kind}; no features imported')
-    return {'layer_id': layer_id, 'source': source, 'license': license_name, 'coordinates': 'local-metres', 'patches': patches, 'warnings': warnings}
+            raise ValueError(f"unsupported geometry {kind}; no features imported")
+        if progress and (index % 100 == 0 or index + 1 == len(features)):
+            progress(index + 1, len(features))
+    layer.encode()  # Bound the complete contract before handing it to any caller.
+    return layer
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('source', type=Path)
-    parser.add_argument('output', type=Path)
-    parser.add_argument('--coordinates', required=True, choices=['local-metres'])
-    parser.add_argument('--license', required=True)
+    parser.add_argument("source", type=Path)
+    parser.add_argument("output", type=Path)
+    parser.add_argument("--coordinates", required=True, choices=["local-metres"])
+    parser.add_argument("--license", required=True)
+    parser.add_argument("--accuracy", default="unknown")
+    parser.add_argument("--layer-id", required=True)
     args = parser.parse_args()
-    if args.source.stat().st_size > MAX_BYTES:
-        raise ValueError('input exceeds 32 MiB')
-    data = args.source.read_bytes()
-    if len(data) > MAX_BYTES:
-        raise ValueError('input grew beyond 32 MiB')
-    print(json.dumps({'stage': 'parse', 'completed': len(data), 'total': len(data), 'unit': 'bytes'}), flush=True)
-    result = convert(json.loads(data), args.source.name, args.license)
-    with args.output.open('x', encoding='utf-8') as stream:
-        json.dump(result, stream, sort_keys=True, separators=(',', ':'), allow_nan=False)
-    print(json.dumps({'stage': 'complete', 'completed': len(result['patches']), 'unit': 'records'}), flush=True)
+    with args.source.open("rb") as stream:
+        raw = stream.read(MAX_INPUT + 1)
+    if len(raw) > MAX_INPUT:
+        raise ValueError("input exceeds 32 MiB")
+    print(json.dumps({"stage": "parse", "completed": len(raw), "total": len(raw), "unit": "bytes"}), flush=True)
+    result = convert(strict_json(raw), args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy)
+    with args.output.open("xb") as stream:
+        stream.write(result.encode())
+    print(json.dumps({"stage": "complete", "completed": result.feature_count, "total": result.feature_count, "unit": "features"}), flush=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
-    except (ValueError, OSError, TypeError, KeyError, OverflowError) as exc:
-        print(json.dumps({'error': str(exc)}), file=sys.stderr)
+    except (ValueError, OSError, TypeError, KeyError, OverflowError, RecursionError) as exc:
+        print(json.dumps({"error": str(exc)[:1024]}), file=sys.stderr)
         sys.exit(1)

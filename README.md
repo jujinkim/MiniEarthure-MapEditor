@@ -80,11 +80,12 @@ E01's 2D type/import view layers never remove source records from preview or exp
 Full platform, representative-map performance and installed-Client authoring acceptance
 remain open; this is not the completed transition plan.
 
-Import GeoJSON asks for an explicit license and local-metre coordinates, then runs
-the isolated Python 3 adapter in a child process. It emits a new layer and warnings,
-never modifies the source and never guesses geographic projection. Import cancellation
-and progress IPC remain outstanding. WGS84,
-OSM/PBF/downloads, Overture and Copernicus import adapters are not implemented.
+Import GeoJSON asks for a license and source accuracy, then prepares a typed local-metre
+layer in a Python 3 child process. Review extent, provenance and estimated values
+before **Adopt new layer**. Discard changes nothing; reimport creates a fresh layer
+and adoption is one Undo command. See [import contracts](docs/IMPORTS.md).
+Geographic projection, child-process cancellation/progress and external source
+adapters remain subsequent import work.
 
 Linux native build, command/save/recovery/export and rendered preview are tested.
 E01 Mac pointer/key, layer/property/panel and graph-safety checks are scoped

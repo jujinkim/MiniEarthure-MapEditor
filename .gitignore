@@ -3,3 +3,5 @@ target/
 *.import
 .cache/
 dist/
+
+__pycache__/

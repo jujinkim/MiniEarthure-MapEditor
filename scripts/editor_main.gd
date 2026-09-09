@@ -69,6 +69,13 @@ var generation := 0
 var worker_generation := 0
 var import_dialog: ConfirmationDialog
 var import_license: LineEdit
+var import_accuracy: LineEdit
+const IMPORT_LAYER := preload("./import_layer.gd")
+var import_identity := ""
+var pending_import: RefCounted
+var import_review: ConfirmationDialog
+var import_summary: TextEdit
+var import_review_generation := 0
 var selected_field := ""
 var selected_record: Dictionary = {}
 var displayed_map_id := ""
@@ -323,11 +330,28 @@ func _build_ui() -> void:
 	import_license = LineEdit.new()
 	import_license.placeholder_text = "Source license (required)"
 	import_license.custom_minimum_size = Vector2(540, 40)
-	import_dialog.add_child(import_license)
+	var import_fields := VBoxContainer.new()
+	import_dialog.add_child(import_fields)
+	import_fields.add_child(import_license)
+	import_accuracy = LineEdit.new()
+	import_accuracy.placeholder_text = "Source accuracy / resolution (unknown if omitted)"
+	import_fields.add_child(import_accuracy)
 	import_dialog.get_ok_button().disabled = true
 	import_license.text_changed.connect(func(value): import_dialog.get_ok_button().disabled = value.strip_edges() == "")
 	import_dialog.confirmed.connect(func(): _choose("import"))
 	add_child(import_dialog)
+	import_review = ConfirmationDialog.new()
+	import_review.title = "Review imported layer"
+	import_review.ok_button_text = "Adopt new layer"
+	import_review.cancel_button_text = "Discard"
+	import_summary = TextEdit.new()
+	import_summary.editable = false
+	import_summary.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	import_summary.custom_minimum_size = Vector2(640, 340)
+	import_review.add_child(import_summary)
+	import_review.confirmed.connect(_adopt_import)
+	import_review.canceled.connect(_discard_import)
+	add_child(import_review)
 	_build_test_drive_dialog()
 
 func _checkbox_icon(checked: bool) -> Texture2D:
@@ -543,6 +567,7 @@ func _apply_properties() -> void:
 	if failure == "": _selection(canvas.selected)
 
 func _document_changed() -> void:
+	_discard_import()
 	generation += 1
 	if package_work != null: package_work.cancel()
 	_cancel_attachment()
@@ -647,6 +672,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 		_status(error_string(err))
 
 func _cancel_operation() -> void:
+	_discard_import()
 	generation += 1
 	preview_due = 0
 	if package_work != null: package_work.cancel()
@@ -780,22 +806,31 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 	var test_request := drive_request.duplicate(true)
 	var import_script := ProjectSettings.globalize_path("user://importers/geojson.py")
 	if operation == "import":
-		var source_code := FileAccess.get_file_as_string("res://scripts/importers/geojson.py")
-		var failure := store.files.write(import_script, source_code, store.files.digest(import_script))
-		if failure != "" or source_code == "":
-			busy = false
-			_status(failure if failure != "" else "GeoJSON importer is missing.")
-			return
+		_discard_import()
+		import_identity = Crypto.new().generate_random_bytes(16).hex_encode()
+		for module in ["geojson.py", "import_layer.py"]:
+			var source_code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
+			var target := import_script.get_base_dir().path_join(module)
+			var failure := store.files.write(target, source_code, store.files.digest(target))
+			if failure != "" or source_code == "":
+				busy = false
+				_status(failure if failure != "" else "Importer module is missing.")
+				return
+	var identity := import_identity
+	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
 	var import_output := ProjectSettings.globalize_path("user://import-" + Crypto.new().generate_random_bytes(8).hex_encode() + ".json")
 	var err := worker.start(func():
 		if operation == "test_drive":
 			return {"operation": operation, "result": TEST_DRIVE.prepare(source, destination, test_request.document, test_request.x_cm, test_request.y_cm, test_request.surface)}
 		if operation == "import":
 			var log: Array = []
-			var exit_code := OS.execute("python3", [import_script, source, import_output, "--coordinates", "local-metres", "--license", destination], log, true)
+			var exit_code := OS.execute("python3", [import_script, source, import_output, "--coordinates", "local-metres", "--license", destination, "--layer-id", identity, "--accuracy", accuracy], log, true)
 			var result := {"ok": false, "error": {"code": "E_IMPORT", "message": "\n".join(log)}}
 			if exit_code == 0 and FileAccess.file_exists(import_output):
-				result = {"ok": true, "data": JSON.parse_string(FileAccess.get_file_as_string(import_output))}
+				var read := FileAccess.open(import_output, FileAccess.READ)
+				if read != null and read.get_length() <= IMPORT_LAYER.MAX_BYTES:
+					result = {"ok": true, "data": JSON.parse_string(read.get_as_text())}
+				if read != null: read.close()
 				DirAccess.remove_absolute(import_output)
 			return {"operation": operation, "result": result}
 		return {"operation": operation, "result": TEST_DRIVE.error("E_STATE", "Unsupported worker operation.")}
@@ -839,14 +874,32 @@ func _process(_delta: float) -> void:
 		if generation != worker_generation:
 			_status("Document changed during import; retry to add the new layer.")
 			return
-		var layer: Dictionary = result.data
-		var source := str(layer.source) + "#" + str(layer.layer_id)
-		var patches: Array = layer.patches
-		var attribution := {"source": source, "license": layer.license, "notice": "Local-metre GeoJSON import; " + "; ".join(layer.warnings)}
-		patches.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
-		var failure := store.apply_command("Import " + str(layer.source), patches)
-		_status(failure if failure != "" else "Imported new layer. " + " · ".join(layer.warnings))
+		var layer := IMPORT_LAYER.new()
+		var failure := layer.load_value(result.data, import_identity)
+		if failure == "": failure = layer.validate_for(store)
+		if failure != "":
+			_status("E_IMPORT: " + failure)
+			return
+		pending_import = layer
+		import_review_generation = generation
+		import_summary.text = layer.summary()
+		import_review.popup_centered(Vector2i(760, 460))
+		_status("Import prepared. Review and adopt the new layer, or discard it.")
 		return
+
+func _discard_import() -> void:
+	pending_import = null
+	if import_review != null: import_review.hide()
+
+func _adopt_import() -> void:
+	if pending_import == null or generation != import_review_generation:
+		_discard_import()
+		_status("E_IMPORT_STALE: Document changed; import again.")
+		return
+	var candidate: RefCounted = pending_import
+	_discard_import()
+	var failure: String = candidate.adopt(store)
+	_status(failure if failure != "" else "Imported new layer. Undo removes only this adoption.")
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is not InputEventKey or not event.pressed or event.echo: return
