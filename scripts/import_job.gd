@@ -23,12 +23,13 @@ var progress := {}
 var terminal := {}
 var sequence := 0
 var phase := -1
+var stages := ["read", "parse", "convert", "write", "complete"]
 var done := false
 var result := {}
 var output_eof := false
 var error_eof := false
 
-func start(source: String, license_name: String, accuracy: String, python: String, token: String, coordinates: Dictionary = {"mode":"local-metres"}, input_format: String = "geojson") -> String:
+func start(source: String, license_name: String, accuracy: String, python: String, token: String, coordinates: Dictionary = {"mode":"local-metres"}, input_format: String = "geojson", source_label: String = "") -> String:
 	if pid != -1 or directory != "": return "ImportJob instances are single use."
 	if input_format not in ["geojson", "pbf", "osm"]: return "Unsupported source format."
 	if input_format != "geojson" and coordinates.get("mode") != "wgs84-utm": return "OSM requires explicit WGS84 origins."
@@ -51,6 +52,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	output_path = directory.path_join("layer.json")
 	var arguments := PackedStringArray(["-B", "-u", directory.path_join("geojson.py"), source, output_path,
 		"--coordinates", str(coordinates.get("mode", "")), "--input-format", input_format, "--license", license_name, "--accuracy", accuracy, "--layer-id", token, "--watch-parent"])
+	if source_label != "": arguments.append_array(PackedStringArray(["--source-name", source_label]))
 	if coordinates.get("mode") == "wgs84-utm":
 		for key in ["origin", "local_origin_m"]:
 			if coordinates.get(key) is not Array or coordinates[key].size() != 2:
@@ -99,7 +101,6 @@ func _event(line: PackedByteArray) -> void:
 		_fail("Invalid/stale import progress event.")
 		return
 	sequence += 1
-	var stages := ["read", "parse", "convert", "write", "complete"]
 	var index := stages.find(raw.get("stage"))
 	if index < phase or index > phase + 1 or index < 0 or not terminal.is_empty() or not LAYER._count(raw.get("completed"), 32 * 1024 * 1024) or not LAYER._count(raw.get("total"), 32 * 1024 * 1024) or raw.completed > raw.total:
 		_fail("Invalid import progress counters/stage.")
@@ -107,12 +108,12 @@ func _event(line: PackedByteArray) -> void:
 	if index == phase and (raw.total != progress.total or raw.completed < progress.completed):
 		_fail("Import progress regressed.")
 		return
-	if raw.get("unit") != ("features" if index == 2 else "bytes"):
+	if raw.get("unit") != ("features" if raw.get("stage") == "convert" else "bytes"):
 		_fail("Invalid import progress unit.")
 		return
 	phase = index
 	progress = raw
-	if index == 4:
+	if index == stages.size() - 1:
 		if not LAYER._hex(raw.get("sha256"), 64) or raw.completed != raw.total or raw.total > LAYER.MAX_BYTES:
 			_fail("Invalid completed import payload.")
 		else: terminal = raw
@@ -185,7 +186,7 @@ func shutdown() -> void:
 func cleanup() -> void:
 	if directory == "": return
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "layer.json"]:
+	for name in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_download.py", "request.json", "download.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)

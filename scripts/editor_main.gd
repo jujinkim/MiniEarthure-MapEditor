@@ -88,6 +88,14 @@ var import_origin_lat: SpinBox
 var import_origin_x: SpinBox
 var import_origin_y: SpinBox
 var import_coordinates_request := {}
+const DOWNLOAD_JOB := preload("./download_job.gd")
+var download_dialog: ConfirmationDialog
+var download_url: LineEdit
+var download_summary: TextEdit
+var download_plan := {}
+var acquisition_mode := ""
+var download_sources := {}
+
 var selected_field := ""
 var selected_record: Dictionary = {}
 var displayed_map_id := ""
@@ -353,6 +361,7 @@ func _build_ui() -> void:
 	import_source_format = OptionButton.new()
 	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)"]: import_source_format.add_item(format_title)
 	import_fields.add_child(import_source_format)
+	_button(import_fields, "Download Geofabrik region…", _open_download)
 	import_fields.add_child(import_license)
 	import_accuracy = LineEdit.new()
 	import_accuracy.placeholder_text = "Source accuracy / resolution (unknown if omitted)"
@@ -388,7 +397,7 @@ func _build_ui() -> void:
 		import_dialog.get_ok_button().disabled = import_license.text.strip_edges() == ""
 	)
 
-	_button(import_fields, "Retry last source", func():
+	_button(import_fields, "Import / retry last source", func():
 		import_dialog.hide()
 		if last_import_source == "": _status("Choose a source file first.")
 		else: _start_import(last_import_source, import_license.text.strip_edges())
@@ -409,6 +418,7 @@ func _build_ui() -> void:
 	import_review.confirmed.connect(_adopt_import)
 	import_review.canceled.connect(_discard_import)
 	add_child(import_review)
+	_setup_download()
 	_build_test_drive_dialog()
 
 func _import_number(parent: Control, title: String, minimum: float, maximum: float, initial: float, step_size: float) -> SpinBox:
@@ -890,7 +900,7 @@ func _start_import(source: String, license_name: String) -> void:
 	var input_format: String = ["geojson", "pbf", "osm"][import_source_format.selected]
 	import_coordinates_request.adapter = "geojson-v2" if input_format == "geojson" else "osm-extract-v1"
 	if input_format != "geojson": license_name = IMPORT_LAYER.OSM_LICENSE
-	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format)
+	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, str(download_sources.get(source, "")))
 	if failure != "":
 		_status("E_IMPORT: " + failure)
 		return
@@ -933,7 +943,8 @@ func _process(_delta: float) -> void:
 			import_job = null
 			busy = false
 			import_progress.visible = false
-			_finish_import(result)
+			if acquisition_mode != "": _finish_acquisition(result)
+			else: _finish_import(result)
 		return
 	if not render_job.is_empty():
 		_advance_attachment()
@@ -1162,3 +1173,91 @@ func _launch_test_drive() -> void:
 		return
 	_start_worker("test_drive", store.project_path, snapshot)
 	_status("Validating and packaging test-drive snapshot…")
+
+func _setup_download() -> void:
+	download_dialog = ConfirmationDialog.new()
+	download_dialog.title = "OSM region download · Geofabrik"
+	download_dialog.ok_button_text = "Download reviewed region"
+	var fields := VBoxContainer.new()
+	fields.custom_minimum_size = Vector2(700, 350)
+	download_dialog.add_child(fields)
+	_label(fields, "Public region PBF URL from download.geofabrik.de. Entire provider region; no custom crop.\nCheck size first. Existing 32 MiB / simple-way import limits still apply.")
+	download_url = LineEdit.new()
+	download_url.placeholder_text = "https://download.geofabrik.de/europe/monaco-latest.osm.pbf"
+	fields.add_child(download_url)
+	download_url.text_changed.connect(func(_text):
+		download_plan.clear()
+		download_dialog.get_ok_button().disabled = true
+		download_summary.text = "URL changed. Check region and size again."
+	)
+	_button(fields, "Check region and size", func(): _begin_acquisition({"mode":"probe", "url":download_url.text.strip_edges()}))
+	download_summary = TextEdit.new()
+	download_summary.editable = false
+	download_summary.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	download_summary.custom_minimum_size = Vector2(680, 230)
+	fields.add_child(download_summary)
+	download_dialog.get_ok_button().disabled = true
+	download_dialog.confirmed.connect(func():
+		if download_plan.is_empty(): return
+		var folder := ProjectSettings.globalize_path("user://import-sources")
+		var error := DirAccess.make_dir_recursive_absolute(folder)
+		if error != OK:
+			_status("Cannot create download source folder: " + error_string(error))
+			return
+		var destination := folder.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + ".osm.pbf")
+		_begin_acquisition({"mode":"download", "plan":download_plan.duplicate(true), "destination":destination})
+	)
+	download_dialog.canceled.connect(func():
+		if acquisition_mode != "" and import_job != null: import_job.cancel()
+	)
+	add_child(download_dialog)
+
+func _open_download() -> void:
+	if busy: return
+	import_dialog.hide()
+	download_dialog.popup_centered(Vector2i(760, 460))
+
+func _begin_acquisition(request: Dictionary) -> void:
+	if busy: return
+	_discard_import()
+	if request.mode == "probe": download_plan.clear()
+	download_dialog.get_ok_button().disabled = true
+	var job := _new_download_job()
+	var failure: String = job.start_acquisition(request, import_python.text.strip_edges(), Crypto.new().generate_random_bytes(16).hex_encode())
+	if failure != "":
+		_status("E_DOWNLOAD: " + failure)
+		return
+	acquisition_mode = request.mode
+	import_job = job
+	worker_generation = generation
+	busy = true
+	import_progress.visible = true
+	download_summary.text = "Checking provider…" if request.mode == "probe" else "Downloading. Cancel stops this request; retry starts from zero."
+
+func _finish_acquisition(result: Dictionary) -> void:
+	var mode := acquisition_mode
+	acquisition_mode = ""
+	if not result.ok:
+		download_summary.text = str(result.error.message)
+		_status("E_DOWNLOAD: " + str(result.error.message))
+		return
+	if generation != worker_generation:
+		_status("Document changed; download result will not start an import. Complete source files are retained.")
+		return
+	if mode == "probe":
+		if result.data.requested_url != download_url.text.strip_edges(): return
+		download_plan = result.data
+		var expected := "%d bytes" % int(download_plan.bytes) if download_plan.bytes != null else "unknown (progress shows bytes against the 32 MiB cap)"
+		download_summary.text = "Region: %s\nProvider: Geofabrik\n%s\nExpected transfer: %s; hard limit 32 MiB.\nModified: %s\n%s\n\nWhole provider polygon, buffered borders and complete crossing ways may extend beyond it. No automatic clipping or terrain accuracy guarantee.\nCompleted source + receipt are retained in import-sources. Partial downloads are discarded; retry is a fresh request. Then set WGS84 origins and review the imported layer." % [download_plan.region, download_plan.url, expected, download_plan.modified, download_plan.license]
+		download_dialog.get_ok_button().disabled = download_plan.etag == "" and download_plan.modified == ""
+	else:
+		var source: String = result.data.path
+		download_sources[source] = "Geofabrik " + str(result.data.url)
+		last_import_source = source
+		import_source_format.select(1)
+		import_source_format.item_selected.emit(1)
+		_status("Download retained: " + source + ". Set origins, then Retry last source to review/import.")
+		import_dialog.popup_centered(Vector2i(760, 550))
+
+func _new_download_job() -> RefCounted:
+	return DOWNLOAD_JOB.new()

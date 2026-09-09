@@ -282,3 +282,51 @@ Official contracts checked 2026-09-09:
 [FileProcessor](https://docs.osmcode.org/pyosmium/latest/reference/File-Processing/),
 [Geofabrik extract boundaries](https://download.geofabrik.de/technical.html),
 [OSM copyright/ODbL](https://www.openstreetmap.org/copyright).
+
+## Geofabrik region download wizard (I02 remote acquisition)
+
+From **Import vector → Download Geofabrik region**, paste a public `.osm.pbf`
+URL from [the provider region list](https://download.geofabrik.de/), then choose
+**Check region and size**. The review shows the complete provider region path,
+resolved dated URL, Content-Length when supplied, modification time, ODbL and
+contributor attribution. Unknown length is explicitly unknown; progress then
+uses the 32 MiB hard cap, not a promised final size or ETA. **Download reviewed
+region** is the separate acquisition action. Completed files appear under
+`user://import-sources`; set the WGS84/local origins and use **Import / retry last
+source** to reach the existing omission/estimate review and explicit adoption.
+The provider URL survives in source provenance; an adjacent JSON receipt retains
+headers, requested/resolved URLs, transfer bytes and SHA-256. A downloaded file
+is not automatically a valid/adopted map. The existing whole-input 32 MiB,
+20 km projection and simple-way geometry limits still apply.
+
+This profile selects a whole predefined provider region by URL. It does not
+fetch the global region catalog, crop a custom bbox, assemble multipolygons or
+increase large-region admission. [Geofabrik's technical contract](https://download.geofabrik.de/technical.html)
+uses buffered polygons and complete crossing ways/multipolygons, so content may
+extend beyond nominal borders. Many regions therefore cannot yet be converted
+by the bounded local adapter. [Provider licensing](https://www.geofabrik.de/data/download.html)
+and [OSM attribution](https://www.openstreetmap.org/copyright) remain mandatory.
+
+Only HTTPS on `download.geofabrik.de`, bounded plain region PBF paths and at most
+three same-host redirects are allowed. No credentials, URL queries/fragments,
+proxies, encoded paths, compressed HTTP bodies or partial-content responses.
+HEAD checks size before acquisition. GET must match the reviewed URL, size and
+validators, with If-Match or If-Unmodified-Since; absent validators reject.
+Review expires after ten minutes. Transfer and IPC have byte limits, a 15-second
+socket timeout and the existing 120-second parent/child deadline. No automatic
+retry, parallel download or range resume; retry begins a new request from zero.
+
+The owned job streams to `download.part`, checks exact declared length/EOF and
+hashes bytes. It creates a receipt exclusively and atomically hard-links the
+completed source to a fresh destination without replacement on the same user-data
+filesystem. Failure to publish does not fall back to a non-atomic write. Existing
+sources/receipts are never removed. A crash between receipt/source publication
+can leave a receipt without its source; it is not a successful import. Cancellation,
+owner close, stale URL or changed document cannot start adoption; a fully published
+source is retained even if cancellation races with publication. Only request-owned
+partial/helper files are cleaned. Crash-abandoned job directories are not scanned
+or automatically resumed. Discard/reimport retain earlier documents and packages.
+
+Synthetic HTTP/PBF, owned native process, UI and resource-pack evidence lives in
+the root I02 download report. Actual provider HEAD was checked separately; the
+synthetic transport fixture is not a real regional import or performance result.

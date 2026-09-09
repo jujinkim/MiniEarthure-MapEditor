@@ -109,6 +109,7 @@ def main():
     parser.add_argument("--origin", nargs=2, type=float)
     parser.add_argument("--local-origin", nargs=2, type=float)
     parser.add_argument("--accuracy", default="unknown")
+    parser.add_argument("--source-name")
     parser.add_argument("--layer-id", required=True)
     parser.add_argument("--watch-parent", action="store_true")
     parser.add_argument("--input-format", choices=["geojson", "pbf", "osm"], default="geojson")
@@ -144,7 +145,7 @@ def main():
         options.update(origin=args.origin, local_origin_m=args.local_origin)
     elif args.origin is not None or args.local_origin is not None:
         raise ValueError("local-metre mode must not specify geographic origins")
-    result = convert(value, args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
+    result = convert(value, args.source_name or args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
         progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options)
     if osm_counts is not None:
         from osm_extract import finish
