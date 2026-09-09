@@ -115,8 +115,6 @@ def relation_features(relations, all_ways, nodes, blocked_members, counts, budge
         outers = [[nodes[n] for n in ring] for ring in assemble(selected["outer"])]
         inners = [[nodes[n] for n in ring] for ring in assemble(selected["inner"])]
         polygons = group_rings(outers, inners, budget)
-        if kind == "building" and inners:
-            raise ValueError("OSM building courtyard holes require a MapKit footprint contract; no silent flattening")
         properties = {}
         if kind == "building":
             if "height" in tags: properties["height_m"] = metres(tags, "height")

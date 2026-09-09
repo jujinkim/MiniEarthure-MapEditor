@@ -8,7 +8,8 @@ untrusted results before native MapKit checks and explicit adoption.
 Adapters include `geojson-v2` below and the bounded `osm-extract-v1` snapshot profile
 at the end of this document. Select the format explicitly in **Import vector**.
 `geojson-v2`: explicit local-metre or WGS84 LineString, Polygon and MultiPolygon input.
-Forest/orchard polygon holes become existing zone exclusions; building holes reject.
+Forest/orchard polygon holes become existing zone exclusions; recipe-5 building holes
+are supported by the courtyard extension below, which supersedes earlier rejection.
 The local-metre extension is not RFC 7946 geographic GeoJSON. Legacy `crs`, Z, other
 geometry and invalid/duplicate JSON keys are rejected, never silently flattened. Road endpoints remain disconnected; building/vegetation defaults are
 reported as estimates. Source accuracy defaults to unknown, not coordinate precision.
@@ -563,3 +564,45 @@ COGs. Runtime/MapKit generation did not change. Actual provider/OS/driving and
 multi-cell implementation limits above remain open; this is not final release
 acceptance. Rasterio reads emitted a NumPy 2.5 shape-setting deprecation warning
 in Python tests; native runner diagnostics were empty.
+
+
+## Building courtyard extension — recipe 5, 2026-09-09
+
+This replaces the building-hole rejection in the earlier GeoJSON and OSM
+multipolygon profile. GeoJSON Polygon/MultiPolygon and explicit complete OSM
+outer/inner relations preserve holes in a single MapKit building record. Multiple
+outers/islands retain separate identities. No courtyard is filled or split into
+arbitrary buildings. Overture remains on its earlier single-ring adapter profile.
+
+Choose **Recipe 5** in authoring settings before importing a courtyard. The
+review states this requirement and native validation rejects legacy recipes with
+an actionable error; import does not silently upgrade an existing document.
+Other existing records must also meet recipe-5 (recipe-3 placement) validation.
+The public MapKit contract requires a flat roof, at most 16 strictly interior,
+disjoint holes and 512 total vertices. Touching/crossing/nested rings and invalid
+projected topology reject the whole candidate. Roof/material remain declared
+import estimates. Unsupported/missing courtyard usage is explicitly estimated as
+`residential` (`courtyard_usage`); recognized residential/commercial/industrial/
+public values survive. Source labels/hash, counts, projection, attribution and
+original files remain preserved. No vertical OSM structure is newly inferred.
+
+Review/discard/adopt is still one bounded owned child and one additive Undo
+command. Existing geometry is never replaced: overlapping reimport is rejected
+under recipe-5 clearance rules; remove/relocate old layers explicitly if desired.
+Move/duplicate translate outer and inner rings together. Canvas picking excludes
+the courtyard void; hole-bearing buildings show outlines without a misleading
+filled outer polygon. The shared 3D preview renders exact roof/inner wall prisms;
+export overview and Client picker retain inner outlines. Save, recovery and
+package export preserve the same holes. Cancellation and stale document/request
+checks retain their existing whole-layer publication boundary.
+
+Public regression commands: `cargo test --locked` in the MapKit dependency,
+`python -B -m unittest discover -s tests -p 'test_*.py' -v`, and
+`python scripts/check_documents.py --godot GODOT --import-python PYTHON
+--script courtyard_validator --script import_job_validator --script
+workbench_validator --script document_history_validator --script
+document_recovery_validator --log-dir NEW_DIRECTORY`. Also run courtyard_validator
+with `--resource-pack` and `--rendered` in an isolated Mac environment. Native
+Windows/Linux/installed Client/export and representative-map performance remain
+separate acceptance gates. Overture multipart, structural OSM and multi-cell DEM
+remain distinct unfinished units.

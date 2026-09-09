@@ -29,6 +29,7 @@ static func translated(field: String, record: Dictionary, delta: Vector2) -> Dic
 	if field in ["buildings", "zones"]:
 		var polygons: Array = [after.get("footprint", after.get("polygon", []))]
 		polygons.append_array(after.get("entrances", after.get("exclusions", [])))
+		polygons.append_array(after.get("holes", []))
 		for polygon: Array in polygons:
 			for p: Array in polygon:
 				p[0] += int(delta.x)

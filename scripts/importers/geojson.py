@@ -85,8 +85,6 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 if regrouped != projected:
                     raise ValueError("polygon holes must belong to their declared outer after projection")
             zone = properties.get("landuse") in ("forest", "orchard")
-            if not zone and any(len(rings) != 1 for rings in projected):
-                raise ValueError("building polygon holes require a footprint contract; no silent flattening")
             for part, rings in enumerate(projected):
                 part_id = identity if kind == "Polygon" else f"{identity}-part-{part}"
                 polygon = rings[0][:-1]
@@ -94,9 +92,18 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     layer.add("zones", {"id": part_id, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]})
                     layer.estimate("vegetation_spacing_density")
                 else:
+                    usage = properties.get("usage", "unknown")
+                    if len(rings) > 1:
+                        if len(rings) > 17 or sum(len(r)-1 for r in rings) > 512:
+                            raise ValueError("courtyard supports at most 16 holes and 512 total vertices")
+                        if usage not in ("residential", "commercial", "industrial", "public"):
+                            usage = "residential"
+                            layer.estimate("courtyard_usage")
+                        layer.warning("Building courtyard requires explicit recipe 5 and flat roof; choose recipe 5 before review/adoption.")
                     layer.add("buildings", {"id": part_id, "footprint": polygon,
+                        **({"holes": [hole[:-1] for hole in rings[1:]]} if len(rings) > 1 else {}),
                         "base_cm": round(scalar("base_m", 0) * 100), "height_cm": round(scalar("height_m", 12, 0.01, 1000) * 100),
-                        "usage": text(properties.get("usage", "unknown"), "usage", 64), "material": "concrete", "roof": "flat"})
+                        "usage": text(usage, "usage", 64), "material": "concrete", "roof": "flat"})
                     layer.estimate("material_roof")
                     if "usage" not in properties: layer.estimate("usage")
         else:

@@ -157,10 +157,11 @@ func _draw() -> void:
 		if not available(entry, true): color = Color(0.5, 0.52, 0.55, color.a)
 		if entry.field in ["zones", "buildings"]:
 			if points.size() < 3: continue
-			draw_colored_polygon(points, Color(color, color.a * (0.28 if chosen else 0.12)))
+			if record.get("holes", []).is_empty():
+				draw_colored_polygon(points, Color(color, color.a * (0.28 if chosen else 0.12)))
 			points.append(points[0])
 			draw_polyline(points, color, 2.5 if chosen else 1.5, true)
-			for polygon: Array in record.get("entrances", record.get("exclusions", [])):
+			for polygon: Array in (record.get("entrances", record.get("exclusions", [])) + record.get("holes", [])):
 				var outline := PackedVector2Array()
 				for p: Array in polygon: outline.append(screen(p))
 				if outline.size() > 2:
@@ -195,7 +196,13 @@ func _hit(p: Vector2) -> String:
 		if not available(entry, true): continue
 		var points := EDIT.points(entry.field, entry.record)
 		if entry.field in ["buildings", "zones"]:
-			if Geometry2D.is_point_in_polygon(p, PackedVector2Array(points)): return entry.key
+			if Geometry2D.is_point_in_polygon(p, PackedVector2Array(points)):
+				var courtyard := false
+				for ring: Array in entry.record.get("holes", []):
+					var hole := PackedVector2Array()
+					for point: Array in ring: hole.append(Vector2(point[0], point[1]))
+					if Geometry2D.is_point_in_polygon(p, hole): courtyard = true
+				if not courtyard: return entry.key
 		elif points.size() == 1:
 			if p.distance_to(points[0]) <= 9.0 / _scale(): return entry.key
 		else:

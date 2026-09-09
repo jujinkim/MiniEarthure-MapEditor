@@ -85,7 +85,6 @@ class OsmTests(unittest.TestCase):
             "conflict": lambda r: ET.SubElement(r.find("way[@id='100']"), "tag", k="building", v="school"),
             "member-vertical": lambda r: ET.SubElement(r.find("way[@id='100']"), "tag", k="bridge", v="yes"),
             "relation-vertical": lambda r: ET.SubElement(r.find("relation"), "tag", k="min_height", v="2"),
-            "courtyard": lambda r: r.find("relation[@id='101']/tag[@k='landuse']").set("k", "building"),
             "outside-hole": lambda r: r.find("relation[@id='100']/member[@ref='102']").set("role", "inner"),
             "overlapping-outers": lambda r: r.find("relation[@id='101']/member[@ref='112']").set("role", "outer"),
         }

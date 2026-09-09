@@ -164,7 +164,7 @@ func fresh() -> bool:
 func _setup() -> void:
 	var box := page("Map")
 	hint(box, "Recipe 2: terrain-following roads, bridge/tunnel cuts. Recipe 3: buildings, entrances and repeated props. Recipe 4: custom convex proxies and materials. Changing recipe changes world identity; originals are never migrated on load.")
-	var recipe := choice(box, "Recipe", ["1", "2", "3", "4"], str(int(editor.store.document.recipe_version)))
+	var recipe := choice(box, "Recipe", ["1", "2", "3", "4", "5"], str(int(editor.store.document.recipe_version)))
 	var theme := choice(box, "Theme", ["default", "urban", "rural"], editor.store.document.theme)
 	button(box, "Apply recipe and theme", func():
 		if fresh(): report(author.recipe(int(recipe.get_item_text(recipe.selected)), theme.get_item_text(theme.selected)))

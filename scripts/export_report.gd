@@ -43,10 +43,11 @@ func _draw_overview() -> void:
 	var span := Vector2(map.bounds.max[0], map.bounds.max[1]) - low
 	var scale_factor := minf((overview.size.x - 20) / span.x, (overview.size.y - 20) / span.y)
 	for building: Dictionary in map.buildings:
-		var points := PackedVector2Array()
-		for p: Array in building.footprint: points.append(Vector2(10,10) + (Vector2(p[0], p[1]) - low) * scale_factor)
-		points.append(points[0])
-		overview.draw_polyline(points, Color("ffe14c"), 1.0)
+		for ring: Array in [building.footprint] + building.get("holes", []):
+			var points := PackedVector2Array()
+			for p: Array in ring: points.append(Vector2(10,10) + (Vector2(p[0], p[1]) - low) * scale_factor)
+			points.append(points[0])
+			overview.draw_polyline(points, Color("ffe14c"), 1.0)
 	for road: Dictionary in map.roads:
 		var points := PackedVector2Array()
 		for p: Array in road.points: points.append(Vector2(10,10) + (Vector2(p[0], p[2]) - low) * scale_factor)

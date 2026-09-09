@@ -44,8 +44,8 @@ class PolygonTests(unittest.TestCase):
         for outers, holes in cases:
             with self.subTest(outers=outers, holes=holes), self.assertRaises(ValueError):
                 group_rings(outers,holes,Budget())
-        with self.assertRaisesRegex(ValueError,"footprint contract"):
-            convert_polygons([[outer,square(20,20,10)]], {"height_m":5})
+        courtyard = convert_polygons([[outer,square(20,20,10)]], {"height_m":5})
+        self.assertEqual(courtyard.patches[0]["after"]["holes"], [[[2000,2000],[3000,2000],[3000,3000],[2000,3000]]])
         with self.assertRaisesRegex(ValueError,"declared outer"):
             convert_polygons([[outer], [square(200,0,100),square(20,20,10)]])
 
