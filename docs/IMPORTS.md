@@ -45,7 +45,7 @@ I01/I03 Mac import/native/document, rendered adoption and compiled resource-PCK
 checks are scoped evidence. Actual Windows/Linux exported filesystem/UI and
 installed Client acceptance remain open. WGS84 projection is implemented below;
 The staged local heightmap and local OSM extract profiles are documented below;
-OSM downloads and Overture/DEM workflows remain I02.
+The bounded OSM and Overture download profiles below are implemented; DEM remains I02.
 
 ## Local process lifecycle (I03)
 
@@ -330,3 +330,93 @@ or automatically resumed. Discard/reimport retain earlier documents and packages
 Synthetic HTTP/PBF, owned native process, UI and resource-pack evidence lives in
 the root I02 download report. Actual provider HEAD was checked separately; the
 synthetic transport fixture is not a real regional import or performance result.
+
+
+## Overture building area input (I02 scoped provider unit)
+
+**Import vector → Download Overture building area** selects an explicit dated
+release and west/south/east/north bbox, at most 0.02 degrees per side. The form
+shows the source/license, unknown transfer/count, 32 MiB snapshot/20,000 feature
+limits and preserved crossing footprints before **Download this area**. It does
+not guess the newest release, clip geometry or adopt a document automatically.
+Install the optional public `overturemaps==1.0.2` dependency from
+`requirements-import.txt` in the selected Python; no automatic installation.
+The official reader is called with the exact release, building type, STAC enabled,
+anonymous S3 and 15-second connection/request timeouts. Its API is pinned and
+exercised with real Arrow batches and WKB using synthetic sources.
+
+This profile queries **buildings/building only**. Transportation, connectors,
+base/vegetation, places, multipart/hole normalization and large-area processing
+are unimplemented. They are not silently included, flattened or declared verified.
+The building footprint unit establishes remote area → preserved snapshot → typed
+review/adoption; it is not completion of all possible Overture theme adapters.
+
+The owned I03 helper captures returned properties (including GERS ID/version and
+full sources) and WKB-derived 2D geometry in a version-1 `.overture.json` snapshot.
+Dates serialize as ISO strings. All selected IDs must be unique. More than 20,000
+rows, a batch above 32 MiB, a WKB above 4 MiB, or serialized snapshot above 32 MiB
+fails before publication. Empty/failed queries do not publish. Completed snapshots
+are atomically hard-linked without replacement under `user://import-sources` and
+retained on later conversion failure, cancellation or discard. They are derived
+source captures, not byte-identical copies of upstream Parquet files; SHA-256 and
+byte count identify the captured snapshot. The snapshot embeds its query/license.
+No user source, older snapshot, document or package is overwritten or deleted.
+
+The provider's internal STAC/Arrow discovery, batches, read-ahead, retry behavior
+and transfer/RSS costs are **not bounded by the snapshot byte cap**. The helper's
+120-second deadline and parent EOF watchdog terminate the process, including a
+stalled provider call. The client can fall back to dataset discovery if STAC fails.
+There is no application retry/resume; user Retry creates a fresh owned request.
+Progress counts serialized snapshot bytes against the cap, not network bytes,
+estimated time or percent-complete. Partial cleanup removes only owned job files;
+crash-abandoned directories are not automatically scanned. Hard-link support on
+the same filesystem is required. This is admission control, not performance acceptance.
+
+After download, set explicit WGS84/local origins and choose **Import / retry last
+source**. Saved captures can also be selected with **Overture building area
+snapshot** in the format picker. Offline reimport needs pyproj 3.7.2, but does not
+need the network reader. The existing one-strip/hemisphere/20 km UTM profile and
+native map bounds/geometry validation apply to every position. A Polygon or a
+single-member MultiPolygon with one closed 2D ring is accepted. Multipart/holes,
+Z/M, partial/underground/elevated buildings, invalid heights, missing sources and
+out-of-query bbox envelopes reject the whole candidate. Crossing footprints remain
+whole; bbox overlap is not an exact polygon clipping operation. Source IDs are
+sorted before assigning fresh per-import authored IDs. Native topology checks may
+reject otherwise valid provider geometry rather than repair it.
+
+Height is used when supplied; base zero, absent height, unknown use and flat
+concrete appearance are explicitly estimated. Floors, names, facade and roof
+attributes are retained in the source snapshot but not modeled. Review shows
+release/bbox, source ID/version/dataset notices, source hash/bytes, coordinate
+provenance, extent and estimate/omission warnings. The fixed building-theme ODbL
+notice and contributor attribution are rechecked at the typed Editor boundary;
+source-specific notices survive attribution/save/recovery/package I/O. Source
+licenses remain distinct from MIT code. Retaining metadata does not itself settle
+all derived-product distribution obligations.
+
+Changing the area while acquisition runs rejects late selection. Document changes,
+cancellation and owner close reject adoption, while completed sources remain.
+Review/discard and one-command atomic new-layer adoption use existing I01 gates;
+reimport and changed sources add a new layer, preserve existing geometry/files and
+support Undo/Redo. A stale or consumed candidate cannot be adopted again.
+
+Official references checked 2026-09-09:
+[Python client](https://docs.overturemaps.org/getting-data/overturemaps-py/),
+[public API](https://github.com/OvertureMaps/overturemaps-py/blob/main/overturemaps/core.py),
+[building schema](https://docs.overturemaps.org/schema/reference/buildings/building/),
+[building attribution](https://docs.overturemaps.org/attribution/#buildings).
+
+```sh
+.venv-import/bin/python -B -m unittest discover -s tests -p 'test_*.py' -v
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/.venv-import/bin/python --script overture_validator --script import_job_validator --script download_validator --script osm_import_validator --log-dir /new/overture-core
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/.venv-import/bin/python --script overture_validator --rendered --log-dir /new/overture-rendered
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/.venv-import/bin/python --script overture_validator --resource-pack --log-dir /new/overture-pack
+```
+
+Mac synthetic provider/Arrow/native/document/rendered/resource-PCK checks are scoped
+evidence. Actual provider transfer, representative geometry/accuracy/latency/RSS,
+native Windows/Linux exported process/file-dialog/hard-link behavior and installed
+Client drive remain acceptance work. Use licensed supported-size data in an isolated
+validation project, record release/query/bytes/source hashes and test interrupted
+transfer/retry, explicit origin/import/adoption/recovery/export/Client drive. Do
+not infer whole-area/general-theme support from the synthetic fixtures.

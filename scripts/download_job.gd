@@ -8,7 +8,7 @@ func start_acquisition(request: Dictionary, python: String, token: String) -> St
 	directory = ProjectSettings.globalize_path("user://import-jobs/" + token)
 	if DirAccess.dir_exists_absolute(directory): return "Download job already exists."
 	var files := FILES.new()
-	for module in ["osm_download.py", "geojson.py", "import_layer.py", "projection.py", "osm_extract.py"]:
+	for module in ["osm_download.py", "geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "Download module missing."
 		if error != "":
@@ -19,7 +19,8 @@ func start_acquisition(request: Dictionary, python: String, token: String) -> St
 		cleanup()
 		return failure
 	output_path = directory.path_join("layer.json")
-	var child := _spawn(python, PackedStringArray(["-B", "-u", directory.path_join("osm_download.py"), directory.path_join("request.json"), output_path, "--layer-id", token, "--watch-parent"]))
+	var entry := "overture_area.py" if request.get("provider") == "Overture" else "osm_download.py"
+	var child := _spawn(python, PackedStringArray(["-B", "-u", directory.path_join(entry), directory.path_join("request.json"), output_path, "--layer-id", token, "--watch-parent"]))
 	pid = int(child.get("pid", -1))
 	stdio = child.get("stdio")
 	stderr_pipe = child.get("stderr")

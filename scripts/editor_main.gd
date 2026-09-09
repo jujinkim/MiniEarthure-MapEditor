@@ -95,6 +95,10 @@ var download_summary: TextEdit
 var download_plan := {}
 var acquisition_mode := ""
 var download_sources := {}
+var overture_dialog: ConfirmationDialog
+var overture_release: LineEdit
+var overture_bbox: Array[SpinBox] = []
+var overture_requested := {}
 
 var selected_field := ""
 var selected_record: Dictionary = {}
@@ -359,9 +363,10 @@ func _build_ui() -> void:
 	_label(import_fields, "Select a local source up to 32 MiB; review before adopting.\nWGS84 needs pyproj 3.7.2; OSM also needs osmium 4.3.1 in the selected Python.")
 	import_fields.get_child(0).custom_minimum_size.x = 700
 	import_source_format = OptionButton.new()
-	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)"]: import_source_format.add_item(format_title)
+	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)", "Overture building area snapshot (.overture.json)"]: import_source_format.add_item(format_title)
 	import_fields.add_child(import_source_format)
 	_button(import_fields, "Download Geofabrik region…", _open_download)
+	_button(import_fields, "Download Overture building area…", _open_overture)
 	import_fields.add_child(import_license)
 	import_accuracy = LineEdit.new()
 	import_accuracy.placeholder_text = "Source accuracy / resolution (unknown if omitted)"
@@ -389,10 +394,10 @@ func _build_ui() -> void:
 		import_license.editable = index == 0
 		import_coordinate_mode.disabled = index != 0
 		if index != 0:
-			import_license.text = IMPORT_LAYER.OSM_LICENSE
+			import_license.text = IMPORT_LAYER.OVERTURE_LICENSE if index == 3 else IMPORT_LAYER.OSM_LICENSE
 			import_coordinate_mode.select(1)
 			geographic.visible = true
-		elif import_license.text == IMPORT_LAYER.OSM_LICENSE:
+		elif import_license.text in [IMPORT_LAYER.OSM_LICENSE, IMPORT_LAYER.OVERTURE_LICENSE]:
 			import_license.text = ""
 		import_dialog.get_ok_button().disabled = import_license.text.strip_edges() == ""
 	)
@@ -419,6 +424,7 @@ func _build_ui() -> void:
 	import_review.canceled.connect(_discard_import)
 	add_child(import_review)
 	_setup_download()
+	_setup_overture()
 	_build_test_drive_dialog()
 
 func _import_number(parent: Control, title: String, minimum: float, maximum: float, initial: float, step_size: float) -> SpinBox:
@@ -472,6 +478,7 @@ func _choose(action: String) -> void:
 		if action == "import":
 			dialog.filters = PackedStringArray(["*.geojson,*.json ; GeoJSON (explicit coordinates)"])
 			if import_source_format.selected == 1: dialog.filters = PackedStringArray(["*.osm.pbf,*.pbf ; OSM PBF snapshot"])
+			if import_source_format.selected == 3: dialog.filters = PackedStringArray(["*.overture.json ; Overture building snapshot"])
 			if import_source_format.selected == 2: dialog.filters = PackedStringArray(["*.osm ; OSM XML snapshot"])
 		if action == "recover":
 			dialog.filters = PackedStringArray(["* ; Recovery, previous or pending document"])
@@ -897,9 +904,9 @@ func _start_import(source: String, license_name: String) -> void:
 	var job := IMPORT_JOB.new()
 	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
 	import_coordinates_request = {"mode":"local-metres"} if import_coordinate_mode.selected == 0 else {"mode":"wgs84-utm", "origin":[import_origin_lon.value,import_origin_lat.value], "local_origin_m":[import_origin_x.value,import_origin_y.value]}
-	var input_format: String = ["geojson", "pbf", "osm"][import_source_format.selected]
-	import_coordinates_request.adapter = "geojson-v2" if input_format == "geojson" else "osm-extract-v1"
-	if input_format != "geojson": license_name = IMPORT_LAYER.OSM_LICENSE
+	var input_format: String = ["geojson", "pbf", "osm", "overture"][import_source_format.selected]
+	import_coordinates_request.adapter = "overture-buildings-v1" if input_format == "overture" else ("geojson-v2" if input_format == "geojson" else "osm-extract-v1")
+	if input_format != "geojson": license_name = IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
 	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, str(download_sources.get(source, "")))
 	if failure != "":
 		_status("E_IMPORT: " + failure)
@@ -937,7 +944,7 @@ func _process(_delta: float) -> void:
 		var progress: Dictionary = import_job.progress
 		if not progress.is_empty():
 			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
-			validation_label.text = "Import %s · %d / %d %s" % [progress.stage, progress.completed, progress.total, progress.unit]
+			validation_label.text = "%s %s · %d / %d %s" % ["Overture captured snapshot" if acquisition_mode == "overture" else "Import", progress.stage, progress.completed, progress.total, progress.unit]
 		if import_job.done:
 			var result: Dictionary = import_job.result
 			import_job = null
@@ -1244,6 +1251,16 @@ func _finish_acquisition(result: Dictionary) -> void:
 	if generation != worker_generation:
 		_status("Document changed; download result will not start an import. Complete source files are retained.")
 		return
+	if mode == "overture":
+		if overture_requested != _overture_plan():
+			_status("Area changed; completed source retained without selecting it. Retry the new area.")
+			return
+		last_import_source = str(result.data.path)
+		import_source_format.select(3)
+		import_source_format.item_selected.emit(3)
+		_status("Overture snapshot retained: " + last_import_source + ". Set origins, then Import / retry last source.")
+		import_dialog.popup_centered(Vector2i(760, 550))
+		return
 	if mode == "probe":
 		if result.data.requested_url != download_url.text.strip_edges(): return
 		download_plan = result.data
@@ -1261,3 +1278,64 @@ func _finish_acquisition(result: Dictionary) -> void:
 
 func _new_download_job() -> RefCounted:
 	return DOWNLOAD_JOB.new()
+
+func _setup_overture() -> void:
+	overture_dialog = ConfirmationDialog.new()
+	overture_dialog.title = "Overture · building area review"
+	overture_dialog.ok_button_text = "Download this area"
+	var fields := VBoxContainer.new()
+	fields.custom_minimum_size.x = 700
+	overture_dialog.add_child(fields)
+	_label(fields, "Buildings only · overturemaps 1.0.2 in the selected Python.
+Explicit release; W/S/E/N area ≤ 0.02° per side. Crossing footprints stay whole.
+Expected transfer / count: unknown. Snapshot cap 32 MiB / 20,000 features.
+Network bytes and native reader memory can exceed snapshot size. Deadline 120s.
+Progress reports captured snapshot bytes against the cap, not network completion.")
+	overture_release = LineEdit.new()
+	overture_release.placeholder_text = "Dated release, e.g. 2026-08-19.0 (never latest)"
+	fields.add_child(overture_release)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	fields.add_child(grid)
+	for item in [["West longitude",-180,180], ["South latitude",-80,84], ["East longitude",-180,180], ["North latitude",-80,84]]:
+		overture_bbox.append(_import_number(grid, item[0], item[1], item[2], 0, 0.000001))
+	_label(fields, "ODbL · © OpenStreetMap contributors, Overture Maps Foundation.
+Source notices: https://docs.overturemaps.org/attribution/#buildings
+Acquisition preserves source fields. Import later rejects holes, multipart and
+partial/underground buildings; base/material/roof/use may be estimates.
+Completed snapshots stay in import-sources even if conversion fails.
+Cancel removes only this request's partial. Retry starts a fresh request.")
+	for child in fields.get_children():
+		if child is Label: child.custom_minimum_size.x = 700
+	overture_dialog.confirmed.connect(_download_overture)
+	overture_dialog.canceled.connect(func():
+		if acquisition_mode == "overture" and import_job != null: import_job.cancel()
+	)
+	add_child(overture_dialog)
+
+func _open_overture() -> void:
+	if busy: return
+	import_dialog.hide()
+	overture_dialog.popup_centered(Vector2i(760, 560))
+
+func _overture_plan() -> Dictionary:
+	var bounds: Array = []
+	for field in overture_bbox: bounds.append(field.value)
+	return {"provider":"Overture", "release":overture_release.text.strip_edges(), "bbox":bounds, "theme":"buildings", "type":"building", "license":IMPORT_LAYER.OVERTURE_LICENSE}
+
+func _download_overture() -> void:
+	if busy: return
+	overture_requested = _overture_plan()
+	var b: Array = overture_requested.bbox
+	var release_pattern := RegEx.new()
+	release_pattern.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}\\.[0-9]+$")
+	if release_pattern.search(overture_requested.release) == null or b[0] >= b[2] or b[1] >= b[3] or b[2]-b[0] > 0.02 or b[3]-b[1] > 0.02:
+		_status("Choose a dated release and positive area at most 0.02 degrees per side.")
+		return
+	var folder := ProjectSettings.globalize_path("user://import-sources")
+	var error := DirAccess.make_dir_recursive_absolute(folder)
+	if error != OK:
+		_status("Cannot create source folder: " + error_string(error))
+		return
+	var destination := folder.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + ".overture.json")
+	_begin_acquisition({"mode":"overture", "provider":"Overture", "plan":overture_requested.duplicate(true), "destination":destination})

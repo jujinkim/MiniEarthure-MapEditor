@@ -3,6 +3,7 @@ extends RefCounted
 const MAX_BYTES := 12 * 1024 * 1024
 const FIELDS := ["nodes", "roads", "buildings", "zones"]
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
+const OVERTURE_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
 var value: Dictionary = {}
 
 static func _hex(text: Variant, length: int) -> bool:
@@ -44,7 +45,7 @@ static func _coordinates(c: Variant, requested: Dictionary) -> String:
 func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -> String:
 	value = {}
 	if raw is not Dictionary or JSON.stringify(raw).to_utf8_buffer().size() > MAX_BYTES: return "Invalid or oversized ImportLayer."
-	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1"]: return "Unsupported ImportLayer version/adapter."
+	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1", "overture-buildings-v1"]: return "Unsupported ImportLayer version/adapter."
 	if requested.has("adapter") and raw.adapter != requested.adapter: return "Import adapter does not match request."
 	if not _hex(raw.get("layer_id"), 32) or raw.layer_id != expected_id: return "Stale or invalid import identity."
 	var source: Variant = raw.get("source")
@@ -52,6 +53,23 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	var coordinate_error := _coordinates(raw.get("coordinates"), requested)
 	if coordinate_error != "": return coordinate_error
 	if raw.adapter == "osm-extract-v1" and (source.license != OSM_LICENSE or raw.coordinates.mode != "wgs84-utm"): return "OSM requires geographic coordinates and ODbL attribution."
+	if raw.adapter == "overture-buildings-v1":
+		if source.license != OVERTURE_LICENSE or raw.coordinates.mode != "wgs84-utm": return "Overture requires WGS84 and attribution."
+		var meta: Variant = raw.coordinates.get("overture")
+		if meta is not Dictionary or meta.get("provider") != "Overture" or meta.get("type") != "building" or meta.get("license") != OVERTURE_LICENSE or not _text(meta.get("release")) or meta.get("bbox") is not Array or meta.bbox.size() != 4 or meta.get("feature_sources") is not Array or meta.feature_sources.size() != raw.get("feature_count"): return "Invalid Overture provenance."
+		var release_pattern := RegEx.new()
+		release_pattern.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}\\.[0-9]+$")
+		if release_pattern.search(meta.release) == null: return "Invalid Overture release."
+		for i in range(4):
+			if not _finite(meta.bbox[i], -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84): return "Invalid Overture area."
+		if meta.bbox[0] >= meta.bbox[2] or meta.bbox[1] >= meta.bbox[3] or meta.bbox[2]-meta.bbox[0] > 0.02 or meta.bbox[3]-meta.bbox[1] > 0.02: return "Invalid Overture area size."
+		var source_ids := {}
+		for feature in meta.feature_sources:
+			if feature is not Dictionary or not _text(feature.get("id")) or source_ids.has(feature.id) or feature.get("sources") is not Array or feature.sources.is_empty() or feature.sources.size() > 128: return "Invalid Overture feature sources."
+			source_ids[feature.id] = true
+			for entry in feature.sources:
+				if entry is not Dictionary or not _text(entry.get("dataset")): return "Invalid Overture source dataset."
+
 	for key in ["feature_count", "point_count", "warning_count"]:
 		if not _count(raw.get(key), 200000): return "Invalid import counts."
 	if raw.get("warnings") is not Array or raw.warnings.size() > 50 or raw.warning_count < raw.warnings.size(): return "Invalid import warnings."
@@ -70,6 +88,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	var prefix := "import-" + expected_id + "-"
 	for patch in raw.patches:
 		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]): return "Invalid import patch."
+		if raw.adapter == "overture-buildings-v1" and patch.field != "buildings": return "Overture profile may only add buildings."
 		if patch.field not in FIELDS or patch.before != null or patch.after is not Dictionary: return "Import may only add supported records."
 		if patch.id is not String or not patch.id.begins_with(prefix) or patch.id.length() > 128 or patch.after.get("id") != patch.id or ids.has(patch.id): return "Invalid/duplicate import record identity."
 		ids[patch.id] = true

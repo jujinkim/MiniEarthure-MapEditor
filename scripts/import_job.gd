@@ -31,8 +31,8 @@ var error_eof := false
 
 func start(source: String, license_name: String, accuracy: String, python: String, token: String, coordinates: Dictionary = {"mode":"local-metres"}, input_format: String = "geojson", source_label: String = "") -> String:
 	if pid != -1 or directory != "": return "ImportJob instances are single use."
-	if input_format not in ["geojson", "pbf", "osm"]: return "Unsupported source format."
-	if input_format != "geojson" and coordinates.get("mode") != "wgs84-utm": return "OSM requires explicit WGS84 origins."
+	if input_format not in ["geojson", "pbf", "osm", "overture"]: return "Unsupported source format."
+	if input_format != "geojson" and coordinates.get("mode") != "wgs84-utm": return "Geographic source requires explicit WGS84 origins."
 	identity = token
 	if not LAYER._hex(token, 32): return "Invalid import request token."
 	var input := FileAccess.open(source, FileAccess.READ)
@@ -43,7 +43,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	directory = ProjectSettings.globalize_path("user://import-jobs/" + token)
 	if DirAccess.dir_exists_absolute(directory): return "Import job directory already exists."
 	var files := FILES.new()
-	for module in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py"]:
+	for module in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "Importer module is missing."
 		if error != "":
@@ -186,7 +186,7 @@ func shutdown() -> void:
 func cleanup() -> void:
 	if directory == "": return
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_download.py", "request.json", "download.part", "layer.json"]:
+	for name in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py", "osm_download.py", "request.json", "download.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)

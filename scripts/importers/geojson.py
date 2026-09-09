@@ -112,7 +112,7 @@ def main():
     parser.add_argument("--source-name")
     parser.add_argument("--layer-id", required=True)
     parser.add_argument("--watch-parent", action="store_true")
-    parser.add_argument("--input-format", choices=["geojson", "pbf", "osm"], default="geojson")
+    parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture"], default="geojson")
     args = parser.parse_args()
     if args.watch_parent:
         watch_parent_lifetime()
@@ -130,8 +130,14 @@ def main():
     event("read", len(raw), size)
     event("parse", 0, size)
     osm_counts = None
+    overture_metadata = None
     if args.input_format == "geojson":
         value = strict_json(raw)
+    elif args.input_format == "overture":
+        from overture_area import parse, LICENSE
+        if args.coordinates != "wgs84-utm" or args.license != LICENSE:
+            raise ValueError("Overture requires WGS84 origins and source attribution")
+        value, overture_metadata = parse(raw)
     else:
         from osm_extract import parse, LICENSE
         if args.coordinates != "wgs84-utm":
@@ -150,6 +156,9 @@ def main():
     if osm_counts is not None:
         from osm_extract import finish
         result = finish(result, osm_counts)
+    if overture_metadata is not None:
+        from overture_area import finish
+        result = finish(result, overture_metadata)
     encoded = result.encode()
     event("write", 0, len(encoded))
     with args.output.open("xb") as stream:
