@@ -20,6 +20,10 @@ godot --headless --path . --script res://tests/editor_validator.gd
 godot --headless --path . --script res://tests/test_drive_validator.gd
 ```
 
+For document/history/recovery checks with isolated user data and no private game
+dependencies, use `python3 scripts/check_documents.py --godot /path/to/godot --full
+--log-dir /new/path/checks`. See [document and recovery contracts](docs/DOCUMENTS.md).
+
 New creates a 1024x1024 metre map. Click road/polygon vertices, then right-click to
 finish. Roads reuse snapped existing endpoints. Shift-select polygons, drag to
 move, duplicate with Ctrl+D. Wheel zooms; middle-drag pans. Property controls
@@ -29,9 +33,14 @@ drag. Save chooses a project directory. Export writes a new `.memap`; existing
 outputs are preserved. Package files can be unpacked with the public MapKit CLI.
 
 Recovery snapshots live in Godot's user-data `recovery` directory, separate from
-map content. Autosave runs every 15 seconds and before New/Open; Recover selects
-a snapshot. Existing project save retains `.previous`. Recovery restores a
-validated document with fresh undo history. 3D Preview generates the chosen cell
+map content. Autosave runs every 15 seconds and before New/Open/Recover/Close;
+failed retention keeps the current document open. Recover selects an autosave,
+`.previous` or complete `.pending-*` document. Save retains `.previous` and checks
+for external changes. Recovery validates the document and checksum with fresh undo
+history. Undo/Redo share 200 commands / 16 MiB of serialized mementos. Escape or
+focus/tool changes cancel a drag. Save As to a new directory resolves document
+conflicts; copying referenced assets/heightmaps to a new project remains pending.
+3D Preview generates the chosen cell
 on a worker; stale preview results never attach after document edits.
 
 ## Test drive in installed Client
@@ -51,7 +60,7 @@ Snapshots are retained for inspection; close Client to end a drive. The launch
 status confirms process creation only; Client reports its own loading/readiness.
 This feature requires a Client supporting `--test-drive --map-file` and local
 `--spawn-x`, `--spawn-y`, `--surface-id`. Building/editing/packaging remain usable
-without Client. Current Client rejects custom assets until rendering support lands.
+without Client. Supported static assets use the shared MapKit renderer.
 
 The standalone validator uses a recording process adapter and needs no game.
 Optionally set `MINIEARTHURE_TEST_CLIENT` to an installed Linux executable to run
@@ -60,7 +69,7 @@ an additional headless, bounded native launch. It does not require private sourc
 ## Current boundaries
 
 This is an early editor, not the completed transition plan. Terrain brush/import
-UI, bridge/tunnel editing, asset library/rendering, deletion/road movement,
+UI, bridge/tunnel editing, asset library/authoring UI, deletion/road movement,
 full layer management and incremental multi-cell preview remain outstanding. Preview attachment is not yet frame-budgeted.
 
 Import GeoJSON asks for an explicit license and local-metre coordinates, then runs

@@ -19,6 +19,9 @@ func run() -> void:
 	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
 	var inspected: Dictionary = JSON.parse_string(bridge.open_package(source))
 	check(inspected.ok, "independent validated source")
+	if not inspected.ok:
+		quit(1)
+		return
 	var directory := ProjectSettings.globalize_path("user://synthetic-assets")
 	DirAccess.make_dir_recursive_absolute(directory)
 	var zip := ZIPReader.new()

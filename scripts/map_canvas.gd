@@ -2,7 +2,11 @@ extends Control
 signal selection_changed(ids: Array)
 signal status(text: String)
 var store: RefCounted
-var tool := "Select"
+var tool := "Select":
+	set(value):
+		if value != tool:
+			cancel_interaction()
+		tool = value
 var selected: Array[String] = []
 var draft: Array[Vector2] = []
 var snap_cm := 100.0
@@ -79,7 +83,10 @@ func _gui_input(event: InputEvent) -> void:
 				if tool == "Select":
 					_select_at(p, event.shift_pressed)
 					drag_start = p
-					dragging = true
+					var failure: String = store.begin_gesture("Move selection")
+					dragging = failure == ""
+					if failure != "":
+						status.emit(failure)
 				else:
 					draft.append(p)
 					if event.double_click:
@@ -87,8 +94,7 @@ func _gui_input(event: InputEvent) -> void:
 			else:
 				if dragging and drag_offset != Vector2.ZERO:
 					_move_selection(drag_offset, false)
-				dragging = false
-				drag_offset = Vector2.ZERO
+				cancel_interaction(false)
 		queue_redraw()
 	elif event is InputEventMouseMotion:
 		if event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
@@ -187,7 +193,26 @@ func _move_selection(delta: Vector2, duplicate: bool) -> void:
 						point[1] += int(delta.y)
 			patches.append({"field": field, "id": after.id, "before": null if duplicate else record, "after": after})
 	if not patches.is_empty():
-		_report(store.apply_command("Duplicate" if duplicate else "Move selection", patches))
+		if dragging and not duplicate:
+			var failure: String = store.stage_patches(patches)
+			if failure == "":
+				failure = store.commit_gesture()
+			_report(failure)
+		else:
+			_report(store.apply_command("Duplicate" if duplicate else "Move selection", patches))
+
+func cancel_interaction(clear_draft: bool = true) -> void:
+	dragging = false
+	drag_offset = Vector2.ZERO
+	if store != null:
+		store.cancel_gesture()
+	if clear_draft:
+		draft.clear()
+	queue_redraw()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		cancel_interaction()
 
 func _report(failure: String) -> void:
 	status.emit(failure if failure != "" else "Edit applied. Undo: Ctrl+Z")

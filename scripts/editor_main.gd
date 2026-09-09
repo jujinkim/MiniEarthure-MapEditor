@@ -33,21 +33,34 @@ var import_dialog: ConfirmationDialog
 var import_license: LineEdit
 var selected_field := ""
 var selected_record: Dictionary = {}
+var displayed_map_id := ""
 
 func _ready() -> void:
+	get_tree().auto_accept_quit = false
 	_build_ui()
 	store.changed.connect(_document_changed)
 	store.new_document()
 	var timer := Timer.new()
 	timer.wait_time = 15
-	timer.timeout.connect(func():
-		if store.dirty:
-			var failure := store.autosave()
-			if failure != "":
-				_status(failure)
-	)
+	timer.timeout.connect(_autosave)
 	add_child(timer)
 	timer.start()
+	if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path("user://recovery")):
+		_status("Recovery snapshots are available. Use Recover to inspect one; saved projects stay unchanged.")
+
+func _autosave() -> void:
+	if store.dirty:
+		var failure := store.autosave()
+		if failure != "":
+			_status(failure)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		var failure := store.autosave() if store.dirty else ""
+		if failure != "":
+			_status("Cannot close safely: " + failure)
+			return
+		get_tree().quit()
 
 func _build_ui() -> void:
 	var ui_theme := Theme.new()
@@ -84,7 +97,7 @@ func _build_ui() -> void:
 	column.add_child(title)
 	var bar := HFlowContainer.new()
 	column.add_child(bar)
-	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Recover", _choose.bind("recover")], ["Undo", store.undo], ["Redo", store.redo], ["Validate", _validate], ["Import GeoJSON", _import_geojson], ["Export .memap", _export], ["Test Drive", _test_drive]]:
+	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Import GeoJSON", _import_geojson], ["Export .memap", _export], ["Test Drive", _test_drive]]:
 		_button(bar, entry[0], entry[1])
 	project_label = Label.new()
 	column.add_child(project_label)
@@ -216,6 +229,7 @@ func _choose(action: String) -> void:
 		if action == "import":
 			dialog.filters = PackedStringArray(["*.geojson,*.json ; Local-metre GeoJSON"])
 		if action == "recover":
+			dialog.filters = PackedStringArray(["* ; Recovery, previous or pending document"])
 			dialog.current_dir = ProjectSettings.globalize_path("user://recovery")
 	dialog.popup_centered_ratio(0.8)
 
@@ -237,7 +251,11 @@ func _path_selected(path: String) -> void:
 				_document_changed()
 				_test_drive()
 				return
-		"recover": failure = store.recover(path)
+		"recover":
+			if store.dirty:
+				failure = store.autosave()
+			if failure == "":
+				failure = store.recover(path)
 		"export":
 			if busy:
 				_status("Wait for the current preview or export.")
@@ -342,7 +360,11 @@ func _apply_properties() -> void:
 
 func _document_changed() -> void:
 	generation += 1
-	canvas.queue_redraw()
+	canvas.cancel_interaction()
+	if displayed_map_id != str(store.document.get("map_id", "")):
+		canvas.selected.clear()
+	displayed_map_id = str(store.document.get("map_id", ""))
+	_selection(canvas.selected)
 	layers.clear()
 	for field in ["roads", "buildings", "zones", "placements"]:
 		for record: Dictionary in store.document.get(field, []):
@@ -377,7 +399,7 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 	var import_script := ProjectSettings.globalize_path("user://importers/geojson.py")
 	if operation == "import":
 		var source_code := FileAccess.get_file_as_string("res://scripts/importers/geojson.py")
-		var failure := store._atomic_write(import_script, source_code)
+		var failure := store.files.write(import_script, source_code, store.files.digest(import_script))
 		if failure != "" or source_code == "":
 			busy = false
 			_status(failure if failure != "" else "GeoJSON importer is missing.")
@@ -440,7 +462,8 @@ func _process(_delta: float) -> void:
 		var layer: Dictionary = result.data
 		var source := str(layer.source) + "#" + str(layer.layer_id)
 		var patches: Array = layer.patches
-		patches.append({"field": "attributions", "id": source, "before": null, "after": {"source": source, "license": layer.license, "notice": "Local-metre GeoJSON import; " + "; ".join(layer.warnings)}})
+		var attribution := {"source": source, "license": layer.license, "notice": "Local-metre GeoJSON import; " + "; ".join(layer.warnings)}
+		patches.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
 		var failure := store.apply_command("Import " + str(layer.source), patches)
 		_status(failure if failure != "" else "Imported new layer. " + " · ".join(layer.warnings))
 		return
@@ -476,15 +499,17 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		match event.keycode:
 			KEY_S: _save()
 			KEY_Z:
-				if event.shift_pressed:
-					store.redo()
-				else:
-					store.undo()
-			KEY_Y: store.redo()
+				_history(event.shift_pressed)
+			KEY_Y: _history(true)
 			KEY_D: canvas.duplicate_selection()
 	elif event.keycode == KEY_ESCAPE:
-		canvas.draft.clear()
-		canvas.queue_redraw()
+		canvas.cancel_interaction()
+
+func _history(forward: bool) -> void:
+	canvas.cancel_interaction()
+	var failure := store.redo() if forward else store.undo()
+	if failure != "":
+		_status(failure)
 
 func _status(text: String) -> void:
 	status_label.text = text
