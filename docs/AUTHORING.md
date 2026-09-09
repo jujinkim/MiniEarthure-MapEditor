@@ -163,3 +163,6 @@ E05 installed-Client authoring and final platform/performance acceptance remain 
 Staged heightmap review/adoption is also available beside direct PNG editing.
 See [IMPORTS.md](IMPORTS.md#staged-local-heightmap-i02-raster-unit) for snapshot,
 active-cell replacement, source notices and review cancellation semantics.
+
+The offline [G01 driving test map](DRIVING_TEST_MAP.md) provides a fixed small
+project with connected grades, structures, surface transitions and bumps.

@@ -1,0 +1,20 @@
+{
+  "generated_cells": {
+    "0/0": "9c01d4fe58dbbeace845e310a48d8272c7adde97d6df08e86f006c7aa13c4721",
+    "0/1": "08b6e5cd49c683b7df4ba043b4b05563fe0f7310af6190d1fea44d6be2cedbd0",
+    "1/0": "e28011d800c26e4665df4a1159524edcd8a12660808921cf59303c2a2a63f406",
+    "1/1": "d0f9e710bb63a198e11c22f70b9fe3bc82f46445f7fe4eda501cd04ae92aa319"
+  },
+  "inspection": {
+    "base_data_bytes": 3787.0,
+    "cell_count": 4.0,
+    "expanded_bytes": 3787.0,
+    "package_bytes": 1581.0,
+    "package_sha256": "b3bfb797f2e9eb29215eb51ed3b32afb8602c48b0f3097be07bb1cfc49172ed7",
+    "retained_memory_bytes": 1179590.0,
+    "user_asset_bytes": 0.0,
+    "validation_peak_bytes": 9934912.0,
+    "world_content_hash": "7b6f51aa06b8fa32a3040372c5b6593eb76bad23e63192066b4085423af8f401"
+  },
+  "source_sha256": "3cd91f8890838d2065d083e5256fbb8922968223a12e4f09de9a9fd46e529ae8"
+}

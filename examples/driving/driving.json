@@ -1,0 +1,81 @@
+{
+  "profile": "g01-driving-v1",
+  "document_sha256": "3cd91f8890838d2065d083e5256fbb8922968223a12e4f09de9a9fd46e529ae8",
+  "revision": 1,
+  "start": {
+    "x_cm": 94000,
+    "y_cm": 30000,
+    "surface_id": "east-corner",
+    "heading_degrees": 0
+  },
+  "circuit": [
+    "straight",
+    "east-corner",
+    "tunnel",
+    "west-bridge"
+  ],
+  "sections": [
+    {
+      "id": "straight",
+      "purpose": "acceleration/braking, x cell seam",
+      "start_cm": [
+        14000,
+        16000
+      ]
+    },
+    {
+      "id": "east-corner",
+      "purpose": "corners, y seam and building occlusion",
+      "start_cm": [
+        94000,
+        30000
+      ]
+    },
+    {
+      "id": "tunnel",
+      "purpose": "connected descent, ceiling and ascent",
+      "start_cm": [
+        84000,
+        78000
+      ]
+    },
+    {
+      "id": "west-bridge",
+      "purpose": "connected ascent/deck/descent and y seam",
+      "start_cm": [
+        4000,
+        65000
+      ]
+    },
+    {
+      "id": "surface-lane",
+      "purpose": "asphalt/gravel/dirt transitions",
+      "start_cm": [
+        22000,
+        36000
+      ]
+    },
+    {
+      "id": "bumps",
+      "purpose": "two 40 cm bumps on a 100 cm deck with 20 m ramps",
+      "start_cm": [
+        22000,
+        52000
+      ]
+    }
+  ],
+  "sprint_points_cm": [
+    [
+      94000,
+      35000
+    ],
+    [
+      94000,
+      40000
+    ],
+    [
+      94000,
+      45000
+    ]
+  ]
+}
