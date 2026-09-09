@@ -5,7 +5,9 @@ private data or runtime generator is imported. `scripts/importers/import_layer.p
 defines the version-1 typed interchange; `scripts/import_layer.gd` revalidates
 untrusted results before native MapKit checks and explicit adoption.
 
-Current adapter `geojson-v2`: explicit local-metre or WGS84 LineString and single-ring Polygon input.
+Adapters include `geojson-v2` below and the bounded `osm-extract-v1` snapshot profile
+at the end of this document. Select the format explicitly in **Import vector**.
+`geojson-v2`: explicit local-metre or WGS84 LineString and single-ring Polygon input.
 The local-metre extension is not RFC 7946 geographic GeoJSON. Legacy `crs`, Z, polygon
 holes, other geometry and invalid/duplicate JSON keys are rejected, never silently
 flattened. Road endpoints remain disconnected; building/vegetation defaults are
@@ -42,7 +44,8 @@ python3 scripts/check_documents.py --godot /path/to/godot --script import_layer_
 I01/I03 Mac import/native/document, rendered adoption and compiled resource-PCK
 checks are scoped evidence. Actual Windows/Linux exported filesystem/UI and
 installed Client acceptance remain open. WGS84 projection is implemented below;
-The staged local heightmap profile is documented below; external OSM/Overture/DEM workflows remain I02.
+The staged local heightmap and local OSM extract profiles are documented below;
+OSM downloads and Overture/DEM workflows remain I02.
 
 ## Local process lifecycle (I03)
 
@@ -138,7 +141,7 @@ axis/radius/zone rejection, metadata/recovery/package/native generation and chan
 source → new layer → Undo/Redo without replacing an existing saved package (I04
 local vector scope). Existing E03 PNG16 authoring import remains a separate direct
 terrain-edit operation; the staged raster ImportLayer/reimport workflow below is a separate action.
-External PBF/Overture/DEM adapters remain separate units.
+External OSM downloads/Overture/DEM adapters remain separate units.
 
 Projection references: [PROJ UTM](https://proj.org/en/stable/operations/projections/utm.html),
 [pyproj Transformer](https://pyproj4.github.io/pyproj/stable/api/transformer.html).
@@ -201,3 +204,81 @@ Mac tests cover snapshot/discard/reimport/one-shot/stale/lock/file-conflict/seam
 invalid-input safety, metadata save/recovery/package preservation, old/new binary
 Undo/Redo, review controls and compiled resource loading. Windows/Linux dialogs,
 exported UI and real datasets/performance remain separate acceptance gates.
+
+## Local OSM PBF/XML extracts (I02 snapshot unit)
+
+**Import vector → OSM PBF extract / OSM XML extract** accepts a local current
+snapshot (`.osm.pbf`/`.pbf` or UTF-8 `.osm`). Install `requirements-import.txt` in
+the selected Python: osmium 4.3.1 is optional for OSM, pyproj 3.7.2 for projection.
+The MIT adapter calls public pyosmium; it copies no MapServer implementation and
+does not install dependencies, download data or invoke other child programs.
+Pyosmium and dependencies retain their own licenses; OSM data is not MIT.
+
+Enter the WGS84 origin and its local map position explicitly. The existing
+single-strip/hemisphere/20 km UTM profile applies to every selected coordinate;
+native validation rejects geometry outside the authored map. Extent and actual
+selected feature/point/record counts appear in review. No bounding-box clipping
+is inferred from an extract's header: border-crossing objects can extend beyond
+the provider's advertised area. Prepare a small, reference-complete extract.
+
+The profile converts supported open highway ways to independent ground roads,
+closed building ways to footprints, and forest/wood/orchard ways to zones. Ways
+are sorted by OSM ID before assigning fresh layer IDs. Shared OSM endpoints are
+still disconnected authored endpoints; this is geometry, not a routable graph.
+Plain positive decimal metres (optional ` m`) are accepted for width/height.
+Defaults and omitted tags are explicitly reviewed: no access/oneway/restriction
+semantics, POIs, roof/level-derived heights or survey elevation inference. Tagged
+nodes and unrelated ways/relations are counted as omitted. Unknown source accuracy
+stays unknown, independent of centimetre quantization. Ground/base elevations,
+missing dimensions, vegetation and material/roof values remain estimates.
+
+Missing selected-way nodes, repeated IDs/deletions/history, unsupported highway
+classes/area or closed roads, nonclosed polygons, ambiguous categories, selected
+feature relations and selected ways in boundary/multipolygon relations reject the
+whole import. Bridge/tunnel/nonzero layer and explicit unsupported vertical tags
+also reject it. They are never silently flattened or repaired. This deliberately
+limited profile does not claim general OSM multipolygon or structural support.
+
+Admission includes **all input entities**, even omitted ones: 32 MiB captured
+source, 250,000 entities, 200,000 nodes, 200,000 total way/member references,
+20,000 selected ways, 128 tags/entity and 512 characters/tag key/value. Existing
+200,000 positions/60,000 records/12 MiB result and 16 MiB history bounds still
+apply. Sparse IDs use bounded dictionaries rather than an ID-sized location
+array; no implicit area/location cache is enabled. These are admission limits,
+not an RSS guarantee for native PBF decompression. Select a smaller extract on
+budget/deadline errors. XML DTD/entity declarations and non-UTF-8 input reject.
+
+The same owned I03 process reads a captured byte snapshot, parses it, converts
+features and publishes a size/hash-checked result. Read/parse show start/end byte
+counters; convert reports completed selected features. Parsing does not expose
+per-entity progress or a fabricated overall percentage. Cancel, deadline, owner
+close, parent EOF, stale request and document-generation checks remain active.
+Review/discard does not write the map. Adoption stores additive geometry and
+source metadata as one Undo command. A retry/reimport gets a new namespace;
+existing source/project/package bytes stay unchanged.
+
+The OSM license field is fixed to **ODbL-1.0; © OpenStreetMap contributors;
+https://www.openstreetmap.org/copyright** and rechecked at the ImportLayer boundary.
+The source hash/name/bytes, projection, adapter/version, input omission counters
+and estimate notices survive save/recovery/package attribution. This retained
+notice does not by itself establish compliance for every published derived
+database or rendered product; source-specific notices and distribution obligations
+must also be evaluated for that delivery. No real dataset is included in tests.
+
+```sh
+.venv-import/bin/python -m unittest discover -s tests -p 'test_*.py' -v
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/path/.venv-import/bin/python --script osm_import_validator --script import_layer_validator --script import_job_validator --script projection_validator --log-dir /new/path/osm-core
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/path/.venv-import/bin/python --script osm_import_validator --resource-pack --log-dir /new/path/osm-pack
+```
+
+Synthetic XML and real PBF serialization exercise parity, bounds, malformed input,
+omissions, process/native load, adoption/Undo/Redo, source/package preservation,
+recovery, cancellation and stale review. Downloads/remote extent selection,
+large-area processing, actual supported OS dialogs and representative source
+accuracy/performance remain unimplemented or unverified as separately named work.
+
+Official contracts checked 2026-09-09:
+[pyosmium inputs](https://docs.osmcode.org/pyosmium/latest/user_manual/07-Input-Formats-And-Other-Sources/),
+[FileProcessor](https://docs.osmcode.org/pyosmium/latest/reference/File-Processing/),
+[Geofabrik extract boundaries](https://download.geofabrik.de/technical.html),
+[OSM copyright/ODbL](https://www.openstreetmap.org/copyright).

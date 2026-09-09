@@ -45,7 +45,7 @@ Unrelated orphan nodes and all original files remain untouched.
 ## Layers, properties and panels
 
 The tree groups vector objects by document type. Additional import rows use the
-existing GeoJSON adapter's `import-<layer_id>-...` identity prefix and control the
+vector adapters' `import-<layer_id>-...` identity prefix and control the
 whole imported group across types. Show/Lock and opacity apply cumulatively to
 type and import groups. Selecting a layer selects its editable objects; the
 filter finds object IDs. Hidden/locked objects cannot be selected, transformed,

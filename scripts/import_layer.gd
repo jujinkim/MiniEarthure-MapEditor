@@ -2,6 +2,7 @@ extends RefCounted
 ## Untrusted adapter output can only add a fresh, explicitly adopted vector layer.
 const MAX_BYTES := 12 * 1024 * 1024
 const FIELDS := ["nodes", "roads", "buildings", "zones"]
+const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 var value: Dictionary = {}
 
 static func _hex(text: Variant, length: int) -> bool:
@@ -43,12 +44,14 @@ static func _coordinates(c: Variant, requested: Dictionary) -> String:
 func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -> String:
 	value = {}
 	if raw is not Dictionary or JSON.stringify(raw).to_utf8_buffer().size() > MAX_BYTES: return "Invalid or oversized ImportLayer."
-	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2"]: return "Unsupported ImportLayer version/adapter."
+	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1"]: return "Unsupported ImportLayer version/adapter."
+	if requested.has("adapter") and raw.adapter != requested.adapter: return "Import adapter does not match request."
 	if not _hex(raw.get("layer_id"), 32) or raw.layer_id != expected_id: return "Stale or invalid import identity."
 	var source: Variant = raw.get("source")
 	if source is not Dictionary or not _text(source.get("name")) or not _text(source.get("license")) or not _text(source.get("accuracy")) or not _hex(source.get("sha256"), 64) or not _count(source.get("bytes"), 32 * 1024 * 1024): return "Invalid import source metadata."
 	var coordinate_error := _coordinates(raw.get("coordinates"), requested)
 	if coordinate_error != "": return coordinate_error
+	if raw.adapter == "osm-extract-v1" and (source.license != OSM_LICENSE or raw.coordinates.mode != "wgs84-utm"): return "OSM requires geographic coordinates and ODbL attribution."
 	for key in ["feature_count", "point_count", "warning_count"]:
 		if not _count(raw.get(key), 200000): return "Invalid import counts."
 	if raw.get("warnings") is not Array or raw.warnings.size() > 50 or raw.warning_count < raw.warnings.size(): return "Invalid import warnings."

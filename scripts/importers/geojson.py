@@ -111,6 +111,7 @@ def main():
     parser.add_argument("--accuracy", default="unknown")
     parser.add_argument("--layer-id", required=True)
     parser.add_argument("--watch-parent", action="store_true")
+    parser.add_argument("--input-format", choices=["geojson", "pbf", "osm"], default="geojson")
     args = parser.parse_args()
     if args.watch_parent:
         watch_parent_lifetime()
@@ -127,7 +128,16 @@ def main():
     if len(raw) != size: raise ValueError("source size changed during read; retry")
     event("read", len(raw), size)
     event("parse", 0, size)
-    value = strict_json(raw)
+    osm_counts = None
+    if args.input_format == "geojson":
+        value = strict_json(raw)
+    else:
+        from osm_extract import parse, LICENSE
+        if args.coordinates != "wgs84-utm":
+            raise ValueError("OSM requires explicit WGS84 origin and local map origin")
+        if args.license != LICENSE:
+            raise ValueError("OSM attribution must retain OpenStreetMap contributors and ODbL-1.0")
+        value, osm_counts = parse(raw, args.input_format)
     event("parse", size, size)
     options = {"mode": args.coordinates}
     if args.coordinates == "wgs84-utm":
@@ -136,6 +146,9 @@ def main():
         raise ValueError("local-metre mode must not specify geographic origins")
     result = convert(value, args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
         progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options)
+    if osm_counts is not None:
+        from osm_extract import finish
+        result = finish(result, osm_counts)
     encoded = result.encode()
     event("write", 0, len(encoded))
     with args.output.open("xb") as stream:

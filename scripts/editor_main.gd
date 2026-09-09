@@ -82,6 +82,7 @@ var import_python: LineEdit
 var last_import_source := ""
 var import_progress: ProgressBar
 var import_coordinate_mode: OptionButton
+var import_source_format: OptionButton
 var import_origin_lon: SpinBox
 var import_origin_lat: SpinBox
 var import_origin_x: SpinBox
@@ -167,7 +168,7 @@ func _build_ui() -> void:
 	column.add_child(title)
 	var bar := HFlowContainer.new()
 	column.add_child(bar)
-	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Import GeoJSON", _import_geojson], ["Export .memap", _export], ["Test Drive", _test_drive]]:
+	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Import vector", _import_geojson], ["Export .memap", _export], ["Test Drive", _test_drive]]:
 		_button(bar, entry[0], entry[1])
 	project_label = Label.new()
 	project_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -339,7 +340,7 @@ func _build_ui() -> void:
 	dialog.file_selected.connect(_path_selected)
 	add_child(dialog)
 	import_dialog = ConfirmationDialog.new()
-	import_dialog.title = "Import GeoJSON"
+	import_dialog.title = "Import vector source"
 	import_dialog.ok_button_text = "Choose source…"
 	import_license = LineEdit.new()
 	import_license.placeholder_text = "Source license (required)"
@@ -347,8 +348,11 @@ func _build_ui() -> void:
 	var import_fields := VBoxContainer.new()
 	import_fields.custom_minimum_size.x = 700
 	import_dialog.add_child(import_fields)
-	_label(import_fields, "Select coordinates explicitly; review before adopting. Original files stay unchanged.\nPython 3 is required. WGS84 also needs pyproj 3.7.2 in the selected Python.")
+	_label(import_fields, "Select a local source up to 32 MiB; review before adopting.\nWGS84 needs pyproj 3.7.2; OSM also needs osmium 4.3.1 in the selected Python.")
 	import_fields.get_child(0).custom_minimum_size.x = 700
+	import_source_format = OptionButton.new()
+	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)"]: import_source_format.add_item(format_title)
+	import_fields.add_child(import_source_format)
 	import_fields.add_child(import_license)
 	import_accuracy = LineEdit.new()
 	import_accuracy.placeholder_text = "Source accuracy / resolution (unknown if omitted)"
@@ -372,6 +376,17 @@ func _build_ui() -> void:
 	import_origin_y = _import_number(geographic, "Origin maps to local y (m)", -100000, 100000, 512, 0.01)
 	geographic.visible = false
 	import_coordinate_mode.item_selected.connect(func(index): geographic.visible = index == 1)
+	import_source_format.item_selected.connect(func(index):
+		import_license.editable = index == 0
+		import_coordinate_mode.disabled = index != 0
+		if index != 0:
+			import_license.text = IMPORT_LAYER.OSM_LICENSE
+			import_coordinate_mode.select(1)
+			geographic.visible = true
+		elif import_license.text == IMPORT_LAYER.OSM_LICENSE:
+			import_license.text = ""
+		import_dialog.get_ok_button().disabled = import_license.text.strip_edges() == ""
+	)
 
 	_button(import_fields, "Retry last source", func():
 		import_dialog.hide()
@@ -446,6 +461,8 @@ func _choose(action: String) -> void:
 		dialog.filters = PackedStringArray(["*.memap ; Map package"] if action == "export" else ["*.json ; Recovery snapshot"])
 		if action == "import":
 			dialog.filters = PackedStringArray(["*.geojson,*.json ; GeoJSON (explicit coordinates)"])
+			if import_source_format.selected == 1: dialog.filters = PackedStringArray(["*.osm.pbf,*.pbf ; OSM PBF snapshot"])
+			if import_source_format.selected == 2: dialog.filters = PackedStringArray(["*.osm ; OSM XML snapshot"])
 		if action == "recover":
 			dialog.filters = PackedStringArray(["* ; Recovery, previous or pending document"])
 			dialog.current_dir = ProjectSettings.globalize_path("user://recovery")
@@ -870,7 +887,10 @@ func _start_import(source: String, license_name: String) -> void:
 	var job := IMPORT_JOB.new()
 	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
 	import_coordinates_request = {"mode":"local-metres"} if import_coordinate_mode.selected == 0 else {"mode":"wgs84-utm", "origin":[import_origin_lon.value,import_origin_lat.value], "local_origin_m":[import_origin_x.value,import_origin_y.value]}
-	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request)
+	var input_format: String = ["geojson", "pbf", "osm"][import_source_format.selected]
+	import_coordinates_request.adapter = "geojson-v2" if input_format == "geojson" else "osm-extract-v1"
+	if input_format != "geojson": license_name = IMPORT_LAYER.OSM_LICENSE
+	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format)
 	if failure != "":
 		_status("E_IMPORT: " + failure)
 		return

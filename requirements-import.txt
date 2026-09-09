@@ -1,2 +1,4 @@
 # Optional WGS84 projection; local-metre imports use Python standard library only.
 pyproj==3.7.2
+# Optional OSM PBF/XML snapshot reader; retained license belongs to pyosmium.
+osmium==4.3.1

@@ -22,7 +22,7 @@ godot --headless --path . --script res://tests/test_drive_validator.gd
 
 For workbench/document/history/recovery checks with isolated user data and no private game
 dependencies, use `python3 scripts/check_documents.py --godot /path/to/godot --full
---log-dir /new/path/checks` (the geographic validator needs `--import-python` with
+--log-dir /new/path/checks` (geographic/OSM validators need `--import-python` with
 `requirements-import.txt` installed). See [document and recovery contracts](docs/DOCUMENTS.md).
 
 New creates a 1024x1024 metre map. Click road/polygon vertices and right-click to
@@ -81,15 +81,19 @@ E01's 2D type/import view layers never remove source records from preview or exp
 Full platform, representative-map performance and installed-Client authoring acceptance
 remain open; this is not the completed transition plan.
 
-Import GeoJSON asks for a license and source accuracy, then prepares a typed local-metre
-or WGS84 layer in a Python 3 child process. WGS84 uses an explicit geographic/local
+**Import vector** selects GeoJSON or bounded local OSM PBF/XML snapshots, with
+source accuracy and license (fixed ODbL/contributor notice for OSM), then prepares
+a typed local-metre or WGS84 layer in a Python 3 child process. WGS84 uses an explicit geographic/local
 origin and optional pyproj 3.7.2 from `requirements-import.txt`. Review extent, provenance and estimated values
 before **Adopt new layer**. Discard changes nothing; reimport creates a fresh layer
 and adoption is one Undo command. See [import contracts](docs/IMPORTS.md).
 The wizard supports Python executable selection, actual per-stage progress, Cancel
 and Retry last source. Child exit/output/identity budgets protect publication;
-owner shutdown and a parent-EOF watchdog stop helpers. Staged raster import and
-external source adapters remain subsequent work.
+owner shutdown and a parent-EOF watchdog stop helpers. OSM needs optional osmium
+4.3.1 and imports supported simple ways; incomplete/structural/area-relation
+geometry rejects rather than flattening. Terrain authoring also supports staged
+PNG16 review and explicit active-tile adoption. OSM downloads, general OSM
+geometry, Overture and Copernicus DEM remain subsequent work.
 
 Linux native build, command/save/recovery/export and rendered preview are tested.
 E01 Mac pointer/key, layer/property/panel and graph-safety checks are scoped
