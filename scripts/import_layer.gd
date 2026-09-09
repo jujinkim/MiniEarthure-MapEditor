@@ -53,6 +53,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	var coordinate_error := _coordinates(raw.get("coordinates"), requested)
 	if coordinate_error != "": return coordinate_error
 	if raw.adapter == "osm-extract-v1" and (source.license != OSM_LICENSE or raw.coordinates.mode != "wgs84-utm"): return "OSM requires geographic coordinates and ODbL attribution."
+	var overture_building_ids := {}
 	if raw.adapter == "overture-buildings-v1":
 		if source.license != OVERTURE_LICENSE or raw.coordinates.mode != "wgs84-utm": return "Overture requires WGS84 and attribution."
 		var meta: Variant = raw.coordinates.get("overture")
@@ -67,6 +68,10 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		for feature in meta.feature_sources:
 			if feature is not Dictionary or not _text(feature.get("id")) or source_ids.has(feature.id) or feature.get("sources") is not Array or feature.sources.is_empty() or feature.sources.size() > 128: return "Invalid Overture feature sources."
 			source_ids[feature.id] = true
+			if not _count(feature.get("footprint_count"), 256) or feature.footprint_count < 1 or feature.get("building_ids") is not Array or feature.building_ids.size() != feature.footprint_count: return "Invalid Overture footprint mapping."
+			for building_id in feature.building_ids:
+				if not _text(building_id) or overture_building_ids.has(building_id): return "Invalid Overture building mapping."
+				overture_building_ids[building_id] = true
 			for entry in feature.sources:
 				if entry is not Dictionary or not _text(entry.get("dataset")): return "Invalid Overture source dataset."
 
@@ -83,6 +88,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if not _count(n + 10000000 if n is int or n is float else null, 20000000): return "Invalid import extent coordinate."
 	if raw.extent_cm[0] > raw.extent_cm[2] or raw.extent_cm[1] > raw.extent_cm[3]: return "Invalid import extent ordering."
 	if raw.get("patches") is not Array or raw.patches.is_empty() or raw.patches.size() > 60000: return "Invalid import records."
+	if raw.adapter == "overture-buildings-v1" and overture_building_ids.size() != raw.patches.size(): return "Incomplete Overture footprint mapping."
 	var ids := {}
 	var nodes := {}
 	var prefix := "import-" + expected_id + "-"
@@ -91,6 +97,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if raw.adapter == "overture-buildings-v1" and patch.field != "buildings": return "Overture profile may only add buildings."
 		if patch.field not in FIELDS or patch.before != null or patch.after is not Dictionary: return "Import may only add supported records."
 		if patch.id is not String or not patch.id.begins_with(prefix) or patch.id.length() > 128 or patch.after.get("id") != patch.id or ids.has(patch.id): return "Invalid/duplicate import record identity."
+		if raw.adapter == "overture-buildings-v1" and not overture_building_ids.has(patch.id): return "Unmapped Overture building."
 		ids[patch.id] = true
 		if patch.field == "nodes": nodes[patch.id] = true
 	for patch in raw.patches:

@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import sys
 from import_layer import MAX_INPUT, MAX_POINTS, number, text, strict_json
+from polygon_geometry import Budget, group_rings
 
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
 CLIENT_VERSION = "1.0.2"
@@ -106,6 +107,7 @@ def parse(raw):
         raise ValueError("Expected 1..20000 Overture buildings")
     output, provenance, seen, total_points = [], [], set(), 0
     w,s,e,n = query["bbox"]
+    topology_budget = Budget()
     for f in features:
         if not isinstance(f, dict) or f.get("type") != "Feature": raise ValueError("Expected Overture Feature")
         identity = text(f.get("id"), "Overture ID", 128)
@@ -115,20 +117,38 @@ def parse(raw):
         if not isinstance(p, dict) or p.get("id") != identity or not isinstance(g, dict): raise ValueError("Invalid Overture properties/identity")
         if p.get("has_parts") not in (None, False) or p.get("is_underground") not in (None, False) or p.get("min_height") not in (None, 0) or p.get("min_floor") not in (None, 0) or p.get("level") not in (None, 0):
             raise ValueError("Partial/underground/elevated buildings require explicit authoring")
-        if g.get("type") == "MultiPolygon" and isinstance(g.get("coordinates"), list) and len(g["coordinates"]) == 1:
-            g = dict(type="Polygon", coordinates=g["coordinates"][0])
-        if g.get("type") != "Polygon" or not isinstance(g.get("coordinates"), list) or len(g["coordinates"]) != 1:
-            raise ValueError("Only one footprint ring; multipart/holes are unsupported")
-        ring = g["coordinates"][0]
-        if not isinstance(ring, list) or len(ring) < 4 or ring[0] != ring[-1]: raise ValueError("Invalid closed building ring")
-        total_points += len(ring)
-        if total_points > MAX_POINTS: raise ValueError("Overture point budget exceeded")
-        for pos in ring:
-            if not isinstance(pos, list) or len(pos) != 2: raise ValueError("Expected 2D WGS84 position")
-            number(pos[0], "longitude", -180, 180)
-            number(pos[1], "latitude", -80, 84)
-        xs, ys = [p[0] for p in ring], [p[1] for p in ring]
+        kind, coordinates = g.get("type"), g.get("coordinates")
+        if kind not in ("Polygon", "MultiPolygon") or not isinstance(coordinates, list):
+            raise ValueError("Expected Polygon or MultiPolygon building footprint")
+        polygons = [coordinates] if kind == "Polygon" else coordinates
+        if not 1 <= len(polygons) <= 256:
+            raise ValueError("Expected 1..256 footprint parts per Overture feature")
+        positions = []
+        for rings in polygons:
+            if not isinstance(rings, list) or not 1 <= len(rings) <= 17:
+                raise ValueError("Expected outer ring and at most 16 courtyard holes")
+            vertices = 0
+            for ring in rings:
+                if not isinstance(ring, list) or len(ring) < 4 or ring[0] != ring[-1]:
+                    raise ValueError("Invalid closed building ring")
+                total_points += len(ring)
+                vertices += len(ring)-1
+                if total_points > MAX_POINTS: raise ValueError("Overture point budget exceeded")
+                for pos in ring:
+                    if not isinstance(pos, list) or len(pos) != 2: raise ValueError("Expected 2D WGS84 position")
+                    number(pos[0], "longitude", -180, 180)
+                    number(pos[1], "latitude", -80, 84)
+                positions.extend(ring)
+            if len(rings) > 1 and vertices > 512:
+                raise ValueError("Courtyard supports at most 512 total vertices")
+        grouped = group_rings([rings[0] for rings in polygons], [hole for rings in polygons for hole in rings[1:]], topology_budget)
+        if grouped != polygons:
+            raise ValueError("Courtyard holes must belong to their declared outer")
+        xs, ys = [pos[0] for pos in positions], [pos[1] for pos in positions]
         if min(xs) >= e or max(xs) <= w or min(ys) >= n or max(ys) <= s: raise ValueError("Feature does not intersect requested bbox")
+        # Preserve every complete part, including parts outside the query envelope.
+        # Keep historical single-member authored IDs stable.
+        g = dict(type="Polygon", coordinates=polygons[0]) if len(polygons) == 1 else dict(type="MultiPolygon", coordinates=polygons)
         sources = p.get("sources")
         if not isinstance(sources, list) or not 1 <= len(sources) <= 128 or len(json.dumps(sources)) > 16384:
             raise ValueError("Missing/oversized Overture source attribution")
@@ -139,17 +159,29 @@ def parse(raw):
         properties = {}
         if p.get("height") is not None: properties["height_m"] = number(p["height"], "height", 0.01, 1000)
         output.append(dict(type="Feature", geometry=g, properties=properties, id=identity))
-        provenance.append(dict(id=identity, version=p.get("version"), sources=sources))
+        provenance.append(dict(id=identity, version=p.get("version"), sources=sources, footprint_count=len(polygons)))
     output.sort(key=lambda f:f["id"])
     provenance.sort(key=lambda p:p["id"])
     return dict(type="FeatureCollection", features=output), dict(query, feature_sources=provenance)
 
 
 def finish(layer, metadata):
+    # Explicit source-to-authored mapping survives attribution and project I/O.
+    for index, feature in enumerate(metadata["feature_sources"]):
+        prefix = f"import-{layer.layer_id}-{index}"
+        count = feature["footprint_count"]
+        feature["building_ids"] = [prefix] if count == 1 else [f"{prefix}-part-{part}" for part in range(count)]
+    # Recipe 3+ requires an authored use even for solid multipart islands.
+    # GeoJSON already counted unknown usage as an estimate; make the fallback
+    # explicit without inventing a provider classification.
+    for patch in layer.patches:
+        if patch["after"]["usage"] == "unknown":
+            patch["after"]["usage"] = "residential"
     layer.adapter = "overture-buildings-v1"
     layer.coordinates["overture"] = metadata
     layer.warning("Overture buildings only; crossing footprints retained without clipping. Other themes not queried.")
-    layer.warning("Base=0, unknown use, flat roof/concrete and absent height are estimates; names/facade/roof/floors are not modeled.")
+    layer.warning("Multipart footprints share source identity; parts are separate complete buildings, not inferred vertical building parts.")
+    layer.warning("Base=0, unknown use represented as residential, flat roof/concrete and absent height are estimates; names/facade/roof/floors are not modeled.")
     layer.encode()
     return layer
 

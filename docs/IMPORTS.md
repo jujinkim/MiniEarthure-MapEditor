@@ -412,15 +412,17 @@ After download, set explicit WGS84/local origins and choose **Import / retry las
 source**. Saved captures can also be selected with **Overture building area
 snapshot** in the format picker. Offline reimport needs pyproj 3.7.2, but does not
 need the network reader. The existing one-strip/hemisphere/20 km UTM profile and
-native map bounds/geometry validation apply to every position. A Polygon or a
-single-member MultiPolygon with one closed 2D ring is accepted. Multipart/holes,
-Z/M, partial/underground/elevated buildings, invalid heights, missing sources and
+native map bounds/geometry validation apply to every position. Polygon and bounded
+MultiPolygon footprints, including recipe-5 courtyard holes and complete islands,
+are accepted (see the extension below). Z/M, partial/underground/elevated buildings,
+invalid heights, missing sources and
 out-of-query bbox envelopes reject the whole candidate. Crossing footprints remain
 whole; bbox overlap is not an exact polygon clipping operation. Source IDs are
 sorted before assigning fresh per-import authored IDs. Native topology checks may
 reject otherwise valid provider geometry rather than repair it.
 
-Height is used when supplied; base zero, absent height, unknown use and flat
+Height is used when supplied; base zero, absent height, unknown use represented
+explicitly as residential, and flat
 concrete appearance are explicitly estimated. Floors, names, facade and roof
 attributes are retained in the source snapshot but not modeled. Review shows
 release/bbox, source ID/version/dataset notices, source hash/bytes, coordinate
@@ -572,7 +574,7 @@ This replaces the building-hole rejection in the earlier GeoJSON and OSM
 multipolygon profile. GeoJSON Polygon/MultiPolygon and explicit complete OSM
 outer/inner relations preserve holes in a single MapKit building record. Multiple
 outers/islands retain separate identities. No courtyard is filled or split into
-arbitrary buildings. Overture remains on its earlier single-ring adapter profile.
+arbitrary buildings. Overture now shares this profile through the bounded extension below.
 
 Choose **Recipe 5** in authoring settings before importing a courtyard. The
 review states this requirement and native validation rejects legacy recipes with
@@ -604,5 +606,50 @@ workbench_validator --script document_history_validator --script
 document_recovery_validator --log-dir NEW_DIRECTORY`. Also run courtyard_validator
 with `--resource-pack` and `--rendered` in an isolated Mac environment. Native
 Windows/Linux/installed Client/export and representative-map performance remain
-separate acceptance gates. Overture multipart, structural OSM and multi-cell DEM
+separate acceptance gates. Structural OSM, vertical Overture parts and multi-cell DEM
 remain distinct unfinished units.
+
+
+## Overture multipart/courtyard extension — 2026-09-09
+
+The building snapshot adapter accepts 1..256 complete footprint parts per source
+feature. Each polygon has one outer and at most 16 holes; a courtyard has at most
+512 non-closing vertices. All closing positions count against the existing 200,000
+source-point cap. Existing 32 MiB snapshot, 20,000-feature, 60,000-record, IPC and
+native admission caps still apply. A shared two-million-operation topology budget
+runs separately on source WGS84 and projected integer coordinates. Empty, open,
+self-crossing, touching, overlapping, misassigned or nested-hole geometry rejects
+the whole layer; there is no clipping, repair or partial acceptance. Complete
+islands inside courtyards and parts outside the selected bbox are retained when
+the feature envelope intersects it. Envelope overlap is not exact intersection.
+
+Source feature order is sorted by ID. Provider polygon/ring order is preserved;
+a single member retains the historical authored ID, while multipart IDs append
+`-part-N`. `feature_sources` retains ID/version/full sources and now explicitly
+records `footprint_count` and every `building_ids` entry. The Editor boundary
+requires unique exhaustive mapping to building-only patches. Snapshot v1 and
+adapter v1 remain; old saved snapshots are reparsed to the current candidate
+contract. No persisted project or old attribution is migrated automatically.
+
+Every part remains in one reviewed additive command and source notice. A
+courtyard requires explicit recipe 5; the document is never implicitly upgraded.
+Unknown use is an exposed residential estimate for all Overture footprints,
+including solid islands (recipe 3+ cannot generate unknown use). Provider use,
+roof/floor details remain unmodeled, retained in the immutable snapshot. Vertical
+`has_parts`, elevated/underground buildings and other themes still reject or are
+not queried; horizontal multipart support does not infer vertical building parts.
+
+Focused reproduction with the optional Python dependencies and matching MapKit
+binding built as documented above:
+
+```sh
+python -B -m unittest discover -s tests -p test_overture_area.py -v
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/python --script overture_geometry_validator --script overture_validator --script import_job_validator --script import_layer_validator --log-dir /new/overture-geometry
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/python --script overture_geometry_validator --resource-pack --log-dir /new/overture-geometry-pack
+```
+
+Synthetic Arrow/WKB snapshots, source-to-part mapping, courtyard/island native
+review/generation, forged/invalid whole-layer rejection, explicit recipe,
+Undo/Redo, recovery, preview cancellation and unchanged source/package checks
+cover this profile. Actual provider/OS/installed-client and full acceptance remain
+separate; no representative-data or performance result is claimed.

@@ -16,7 +16,21 @@ def snapshot(height=12):
     feature["properties"]["height"]=height
     return dict(snapshot_version=1, **QUERY, features=[feature])
 
+def multipart_snapshot():
+    value = snapshot()
+    def ring(x, y, size):
+        return [[x,y],[x+size,y],[x+size,y+size],[x,y+size],[x,y]]
+    value["features"][0]["geometry"]["coordinates"] = [
+        [ring(9.0001,55.0001,0.0006), ring(9.0002,55.0002,0.0004)],
+        [ring(9.0003,55.0003,0.0001)],  # Complete island in the courtyard.
+        [ring(9.0012,55.0001,0.0001)],  # Retained outside the query bbox.
+    ]
+    return value
+
 if __name__ == "__main__":
+    if sys.argv[1] == "--multipart":
+        Path(sys.argv[2]).write_text(json.dumps(multipart_snapshot()))
+        sys.exit(0)
     entry = sys.argv.pop(1)
     sys.path.insert(0,str(Path(entry).parent))
     import overture_area as adapter

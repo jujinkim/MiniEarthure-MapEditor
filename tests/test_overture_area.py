@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts/importers"))
 import overture_area as a
-from overture_fixture import QUERY, FEATURE, snapshot
+from overture_fixture import QUERY, FEATURE, snapshot, multipart_snapshot
 from geojson import convert
 
 class OvertureTests(unittest.TestCase):
@@ -24,6 +24,8 @@ class OvertureTests(unittest.TestCase):
         layer=a.finish(convert(value,"synthetic.overture.json",a.LICENSE,source_bytes=raw,coordinates={"mode":"wgs84-utm","origin":[9,55],"local_origin_m":[512,512]}),metadata)
         self.assertEqual(layer.adapter,"overture-buildings-v1")
         self.assertEqual(layer.patches[0]["after"]["height_cm"],1200)
+        self.assertEqual(layer.patches[0]["after"]["usage"],"residential")
+        self.assertIn("usage",layer.estimates)
         self.assertEqual(layer.coordinates["overture"]["feature_sources"][0]["sources"],FEATURE["properties"]["sources"])
         self.assertIn("base_m",layer.estimates)
         self.assertNotIn("height_m",layer.estimates)
@@ -88,6 +90,56 @@ class OvertureTests(unittest.TestCase):
         self.assertEqual(calls[0][1]["release"],QUERY["release"])
         self.assertTrue(calls[0][1]["stac"])
         self.assertEqual(calls[0][1]["bbox"],QUERY["bbox"])
+    def layer(self, obj):
+        raw = json.dumps(obj).encode()
+        value, metadata = a.parse(raw)
+        return a.finish(convert(value,"synthetic.overture.json",a.LICENSE,layer_id="a"*32,source_bytes=raw,
+            coordinates={"mode":"wgs84-utm","origin":[9,55],"local_origin_m":[512,512]}),metadata)
+    def test_multipart_courtyard_mapping_preservation(self):
+        obj = multipart_snapshot(); original = copy.deepcopy(obj)
+        layer = self.layer(obj)
+        self.assertEqual(obj, original)
+        self.assertEqual(layer.feature_count, 1)
+        self.assertEqual(len(layer.patches), 3)
+        self.assertEqual(len(layer.patches[0]["after"]["holes"]), 1)
+        self.assertNotIn("holes", layer.patches[1]["after"])
+        meta = layer.coordinates["overture"]["feature_sources"][0]
+        self.assertEqual(meta["building_ids"], [p["id"] for p in layer.patches])
+        self.assertEqual(meta["id"], FEATURE["id"])
+        self.assertEqual(meta["sources"], FEATURE["properties"]["sources"])
+        self.assertEqual(meta["footprint_count"], 3)
+        self.assertIn("courtyard_usage", layer.estimates)
+        self.assertEqual(layer.patches, self.layer(obj).patches)
+        polygon = snapshot(); polygon["features"][0]["geometry"] = dict(type="Polygon", coordinates=FEATURE["geometry"]["coordinates"][0])
+        self.assertEqual(self.layer(polygon).patches, self.layer(snapshot()).patches)
+    def test_multipart_invalid_whole_source_and_budgets(self):
+        for change in ["overlap", "wrong_owner", "touch", "nested", "empty", "parts", "holes", "z"]:
+            obj = multipart_snapshot(); polys = obj["features"][0]["geometry"]["coordinates"]
+            if change == "overlap": polys.append(copy.deepcopy(polys[0]))
+            if change == "wrong_owner": polys[1].append(polys[0].pop())
+            if change == "touch": polys[0][1][0] = polys[0][0][0]; polys[0][1][-1] = polys[0][0][0]
+            if change == "nested": polys[0].append(polys.pop(1)[0])
+            if change == "empty": polys.append([])
+            if change == "parts": polys[:] = polys * 86
+            if change == "holes": polys[0] += polys[0][1:] * 16
+            if change == "z": polys[-1][0][1].append(2)
+            with self.subTest(change=change), self.assertRaises(ValueError): self.layer(obj)
+        with patch.object(a,"MAX_POINTS",19), self.assertRaisesRegex(ValueError,"point budget"): self.layer(multipart_snapshot())
+        with patch("polygon_geometry.MAX_TOPOLOGY_CHECKS",2), self.assertRaisesRegex(ValueError,"topology budget"): self.layer(multipart_snapshot())
+    def test_multipart_arrow_wkb_snapshot_roundtrip(self):
+        import pyarrow as pa
+        from shapely.geometry import shape
+        import overturemaps.core as core
+        obj = multipart_snapshot(); feature = obj["features"][0]
+        props = copy.deepcopy(feature["properties"]); props["geometry"] = shape(feature["geometry"]).wkb
+        table = pa.Table.from_pylist([props])
+        reader = pa.RecordBatchReader.from_batches(table.schema,table.to_batches())
+        with tempfile.TemporaryDirectory() as folder, patch.object(core,"record_batch_reader",return_value=reader):
+            root = Path(folder)
+            a.acquire(QUERY,root/"partial",root/"source",lambda *args:None)
+            captured = json.loads((root/"source").read_bytes())
+            self.assertEqual(captured["features"][0],feature)
+            self.assertEqual(len(self.layer(captured).patches),3)
     def test_missing_dependency(self):
         with patch.object(a,"version",return_value="other"),self.assertRaisesRegex(ValueError,"requirements-import"):
             list(a.remote_features(QUERY))
