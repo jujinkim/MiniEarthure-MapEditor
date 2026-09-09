@@ -27,7 +27,22 @@ def multipart_snapshot():
     ]
     return value
 
+def vertical_snapshot():
+    value = snapshot()
+    value.update(include_parts=True, ground_m=2)
+    parent = value["features"][0]
+    parent["properties"].update(type="building", has_parts=True)
+    for name, base, height in [("lower", 0, 4), ("upper", 8, 3)]:
+        part = copy.deepcopy(FEATURE)
+        part["id"] = name
+        part["properties"].update(id=name, type="building_part", building_id=parent["id"], min_height=base, height=height)
+        value["features"].append(part)
+    return value
+
 if __name__ == "__main__":
+    if sys.argv[1] == "--vertical":
+        Path(sys.argv[2]).write_text(json.dumps(vertical_snapshot()))
+        sys.exit(0)
     if sys.argv[1] == "--multipart":
         Path(sys.argv[2]).write_text(json.dumps(multipart_snapshot()))
         sys.exit(0)

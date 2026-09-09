@@ -381,9 +381,9 @@ The official reader is called with the exact release, building type, STAC enable
 anonymous S3 and 15-second connection/request timeouts. Its API is pinned and
 exercised with real Arrow batches and WKB using synthetic sources.
 
-This profile queries **buildings/building only**. Transportation, connectors,
-base/vegetation, places, multipart/hole normalization and large-area processing
-are unimplemented. They are not silently included, flattened or declared verified.
+The default profile queries **buildings/building only**; the explicit vertical
+profile below also queries `building_part`. Transportation, connectors,
+base/vegetation, places and large-area processing are unimplemented. They are not silently included, flattened or declared verified.
 The building footprint unit establishes remote area → preserved snapshot → typed
 review/adoption; it is not completion of all possible Overture theme adapters.
 
@@ -414,8 +414,9 @@ snapshot** in the format picker. Offline reimport needs pyproj 3.7.2, but does n
 need the network reader. The existing one-strip/hemisphere/20 km UTM profile and
 native map bounds/geometry validation apply to every position. Polygon and bounded
 MultiPolygon footprints, including recipe-5 courtyard holes and complete islands,
-are accepted (see the extension below). Z/M, partial/underground/elevated buildings,
-invalid heights, missing sources and
+are accepted (see the extensions below). The default profile rejects vertical
+parts; the explicit vertical mode below supports complete above-ground families.
+Z/M, underground buildings, invalid heights, missing sources and
 out-of-query bbox envelopes reject the whole candidate. Crossing footprints remain
 whole; bbox overlap is not an exact polygon clipping operation. Source IDs are
 sorted before assigning fresh per-import authored IDs. Native topology checks may
@@ -666,8 +667,9 @@ courtyard requires explicit recipe 5; the document is never implicitly upgraded.
 Unknown use is an exposed residential estimate for all Overture footprints,
 including solid islands (recipe 3+ cannot generate unknown use). Provider use,
 roof/floor details remain unmodeled, retained in the immutable snapshot. Vertical
-`has_parts`, elevated/underground buildings and other themes still reject or are
-not queried; horizontal multipart support does not infer vertical building parts.
+`has_parts` and elevated buildings require the explicit vertical profile below.
+Underground buildings and other themes still reject or are not queried; horizontal
+multipart support does not infer vertical building parts.
 
 Focused reproduction with the optional Python dependencies and matching MapKit
 binding built as documented above:
@@ -838,3 +840,49 @@ requirements, and `scripts/check_documents.py --script osm_structures_validator
 The full runner now includes the new validator. Real regional accuracy, datum
 alignment, partial structural crop, chained structure approaches, other source
 profiles and target-platform acceptance remain separate work.
+
+
+## Overture vertical building parts — 2026-09-10
+
+In **Download Overture building area**, enable **Include vertical building parts**
+and review **Common ground altitude (m)**. Both `building` and `building_part`
+readers use the same dated release and bbox. The stricter profile allows 256 total
+source features and 8192 ring positions, within the existing snapshot/IPC/native
+caps. Both readers must finish before exclusive snapshot publication; cancellation
+or a second-reader failure cannot publish a partial family.
+
+Choose recipe 3 or newer explicitly (recipe 5 for courtyards). Every solid needs
+numeric `min_height` (including explicit zero) and `height`: base is common ground
+plus `min_height`, and height is thickness from lowest to highest point, following
+[Overture BuildingPart](https://docs.overturemaps.org/schema/reference/buildings/building_part/).
+The common ground plane is user supplied, not sampled terrain or a datum conversion.
+Missing heights are not reconstructed from floors/level. Underground and nonzero
+z-order inputs reject. Roof shape, material and residential use remain reviewed
+estimates; original properties are retained in the source snapshot.
+
+Every part must reference exactly one supplied `has_parts` parent. Parent geometry
+must lie strictly inside the query, contain every part, and equal their footprint
+union. Missing parents/parts, uncovered remainder, nested parts, duplicate IDs and
+out-of-parent geometry reject the entire layer without repair. This conservative
+coverage profile does not claim every real-world family can be imported. Parent
+geometry remains in the preserved snapshot; parent ID/version/full sources and
+sorted part IDs remain in provenance. Only parts create solids, avoiding a second
+parent volume. Native projected/quantized occupancy validation rejects overlapping
+solid volumes; vertically separated parts retain their gap. Standalone elevated
+buildings with explicit dimensions also work in this mode.
+
+Review shows attribution, plane/shape assumptions and the complete candidate.
+Adoption is one additive command; discard, Undo/Redo, save/reopen, recovery,
+cancellation, stale document/review and retry retain the original source and prior
+package. No MapKit ABI/recipe or game dependency changes are needed.
+
+Synthetic checks (optional dependencies installed in the selected Python):
+
+```sh
+python -B -m unittest discover -s tests -p 'test_overture*.py' -v
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/python --script overture_vertical_validator --script overture_geometry_validator --script import_job_validator --script import_layer_validator --resource-pack --log-dir /new/overture-vertical
+```
+
+Actual provider accuracy/Internet acquisition, installed target platforms and
+performance acceptance remain deferred. Larger areas, incomplete family handling,
+underground solids, automatic terrain alignment and other themes are unimplemented.

@@ -67,6 +67,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 			if not _count(crop.counts.get(key), 200000): return "Invalid OSM crop count."
 		if crop.counts.output_features != raw.get("feature_count"): return "OSM crop count mismatch."
 	var overture_building_ids := {}
+	var overture_vertical := false
 	if raw.adapter == "overture-buildings-v1":
 		if source.license != OVERTURE_LICENSE or raw.coordinates.mode != "wgs84-utm": return "Overture requires WGS84 and attribution."
 		var meta: Variant = raw.coordinates.get("overture")
@@ -77,6 +78,9 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		for i in range(4):
 			if not _finite(meta.bbox[i], -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84): return "Invalid Overture area."
 		if meta.bbox[0] >= meta.bbox[2] or meta.bbox[1] >= meta.bbox[3] or meta.bbox[2]-meta.bbox[0] > 0.02 or meta.bbox[3]-meta.bbox[1] > 0.02: return "Invalid Overture area size."
+		overture_vertical = meta.get("include_parts", false) == true
+		if meta.has("include_parts") and (meta.include_parts is not bool or not meta.include_parts): return "Invalid Overture vertical selection."
+		if overture_vertical and (not _finite(meta.get("ground_m"), -9000, 9000) or meta.get("parent_sources") is not Array or meta.parent_sources.size() + meta.feature_sources.size() > 256): return "Invalid Overture vertical provenance."
 		var source_ids := {}
 		for feature in meta.feature_sources:
 			if feature is not Dictionary or not _text(feature.get("id")) or source_ids.has(feature.id) or feature.get("sources") is not Array or feature.sources.is_empty() or feature.sources.size() > 128: return "Invalid Overture feature sources."
@@ -84,9 +88,27 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 			if not _count(feature.get("footprint_count"), 256) or feature.footprint_count < 1 or feature.get("building_ids") is not Array or feature.building_ids.size() != feature.footprint_count: return "Invalid Overture footprint mapping."
 			for building_id in feature.building_ids:
 				if not _text(building_id) or overture_building_ids.has(building_id): return "Invalid Overture building mapping."
-				overture_building_ids[building_id] = true
+				overture_building_ids[building_id] = feature
+			if overture_vertical and (not _finite(feature.get("base_cm"), -900000, 1000000) or not _count(feature.get("height_cm"), 100000) or feature.height_cm < 1): return "Invalid Overture vertical dimensions."
 			for entry in feature.sources:
 				if entry is not Dictionary or not _text(entry.get("dataset")): return "Invalid Overture source dataset."
+
+		if overture_vertical:
+			var linked := {}
+			for parent in meta.parent_sources:
+				if parent is not Dictionary or not _text(parent.get("id")) or source_ids.has(parent.id) or parent.get("part_ids") is not Array or parent.part_ids.is_empty() or parent.part_ids.size() > 256 or parent.get("sources") is not Array or parent.sources.is_empty() or parent.sources.size() > 128: return "Invalid Overture parent source."
+				source_ids[parent.id] = true
+				for source_entry in parent.sources:
+					if source_entry is not Dictionary or not _text(source_entry.get("dataset")): return "Invalid Overture parent attribution."
+				for part_id in parent.part_ids:
+					if not _text(part_id) or linked.has(part_id): return "Duplicate/invalid Overture parent link."
+					linked[part_id] = parent.id
+			for feature in meta.feature_sources:
+				if feature.has("parent_id"):
+					if not _text(feature.parent_id) or linked.get(feature.id) != feature.parent_id: return "Missing Overture parent link."
+					linked.erase(feature.id)
+				elif linked.has(feature.id): return "Missing Overture part link."
+			if not linked.is_empty(): return "Unknown Overture part link."
 
 	for key in ["feature_count", "point_count", "warning_count"]:
 		if not _count(raw.get(key), 200000): return "Invalid import counts."
@@ -111,6 +133,9 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if patch.field not in FIELDS or patch.before != null or patch.after is not Dictionary: return "Import may only add supported records."
 		if patch.id is not String or not patch.id.begins_with(prefix) or patch.id.length() > 128 or patch.after.get("id") != patch.id or ids.has(patch.id): return "Invalid/duplicate import record identity."
 		if raw.adapter == "overture-buildings-v1" and not overture_building_ids.has(patch.id): return "Unmapped Overture building."
+		if overture_vertical:
+			var dimensions: Dictionary = overture_building_ids[patch.id]
+			if patch.after.get("base_cm") != dimensions.base_cm or patch.after.get("height_cm") != dimensions.height_cm: return "Overture vertical dimensions changed."
 		ids[patch.id] = true
 		if patch.field == "nodes": nodes[patch.id] = true
 	for patch in raw.patches:
@@ -128,6 +153,7 @@ func patches(store: RefCounted) -> Array:
 
 func validate_for(store: RefCounted) -> String:
 	if value.is_empty(): return "No import candidate."
+	if value.adapter == "overture-buildings-v1" and value.coordinates.overture.get("include_parts", false) and store.document.recipe_version < 3: return "Vertical building parts require explicit recipe 3 or newer."
 	var candidate: Dictionary = store.document.duplicate(true)
 	var failure: String = store._apply(candidate, patches(store), false)
 	if failure != "": return failure

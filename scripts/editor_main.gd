@@ -110,6 +110,8 @@ var acquisition_mode := ""
 var download_sources := {}
 var overture_dialog: ConfirmationDialog
 var overture_release: LineEdit
+var overture_parts: CheckBox
+var overture_ground: SpinBox
 var overture_bbox: Array[SpinBox] = []
 var overture_requested := {}
 var overture_area: Control
@@ -1457,6 +1459,16 @@ Progress reports captured snapshot bytes against the cap, not network completion
 	fields.add_child(grid)
 	for item in [["West longitude",-180,180], ["South latitude",-80,84], ["East longitude",-180,180], ["North latitude",-80,84]]:
 		overture_bbox.append(_import_number(grid, item[0], item[1], item[2], 0, 0.000001))
+	overture_parts = CheckBox.new()
+	overture_parts.text = "Include vertical building parts (complete families, 256 features / 8192 points)"
+	fields.add_child(overture_parts)
+	overture_ground = _import_number(grid, "Common ground altitude (m)", -9000, 9000, 0, 0.01)
+	overture_ground.editable = false
+	overture_parts.toggled.connect(func(enabled):
+		overture_ground.editable = enabled
+		_overture_changed()
+	)
+	overture_ground.value_changed.connect(func(_value): _overture_changed())
 	overture_area = preload("./area_selector.gd").new()
 	fields.add_child(overture_area)
 	overture_area.bounds_selected.connect(func(bounds: Array):
@@ -1476,7 +1488,8 @@ Progress reports captured snapshot bytes against the cap, not network completion
 	_label(fields, "ODbL · © OpenStreetMap contributors, Overture Maps Foundation.
 Source notices: https://docs.overturemaps.org/attribution/#buildings
 Complete multipart/courtyard footprints are retained (recipe 5 for courtyards).
-Vertical/underground parts reject; base/material/roof/use may be estimates.
+Vertical mode requires explicit heights and complete parents inside the area.
+Common ground is a chosen plane, not sampled terrain; underground parts reject.
 Completed snapshots stay in import-sources even if conversion fails.
 Cancel removes only this request's partial. Retry starts a fresh request.")
 	for child in fields.get_children():
@@ -1505,7 +1518,11 @@ func _open_overture() -> void:
 func _overture_plan() -> Dictionary:
 	var bounds: Array = []
 	for field in overture_bbox: bounds.append(field.value)
-	return {"provider":"Overture", "release":overture_release.text.strip_edges(), "bbox":bounds, "theme":"buildings", "type":"building", "license":IMPORT_LAYER.OVERTURE_LICENSE}
+	var query := {"provider":"Overture", "release":overture_release.text.strip_edges(), "bbox":bounds, "theme":"buildings", "type":"building", "license":IMPORT_LAYER.OVERTURE_LICENSE}
+	if overture_parts.button_pressed:
+		query.include_parts = true
+		query.ground_m = overture_ground.value
+	return query
 
 func _download_overture() -> void:
 	if busy: return
@@ -1560,4 +1577,6 @@ func _review_overture() -> void:
 	overture_reviewed = _overture_plan().duplicate(true)
 	var b: Array = overture_reviewed.bbox
 	overture_review.dialog_text = "Release: %s · buildings only\nW %.6f / S %.6f / E %.6f / N %.6f\n\nQuery envelope, not a crop. All returned footprint parts stay whole.\nTransfer/count unknown; captured snapshot ≤32 MiB / 20,000 features.\nNetwork bytes and reader memory may exceed that cap. Deadline 120s.\nODbL · OpenStreetMap contributors / Overture Maps Foundation.\n\nDownload preserves a new source; it does not adopt or change the map.\nNext: set explicit geographic/local origins, import, review and adopt.\nCancel stops this request; completed sources remain; retry starts fresh." % [overture_reviewed.release,b[0],b[1],b[2],b[3]]
-	overture_review.popup_centered(Vector2i(740,360))
+	if overture_parts.button_pressed:
+		overture_review.dialog_text += "\n\nIncludes building + building_part. Common ground altitude: %.2f m.\n256 total source features / 8192 points; explicit height + min_height.\nParents must be wholly inside area and exactly covered by parts.\nParent outlines are retained as sources; only parts become solids." % overture_ground.value
+	overture_review.popup_centered(Vector2i(740,480))
