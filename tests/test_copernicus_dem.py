@@ -175,4 +175,91 @@ class DemTests(unittest.TestCase):
             self.assertTrue(Path(result["png_path"]).exists())
 
 
+class MosaicTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.folder=tempfile.TemporaryDirectory()
+        cls.sources=Path(cls.folder.name)
+        for tile in [(9,55),(10,55),(9,54),(10,54)]:
+            create(cls.sources/dem.tile_url(tile,30).split("/")[-1],tile=tile)
+    @classmethod
+    def tearDownClass(cls): cls.folder.cleanup()
+    def opts(self):
+        o=dict(options(self.sources),cell_count=[2,2])
+        o["coordinates"]["origin"]=[9.997,54.997]
+        return o
+    def test_four_source_mosaic_reference_shared_edges(self):
+        o=self.opts();p=dem.plan(o)
+        self.assertEqual(len(p["sources"]),4)
+        with tempfile.TemporaryDirectory() as folder:
+            d=Path(folder);events=[]
+            r=dem.execute(dict(mode="dem",plan=p,destination=str(d/"capture")),d,lambda *a:events.append(a))
+            import numpy as np
+            grids=[]
+            for output,points in zip(r["outputs"],dem.mosaic_grid(o)[3]):
+                png=Path(output["png_path"]).read_bytes();length=struct.unpack(">I",png[33:37])[0]
+                raw=zlib.decompress(png[41:41+length]);side=p["side"];stride=side*2+1
+                a=np.frombuffer(b"".join(raw[i*stride+1:(i+1)*stride] for i in range(side)),dtype=">u2").reshape(side,side).astype(float)*r["raster"]["step_cm"]+r["raster"]["offset_cm"]
+                for actual,(lon,lat) in zip(a.flat,points): self.assertLessEqual(abs(actual-round((100+(lon-9)*100+(lat-55)*200)*100)),1)
+                grids.append(a)
+            np.testing.assert_array_equal(grids[0][:,-1],grids[1][:,0])
+            np.testing.assert_array_equal(grids[0][-1,:],grids[2][0,:])
+            self.assertEqual(len(r["review"]["sources"]),4)
+            self.assertEqual(events[-1],("sample",4*17*17,4*17*17))
+            self.assertTrue(all(Path(s["source"]["captured_path"]).is_file() for s in r["review"]["sources"]))
+    def test_limits_missing_source_and_stale_plan(self):
+        for counts in [[0,1],[5,1],[True,1],[4,4]]:
+            o=dict(self.opts(),cell_count=counts,cell_size_cm=102400,spacing_cm=200)
+            with self.assertRaises(ValueError): dem.plan(o)
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(FileNotFoundError): dem.plan(dict(self.opts(),source=folder))
+            p=dem.plan(self.opts());p["sources"][0]["source"]["sha256"]="0"*64
+            with self.assertRaisesRegex(ValueError,"changed"):
+                dem.execute(dict(mode="dem",plan=p,destination=folder+"/capture"),Path(folder),lambda *a:None)
+            self.assertEqual(list(Path(folder).iterdir()),[])
+    def test_cancel_preserves_completed_sources_and_no_png(self):
+        p=dem.plan(self.opts())
+        with tempfile.TemporaryDirectory() as folder:
+            d=Path(folder);first=p["sources"][0]["source"]["bytes"]
+            def cancel(stage,c,t):
+                if stage=="acquire" and c>first: raise RuntimeError("cancel")
+            with self.assertRaisesRegex(RuntimeError,"cancel"):
+                dem.execute(dict(mode="dem",plan=p,destination=str(d/"capture")),d,cancel)
+            self.assertTrue((d/"capture.source-0.tif").exists())
+            self.assertFalse(list(d.glob("*.png")))
+    def test_mixed_glo90_fallback_and_nodata(self):
+        import numpy as np
+        with tempfile.TemporaryDirectory() as folder:
+            d=Path(folder);raws={}
+            for tile in [(9,55),(10,55),(9,54),(10,54)]:
+                resolution=90 if tile==(10,55) else 30
+                path=d/(str(tile)+".tif");create(path,resolution=resolution,tile=tile)
+                raws[dem.tile_url(tile,resolution)]=path.read_bytes()
+            def opener(url,method,headers=None):
+                if url not in raws: raise HTTPError(url,404,"absent",{},None)
+                return Response(url,raws[url])
+            o=dict(self.opts(),source="",allow_download=True,fallback90=True)
+            o["coordinates"]["origin"]=[9.99999,55.00001]
+            p=dem.plan(o,opener)
+            self.assertEqual(sum(s["fallback90"] for s in p["sources"]),1)
+            r=dem.execute(dict(mode="dem",plan=p,destination=str(d/"captured")),d,lambda *a:None,opener)
+            self.assertEqual(len(r["outputs"]),4)
+            paths=[Path(s["source"]["captured_path"]) for s in r["review"]["sources"]]
+            heights,meta=dem.mosaic_heights(paths,p,lambda *a:None)
+            for group,points in zip(heights,dem.mosaic_grid(o)[3]):
+                for actual,(lon,lat) in zip(group.flat,points): self.assertLessEqual(abs(actual-round((100+(lon-9)*100+(lat-55)*200)*100)),1)
+            create(paths[0],tile=tuple(p["sources"][0]["tile"]),nodata=True)
+            with self.assertRaisesRegex(ValueError,"Missing/non-finite"):
+                dem.mosaic_heights(paths,p,lambda *a:None)
+
+    def test_missing_support_rejects_after_capture(self):
+        p=dem.plan(self.opts())
+        with tempfile.TemporaryDirectory() as folder:
+            d=Path(folder)
+            with patch.object(dem,"mosaic_heights",side_effect=ValueError("missing support")),self.assertRaises(ValueError):
+                dem.execute(dict(mode="dem",plan=p,destination=str(d/"capture")),d,lambda *a:None)
+            self.assertEqual(len(list(d.glob("*.tif"))),4)
+            self.assertFalse(list(d.glob("*.png")))
+
+
 if __name__ == "__main__": unittest.main()

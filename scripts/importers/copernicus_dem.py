@@ -25,7 +25,7 @@ def integer(value, name, low, high):
     return int(value)
 
 
-def grid(options):
+def grid(options, mosaic=False):
     if not isinstance(options, dict) or set(options) != {"coordinates", "cell", "cell_size_cm", "map_min_cm", "spacing_cm", "vertical_zero_m", "source", "allow_download", "fallback90"}:
         raise ValueError("Invalid DEM options")
     if type(options["allow_download"]) is not bool or type(options["fallback90"]) is not bool:
@@ -54,7 +54,7 @@ def grid(options):
             coordinates.point([lon, lat])  # same strip/hemisphere guard as vectors
             points.append((lon, lat))
     west, south = math.floor(min(p[0] for p in points)), math.floor(min(p[1] for p in points))
-    if max(p[0] for p in points) >= west+1 or max(p[1] for p in points) >= south+1:
+    if not mosaic and (max(p[0] for p in points) >= west+1 or max(p[1] for p in points) >= south+1):
         raise ValueError("Cell crosses source tiles; multi-tile DEM mosaics require separate implementation")
     return coordinates, side, points, [west, south], zero
 
@@ -99,6 +99,7 @@ def identity(path):
 
 
 def plan(options, opener=open_remote):
+    if "cell_count" in options: return mosaic_plan(options, opener)
     coordinates, side, points, tile, _ = grid(options)
     resolution, fallback = 30, False
     if options["source"]:
@@ -210,6 +211,7 @@ def execute(request, scratch, progress, opener=open_remote):
         progress("sample",0,0)
         return result
     review = request["plan"]
+    if review.get("adapter") == "copernicus-dem-v2": return execute_mosaic(request, scratch, progress, opener)
     if not 0 <= time.time()-review["checked_at"] <= 600: raise ValueError("DEM review expired")
     # Recompute all derived contract fields. Remote HEAD is conditional only at capture.
     current = plan(review["options"], opener)
@@ -234,6 +236,184 @@ def execute(request, scratch, progress, opener=open_remote):
     os.link(part,png_path)
     return dict(review=receipt, raster=metadata, png_path=str(png_path), png_sha256=hashlib.sha256(png).hexdigest(), png_bytes=len(png))
 
+
+
+MAX_MOSAIC_SAMPLES = 1025 * 1025
+MAX_MOSAIC_SOURCES = 4
+
+
+def mosaic_grid(options):
+    base = dict(options)
+    counts = base.pop("cell_count")
+    if not isinstance(counts, list) or len(counts) != 2:
+        raise ValueError("DEM cell_count must be [columns, rows]")
+    nx, ny = [integer(v, "cell count", 1, 4) for v in counts]
+    size = integer(base["cell_size_cm"], "cell size", 200, 102400)
+    spacing = integer(base["spacing_cm"], "spacing", 200, size)
+    sample_count = nx * ny * (size // spacing + 1) ** 2
+    if sample_count > MAX_MOSAIC_SAMPLES: raise ValueError("DEM mosaic sample budget exceeded")
+    cells, points = [], []
+    for y in range(ny):
+        for x in range(nx):
+            cell_options = dict(base, cell=[base["cell"][0]+x, base["cell"][1]+y])
+            coordinates, side, cell_points, _, zero = grid(cell_options, mosaic=True)
+            cells.append(cell_options["cell"])
+            points.append(cell_points)
+    # Conservative support envelope for the smallest admitted COG width (120).
+    # Every listed source is reviewed; decoding later verifies exact support.
+    flat = [p for group in points for p in group]
+    west, east = math.floor(min(p[0] for p in flat)), math.floor(max(p[0] for p in flat)+1/120)
+    south, north = math.floor(min(p[1] for p in flat)-1/1200), math.floor(max(p[1] for p in flat))
+    tiles = [[x,y] for y in range(south,north+1) for x in range(west,east+1)]
+    if len(tiles) > MAX_MOSAIC_SOURCES: raise ValueError("DEM supports at most four source tiles including interpolation support")
+    return coordinates, side, cells, points, tiles, zero
+
+
+def mosaic_plan(options, opener=open_remote):
+    coordinates, side, cells, groups, tiles, zero = mosaic_grid(options)
+    sources = []
+    for tile in tiles:
+        resolution, fallback = 30, False
+        if options["source"]:
+            folder = Path(options["source"])
+            if not folder.is_absolute() or not folder.is_dir(): raise ValueError("Mosaic local source must be a folder of named 2021 GLO-30 COGs")
+            path = folder / tile_url(tile,30).split("/")[-1]
+            source = dict(identity(path), path=str(path))
+        else:
+            if not options["allow_download"]: raise ValueError("Select a local COG folder or explicitly allow downloading")
+            url = tile_url(tile,30)
+            try:
+                with opener(url,"HEAD") as response: source = headers(response,url)
+            except HTTPError as exc:
+                if exc.code != 404 or not options["fallback90"]: raise ValueError(f"GLO-30 HTTP {exc.code}; no source selected") from exc
+                resolution, fallback = 90, True
+                url = tile_url(tile,90)
+                with opener(url,"HEAD") as response: source = headers(response,url)
+        sources.append(dict(tile=tile,resolution_m=resolution,fallback90=fallback,source=source,notice=NOTICE.format(resolution=resolution)))
+    if sum(s["source"]["bytes"] for s in sources) > MAX_SOURCE:
+        raise ValueError("Combined DEM sources exceed 64 MiB")
+    flat = [p for group in groups for p in group]
+    return dict(adapter="copernicus-dem-v2",release="2021",license=LICENSE_URL,
+                vertical_crs="EPSG:3855 / EGM2008 metres",surface="DSM including buildings and vegetation; not bare-earth DTM",
+                projection=coordinates.metadata, bbox=[round(v,9) for v in [min(p[0] for p in flat),min(p[1] for p in flat),max(p[0] for p in flat),max(p[1] for p in flat)]],
+                side=side,cells=cells,options=options,sources=sources,checked_at=int(time.time()))
+
+
+def mosaic_heights(paths, review, progress):
+    from contextlib import ExitStack
+    from rasterio.windows import Window
+    rasterio, np = raster_dependencies()
+    _, side, cells, groups, tiles, zero = mosaic_grid(review["options"])
+    with ExitStack() as stack:
+        stack.enter_context(rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", GDAL_PAM_ENABLED="NO", GDAL_CACHEMAX=16*1024*1024))
+        datasets = {}
+        for path, item in zip(paths,review["sources"]):
+            ds = stack.enter_context(rasterio.open(path,driver="GTiff"))
+            t = ds.transform
+            h = 3600 if item["resolution_m"] == 30 else 1200
+            tile = item["tile"]
+            if ds.driver != "GTiff" or ds.crs != rasterio.crs.CRS.from_epsg(4326) or ds.count != 1 or ds.dtypes != ("float32",) or ds.height != h or not 120 <= ds.width <= h or t.b != 0 or t.d != 0 or t.a <= 0 or t.e >= 0 or ds.scales != (1.0,) or ds.offsets != (0.0,):
+                raise ValueError("Expected unscaled north-up WGS84 float32 single-band 2021 COG")
+            if abs(t.a*ds.width-1)>1e-8 or abs(-t.e*ds.height-1)>1e-8 or abs(t.c+t.a/2-tile[0])>1e-8 or abs(t.f+t.e/2-(tile[1]+1))>1e-8:
+                raise ValueError("COG sample-centre/tile alignment mismatch")
+            if any(h*w>2048*2048 for h,w in ds.block_shapes): raise ValueError("DEM decode block budget exceeded")
+            datasets[tuple(tile)] = ds
+        windows = []
+        def nodes(tile, cols, rows, depth=0):
+            if depth>4: raise ValueError("DEM interpolation support exceeds reviewed mosaic")
+            ds=datasets.get(tile)
+            if ds is None: raise ValueError("Missing DEM interpolation source")
+            if (cols<0).any() or (rows<0).any(): raise ValueError("Invalid DEM interpolation index")
+            out=np.empty(len(cols),dtype=np.float64)
+            inside=(cols<ds.width)&(rows<ds.height)
+            if inside.any():
+                cc,rr=cols[inside],rows[inside]
+                left,top=int(cc.min()),int(rr.min())
+                w,h=int(cc.max()-left+1),int(rr.max()-top+1)
+                if w*h>1024*1024: raise ValueError("DEM decode window budget exceeded")
+                data=ds.read(1,window=Window(left,top,w,h));valid=ds.read_masks(1,window=Window(left,top,w,h))
+                windows.append([*tile,left,top,w,h])
+                values=data[rr-top,cc-left]
+                if not np.isfinite(values).all() or (valid[rr-top,cc-left]==0).any(): raise ValueError("Missing/non-finite DEM support; no zero filling")
+                out[inside]=values
+            # Across an edge, interpolate on the neighbor's own lattice. A
+            # mixed-resolution corner can in turn require its south/east source;
+            # recursion moves only east/south and never pads or wraps a tile.
+            for ex,sy in [(1,0),(0,1),(1,1)]:
+                selected=(cols//ds.width==ex)&(rows//ds.height==sy)
+                if not selected.any(): continue
+                neighbor=(tile[0]+ex,tile[1]-sy)
+                nd=datasets.get(neighbor)
+                if nd is None: raise ValueError("Missing DEM interpolation source")
+                lon=tile[0]+cols[selected]/ds.width
+                lat=tile[1]+1-rows[selected]/ds.height
+                out[selected]=interpolate(neighbor,(lon-neighbor[0])*nd.width,(neighbor[1]+1-lat)*nd.height,depth+1)
+            return out
+        def interpolate(tile, cols, rows, depth=0):
+            # Snap only floating reconstruction noise around an integer lattice
+            # index (1e-8 pixel); retain all geographic sample precision.
+            cols=np.where(abs(cols-np.rint(cols))<1e-8,np.rint(cols),cols)
+            rows=np.where(abs(rows-np.rint(rows))<1e-8,np.rint(rows),rows)
+            c0,r0=np.floor(cols).astype(int),np.floor(rows).astype(int)
+            dx,dy=cols-c0,rows-r0
+            c1=c0+(dx>0);r1=r0+(dy>0)
+            support=[nodes(tile,c0,r0,depth),nodes(tile,c1,r0,depth),nodes(tile,c0,r1,depth),nodes(tile,c1,r1,depth)]
+            return sum(v*w for v,w in zip(support,[(1-dx)*(1-dy),dx*(1-dy),(1-dx)*dy,dx*dy]))
+        flat = np.asarray([p for group in groups for p in group],dtype=np.float64)
+        values = np.empty(len(flat),dtype=np.float64)
+        for tile, ds in datasets.items():
+            selected=np.flatnonzero((np.floor(flat[:,0])==tile[0])&(np.floor(flat[:,1])==tile[1]))
+            if not len(selected): continue
+            xy=flat[selected]
+            values[selected]=interpolate(tile,(xy[:,0]-tile[0])*ds.width,(tile[1]+1-xy[:,1])*ds.height)
+        if not np.isfinite(values).all() or (values < -1000).any() or (values > 10000).any(): raise ValueError("DEM elevation outside supported physical range")
+        heights=np.rint((values-zero)*100).astype(np.int64).reshape(len(cells),side,side)
+        low,high=int(heights.min()),int(heights.max())
+        step=max(1,math.ceil((high-low)/65535))
+        if abs(low)>1000000 or high>1000000 or step>100: raise ValueError("Local height/PNG16 range exceeded")
+        progress(len(flat),len(flat))
+        return heights,dict(offset_cm=low,step_cm=step,source_accuracy_cm=None,vertical_zero_m=zero,
+            resampling="bilinear across full-resolution COG sample centres; local rows +northing",
+            quantization="shared nearest ties-to-even cm, then nearest PNG step",max_quantization_error_cm=0.5+step/2,
+            source_windows=windows,rasterio=rasterio.__version__,gdal=rasterio.__gdal_version__)
+
+
+def execute_mosaic(request,scratch,progress,opener=open_remote):
+    review=request["plan"]
+    if not 0<=time.time()-review["checked_at"]<=600: raise ValueError("DEM review expired")
+    current=mosaic_plan(review["options"],opener)
+    if {k:v for k,v in current.items() if k!="checked_at"}!={k:v for k,v in review.items() if k!="checked_at"}: raise ValueError("DEM options/source changed; review again")
+    current["checked_at"]=review["checked_at"]
+    review=current
+    raster_dependencies()
+    destination=Path(request["destination"])
+    paths=[];captured=[];done=0;total=sum(s["source"]["bytes"] for s in review["sources"])
+    for index,item in enumerate(review["sources"]):
+        path=Path(str(destination)+f".source-{index}.tif")
+        part=scratch/"download.part"
+        source=capture(item,part,path,lambda c,t:progress("acquire",done+c,total),opener)
+        part.unlink() # only this owned partial, completed hard link remains
+        captured.append(dict(item,source=source));paths.append(path);done+=source["bytes"]
+        with Path(str(path)+".json").open("x") as stream: json.dump(dict(review=review,source=captured[-1]),stream,sort_keys=True)
+    receipt=dict(review,sources=captured)
+    total=len(review["cells"])*review["side"]**2
+    progress("sample",0,total)
+    heights,metadata=mosaic_heights(paths,review,lambda c,t:progress("sample",c,t))
+    import numpy as np
+    outputs=[]
+    def chunk(kind,content): return struct.pack('>I',len(content))+kind+content+struct.pack('>I',zlib.crc32(kind+content))
+    for index,cell in enumerate(review["cells"]):
+        encoded=np.rint((heights[index]-metadata["offset_cm"])/metadata["step_cm"]).astype('>u2')
+        raw=b"".join(b'\0'+row.tobytes() for row in encoded)
+        side=review["side"]
+        png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',side,side,16,0,0,0,0))+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b'')
+        path=Path(str(destination)+f".cell-{index}.png")
+        part=scratch/"dem.png.part"
+        with part.open("xb") as stream:
+            stream.write(png);stream.flush();os.fsync(stream.fileno())
+        os.link(part,path);part.unlink()
+        outputs.append(dict(cell=cell,png_path=str(path),png_sha256=hashlib.sha256(png).hexdigest(),png_bytes=len(png)))
+    return dict(review=receipt,raster=metadata,outputs=outputs)
 
 def main():
     from geojson import watch_parent_lifetime

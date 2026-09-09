@@ -25,7 +25,7 @@ func discard() -> void:
 func _changed() -> void:
 	_stale = true
 
-func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offset: int, step: int, accuracy: int, attribution: Dictionary) -> String:
+func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offset: int, step: int, accuracy: int, attribution: Dictionary, validate_candidate: bool = true) -> String:
 	discard()
 	var store: RefCounted = terrain.store
 	if store.has_gesture() or store.project_path.is_empty(): return "Save the project and finish the active gesture before staging."
@@ -52,10 +52,13 @@ func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offs
 	_patches = [{"field":"heightmaps","id":store.record_id("heightmaps",record),"before":null if before.is_empty() else before,"after":record},{"field":"attributions","id":store.record_id("attributions",notice),"before":null,"after":notice}]
 	_blobs = {record.path:source.bytes}
 	_cells = [cell] if not store.document.roads.is_empty() else []
-	var failure := FILES.apply(store, "Adopt heightmap layer", _patches, _blobs, _cells, true)
+	var failure := FILES.apply(store, "Adopt heightmap layer", _patches, _blobs, _cells, true) if validate_candidate else ""
 	if failure != "":
 		discard()
 		return failure
+	return _retain_dependencies(store) if validate_candidate else ""
+
+func _retain_dependencies(store: RefCounted) -> String:
 	var retained_size := 0
 	for field in ["heightmaps", "assets"]:
 		for existing: Dictionary in store.document[field]:
