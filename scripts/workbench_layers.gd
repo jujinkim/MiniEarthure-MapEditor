@@ -87,6 +87,7 @@ func refresh() -> void:
 	var root := tree.create_item()
 	var entries := EDIT.entries(canvas.store.document)
 	var imports := {}
+	_layer(root, "heightmaps", "Terrain", canvas.store.document.heightmaps.size())
 	for field: String in EDIT.FIELDS:
 		var parent := _layer(root, field, field.capitalize(), canvas.store.document.get(field, []).size())
 		for entry in entries:

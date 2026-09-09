@@ -9,6 +9,8 @@ var drive_y: SpinBox
 var drive_surface: OptionButton
 var drive_request: Dictionary = {}
 var last_drive_result: Dictionary = {}
+const AUTHOR_PANEL := preload("./authoring_panel.gd")
+var author_panel: AcceptDialog
 const STORE := preload("./document_store.gd")
 const CANVAS := preload("./map_canvas.gd")
 const RENDERER := preload("res://addons/mapkit/godot/chunk_renderer.gd")
@@ -145,15 +147,28 @@ func _build_ui() -> void:
 	left.custom_minimum_size.x = 245
 	split.add_child(left)
 	_label(left, "TOOLS")
+	var tool_scroll := ScrollContainer.new()
+	tool_scroll.custom_minimum_size.y = 72
+	tool_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tool_scroll.size_flags_stretch_ratio = 0.65
+	tool_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	left.add_child(tool_scroll)
+	var tool_controls := VBoxContainer.new()
+	tool_controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tool_scroll.add_child(tool_controls)
 	var tools := HFlowContainer.new()
-	left.add_child(tools)
+	tool_controls.add_child(tools)
 	var group := ButtonGroup.new()
-	for name in ["Select", "Road", "Building", "Forest", "Orchard"]:
+	for name in ["Select", "Road", "Building", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
 		var tool_button := _button(tools, name, _set_tool.bind(name))
 		tool_button.toggle_mode = true
 		tool_button.button_group = group
 		tool_button.button_pressed = name == "Select"
 		tool_buttons[name] = tool_button
+	author_panel = AUTHOR_PANEL.new()
+	author_panel.editor = self
+	add_child(author_panel)
+	_button(left, "Authoring settings…", func(): author_panel.open())
 	var edits := HBoxContainer.new()
 	left.add_child(edits)
 	_button(edits, "Duplicate", func(): canvas.duplicate_selection())
@@ -422,6 +437,9 @@ func _selection(ids: Array) -> void:
 	match selected_field:
 		"buildings":
 			_number_property("Height (m)", float(selected_record.height_cm) / 100.0, 0.1, 1000.0, func(v): property_changes.height_cm = int(round(v * 100)))
+			_choice_property("Use", ["residential", "commercial", "industrial", "public"], str(selected_record.usage), func(v): property_changes.usage = v)
+			_choice_property("Material", ["concrete", "brick", "wood"], str(selected_record.material), func(v): property_changes.material = v)
+			_choice_property("Roof", ["flat", "gable"], str(selected_record.roof), func(v): property_changes.roof = v)
 			_number_property("Base (m)", float(selected_record.base_cm) / 100.0, -10000.0, 10000.0, func(v): property_changes.base_cm = int(round(v * 100)))
 		"roads":
 			_number_property("All widths (m)", float(selected_record.widths_cm[0]) / 100.0, 0.2, 100.0, func(v): property_changes.width_cm = int(round(v * 100)))
@@ -492,7 +510,7 @@ func _apply_properties() -> void:
 		if entry.key in plan.affected and not canvas.available(entry, true):
 			_status("Movement affects a hidden or locked layer: " + entry.key)
 			return
-	var failure := store.apply_command("Edit selection properties", patches)
+	var failure: String = canvas.author.apply("Edit selection properties", patches, selected_field == "roads")
 	_status(failure if failure != "" else "Properties updated.")
 	if failure == "": _selection(canvas.selected)
 
@@ -678,7 +696,7 @@ func _process(_delta: float) -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is not InputEventKey or not event.pressed or event.echo: return
 	var focus := get_viewport().gui_get_focus_owner()
-	if focus is LineEdit or focus is TextEdit: return
+	if focus is LineEdit or focus is TextEdit or author_panel.visible: return
 	var handled := true
 	if event.ctrl_pressed or event.meta_pressed:
 		match event.keycode:
@@ -691,7 +709,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	else:
 		match event.keycode:
 			KEY_ESCAPE: canvas.cancel_interaction()
-			KEY_DELETE, KEY_BACKSPACE: canvas.delete_selection()
+			KEY_DELETE, KEY_BACKSPACE:
+				if not canvas.draft.is_empty():
+					canvas.draft.pop_back()
+					canvas.queue_redraw()
+				else: canvas.delete_selection()
 			KEY_V: _set_tool("Select")
 			KEY_R: _set_tool("Road")
 			KEY_B: _set_tool("Building")
@@ -709,7 +731,7 @@ func _history(forward: bool) -> void:
 
 func _status(text: String) -> void:
 	if busy and text.begins_with("x "): return
-	if validation_label != null and text.begins_with("E_"):
+	if validation_label != null and text.contains("E_"):
 		validation_label.text = "Edit/operation rejected · " + text
 	status_label.text = text
 

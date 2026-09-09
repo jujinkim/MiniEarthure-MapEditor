@@ -22,9 +22,10 @@ without choosing or rewriting a user record. Scalar patches for bounds, cell
 size, seed, explicit recipe, theme and terrain base omit `id`; identity and
 producer provenance are not freely editable map values.
 
-Each retained Command/Memento contains only the touched records' first-before
+Each retained record Command/Memento contains only the touched records' first-before
 and final-after values, captured after native normalization. Unchanged objects,
-whole documents, rendered meshes and external file bytes are not history entries.
+whole documents and rendered meshes are not history entries. E03 file commands
+add only their affected immutable binary payloads to the same retention budget.
 Undo and redo share **200 commands / 16 MiB of serialized UTF-8 mementos**. Moving
 between stacks retains the charge; a new branch releases redo, then evicts oldest
 undo entries as needed. One oversized command is rejected before publication.
@@ -46,9 +47,11 @@ Recover reset history; returning by Undo to saved content clears dirty (edit tim
 alone does not make content dirty). Scene and worker generation invalidation
 continues through the document's `changed` signal.
 
-The API supports repeated region edits for future tools. Raster pixel brushes,
-immutable binary tile mementos and their seam validation are **E03 work**, not an
-implemented brush UI. E02 does not add import cancellation or incremental preview.
+E03 now uses this boundary for raster brushes and immutable binary tile mementos;
+see [AUTHORING.md](AUTHORING.md). File-command raw before/after bytes count toward
+the shared 16 MiB budget. History detects changed payloads before travel. Cell
+identities use canonical integer coordinates across JSON number/key normalization.
+Incremental preview remains E04 work.
 
 ## Save and recovery
 

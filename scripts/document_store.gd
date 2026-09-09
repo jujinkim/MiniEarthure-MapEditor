@@ -1,6 +1,7 @@
 extends RefCounted
 ## MapDocument is authoritative; views never become saved state.
 signal changed
+const PAYLOADS := preload("./authoring_files.gd")
 const FILES := preload("./document_files.gd")
 const HISTORY_BYTES := 16 * 1024 * 1024
 const HISTORY_COMMANDS := 200
@@ -86,7 +87,10 @@ func record_id(field: String, record: Dictionary) -> String:
 	if field == "attributions":
 		return JSON.stringify([record.get("source", ""), record.get("license", ""), record.get("notice", "")])
 	if field == "heightmaps":
-		return JSON.stringify(record.get("cell", {}))
+		var cell: Variant = record.get("cell", {})
+		if cell is not Dictionary or not cell.has_all(["x", "y"]): return ""
+		if (cell.x is not int and cell.x is not float) or (cell.y is not int and cell.y is not float): return ""
+		return JSON.stringify({"x": int(cell.get("x", 0)), "y": int(cell.get("y", 0))})
 	return str(record.get("id", ""))
 
 func _get_value(target: Dictionary, field: String, id: String) -> Variant:
@@ -152,7 +156,7 @@ func apply_command(label: String, patches: Array) -> String:
 		return "Finish or cancel the current gesture first."
 	return _commit_command(label, patches)
 
-func _commit_command(label: String, patches: Array) -> String:
+func _commit_command(label: String, patches: Array, binary_mementos: Dictionary = {}) -> String:
 	var candidate := document.duplicate(true)
 	var failure := _apply(candidate, patches, false)
 	if failure != "":
@@ -180,9 +184,11 @@ func _commit_command(label: String, patches: Array) -> String:
 		return ""
 	var command: Dictionary = _json_copy({"label": label, "patches": mementos})
 	var bytes := JSON.stringify(command).to_utf8_buffer().size()
+	for blob: PackedByteArray in binary_mementos.values(): bytes += blob.size()
 	if bytes > HISTORY_BYTES:
 		return "Command exceeds the 16 MiB undo budget; split this operation."
 	command.bytes = bytes
+	if not binary_mementos.is_empty(): command.binary_mementos = binary_mementos.duplicate()
 	for discarded: Dictionary in redo_stack:
 		history_bytes -= int(discarded.bytes)
 	redo_stack.clear()
@@ -214,6 +220,14 @@ func _travel_history(reverse: bool) -> String:
 	var validation := _validate(candidate)
 	if not validation.ok:
 		return reason(validation)
+	if command.has("binary_mementos"):
+		# Detect external changes; never restore by rewriting an original source.
+		for path: String in command.binary_mementos:
+			var payload_source := PAYLOADS.read(project_path.path_join(path), HISTORY_BYTES)
+			if payload_source.has("error") or payload_source.bytes != command.binary_mementos[path]:
+				return "History payload changed or is missing: " + path
+		failure = PAYLOADS.validate(self, candidate)
+		if failure != "": return failure
 	# Transfer only after every patch and invariant passed.
 	source.pop_back()
 	(redo_stack if reverse else undo_stack).append(command)

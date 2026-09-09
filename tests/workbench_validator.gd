@@ -254,6 +254,11 @@ func run() -> void:
 	print("workbench_validator: %s (%d assertions)" % ["PASS" if failures.is_empty() else str(failures), checks])
 	quit(0 if failures.is_empty() else 1)
 
+func tree_click(tree: Tree, item: TreeItem, column: int, shift: bool = false) -> void:
+	tree.scroll_to_item(item)
+	await process_frame
+	await click(tree.global_position + tree.get_item_area_rect(item, column).get_center(), shift)
+
 func layer_and_panel_checks() -> void:
 	ui.layers.refresh()
 	await process_frame
@@ -264,17 +269,16 @@ func layer_and_panel_checks() -> void:
 	check(tree.get_item_area_rect(layer, 2).end.x <= tree.size.x, "Lock column remains accessible without horizontal scrolling")
 	var before := state()
 	if layer != null:
-		var p := tree.global_position + tree.get_item_area_rect(layer, 1).get_center()
-		await click(p)
+		await tree_click(tree, layer, 1)
 		check(not ui.canvas.layer_state.get("buildings", {}).get("visible", true), "actual layer Show checkbox hides category")
 		check(ui.canvas._hit(Vector2(14000,14000)) == "", "hidden objects are not pickable")
 		# Refresh replaces TreeItems; reacquire the row.
 		layer = tree.get_root().get_first_child()
 		while layer != null and layer.get_metadata(0) != "buildings": layer = layer.get_next()
-		await click(tree.global_position + tree.get_item_area_rect(layer, 1).get_center())
+		await tree_click(tree, layer, 1)
 		layer = tree.get_root().get_first_child()
 		while layer != null and layer.get_metadata(0) != "buildings": layer = layer.get_next()
-		await click(tree.global_position + tree.get_item_area_rect(layer, 2).get_center())
+		await tree_click(tree, layer, 2)
 		check(ui.canvas.layer_state.get("buildings", {}).get("locked", false), "actual Lock checkbox locks category")
 		check(ui.canvas._hit(Vector2(14000,14000)) == "", "locked objects are not pickable")
 		ui._set_tool("Building")
@@ -287,14 +291,14 @@ func layer_and_panel_checks() -> void:
 	ui.layers.refresh()
 	await process_frame
 	var row: TreeItem = ui.layers.rows["buildings/house-a"]
-	await click(tree.global_position + tree.get_item_area_rect(row, 0).get_center())
+	await tree_click(tree, row, 0)
 	check(ui.canvas.selected == ["buildings/house-a"], "actual object-tree selection reaches canvas and properties")
 	var other: TreeItem = ui.layers.rows["buildings/house-b"]
-	await click(tree.global_position + tree.get_item_area_rect(other, 0).get_center(), true)
+	await tree_click(tree, other, 0, true)
 	check(ui.canvas.selected.size() == 2, "actual tree Shift selection publishes the final group")
 	layer = tree.get_root().get_first_child()
 	while layer != null and layer.get_metadata(0) != "buildings": layer = layer.get_next()
-	await click(tree.global_position + tree.get_item_area_rect(layer, 0).get_center())
+	await tree_click(tree, layer, 0)
 	check(ui.layers.active_layer == "buildings" and ui.canvas.selected.size() == 2, "layer heading selects its editable objects")
 	var slider: HSlider = ui.layers.opacity_control
 	await click(slider.global_position + Vector2(slider.size.x * 0.5, slider.size.y * 0.5))

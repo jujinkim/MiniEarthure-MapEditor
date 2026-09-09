@@ -101,6 +101,10 @@ K07 asset previews now use the same MapKit packed renderer as game consumers.
 Saved projects with static GLB/PNG/WebP and declarative materials load validated
 in-memory resources; empty-file document previews use the same style decoration.
 A failed replacement leaves the previous preview visible. Asset/proxy editing
-widgets remain separate E03 work. `tests/asset_preview_validator.gd` verifies a
+widgets are implemented in the [E03 authoring tools](docs/AUTHORING.md). `tests/asset_preview_validator.gd` verifies a
 synthetic project through open, preview, save/export, failed replacement and
 resource cleanup without installing the private game.
+
+Authoring tools (terrain strokes/PNG16, structural roads, buildings/zones, assets/proxies):
+[AUTHORING.md](docs/AUTHORING.md). E04 incremental preview/file-copy Save As and final
+native-platform/performance acceptance remain open.

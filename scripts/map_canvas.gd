@@ -1,6 +1,10 @@
 extends Control
 signal selection_changed(ids: Array)
 signal status(text: String)
+const AUTHOR := preload("./authoring_tools.gd")
+var author := AUTHOR.new()
+var brush_cursor := Vector2.ZERO
+var terrain_textures := {}
 const EDIT := preload("./workbench_edit.gd")
 var store: RefCounted
 var tool := "Select":
@@ -23,6 +27,7 @@ var zoom := 1.0
 var pan := Vector2.ZERO
 
 func _ready() -> void:
+	author.configure(store, self)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
 	clip_contents = true
@@ -106,6 +111,37 @@ func _draw() -> void:
 		draw_line(screen([x, bounds.min[1]]), screen([x, bounds.max[1]]), Color("34373c"))
 	for y in range(int(bounds.min[1]), int(bounds.max[1]) + 1, cell):
 		draw_line(screen([bounds.min[0], y]), screen([bounds.max[0], y]), Color("34373c"))
+	var visible_tiles := {}
+	for tile: Dictionary in doc.heightmaps:
+		if not available({"field":"heightmaps", "record":{"id":"terrain"}}): continue
+		var start := screen([bounds.min[0] + tile.cell.x * cell, bounds.min[1] + tile.cell.y * cell])
+		var end := screen([bounds.min[0] + (tile.cell.x + 1) * cell, bounds.min[1] + (tile.cell.y + 1) * cell])
+		var area := Rect2(start, end - start).abs()
+		if not area.intersects(Rect2(Vector2.ZERO, size)) or visible_tiles.size() >= 16: continue
+		var key: String = store.project_path + ":" + str(tile.path) + ":" + str(tile.offset_cm) + ":" + str(tile.step_cm) + ":" + str(doc.terrain_base_cm)
+		var texture: Texture2D = terrain_textures.get(key)
+		if texture == null:
+			var source := AUTHOR.FILES.read(store.project_path.path_join(tile.path), AUTHOR.TERRAIN.PNG.MAX_BYTES)
+			if not source.has("error"):
+				var side := int(doc.cell_size_cm) / int(tile.spacing_cm) + 1
+				var decoded := AUTHOR.TERRAIN.PNG.decode(source.bytes, side, int(tile.offset_cm), int(tile.step_cm))
+				if not decoded.has("error"):
+					var thumbnail := Image.create(33, 33, false, Image.FORMAT_RGB8)
+					for y in range(33):
+						for x in range(33):
+							var h := int(decoded.heights[mini(side-1, (32-y)*(side-1)/32)*side + mini(side-1, x*(side-1)/32)])
+							var elevation := clampf(float(h - doc.terrain_base_cm) / 2000.0, -1, 1)
+							thumbnail.set_pixel(x, y, Color(0.16, 0.23, 0.15).lerp(Color(0.75,0.68,0.40) if elevation >= 0 else Color(0.10,0.20,0.38), absf(elevation)))
+					texture = ImageTexture.create_from_image(thumbnail)
+		if texture != null:
+			draw_texture_rect(texture, area, false, Color(1,1,1,0.8 * opacity({"field":"heightmaps", "record":{"id":"terrain"}})))
+			visible_tiles[key] = texture
+		draw_string(ThemeDB.fallback_font, Vector2(start.x + 4, end.y + 18), "PNG16 %d,%d · offset %.2fm" % [tile.cell.x, tile.cell.y, tile.offset_cm / 100.0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("a4c88c"))
+	terrain_textures = visible_tiles
+	if tool == "Terrain":
+		var center := screen([brush_cursor.x, brush_cursor.y])
+		draw_arc(center, float(author.options.radius_cm) * _scale(), 0, TAU, 48, Color("ffe14c"), 2)
+		for point in author.terrain.stroke: draw_circle(screen([point.x, point.y]), 3, Color("ffe14c"))
 	var transformed := {}
 	if dragging and drag_offset != Vector2.ZERO:
 		for item: Dictionary in EDIT.plan(doc, selected, "move", drag_offset).patches:
@@ -203,7 +239,11 @@ func _gui_input(event: InputEvent) -> void:
 			if event.pressed:
 				grab_focus()
 				var p := world(event.position)
-				if tool == "Select":
+				if tool == "Terrain":
+					var options: Dictionary = author.options.duplicate(true)
+					options.spacing_cm = options.grid_cm
+					_report(author.terrain.begin(p, options))
+				elif tool == "Select":
 					var hit := _hit(raw_world(event.position))
 					_select_at(raw_world(event.position), event.shift_pressed)
 					drag_start = p
@@ -217,9 +257,12 @@ func _gui_input(event: InputEvent) -> void:
 						if failure != "": status.emit(failure)
 				else:
 					draft.append(_snap_vertex(p))
-					if event.double_click: finish_shape()
+					if tool == "Place": finish_shape()
+					elif event.double_click: finish_shape()
 			else:
-				if marquee:
+				if author.terrain.active:
+					_report(author.terrain.finish())
+				elif marquee:
 					var rect := Rect2(drag_start, marquee_end - drag_start).abs()
 					var keys: Array = selected.duplicate() if marquee_additive else []
 					for entry in EDIT.entries(store.document):
@@ -237,60 +280,27 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		if event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
 			pan += event.relative
+		elif author.terrain.active:
+			var failure := author.terrain.sample(world(event.position))
+			if failure != "":
+				author.terrain.cancel()
+				status.emit(failure)
 		elif dragging:
 			drag_offset = world(event.position) - drag_start
 		elif marquee:
 			marquee_end = world(event.position)
 		var p := world(event.position)
+		brush_cursor = p
 		status.emit("x %.2f m  ·  y %.2f m  ·  %d selected%s" % [p.x / 100.0, p.y / 100.0, selected.size(), "  ·  move %.2f / %.2f m" % [drag_offset.x / 100.0, drag_offset.y / 100.0] if dragging else ""])
 		queue_redraw()
 
 func finish_shape() -> void:
-	var target: String = {"Road": "roads", "Building": "buildings", "Forest": "zones", "Orchard": "zones"}.get(tool, "")
-	if target != "" and not available({"field": target, "record": {"id": "draft"}}, true):
-		status.emit("Show and unlock the " + target + " layer before drawing.")
-		return
-	if draft.size() > 1 and draft[-1] == draft[-2]:
-		draft.pop_back()
-	var id := tool.to_lower() + "-" + Crypto.new().generate_random_bytes(6).hex_encode()
-	if tool == "Road" and draft.size() >= 2:
-		var points: Array = []
-		for p in draft:
-			points.append([int(p.x), 20, int(p.y)])
-		var nodes: Array = []
-		var patches: Array = []
-		for index in [0, points.size() - 1]:
-			var node_id := ""
-			for existing: Dictionary in store.document.nodes:
-				if JSON.parse_string(JSON.stringify(existing.position)) == JSON.parse_string(JSON.stringify(points[index])) and int(existing.level) == 0:
-					node_id = str(existing.id)
-					break
-			if node_id == "":
-				node_id = id + "-node-" + str(index)
-				patches.append({"field": "nodes", "id": node_id, "before": null, "after": {"id": node_id, "position": points[index], "level": 0}})
-			nodes.append(node_id)
-		var widths: Array = []
-		var surfaces: Array = []
-		for _i in range(points.size() - 1):
-			widths.append(800)
-			surfaces.append("asphalt")
-		patches.append({"field": "roads", "id": id, "before": null, "after": {"id": id, "from": nodes[0], "to": nodes[1], "points": points, "widths_cm": widths, "surfaces": surfaces, "kind": "ground", "clearance_cm": null, "sidewalk_cm": null}})
-		_report(store.apply_command("Draw road", patches))
-	elif tool in ["Building", "Forest", "Orchard"] and draft.size() >= 3:
-		var polygon: Array = []
-		for p in draft:
-			polygon.append([int(p.x), int(p.y)])
-		var record := {"id": id}
-		var field := "zones"
-		if tool == "Building":
-			field = "buildings"
-			record.merge({"footprint": polygon, "base_cm": 0, "height_cm": 1200, "usage": "residential", "material": "concrete", "roof": "flat"})
-		else:
-			record.merge({"polygon": polygon, "kind": tool.to_lower(), "spacing_cm": 800, "density_per_mille": 750, "exclusions": []})
-		_report(store.apply_command("Draw " + tool, [{"field": field, "id": id, "before": null, "after": record}]))
-	else:
-		status.emit("Road: 2+ points. Polygon: 3+. Right-click finishes.")
-	draft.clear()
+	if tool == "Terrain": return
+	if draft.size() > 1 and draft[-1] == draft[-2]: draft.pop_back()
+	var failure := author.draw(tool, draft)
+	_report(failure)
+	# Invalid drafts remain editable/cancellable, preserving the user's input.
+	if failure == "": draft.clear()
 	queue_redraw()
 
 func duplicate_selection() -> void:
@@ -348,6 +358,7 @@ func _execute(operation: String, delta: Vector2 = Vector2.ZERO) -> String:
 	return failure
 
 func cancel_interaction(clear_draft: bool = true) -> void:
+	author.terrain.cancel()
 	dragging = false
 	marquee = false
 	drag_offset = Vector2.ZERO

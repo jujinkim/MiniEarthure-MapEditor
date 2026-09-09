@@ -13,7 +13,7 @@ See [DOCUMENTS.md](DOCUMENTS.md) for atomic commands, history and recovery.
   typed selection keys. Yellow outlines/vertex handles identify selection;
   translucent fills leave overlapping context visible. Ring outlines show
   building entrances and zone exclusions. Assets and raster heightmaps are not
-  independent movable vector objects; their authoring remains E03.
+  independent movable vector objects; their authoring uses the separate [E03 tools](AUTHORING.md).
 - Drag changes only the temporary view. Release submits one validated command.
   Escape, focus/tool/document replacement, layer changes and history actions
   cancel pending gestures. Undo/Redo are still bounded by E02's shared limits.
@@ -64,7 +64,7 @@ rotation; repetitions expose spacing. Mixed-type groups expose translation only.
 Unchanged values retain each record's original value, even when the first selected
 record has a different one. One Apply is one command, including graph dependencies.
 Stale/invalid changes preserve document/history and report the native failure.
-Structural road, terrain and asset/proxy authoring widgets remain E03.
+Structural road, terrain and asset/proxy authoring use [AUTHORING.md](AUTHORING.md).
 
 Drag the two horizontal splitters or the properties/preview vertical splitter.
 The bottom controls toggle either dock and restore panel defaults. Properties
@@ -119,8 +119,7 @@ controls, unintended edits, stale attachment or lost original data. Large-map
 selection/redraw/property costs remain a representative-map performance gate;
 the current vector queries scan document objects and are not a spatial index.
 
-Next independent unit: **E03 authoring tools**. Start with the existing drawing
-commands in `map_canvas.gd`, the native recipe 2/3/4 constraints, and the unfinished
-terrain/road structures/asset authoring requirements. Preserve the workbench edit
-planner and E02 validation boundary. Do not treat those missing tools, raster
-mementos or E04 incremental preview as merely pending verification.
+E03 authoring is now implemented; see [AUTHORING.md](AUTHORING.md). Next is the
+independent E04 preview/export unit. Preserve the vector planner and E02/E03 atomic
+record/payload boundaries. Incremental preview, file-copy Save As and complete
+platform/performance/installed-Client acceptance remain separate work.
