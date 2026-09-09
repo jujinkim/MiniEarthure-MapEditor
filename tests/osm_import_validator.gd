@@ -8,6 +8,7 @@ func check(condition: bool, message: String) -> void:
 	if not condition:
 		failures.append(message)
 		push_error(message)
+func multipolygon() -> bool: return false
 func _initialize() -> void: run.call_deferred()
 func wait_import(ui: Control) -> void:
 	var deadline := Time.get_ticks_msec() + 15000
@@ -15,8 +16,13 @@ func wait_import(ui: Control) -> void:
 	check(not ui.busy, "OSM worker terminates: " + ui.status_label.text)
 func fixture(python: String, path: String, height: String = "12") -> void:
 	var output: Array = []
-	check(OS.execute(python, PackedStringArray(["-B", ProjectSettings.globalize_path("res://tests/osm_fixture.py"), path, height]), output, true) == 0, "synthetic PBF writer: " + str(output))
+	var args := PackedStringArray(["-B", ProjectSettings.globalize_path("res://tests/osm_fixture.py"), path, height])
+	if multipolygon(): args.append("multipolygon")
+	check(OS.execute(python, args, output, true) == 0, "synthetic PBF writer: " + str(output))
 func run() -> void:
+	var building_count := 3 if multipolygon() else 1
+	var zone_count := 3 if multipolygon() else 1
+	var test_name := "osm_multipolygon_validator" if multipolygon() else "osm_import_validator"
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
@@ -36,7 +42,7 @@ func run() -> void:
 		check(ui.import_dialog.size.x <= root.size.x and ui.import_dialog.size.y <= root.size.y, "OSM form fits minimum window")
 		check(ui.import_origin_y.is_visible_in_tree() and ui.import_source_format.is_visible_in_tree(), "format/origins visible")
 		ui.import_dialog.hide()
-	var path := ProjectSettings.globalize_path("user://synthetic source.osm.pbf")
+	var path := ProjectSettings.globalize_path("user://" + test_name + " source.osm.pbf")
 	fixture(ui.import_python.text,path)
 	var original := FileAccess.get_sha256(path)
 	var before: Dictionary = ui.store.document.duplicate(true)
@@ -69,31 +75,47 @@ func run() -> void:
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	await wait_import(ui)
 	ui._adopt_import()
-	check(ui.store.document.buildings.size() == 1 and ui.store.document.roads.size() == 1 and ui.store.document.zones.size() == 1, "native adoption of PBF building/road/forest")
+	check(ui.store.document.buildings.size() == building_count and ui.store.document.roads.size() == 1 and ui.store.document.zones.size() == zone_count, "native adoption of PBF building/road/forest")
+	if multipolygon():
+		check(ui.store.document.zones[1].exclusions.size() == 1 and ui.store.document.zones[2].exclusions.is_empty(), "forest hole and independent island preserved")
+		check(ui.import_summary.text.contains("assembled_relations=2") and ui.import_summary.text.contains("inner_rings=1"), "relation assembly counts reviewed")
 	check(ui.store.document.attributions[0].license == LAYER.OSM_LICENSE, "ODbL notice in document")
 	ui._adopt_import()
-	check(ui.store.document.buildings.size() == 1, "one-shot adoption")
-	var base := ProjectSettings.globalize_path("user://osm-project")
+	check(ui.store.document.buildings.size() == building_count, "one-shot adoption")
+	var base := ProjectSettings.globalize_path("user://" + test_name + "-project")
 	check(ui.store.save_project(base) == "", "save OSM project")
 	check(ui.store.autosave() == "", "OSM recovery snapshot")
 	var reopened := STORE.new()
 	check(reopened.open_project(base) == "", "reopen OSM project")
 	check(reopened.document.attributions == ui.store.document.attributions, "provenance roundtrip")
+	check(reopened.document.zones == ui.store.document.zones and reopened.document.buildings == ui.store.document.buildings, "all polygon parts and exclusions roundtrip")
 	check(reopened.recover(ui.store.recovery_path()) == "", "recover OSM project")
-	var output := ProjectSettings.globalize_path("user://osm-project.memap")
+	var output := ProjectSettings.globalize_path("user://" + test_name + "-project.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,output)).ok, "package OSM document")
 	var before_package := FileAccess.get_sha256(output)
 	check(JSON.parse_string(ui.store.bridge.open_package(output)).ok, "open OSM package")
-	check(JSON.parse_string(ui.store.bridge.generate_chunk(1,1)).ok, "native shared geometry generation")
-	var updated_path := ProjectSettings.globalize_path("user://updated.osm.pbf")
+	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+	check(generated.ok, "native shared geometry generation")
+	if multipolygon() and generated.ok:
+		var excluded := PackedVector2Array()
+		for point: Array in ui.store.document.zones[1].exclusions[0]: excluded.append(Vector2(point[0],point[1]))
+		var trees := 0
+		var island_trees := 0
+		for object: Dictionary in generated.data.chunk.objects:
+			if object.id.begins_with(ui.store.document.zones[1].id + ":"):
+				trees += 1
+				check(not Geometry2D.is_point_in_polygon(Vector2(object.position[0],object.position[2]),excluded), "native forest placement preserves hole")
+			if object.id.begins_with(ui.store.document.zones[2].id + ":"): island_trees += 1
+		check(trees > 0 and island_trees > 0, "native forest and inner island both generate trees")
+	var updated_path := ProjectSettings.globalize_path("user://" + test_name + " updated.osm.pbf")
 	fixture(ui.import_python.text,updated_path,"23")
 	ui._start_import(updated_path,LAYER.OSM_LICENSE)
 	await wait_import(ui)
 	check(ui.pending_import != null and ui.pending_import.value.layer_id != raw.layer_id and ui.pending_import.value.source.sha256 != original, "updated source gets fresh layer/hash")
 	ui._adopt_import()
-	check(ui.store.document.buildings.size() == 2, "updated source retains old geometry")
-	check(ui.store.undo() == "" and ui.store.document.buildings.size() == 1, "undo updated OSM layer")
-	check(ui.store.redo() == "" and ui.store.document.buildings.size() == 2, "redo updated OSM layer")
+	check(ui.store.document.buildings.size() == 2 * building_count, "updated source retains old geometry")
+	check(ui.store.undo() == "" and ui.store.document.buildings.size() == building_count, "undo updated OSM layer")
+	check(ui.store.redo() == "" and ui.store.document.buildings.size() == 2 * building_count, "redo updated OSM layer")
 	check(FileAccess.get_sha256(output) == before_package and FileAccess.get_sha256(path) == original, "source and existing package unchanged")
 	before = ui.store.document.duplicate(true)
 	ui._start_import(path,LAYER.OSM_LICENSE)
@@ -104,7 +126,7 @@ func run() -> void:
 	await wait_import(ui)
 	check(ui.store.undo() == "", "document change while review pending")
 	ui._adopt_import()
-	check(ui.store.document.buildings.size() == 1, "stale review cannot adopt")
+	check(ui.store.document.buildings.size() == building_count, "stale review cannot adopt")
 	ui.import_origin_lon.value = -90
 	before = ui.store.document.duplicate(true)
 	ui._start_import(path,LAYER.OSM_LICENSE)
@@ -116,5 +138,5 @@ func run() -> void:
 	ui.store.dirty = false
 	ui.queue_free()
 	await process_frame
-	print("osm_import_validator: %s (%d checks)" % ["PASS" if failures.is_empty() else str(failures), checks])
+	print("%s: %s (%d checks)" % [test_name, "PASS" if failures.is_empty() else str(failures), checks])
 	quit(0 if failures.is_empty() else 1)

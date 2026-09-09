@@ -7,10 +7,10 @@ untrusted results before native MapKit checks and explicit adoption.
 
 Adapters include `geojson-v2` below and the bounded `osm-extract-v1` snapshot profile
 at the end of this document. Select the format explicitly in **Import vector**.
-`geojson-v2`: explicit local-metre or WGS84 LineString and single-ring Polygon input.
-The local-metre extension is not RFC 7946 geographic GeoJSON. Legacy `crs`, Z, polygon
-holes, other geometry and invalid/duplicate JSON keys are rejected, never silently
-flattened. Road endpoints remain disconnected; building/vegetation defaults are
+`geojson-v2`: explicit local-metre or WGS84 LineString, Polygon and MultiPolygon input.
+Forest/orchard polygon holes become existing zone exclusions; building holes reject.
+The local-metre extension is not RFC 7946 geographic GeoJSON. Legacy `crs`, Z, other
+geometry and invalid/duplicate JSON keys are rejected, never silently flattened. Road endpoints remain disconnected; building/vegetation defaults are
 reported as estimates. Source accuracy defaults to unknown, not coordinate precision.
 
 Every import gets a fresh 128-bit layer namespace, including the same source bytes.
@@ -121,7 +121,8 @@ assertion of survey/ground-distance accuracy. Source accuracy stays independent.
 This initial bounded profile accepts latitude -80..84, one standard strip and
 hemisphere, and points no farther than 20 km from the origin. Norway/Svalbard
 special-zone selection, cross-zone/equator/antimeridian maps, arbitrary CRS,
-vertical datum conversion, multipart/holes and raster reprojection are not claimed.
+vertical datum conversion and raster reprojection are not claimed. Multipart and
+vegetation-hole support follows the bounded extension below.
 Out-of-profile data rejects the entire import; choose/split the source area explicitly.
 Native MapKit still checks all geometry and map bounds before adoption. Existing
 stored documents are never reprojected automatically by a library/tool update.
@@ -222,8 +223,10 @@ is inferred from an extract's header: border-crossing objects can extend beyond
 the provider's advertised area. Prepare a small, reference-complete extract.
 
 The profile converts supported open highway ways to independent ground roads,
-closed building ways to footprints, and forest/wood/orchard ways to zones. Ways
-are sorted by OSM ID before assigning fresh layer IDs. Shared OSM endpoints are
+closed building ways to footprints, and forest/wood/orchard ways to zones. It also
+assembles explicit building/forest/wood/orchard `type=multipolygon` relations from
+complete way members. Ways are sorted by OSM ID before assigning fresh layer IDs;
+relations follow in relation-ID order, with canonical node-ID ring/part order. Shared OSM endpoints are
 still disconnected authored endpoints; this is geometry, not a routable graph.
 Plain positive decimal metres (optional ` m`) are accepted for width/height.
 Defaults and omitted tags are explicitly reviewed: no access/oneway/restriction
@@ -233,15 +236,47 @@ stays unknown, independent of centimetre quantization. Ground/base elevations,
 missing dimensions, vegetation and material/roof values remain estimates.
 
 Missing selected-way nodes, repeated IDs/deletions/history, unsupported highway
-classes/area or closed roads, nonclosed polygons, ambiguous categories, selected
-feature relations and selected ways in boundary/multipolygon relations reject the
-whole import. Bridge/tunnel/nonzero layer and explicit unsupported vertical tags
-also reject it. They are never silently flattened or repaired. This deliberately
-limited profile does not claim general OSM multipolygon or structural support.
+classes/area or closed roads, nonclosed polygons, ambiguous categories, unsupported
+feature relations and selected ways in unhandled boundary/multipolygon relations
+reject the whole import. Bridge/tunnel/nonzero layer and explicit unsupported
+vertical tags also reject it. They are never silently flattened or repaired.
+
+### Multipolygon assembly extension — 2026-09-09
+
+Relation tags define the area. Members must be unique complete ways with explicit
+`outer`/`inner` roles; endpoint joins work in either direction and independently of
+member/entity order. Multiple disconnected outers become separate authored records
+within the same atomic layer. Matching outer feature tags are consumed once;
+conflicting tags, independently tagged inner features, role inference, old-style
+outer-tag-only relations, nested relations and shared area-member ownership reject.
+A missing member/node, branching/dangling join, repeated vertex, self-intersection,
+touching/crossing boundaries, outside/nested holes or overlapping filled outers
+rejects the entire candidate. No interpolation, clipping or repair is performed.
+
+Forest/orchard inner rings become MapKit zone `exclusions`. An independent outer
+island inside a hole is preserved. Buildings with multiple disjoint outers work;
+building courtyards remain **unimplemented** because the public footprint contract
+has no holes. Building parts/vertical structures and large-area support are also
+still unimplemented. Current support is a bounded multipolygon profile, not every
+OSM geometry. The next independent contract unit is building courtyard footprints.
+
+Topology is checked on source rings and again after UTM/centimetre conversion so
+quantization cannot merge separate boundaries silently. Each pass has a shared
+2,000,000-check budget covering edge comparisons, containment and matrix allocation;
+exhaustion asks for a smaller extract. Point/record/output/history bounds still
+apply to **all** parts and exclusions. GeoJSON Polygon/MultiPolygon uses the same
+projected topology checks for multipart/holes, with explicit declared hole ownership.
+Simple existing single-ring GeoJSON/way output retains its previous record IDs.
+
+Review records assembled relation/outer/inner/member counts separately from ignored
+objects, retains source hash/ODbL and all dimension/material estimates, and adopts
+all parts/exclusions as one Undo command. New module `polygon_geometry.py` is copied
+into the existing owned import/download child and included in compiled resources;
+no new dependency, package schema, generator recipe or native ABI is introduced.
 
 Admission includes **all input entities**, even omitted ones: 32 MiB captured
 source, 250,000 entities, 200,000 nodes, 200,000 total way/member references,
-20,000 selected ways, 128 tags/entity and 512 characters/tag key/value. Existing
+20,000 selected ways/relations (including tagged members), 128 tags/entity and 512 characters/tag key/value. Existing
 200,000 positions/60,000 records/12 MiB result and 16 MiB history bounds still
 apply. Sparse IDs use bounded dictionaries rather than an ID-sized location
 array; no implicit area/location cache is enabled. These are admission limits,
@@ -267,8 +302,8 @@ must also be evaluated for that delivery. No real dataset is included in tests.
 
 ```sh
 .venv-import/bin/python -m unittest discover -s tests -p 'test_*.py' -v
-python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/path/.venv-import/bin/python --script osm_import_validator --script import_layer_validator --script import_job_validator --script projection_validator --log-dir /new/path/osm-core
-python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/path/.venv-import/bin/python --script osm_import_validator --resource-pack --log-dir /new/path/osm-pack
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/path/.venv-import/bin/python --script osm_import_validator --script osm_multipolygon_validator --script import_layer_validator --script import_job_validator --script projection_validator --log-dir /new/path/osm-core
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/path/.venv-import/bin/python --script osm_multipolygon_validator --resource-pack --log-dir /new/path/osm-pack
 ```
 
 Synthetic XML and real PBF serialization exercise parity, bounds, malformed input,
@@ -297,11 +332,11 @@ source** to reach the existing omission/estimate review and explicit adoption.
 The provider URL survives in source provenance; an adjacent JSON receipt retains
 headers, requested/resolved URLs, transfer bytes and SHA-256. A downloaded file
 is not automatically a valid/adopted map. The existing whole-input 32 MiB,
-20 km projection and simple-way geometry limits still apply.
+20 km projection and the bounded way/multipolygon geometry limits still apply.
 
 This profile selects a whole predefined provider region by URL. It does not
-fetch the global region catalog, crop a custom bbox, assemble multipolygons or
-increase large-region admission. [Geofabrik's technical contract](https://download.geofabrik.de/technical.html)
+fetch the global region catalog, crop a custom bbox or increase large-region
+admission. Completed snapshots use the multipolygon assembly profile above. [Geofabrik's technical contract](https://download.geofabrik.de/technical.html)
 uses buffered polygons and complete crossing ways/multipolygons, so content may
 extend beyond nominal borders. Many regions therefore cannot yet be converted
 by the bounded local adapter. [Provider licensing](https://www.geofabrik.de/data/download.html)

@@ -44,7 +44,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	directory = ProjectSettings.globalize_path("user://import-jobs/" + token)
 	if DirAccess.dir_exists_absolute(directory): return "Import job directory already exists."
 	var files := FILES.new()
-	for module in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py"]:
+	for module in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "Importer module is missing."
 		if error != "":
@@ -187,7 +187,7 @@ func shutdown() -> void:
 func cleanup() -> void:
 	if directory == "": return
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py", "osm_download.py", "copernicus_dem.py", "dem.png.part", "request.json", "download.part", "layer.json"]:
+	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py", "osm_download.py", "copernicus_dem.py", "dem.png.part", "request.json", "download.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)

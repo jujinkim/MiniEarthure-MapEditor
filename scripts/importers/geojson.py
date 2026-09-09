@@ -11,6 +11,7 @@ import threading
 import time
 from import_layer import ImportLayer, Source, MAX_INPUT, number, text, strict_json
 from projection import Coordinates
+from polygon_geometry import Budget, group_rings
 
 
 def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None):
@@ -18,6 +19,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
         raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
     raw = source_bytes if source_bytes is not None else json.dumps(value, sort_keys=True, allow_nan=False).encode()
     transform = Coordinates(coordinates)
+    topology_budget = Budget()
     layer = ImportLayer(layer_id or uuid.uuid4().hex, Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v2")
     features = value.get("features")
     if not isinstance(features, list) or not 1 <= len(features) <= 20_000:
@@ -63,22 +65,40 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             layer.add("roads", {"id": identity, "from": identity + "-from", "to": identity + "-to", "points": points,
                 "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": "ground", "clearance_cm": None, "sidewalk_cm": None})
             layer.warning(f"{index}: disconnected endpoints; connect explicitly in Editor")
-        elif kind == "Polygon":
-            if len(coordinates) != 1 or not isinstance(coordinates[0], list):
-                raise ValueError("polygon holes require explicit exclusions; no silent flattening")
-            ring = coordinates[0]
-            if len(ring) < 4 or ring[0] != ring[-1]:
-                raise ValueError("polygon ring must be closed with at least four positions")
-            polygon = list(map(point, ring[:-1]))
-            if properties.get("landuse") in ("forest", "orchard"):
-                layer.add("zones", {"id": identity, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 800, "density_per_mille": 750, "exclusions": []})
-                layer.estimate("vegetation_spacing_density")
-            else:
-                layer.add("buildings", {"id": identity, "footprint": polygon,
-                    "base_cm": round(scalar("base_m", 0) * 100), "height_cm": round(scalar("height_m", 12, 0.01, 1000) * 100),
-                    "usage": text(properties.get("usage", "unknown"), "usage", 64), "material": "concrete", "roof": "flat"})
-                layer.estimate("material_roof")
-                if "usage" not in properties: layer.estimate("usage")
+        elif kind in ("Polygon", "MultiPolygon"):
+            polygons = [coordinates] if kind == "Polygon" else coordinates
+            if not polygons:
+                raise ValueError("polygon geometry must be nonempty")
+            projected = []
+            for rings in polygons:
+                if not isinstance(rings, list) or not rings:
+                    raise ValueError("polygon requires an outer ring")
+                output = []
+                for ring in rings:
+                    if not isinstance(ring, list) or len(ring) < 4 or ring[0] != ring[-1]:
+                        raise ValueError("polygon ring must be closed with at least four positions")
+                    points = list(map(point, ring[:-1]))
+                    output.append(points + [points[0]])
+                projected.append(output)
+            if kind == "MultiPolygon" or any(len(rings) > 1 for rings in projected):
+                regrouped = group_rings([rings[0] for rings in projected], [hole for rings in projected for hole in rings[1:]], topology_budget)
+                if regrouped != projected:
+                    raise ValueError("polygon holes must belong to their declared outer after projection")
+            zone = properties.get("landuse") in ("forest", "orchard")
+            if not zone and any(len(rings) != 1 for rings in projected):
+                raise ValueError("building polygon holes require a footprint contract; no silent flattening")
+            for part, rings in enumerate(projected):
+                part_id = identity if kind == "Polygon" else f"{identity}-part-{part}"
+                polygon = rings[0][:-1]
+                if zone:
+                    layer.add("zones", {"id": part_id, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]})
+                    layer.estimate("vegetation_spacing_density")
+                else:
+                    layer.add("buildings", {"id": part_id, "footprint": polygon,
+                        "base_cm": round(scalar("base_m", 0) * 100), "height_cm": round(scalar("height_m", 12, 0.01, 1000) * 100),
+                        "usage": text(properties.get("usage", "unknown"), "usage", 64), "material": "concrete", "roof": "flat"})
+                    layer.estimate("material_roof")
+                    if "usage" not in properties: layer.estimate("usage")
         else:
             raise ValueError(f"unsupported geometry {kind}; no features imported")
         if progress and (index % 100 == 0 or index + 1 == len(features)):

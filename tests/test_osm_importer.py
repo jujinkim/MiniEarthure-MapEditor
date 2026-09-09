@@ -10,7 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/importers"))
 import osm_extract as osm
 from geojson import convert
-from osm_fixture import XML, pbf
+from osm_fixture import XML, pbf, multipolygon_xml
 
 OPTIONS = dict(mode="wgs84-utm", origin=[9, 55], local_origin_m=[512, 512])
 
@@ -41,6 +41,73 @@ class OsmTests(unittest.TestCase):
         updated = layer(XML.replace("12 m", "23 m").encode(), token="b" * 32)
         self.assertNotEqual(xml.source.sha256, updated.source.sha256)
         self.assertTrue(set(p["id"] for p in xml.patches).isdisjoint(p["id"] for p in updated.patches))
+
+    def test_multipolygon_assembly_parity_and_order(self):
+        import xml.etree.ElementTree as ET
+        xml = multipolygon_xml()
+        expected = layer(xml.encode())
+        self.assertEqual(expected.feature_count, 5)
+        buildings = [p["after"] for p in expected.patches if p["field"] == "buildings"]
+        zones = [p["after"] for p in expected.patches if p["field"] == "zones"]
+        self.assertEqual(len(buildings), 3)
+        self.assertEqual(len(zones), 3)
+        self.assertEqual([len(z["exclusions"]) for z in zones], [0,1,0])
+        self.assertIn("assembled_relations=2", " ".join(expected.warnings))
+        self.assertIn("member_ways=8", " ".join(expected.warnings))
+        with tempfile.TemporaryDirectory() as directory:
+            binary = layer(pbf(Path(directory)/"relations.pbf", xml), "pbf")
+        self.assertEqual(binary.patches, expected.patches)
+        root = ET.fromstring(xml)
+        root[:] = root[::-1]
+        for entity in root:
+            if entity.tag in ("way", "relation") and int(entity.get("id")) >= 100:
+                members = [e for e in entity if e.tag != "tag"]
+                entity[:] = members[::-1] + [e for e in entity if e.tag == "tag"]
+        self.assertEqual(layer(ET.tostring(root)).patches, expected.patches)
+        # Identical outer feature tags are consumed once, not emitted as fragments.
+        root = ET.fromstring(xml)
+        ET.SubElement(root.find("way[@id='100']"), "tag", k="building", v="yes")
+        self.assertEqual(layer(ET.tostring(root)).patches, expected.patches)
+
+    def test_multipolygon_defenses(self):
+        import xml.etree.ElementTree as ET
+        def change(action):
+            root = ET.fromstring(multipolygon_xml())
+            action(root)
+            return ET.tostring(root)
+        variants = {
+            "missing-way": lambda r: r.remove(r.find("way[@id='100']")),
+            "missing-node": lambda r: r.remove(r.find("node[@id='100']")),
+            "unknown-role": lambda r: r.find("relation/member").set("role", ""),
+            "nested-relation": lambda r: r.find("relation/member").set("type", "relation"),
+            "duplicate-member": lambda r: r.find("relation").insert(0, r.find("relation/member")),
+            "open-ring": lambda r: r.find("relation").remove(r.find("relation/member")),
+            "conflict": lambda r: ET.SubElement(r.find("way[@id='100']"), "tag", k="building", v="school"),
+            "member-vertical": lambda r: ET.SubElement(r.find("way[@id='100']"), "tag", k="bridge", v="yes"),
+            "relation-vertical": lambda r: ET.SubElement(r.find("relation"), "tag", k="min_height", v="2"),
+            "courtyard": lambda r: r.find("relation[@id='101']/tag[@k='landuse']").set("k", "building"),
+            "outside-hole": lambda r: r.find("relation[@id='100']/member[@ref='102']").set("role", "inner"),
+            "overlapping-outers": lambda r: r.find("relation[@id='101']/member[@ref='112']").set("role", "outer"),
+        }
+        for name, action in variants.items():
+            with self.subTest(name=name), self.assertRaises(ValueError): layer(change(action))
+        import polygon_geometry as geometry
+        with patch.object(geometry, "MAX_TOPOLOGY_CHECKS", 1), self.assertRaisesRegex(ValueError, "topology budget"):
+            layer(multipolygon_xml().encode())
+
+    def test_invalid_multipolygon_cli_never_publishes(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/importers/geojson.py"
+        with tempfile.TemporaryDirectory() as directory:
+            source, output = Path(directory)/"bad.osm", Path(directory)/"layer.json"
+            raw = multipolygon_xml().replace('role="inner"', 'role="unknown"').encode()
+            source.write_bytes(raw)
+            result = subprocess.run([sys.executable, str(script), str(source), str(output), "--input-format", "osm",
+                "--coordinates", "wgs84-utm", "--origin", "9", "55", "--local-origin", "512", "512",
+                "--license", osm.LICENSE, "--layer-id", "e"*32], capture_output=True, timeout=15)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(b"outer/inner", result.stderr)
+            self.assertFalse(output.exists())
+            self.assertEqual(source.read_bytes(), raw)
 
     def test_unsafe_input_rejects_whole_candidate(self):
         variants = {
