@@ -34,12 +34,15 @@ preferences stay separate from map content. See [workbench controls and contract
 
 Ctrl/Cmd+Z and Ctrl/Cmd+Y undo/redo; Ctrl/Cmd+S saves. Commands group a complete
 polygon, road, property apply or drag. Save chooses a project directory. Export
-writes a new `.memap`; existing outputs are preserved. Packages can be unpacked
+writes a new `.memap`; existing outputs are preserved. First export guides the
+project save and then package filename selection. Tool-specific instructions stay
+under the map; failed imports expose Retry import with retained settings. Packages can be unpacked
 with the public MapKit CLI.
 
 Recovery snapshots live in Godot's user-data `recovery` directory, separate from
 map content. Autosave runs every 15 seconds and before New/Open/Recover/Close;
-failed retention keeps the current document open. Recover selects an autosave,
+failed retention keeps the current document open. Unsaved New/Open/Recover/Close
+asks whether to save, retain recovery and continue, or keep editing. Recover selects an autosave,
 `.previous` or complete `.pending-*` document. Save retains `.previous` and checks
 for external changes. Recovery validates the document and checksum with fresh undo
 history. Undo/Redo share 200 commands / 16 MiB of serialized mementos. Escape or

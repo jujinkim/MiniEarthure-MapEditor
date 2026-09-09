@@ -128,3 +128,14 @@ restart/recovery, cancel/retry and original-data preservation. E05's complete
 empty-map authoring → installed Client driving, representative-map p95/RSS/GPU,
 public anonymous clone and final integration remain separate acceptance gates.
 E04 implementation delivery is not final product/platform acceptance.
+
+
+## UX02 save-to-export guidance
+
+Export on an unsaved project now opens **Save project before export**, then
+**Export package — choose a new filename** after a successful save. Save failure
+stops this continuation and suggests Save As; cancelling either picker leaves the
+current document available. Existing package files are still never overwritten.
+Operation failures have a persistent summary above detailed status, and Cancel
+operation is disabled when idle. No generation, cache or file ownership contract
+changed. [Workbench guidance](WORKBENCH.md) covers import retry and tool hints.

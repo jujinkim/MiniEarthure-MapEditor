@@ -79,6 +79,27 @@ View changes do not dirty the document or alter exported bytes. Layer settings
 save when changed; panel/grid settings also save on editor exit. Reset panels
 restores visible docks and the default splitter positions.
 
+## Flow guidance (UX02)
+
+Tool buttons have usage tooltips; a persistent caption under the map explains
+minimum vertices, right-click completion, selection prerequisites and the relevant
+Authoring settings or Properties controls. Escape/zoom/pan remain visible while
+status messages change. The minimum window remains 1024×720; bottom actions wrap
+and operation feedback occupies a full-width row. Idle Cancel operation is disabled.
+
+Import failures/cancellation expose **Retry import…**, reopening the existing
+license, accuracy, coordinate and Python settings. **Import / retry last source**
+prepares that source with a new identity. Review explicitly says that adoption is
+pending; Discard confirms that the document is unchanged. Adoption remains one
+Undo command, and document changes/cancellation invalidate late results.
+
+For an unsaved project, **Export .memap** opens the save-directory picker and then
+the package filename picker. Cancelling either leaves the current document open.
+Existing package names report an error and require a new filename. Validation,
+preview and export errors retain their operation context next to the action row;
+detailed diagnostics remain below it. The prior preview and original files survive
+failed/cancelled generation. See [document transitions](DOCUMENTS.md).
+
 ## Shortcuts
 
 | Input | Action |
@@ -123,3 +144,15 @@ E03 authoring is now implemented; see [AUTHORING.md](AUTHORING.md). E04 preview/
 [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md). The vector planner and atomic record/payload
 boundaries are preserved. Complete platform/performance/installed-Client acceptance
 remains separate work.
+
+UX02 scoped Mac validation (2026-09-09): `editor_ux_validator` routes real
+pointer presses through the unsaved and import dialogs, tests save/export failure,
+picker cancellation/late callbacks, stale document actions and import adoption/Undo.
+Run with `--script editor_ux_validator`; add `--rendered --resource-pack` to verify
+compiled resources with loose product scripts hidden. `MAPEDITOR_UX_CAPTURE_DIR`
+retains workbench, unsaved, import review and retry screenshots. Mac source checks
+passed alongside document history/recovery, workbench graph safety, authoring
+safety, preview/export, import layer/process ownership and test-drive adapter checks.
+Compiled-resource rendered UX/workbench checks passed with no engine diagnostics.
+Native OS file-picker automation and Windows/Linux native distributions remain
+unverified; these checks use Godot's embedded picker and synthetic local files.

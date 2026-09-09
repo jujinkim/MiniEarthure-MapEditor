@@ -64,6 +64,9 @@ func run() -> void:
 	check(FILES.write_new(path, PackedByteArray([1,2,3])).contains("conflict"), "immutable install never overwrites differing bytes")
 	# Mixed ground/bridge connection must match actual terrain, not just graph XYZ.
 	ui._new()
+	if ui.unsaved_dialog.visible:
+		ui.unsaved_dialog.hide()
+		ui._continue_document_action()
 	check(author.recipe(2,"default") == "", "road safety recipe")
 	author.options.start_cm = 500
 	author.options.end_cm = 500
@@ -84,6 +87,9 @@ func run() -> void:
 	check(state() == before and ui.status_label.text.contains("unlock"), "locked endpoint layer blocks new graph creation")
 	ui.canvas.set_layer_state("nodes", {})
 	ui._new()
+	if ui.unsaved_dialog.visible:
+		ui.unsaved_dialog.hide()
+		ui._continue_document_action()
 	check(author.recipe(2,"default") == "", "terrain portal recipe")
 	author.options.start_cm = 0
 	author.options.end_cm = 0

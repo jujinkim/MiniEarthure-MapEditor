@@ -66,6 +66,12 @@ var preview_y: SpinBox
 var dialog: FileDialog
 var dialog_action := ""
 var busy := false
+var unsaved_dialog: ConfirmationDialog
+var recovery_continue_button: Button
+var pending_document_action := {}
+var tool_hint: Label
+var cancel_button: Button
+var retry_import_button: Button
 var worker := Thread.new()
 var generation := 0
 var worker_generation := 0
@@ -129,11 +135,7 @@ func _autosave() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
-		var failure := store.autosave() if store.dirty else ""
-		if failure != "":
-			_status("Cannot close safely: " + failure)
-			return
-		get_tree().quit()
+		_request_document_action("close")
 
 func _build_ui() -> void:
 	var ui_theme := Theme.new()
@@ -159,6 +161,7 @@ func _build_ui() -> void:
 	ui_theme.set_stylebox("selected", "Tree", active)
 	ui_theme.set_stylebox("selected_focus", "Tree", active)
 	ui_theme.set_color("font_color", "Tree", Color("e1e3e6"))
+	ui_theme.set_color("font_readonly_color", "TextEdit", Color("e1e3e6"))
 	ui_theme.set_icon("unchecked", "Tree", _checkbox_icon(false))
 	ui_theme.set_icon("checked", "Tree", _checkbox_icon(true))
 	var focus_style := StyleBoxFlat.new()
@@ -219,6 +222,7 @@ func _build_ui() -> void:
 		tool_button.toggle_mode = true
 		tool_button.button_group = group
 		tool_button.button_pressed = name == "Select"
+		tool_button.tooltip_text = _tool_help(name)
 		tool_buttons[name] = tool_button
 	author_panel = AUTHOR_PANEL.new()
 	author_panel.editor = self
@@ -265,7 +269,10 @@ func _build_ui() -> void:
 	center.add_child(selection_label)
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center.add_child(canvas)
-	_label(center, "Wheel: zoom · Middle drag: pan · Shift: toggle · Empty drag: box")
+	tool_hint = Label.new()
+	tool_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tool_hint.add_theme_font_size_override("font_size", 12)
+	center.add_child(tool_hint)
 	right_dock = VSplitContainer.new()
 	right_dock.custom_minimum_size.x = 300
 	center_split.add_child(right_dock)
@@ -328,9 +335,12 @@ func _build_ui() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -25, 0)
 	preview_world.add_child(sun)
-	var view_bar := HBoxContainer.new()
+	var view_bar := HFlowContainer.new()
 	column.add_child(view_bar)
-	_button(view_bar, "Cancel operation", _cancel_operation)
+	cancel_button = _button(view_bar, "Cancel operation", _cancel_operation)
+	cancel_button.disabled = true
+	retry_import_button = _button(view_bar, "Retry import…", _import_geojson)
+	retry_import_button.hide()
 	_button(view_bar, "Tools / layers", func(): left_dock.visible = not left_dock.visible)
 	_button(view_bar, "Properties / 3D", func(): right_dock.visible = not right_dock.visible)
 	_button(view_bar, "Fit map (F)", func(): canvas.fit_map())
@@ -338,7 +348,7 @@ func _build_ui() -> void:
 	validation_label = Label.new()
 	validation_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	validation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	view_bar.add_child(validation_label)
+	column.add_child(validation_label)
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.custom_minimum_size.y = 48
@@ -350,9 +360,25 @@ func _build_ui() -> void:
 	dialog = FileDialog.new()
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
 	dialog.use_native_dialog = true
+	dialog.canceled.connect(func():
+		if dialog_action == "save_transition": pending_document_action.clear()
+	)
 	dialog.dir_selected.connect(_path_selected)
 	dialog.file_selected.connect(_path_selected)
 	add_child(dialog)
+	unsaved_dialog = ConfirmationDialog.new()
+	unsaved_dialog.title = "Unsaved changes"
+	unsaved_dialog.ok_button_text = "Save and continue"
+	unsaved_dialog.cancel_button_text = "Keep editing"
+	recovery_continue_button = unsaved_dialog.add_button("Keep recovery and continue", false, "recovery")
+	unsaved_dialog.confirmed.connect(_save_before_document_action)
+	unsaved_dialog.custom_action.connect(func(action):
+		if action == "recovery":
+			unsaved_dialog.hide()
+			_continue_document_action()
+	)
+	unsaved_dialog.canceled.connect(func(): pending_document_action.clear())
+	add_child(unsaved_dialog)
 	import_dialog = ConfirmationDialog.new()
 	import_dialog.title = "Import vector source"
 	import_dialog.ok_button_text = "Choose source…"
@@ -424,7 +450,11 @@ func _build_ui() -> void:
 	import_summary.custom_minimum_size = Vector2(640, 340)
 	import_review.add_child(import_summary)
 	import_review.confirmed.connect(_adopt_import)
-	import_review.canceled.connect(_discard_import)
+	import_review.canceled.connect(func():
+		_discard_import()
+		validation_label.text = "Import discarded · document unchanged"
+		_status("Imported layer discarded. Use Retry import to prepare it again.")
+	)
 	add_child(import_review)
 	_setup_download()
 	_setup_overture()
@@ -465,18 +495,71 @@ func _label(parent: Node, text: String) -> void:
 	parent.add_child(label)
 
 func _new() -> void:
+	_request_document_action("new")
+
+func _request_document_action(action: String, path: String = "") -> void:
+	canvas.cancel_interaction()
 	if store.dirty:
 		var failure := store.autosave()
 		if failure != "":
-			_status(failure)
+			_status(("Cannot close safely: " if action == "close" else "Cannot leave document: ") + failure)
 			return
-	store.new_document()
-	_status("New map. Previous unsaved map retained in recovery snapshots.")
+	pending_document_action = {"action": action, "path": path, "map_id": str(store.document.map_id)}
+	if not store.dirty:
+		_continue_document_action()
+		return
+	unsaved_dialog.dialog_text = "Save changes before %s?\nA recovery snapshot retains committed changes and file references.\nKeep original imported files available. Keep editing cancels this action." % {"new":"creating a new map", "open":"opening another project", "recover":"recovering another document", "close":"closing the editor"}[action]
+	unsaved_dialog.popup_centered(Vector2i(700, 200))
+	unsaved_dialog.get_cancel_button().grab_focus()
+
+func _save_before_document_action() -> void:
+	if pending_document_action.is_empty(): return
+	if pending_document_action.map_id != str(store.document.map_id):
+		pending_document_action.clear()
+		_status("Document changed; request the action again.")
+		return
+	if busy:
+		_status("Cancel the active operation or wait, then try again. Your document stays open.")
+		pending_document_action.clear()
+		return
+	if store.project_path == "":
+		_choose("save_transition")
+		return
+	var failure := store.save_project(store.project_path)
+	if failure != "":
+		pending_document_action.clear()
+		_status(failure + " Use Save As to a new directory, then try again.")
+		return
+	_document_changed()
+	_continue_document_action()
+
+func _continue_document_action() -> void:
+	if pending_document_action.is_empty(): return
+	var request := pending_document_action.duplicate()
+	pending_document_action.clear()
+	if request.map_id != str(store.document.map_id):
+		_status("Document changed; request the action again.")
+		return
+	# Recheck retention at consumption, including edits since the prompt opened.
+	var failure := store.autosave() if store.dirty else ""
+	if failure != "":
+		_status("Cannot leave document: " + failure)
+		return
+	match request.action:
+		"new":
+			store.new_document()
+			_status("New map. Previous unsaved changes remain in Recover.")
+		"open": failure = store.open_project(request.path)
+		"recover": failure = store.recover(request.path)
+		"close": get_tree().quit()
+	if failure != "": _status(failure + " Current document retained. Use Recover to inspect a backup.")
+	elif request.action in ["open", "recover"]: _status("Ready: " + request.path)
 
 func _choose(action: String) -> void:
 	dialog_action = action
 	dialog.filters = PackedStringArray()
-	if action in ["open", "save", "save_for_drive"]:
+	dialog.title = {"open":"Open project directory", "save":"Save project to directory", "save_transition":"Save before continuing", "save_for_export":"Save project before export", "save_for_drive":"Save project before test drive", "export":"Export package — choose a new filename", "recover":"Recover a document", "import":"Choose source to review"}.get(action, "Choose file")
+	if action in ["open", "save", "save_for_drive", "save_transition", "save_for_export"]:
 		dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 	else:
 		dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE if action == "export" else FileDialog.FILE_MODE_OPEN_FILE
@@ -497,23 +580,30 @@ func _path_selected(path: String) -> void:
 		"import":
 			_start_worker("import", path, import_license.text.strip_edges())
 			return
-		"open":
-			if store.dirty:
-				failure = store.autosave()
-			if failure == "":
-				failure = store.open_project(path)
+		"open", "recover":
+			_request_document_action(dialog_action, path)
+			return
 		"save": failure = store.save_project(path)
+		"save_transition", "save_for_export":
+			if dialog_action == "save_transition" and (pending_document_action.is_empty() or pending_document_action.map_id != str(store.document.map_id)):
+				pending_document_action.clear()
+				_status("Document changed or action cancelled; choose Save again.")
+				return
+			failure = store.save_project(path)
+			if failure == "":
+				_document_changed()
+				if dialog_action == "save_transition": _continue_document_action()
+				else: _choose.call_deferred("export")
+			else:
+				pending_document_action.clear()
+				_status(failure + " Choose Save As to a new directory and try again.")
+			return
 		"save_for_drive":
 			failure = store.save_project(path)
 			if failure == "":
 				_document_changed()
 				_test_drive()
 				return
-		"recover":
-			if store.dirty:
-				failure = store.autosave()
-			if failure == "":
-				failure = store.recover(path)
 		"export":
 			if busy:
 				_status("Wait for the current preview or export.")
@@ -521,7 +611,7 @@ func _path_selected(path: String) -> void:
 			_start_package("export", path)
 			return
 	_status(failure if failure != "" else "Ready: " + path)
-	_document_changed()
+	if failure == "": _document_changed()
 
 func _save() -> void:
 	if busy:
@@ -532,7 +622,7 @@ func _save() -> void:
 	else:
 		var failure := store.save_project(store.project_path)
 		_status(failure if failure != "" else "Project saved.")
-		_document_changed()
+		if failure == "": _document_changed()
 
 func _import_geojson() -> void:
 	if not busy:
@@ -540,8 +630,11 @@ func _import_geojson() -> void:
 		import_dialog.popup_centered(Vector2i(760, 520))
 
 func _export() -> void:
+	if busy:
+		_status("Cancel the active operation or wait before exporting.")
+		return
 	if store.project_path == "":
-		_status("Save the project to a directory before exporting.")
+		_choose("save_for_export")
 		return
 	_choose("export")
 
@@ -560,6 +653,7 @@ func _selection(ids: Array) -> void:
 		properties.remove_child(child)
 		child.queue_free()
 	if layers != null: layers.sync_selection()
+	tool_hint.text = _tool_help(canvas.tool)
 	selection_label.text = "2D MAP  ·  %s  ·  %d selected" % [canvas.tool, property_records.size()]
 	apply_button.disabled = property_records.is_empty()
 	if property_records.is_empty():
@@ -687,6 +781,21 @@ func _document_changed() -> void:
 	project_label.text = (store.project_path if store.project_path != "" else "Unsaved project") + ("  • modified" if store.dirty else "")
 	canvas.queue_redraw()
 
+func _tool_help(name: String) -> String:
+	var hints := {
+		"Select":"V · Click to select; Shift toggles. Drag empty space to box-select. Edit in Properties, then Apply.",
+		"Road":"R · Click at least two points; right-click to finish. Set width, surface and structure in Authoring settings.",
+		"Building":"B · Click at least three corners; right-click to finish. Select the building to edit height and material.",
+		"Forest":"G · Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
+		"Orchard":"O · Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
+		"Terrain":"Drag to paint terrain. Choose brush, radius and strength in Authoring settings; release commits one Undo step.",
+		"Place":"Click to place the asset chosen in Authoring settings. Select it to change rotation.",
+		"Repeat":"Click a path; right-click to finish. Choose asset and spacing in Authoring settings.",
+		"Entrance":"Select one building first, then draw an entrance polygon; right-click to finish.",
+		"Exclusion":"Select one forest/orchard zone first, then draw an exclusion polygon; right-click to finish."
+	}
+	return str(hints.get(name, "")) + "\nEscape cancels · Wheel zooms · Middle drag pans"
+
 func _set_tool(name: String) -> void:
 	canvas.tool = name
 	tool_buttons[name].button_pressed = true
@@ -745,7 +854,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 		_status("Finish or cancel the current gesture first.")
 		return
 	if operation == "export" and FileAccess.file_exists(destination):
-		_status("E_EXPORT_EXISTS: Choose a new package filename; existing files are preserved.")
+		_operation_status("Export failed · E_EXPORT_EXISTS", "Choose a new package filename; existing files are preserved.")
 		return
 	package_work = PACKAGE_WORK.new()
 	package_operation = operation
@@ -810,8 +919,7 @@ func _package_finished(result: Dictionary) -> void:
 		_status("Operation cancelled or document changed; prior preview and files retained.")
 		return
 	if not result.ok:
-		validation_label.text = store.reason(result)
-		_status(validation_label.text)
+		_operation_status(package_operation.capitalize() + " failed · Prior preview and original files retained", store.reason(result))
 		return
 	if package_operation != "preview":
 		last_export_report = result.data
@@ -819,7 +927,7 @@ func _package_finished(result: Dictionary) -> void:
 			var failure := _publish_package(result.data.path, package_destination)
 			PAYLOAD_FILES.remove_scratch(result.data.scratch)
 			if failure != "":
-				_status(failure)
+				_operation_status("Export failed · Choose a new filename and retry", failure)
 				return
 			last_export_report.path = package_destination
 		_status("Exported validated package: " + package_destination if package_operation == "export" else "Validated immutable snapshot; capacity report ready.")
@@ -915,7 +1023,7 @@ func _start_import(source: String, license_name: String) -> void:
 	if input_format != "geojson": license_name = IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
 	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, str(download_sources.get(source, "")))
 	if failure != "":
-		_status("E_IMPORT: " + failure)
+		_operation_status("Import failed · Use Retry import to adjust settings", "E_IMPORT: " + failure)
 		return
 	import_job = job
 	worker_generation = generation
@@ -945,6 +1053,9 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 	else: _status("Preparing test drive…")
 
 func _process(_delta: float) -> void:
+	cancel_button.disabled = not busy and pending_import == null
+	cancel_button.tooltip_text = "Cancel the running operation; keep prior preview and original files." if busy else "No running operation."
+	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	if import_job != null:
 		import_job.poll()
 		var progress: Dictionary = import_job.progress
@@ -989,7 +1100,7 @@ func _process(_delta: float) -> void:
 		return
 func _finish_import(result: Dictionary) -> void:
 	if not result.ok:
-		_status(store.reason(result))
+		_operation_status("Import stopped · Use Retry import to review settings", store.reason(result))
 		return
 	if generation != worker_generation:
 		_status("Document changed during import; retry to add the new layer.")
@@ -1002,6 +1113,7 @@ func _finish_import(result: Dictionary) -> void:
 		return
 	pending_import = layer
 	import_review_generation = generation
+	validation_label.text = "Import ready for review · document unchanged until Adopt"
 	import_summary.text = layer.summary()
 	import_review.popup_centered(Vector2i(760, 460))
 	_status("Import prepared. Review and adopt the new layer, or discard it.")
@@ -1056,6 +1168,10 @@ func _history(forward: bool) -> void:
 	var failure := store.redo() if forward else store.undo()
 	if failure != "":
 		_status(failure)
+
+func _operation_status(summary: String, details: String) -> void:
+	_status(details)
+	validation_label.text = summary
 
 func _status(text: String) -> void:
 	if busy and text.begins_with("x "): return

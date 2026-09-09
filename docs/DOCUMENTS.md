@@ -66,7 +66,13 @@ contract. Filesystem/power-loss durability beyond Godot flush/rename is not prov
 
 Autosave runs every 15 seconds while dirty and before replacing or closing a dirty
 document. New/Open/Recover and window Close stop if retention fails; the status
-shows the error. Each document session gets a separate recovery path, so another
+shows the error. For unsaved changes the Editor now asks **Save and continue**,
+**Keep recovery and continue**, or **Keep editing** (initial keyboard focus).
+Open/Recover ask after selecting the target. Save first asks for a project directory
+when needed; cancelling that picker cancels the transition. Save conflicts keep
+edits/history open and suggest Save As to a new directory. Recovery continuation
+rechecks retention before replacing the document, and a replaced document invalidates
+a pending action. No option deletes recovery snapshots or original files. Each document session gets a separate recovery path, so another
 session cannot overwrite it. Unchanged snapshots do not rotate. Snapshot version
 1 carries the validated document checksum, original project directory and disk
 base checksum. Snapshots and input JSON are bounded to 64 MiB before reading or

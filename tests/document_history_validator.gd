@@ -180,6 +180,9 @@ func canvas_gestures() -> void:
 	check(not store.has_gesture() and not canvas.dragging, "focus loss cancels gesture")
 	canvas._gui_input(press)
 	ui._new()
+	if ui.unsaved_dialog.visible:
+		ui.unsaved_dialog.hide()
+		ui._continue_document_action()
 	canvas._gui_input(release)
 	check(store.document.buildings.is_empty() and store.undo_stack.is_empty(), "old mouse release cannot edit replacement document")
 	ui.store.dirty = false
