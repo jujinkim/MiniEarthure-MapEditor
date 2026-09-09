@@ -40,6 +40,8 @@ func run() -> void:
 	ui.overture_dialog.hide()
 	var before: Dictionary=ui.store.document.duplicate(true)
 	ui.overture_dialog.confirmed.emit()
+	ui.overture_review.hide()
+	ui.overture_review.confirmed.emit()
 	await wait_job(ui)
 	var source: String=ui.last_import_source
 	check(FileAccess.file_exists(source), "Overture snapshot retained: " + ui.status_label.text)
@@ -104,12 +106,17 @@ func run() -> void:
 	check(ui.store.undo()=="","change document during review")
 	ui._adopt_import()
 	check(ui.store.document.buildings.size()==1,"stale review rejected")
+	ui._review_overture()
+	ui.overture_review.hide()
 	ui._download_overture()
 	ui.overture_bbox[2].value=9.002
+	ui.overture_bbox[2].value=9.001
 	await wait_job(ui)
-	check(ui.last_import_source==source,"changed area rejects completed selection")
+	check(ui.last_import_source==source,"changed then restored area rejects completed selection")
 	ui.overture_bbox[2].value=9.001
 	ui.overture_release.text="2026-08-19.1"
+	ui._review_overture()
+	ui.overture_review.hide()
 	ui._download_overture()
 	var owned:RefCounted=ui.import_job
 	var deadline:=Time.get_ticks_msec()+5000
@@ -118,19 +125,27 @@ func run() -> void:
 	ui._cancel_operation()
 	await wait_job(ui)
 	check(not DirAccess.dir_exists_absolute(owned.directory) and FileAccess.get_sha256(source)==original,"cancel cleans only request partial")
+	ui._review_overture()
+	ui.overture_review.hide()
 	ui._download_overture()
 	owned=ui.import_job
 	owned.poll(owned.deadline_ms)
 	await wait_job(ui)
 	check(owned.result.error.message.contains("timed out"),"deadline terminates helper")
 	ui.overture_release.text="2026-08-19.0"
+	ui._review_overture()
+	ui.overture_review.hide()
 	ui._download_overture()
 	ui.generation+=1
 	await wait_job(ui)
 	check(ui.last_import_source==source,"stale document rejects remote selection")
+	ui._review_overture()
+	ui.overture_review.hide()
 	ui._download_overture()
 	await wait_job(ui)
 	check(ui.last_import_source!=source,"fresh retry creates separate snapshot")
+	ui._review_overture()
+	ui.overture_review.hide()
 	ui._download_overture()
 	owned=ui.import_job
 	ui.store.dirty=false

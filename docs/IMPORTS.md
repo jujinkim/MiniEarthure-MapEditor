@@ -653,3 +653,38 @@ review/generation, forged/invalid whole-layer rejection, explicit recipe,
 Undo/Redo, recovery, preview cancellation and unchanged source/package checks
 cover this profile. Actual provider/OS/installed-client and full acceptance remain
 separate; no representative-data or performance result is claimed.
+
+
+## Bounded area-selection wizard — 2026-09-09
+
+In Import, choose **Download Overture building area…**. Enter a dated release and
+W/S/E/N coordinates, then **Fit coordinates** to inspect the envelope. Drag in the
+offline coordinate diagram in either direction to replace the bbox; numeric fields
+remain the precise keyboard path. **Area at import origin** explicitly seeds a
+0.001-degree box at the geographic import origin. It never changes geographic or
+local import origins. The diagram is not a geographic basemap, equal-distance map,
+provider coverage promise or a feature preview. Latitude increases upward.
+
+**Review selected area** validates the calendar date, positive non-crossing box and
+existing 0.02-degree-per-side provider limit before any helper starts. A separate
+**Download reviewed area** shows the exact release/bbox, unknown transfer/count,
+32 MiB captured-snapshot / 20,000-feature caps, 120s deadline and ODbL attribution.
+Network bytes and reader memory can exceed the snapshot cap. Returned buildings,
+including complete multipart/courtyard footprints, are not clipped to the box.
+Courtyards require the existing explicit recipe-5 import choice; vertical or
+underground parts remain unsupported. Then select explicit origins, import the
+preserved source, review the candidate and adopt as a new layer.
+
+Any release/coordinate edit invalidates confirmation and increments a selection
+revision: changing away and back also rejects a pending download's auto-selection.
+Cancel on the confirmation returns to selection. Cancellation, deadline, owner
+close and document-generation checks retain the existing source/partial ownership
+rules. Selection/review do not mutate the document or Undo history.
+
+This unit supports the existing Overture query profile. Geofabrik remains an
+explicit whole-region URL/size review; no OSM crop or region catalog is implied.
+Copernicus remains its separate one-source/one-cell workflow. Tiled basemaps,
+large-area queries and multi-source/multi-cell DEM are separate unfinished work.
+Validation: `area_selection_validator`, existing `overture_validator` (including
+changed-then-restored selection), `download_validator`, `import_job_validator`,
+and the standalone compiled-resource path in `scripts/check_documents.py`.

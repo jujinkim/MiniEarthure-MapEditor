@@ -107,6 +107,12 @@ var overture_dialog: ConfirmationDialog
 var overture_release: LineEdit
 var overture_bbox: Array[SpinBox] = []
 var overture_requested := {}
+var overture_area: Control
+var overture_area_status: Label
+var overture_review: ConfirmationDialog
+var overture_reviewed := {}
+var overture_revision := 0
+var overture_request_revision := -1
 
 var selected_field := ""
 var selected_record: Dictionary = {}
@@ -487,12 +493,13 @@ func _button(parent: Node, text: String, action: Callable) -> Button:
 	parent.add_child(button)
 	return button
 
-func _label(parent: Node, text: String) -> void:
+func _label(parent: Node, text: String) -> Label:
 	var label := Label.new()
 	label.text = text
 	if parent is VBoxContainer:
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(label)
+	return label
 
 func _new() -> void:
 	_request_document_action("new")
@@ -1377,7 +1384,7 @@ func _finish_acquisition(result: Dictionary) -> void:
 		_status("Document changed; download result will not start an import. Complete source files are retained.")
 		return
 	if mode == "overture":
-		if overture_requested != _overture_plan():
+		if overture_request_revision != overture_revision or overture_requested != _overture_plan():
 			_status("Area changed; completed source retained without selecting it. Retry the new area.")
 			return
 		last_import_source = str(result.data.path)
@@ -1407,7 +1414,7 @@ func _new_download_job() -> RefCounted:
 func _setup_overture() -> void:
 	overture_dialog = ConfirmationDialog.new()
 	overture_dialog.title = "Overture · building area review"
-	overture_dialog.ok_button_text = "Download this area"
+	overture_dialog.ok_button_text = "Review selected area"
 	var fields := VBoxContainer.new()
 	fields.custom_minimum_size.x = 700
 	overture_dialog.add_child(fields)
@@ -1420,23 +1427,49 @@ Progress reports captured snapshot bytes against the cap, not network completion
 	overture_release.placeholder_text = "Dated release, e.g. 2026-08-19.0 (never latest)"
 	fields.add_child(overture_release)
 	var grid := GridContainer.new()
-	grid.columns = 2
+	grid.columns = 4
 	fields.add_child(grid)
 	for item in [["West longitude",-180,180], ["South latitude",-80,84], ["East longitude",-180,180], ["North latitude",-80,84]]:
 		overture_bbox.append(_import_number(grid, item[0], item[1], item[2], 0, 0.000001))
+	overture_area = preload("./area_selector.gd").new()
+	fields.add_child(overture_area)
+	overture_area.bounds_selected.connect(func(bounds: Array):
+		for i in range(4): overture_bbox[i].value = bounds[i]
+	)
+	var actions := HBoxContainer.new()
+	fields.add_child(actions)
+	_button(actions, "Fit coordinates", func(): overture_area.toggle_fit())
+	_button(actions, "Area at import origin", func():
+		var origin_bounds := [import_origin_lon.value, import_origin_lat.value, minf(180,import_origin_lon.value+0.001), minf(84,import_origin_lat.value+0.001)]
+		for i in range(4): overture_bbox[i].value = origin_bounds[i]
+		overture_area.toggle_fit()
+	)
+	overture_area_status = _label(fields, "")
+	for field in overture_bbox: field.value_changed.connect(func(_value): _overture_changed())
+	overture_release.text_changed.connect(func(_value): _overture_changed())
 	_label(fields, "ODbL · © OpenStreetMap contributors, Overture Maps Foundation.
 Source notices: https://docs.overturemaps.org/attribution/#buildings
-Acquisition preserves source fields. Import later rejects holes, multipart and
-partial/underground buildings; base/material/roof/use may be estimates.
+Complete multipart/courtyard footprints are retained (recipe 5 for courtyards).
+Vertical/underground parts reject; base/material/roof/use may be estimates.
 Completed snapshots stay in import-sources even if conversion fails.
 Cancel removes only this request's partial. Retry starts a fresh request.")
 	for child in fields.get_children():
 		if child is Label: child.custom_minimum_size.x = 700
-	overture_dialog.confirmed.connect(_download_overture)
+	overture_dialog.confirmed.connect(_review_overture)
+	overture_review = ConfirmationDialog.new()
+	overture_review.title = "Confirm Overture area and source"
+	overture_review.ok_button_text = "Download reviewed area"
+	overture_review.confirmed.connect(_download_overture)
+	overture_review.canceled.connect(func():
+		overture_reviewed.clear()
+		_open_overture()
+	)
+	add_child(overture_review)
 	overture_dialog.canceled.connect(func():
 		if acquisition_mode == "overture" and import_job != null: import_job.cancel()
 	)
 	add_child(overture_dialog)
+	_overture_changed()
 
 func _open_overture() -> void:
 	if busy: return
@@ -1450,13 +1483,12 @@ func _overture_plan() -> Dictionary:
 
 func _download_overture() -> void:
 	if busy: return
-	overture_requested = _overture_plan()
-	var b: Array = overture_requested.bbox
-	var release_pattern := RegEx.new()
-	release_pattern.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}\\.[0-9]+$")
-	if release_pattern.search(overture_requested.release) == null or b[0] >= b[2] or b[1] >= b[3] or b[2]-b[0] > 0.02 or b[3]-b[1] > 0.02:
-		_status("Choose a dated release and positive area at most 0.02 degrees per side.")
+	if overture_reviewed.is_empty() or overture_reviewed != _overture_plan() or _overture_error() != "":
+		_status("Area changed or has not been reviewed. Review the current selection first.")
 		return
+	overture_requested = overture_reviewed.duplicate(true)
+	overture_request_revision = overture_revision
+	overture_reviewed.clear()
 	var folder := ProjectSettings.globalize_path("user://import-sources")
 	var error := DirAccess.make_dir_recursive_absolute(folder)
 	if error != OK:
@@ -1464,3 +1496,42 @@ func _download_overture() -> void:
 		return
 	var destination := folder.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + ".overture.json")
 	_begin_acquisition({"mode":"overture", "provider":"Overture", "plan":overture_requested.duplicate(true), "destination":destination})
+
+func _overture_error() -> String:
+	var query := _overture_plan()
+	var b: Array = query.bbox
+	var pattern := RegEx.new()
+	pattern.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}\\.[0-9]+$")
+	if pattern.search(query.release) == null: return "Enter an explicit dated release (YYYY-MM-DD.N)."
+	var date: PackedStringArray = query.release.substr(0,10).split("-")
+	var year := int(date[0])
+	var month := int(date[1])
+	var day := int(date[2])
+	var days := [31,29 if year%4 == 0 and (year%100 != 0 or year%400 == 0) else 28,31,30,31,30,31,31,30,31,30,31]
+	if month < 1 or month > 12 or day < 1 or day > days[month-1]: return "Release date is not a calendar date."
+	if b[0] >= b[2] or b[1] >= b[3]: return "Choose west < east and south < north; no dateline crossing."
+	if b[2]-b[0] > 0.02 or b[3]-b[1] > 0.02: return "Area exceeds 0.02 degrees per side. Select a smaller area."
+	return ""
+
+func _overture_changed() -> void:
+	overture_revision += 1
+	overture_reviewed.clear()
+	overture_review.hide()
+	overture_area.set_bounds(_overture_plan().bbox)
+	var error := _overture_error()
+	overture_dialog.get_ok_button().disabled = error != ""
+	overture_area_status.text = error if error != "" else "Valid query envelope · crossing buildings stay whole; origin is chosen separately on import."
+
+func _review_overture() -> void:
+	if busy: return
+	var error := _overture_error()
+	if error != "":
+		_status(error)
+		_open_overture()
+		return
+	import_dialog.hide()
+	overture_dialog.hide()
+	overture_reviewed = _overture_plan().duplicate(true)
+	var b: Array = overture_reviewed.bbox
+	overture_review.dialog_text = "Release: %s · buildings only\nW %.6f / S %.6f / E %.6f / N %.6f\n\nQuery envelope, not a crop. All returned footprint parts stay whole.\nTransfer/count unknown; captured snapshot ≤32 MiB / 20,000 features.\nNetwork bytes and reader memory may exceed that cap. Deadline 120s.\nODbL · OpenStreetMap contributors / Overture Maps Foundation.\n\nDownload preserves a new source; it does not adopt or change the map.\nNext: set explicit geographic/local origins, import, review and adopt.\nCancel stops this request; completed sources remain; retry starts fresh." % [overture_reviewed.release,b[0],b[1],b[2],b[3]]
+	overture_review.popup_centered(Vector2i(740,360))
