@@ -19,14 +19,36 @@ static func _text(value: Variant) -> bool:
 static func _count(value: Variant, maximum: int) -> bool:
 	return (value is int or value is float) and is_finite(float(value)) and float(value) == floor(float(value)) and value >= 0 and value <= maximum
 
-func load_value(raw: Variant, expected_id: String) -> String:
+static func _finite(value: Variant, minimum: float, maximum: float) -> bool:
+	return (value is int or value is float) and is_finite(float(value)) and value >= minimum and value <= maximum
+
+static func _coordinates(c: Variant, requested: Dictionary) -> String:
+	if c is not Dictionary or c.get("quantization_cm") != 1: return "Unsupported import coordinates."
+	if not requested.is_empty() and c.get("mode") != requested.get("mode"): return "Import coordinate selection changed."
+	if c.get("mode") == "local-metres": return ""
+	if c.get("mode") != "wgs84-utm" or c.get("source_crs") != "EPSG:4326" or c.get("axis_order") != "longitude-latitude" or c.get("pyproj") != "3.7.2" or not _text(c.get("proj")) or c.get("max_radius_m") != 20000: return "Invalid projection metadata."
+	for key in ["origin", "local_origin_m"]:
+		if c.get(key) is not Array or c[key].size() != 2: return "Invalid projection origin."
+		if not requested.is_empty():
+			if requested.get(key) is not Array or requested[key].size() != 2: return "Missing requested projection origin."
+			for i in range(2):
+				if c[key][i] != requested[key][i]: return "Projection origin does not match request."
+	if not _finite(c.origin[0], -180, 180) or not _finite(c.origin[1], -80, 84): return "Invalid geographic origin."
+	for n in c.local_origin_m:
+		if not _finite(n, -100000, 100000): return "Invalid local origin."
+	var zone := mini(60, int(floor((float(c.origin[0]) + 180) / 6)) + 1)
+	if c.get("target_crs") != "EPSG:%d" % ((32700 if c.origin[1] < 0 else 32600) + zone): return "Incorrect UTM zone/hemisphere."
+	return ""
+
+func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -> String:
 	value = {}
 	if raw is not Dictionary or JSON.stringify(raw).to_utf8_buffer().size() > MAX_BYTES: return "Invalid or oversized ImportLayer."
-	if raw.get("import_version") != 1 or raw.get("adapter") != "geojson-local-v1": return "Unsupported ImportLayer version/adapter."
+	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2"]: return "Unsupported ImportLayer version/adapter."
 	if not _hex(raw.get("layer_id"), 32) or raw.layer_id != expected_id: return "Stale or invalid import identity."
 	var source: Variant = raw.get("source")
 	if source is not Dictionary or not _text(source.get("name")) or not _text(source.get("license")) or not _text(source.get("accuracy")) or not _hex(source.get("sha256"), 64) or not _count(source.get("bytes"), 32 * 1024 * 1024): return "Invalid import source metadata."
-	if raw.get("coordinates") is not Dictionary or raw.coordinates.get("mode") != "local-metres" or raw.coordinates.get("quantization_cm") != 1: return "Unsupported import coordinates."
+	var coordinate_error := _coordinates(raw.get("coordinates"), requested)
+	if coordinate_error != "": return coordinate_error
 	for key in ["feature_count", "point_count", "warning_count"]:
 		if not _count(raw.get(key), 200000): return "Invalid import counts."
 	if raw.get("warnings") is not Array or raw.warnings.size() > 50 or raw.warning_count < raw.warnings.size(): return "Invalid import warnings."
@@ -75,4 +97,4 @@ func adopt(store: RefCounted) -> String:
 	return failure if failure != "" else store.apply_command("Adopt import " + str(value.source.name), patches(store))
 
 func summary() -> String:
-	return "%s · %d bytes\nLicense: %s · source accuracy: %s\n%d features / %d records · local extent (cm): %s\nEstimated fields (counts): %s\nWarnings: %d (showing %d)\n%s\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged." % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.feature_count, value.patches.size(), str(value.extent_cm), JSON.stringify(value.estimates), value.warning_count, value.warnings.size(), "\n".join(value.warnings)]
+	return "%s · %d bytes\nLicense: %s · source accuracy: %s\n%d features / %d records · local extent (cm): %s\nProjection: %s\nEstimated fields (counts): %s\nWarnings: %d (showing %d)\n%s\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged." % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.feature_count, value.patches.size(), str(value.extent_cm), JSON.stringify(value.coordinates), JSON.stringify(value.estimates), value.warning_count, value.warnings.size(), "\n".join(value.warnings)]

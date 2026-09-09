@@ -16,6 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--godot', default='godot')
     parser.add_argument('--log-dir', type=Path, required=True)
+    parser.add_argument('--import-python', default=sys.executable, help='Python with optional projection requirements for geographic validator')
     parser.add_argument('--full', action='store_true', help='Also run edit/import/preview and installed-client adapter regressions')
     parser.add_argument('--script', action='append', help='Run only named test scripts (repeatable)')
     parser.add_argument('--resource-pack', action='store_true', help='Build host resource PCK and run scripts with loose product scripts hidden; not a native distribution')
@@ -61,7 +62,7 @@ def main():
                     ('user-path', [godot, '--headless', '--path', str(project), '--script', 'res://check_user_path.gd'])]
         scripts = ['document_history_validator', 'document_recovery_validator']
         if args.full:
-            scripts += ['editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator', 'import_layer_validator', 'import_job_validator']
+            scripts += ['editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator', 'import_layer_validator', 'import_job_validator', 'projection_validator']
         if args.script:
             scripts = args.script
         pack_args = []
@@ -80,7 +81,7 @@ def main():
             started = time.monotonic()
             log = args.log_dir / f'{name}.log'
             with log.open('w') as output:
-                result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, timeout=180)
+                result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, timeout=180, env={**os.environ, "MAPEDITOR_TEST_IMPORT_PYTHON": args.import_python})
             text = log.read_text()
             diagnostics = [line for line in text.splitlines() if line.startswith(('ERROR:', 'SCRIPT ERROR:', 'WARNING:'))]
             (args.log_dir / f'{name}.json').write_text(json.dumps({

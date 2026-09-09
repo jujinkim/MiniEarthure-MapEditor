@@ -22,7 +22,8 @@ godot --headless --path . --script res://tests/test_drive_validator.gd
 
 For workbench/document/history/recovery checks with isolated user data and no private game
 dependencies, use `python3 scripts/check_documents.py --godot /path/to/godot --full
---log-dir /new/path/checks`. See [document and recovery contracts](docs/DOCUMENTS.md).
+--log-dir /new/path/checks` (the geographic validator needs `--import-python` with
+`requirements-import.txt` installed). See [document and recovery contracts](docs/DOCUMENTS.md).
 
 New creates a 1024x1024 metre map. Click road/polygon vertices and right-click to
 finish. The 2D workbench supports object/box/multiple selection, configurable grid
@@ -81,13 +82,14 @@ Full platform, representative-map performance and installed-Client authoring acc
 remain open; this is not the completed transition plan.
 
 Import GeoJSON asks for a license and source accuracy, then prepares a typed local-metre
-layer in a Python 3 child process. Review extent, provenance and estimated values
+or WGS84 layer in a Python 3 child process. WGS84 uses an explicit geographic/local
+origin and optional pyproj 3.7.2 from `requirements-import.txt`. Review extent, provenance and estimated values
 before **Adopt new layer**. Discard changes nothing; reimport creates a fresh layer
 and adoption is one Undo command. See [import contracts](docs/IMPORTS.md).
 The wizard supports Python executable selection, actual per-stage progress, Cancel
 and Retry last source. Child exit/output/identity budgets protect publication;
-owner shutdown and a parent-EOF watchdog stop helpers. Geographic projection and
-external source adapters remain subsequent import work.
+owner shutdown and a parent-EOF watchdog stop helpers. Staged raster import and
+external source adapters remain subsequent work.
 
 Linux native build, command/save/recovery/export and rendered preview are tested.
 E01 Mac pointer/key, layer/property/panel and graph-safety checks are scoped

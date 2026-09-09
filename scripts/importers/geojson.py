@@ -10,22 +10,22 @@ import os
 import threading
 import time
 from import_layer import ImportLayer, Source, MAX_INPUT, number, text, strict_json
+from projection import Coordinates
 
 
-def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None):
+def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None):
     if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or "crs" in value:
         raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
     raw = source_bytes if source_bytes is not None else json.dumps(value, sort_keys=True, allow_nan=False).encode()
-    layer = ImportLayer(layer_id or uuid.uuid4().hex, Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), {"mode": "local-metres", "quantization_cm": 1})
+    transform = Coordinates(coordinates)
+    layer = ImportLayer(layer_id or uuid.uuid4().hex, Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v2")
     features = value.get("features")
     if not isinstance(features, list) or not 1 <= len(features) <= 20_000:
         raise ValueError("expected 1..20000 features")
     layer.feature_count = len(features)
 
     def point(raw):
-        if not isinstance(raw, list) or len(raw) != 2:
-            raise ValueError("expected exactly two coordinates; Z is not silently discarded")
-        p = [round(number(raw[0], "x") * 100), round(number(raw[1], "y") * 100)]
+        p = transform.point(raw)
         layer.point(*p)
         return p
 
@@ -104,8 +104,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
-    parser.add_argument("--coordinates", required=True, choices=["local-metres"])
+    parser.add_argument("--coordinates", required=True, choices=["local-metres", "wgs84-utm"])
     parser.add_argument("--license", required=True)
+    parser.add_argument("--origin", nargs=2, type=float)
+    parser.add_argument("--local-origin", nargs=2, type=float)
     parser.add_argument("--accuracy", default="unknown")
     parser.add_argument("--layer-id", required=True)
     parser.add_argument("--watch-parent", action="store_true")
@@ -127,8 +129,13 @@ def main():
     event("parse", 0, size)
     value = strict_json(raw)
     event("parse", size, size)
+    options = {"mode": args.coordinates}
+    if args.coordinates == "wgs84-utm":
+        options.update(origin=args.origin, local_origin_m=args.local_origin)
+    elif args.origin is not None or args.local_origin is not None:
+        raise ValueError("local-metre mode must not specify geographic origins")
     result = convert(value, args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
-        progress=lambda completed, total: event("convert", completed, total, "features"))
+        progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options)
     encoded = result.encode()
     event("write", 0, len(encoded))
     with args.output.open("xb") as stream:

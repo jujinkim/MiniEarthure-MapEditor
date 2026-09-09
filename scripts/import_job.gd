@@ -28,7 +28,7 @@ var result := {}
 var output_eof := false
 var error_eof := false
 
-func start(source: String, license_name: String, accuracy: String, python: String, token: String) -> String:
+func start(source: String, license_name: String, accuracy: String, python: String, token: String, coordinates: Dictionary = {"mode":"local-metres"}) -> String:
 	if pid != -1 or directory != "": return "ImportJob instances are single use."
 	identity = token
 	if not LAYER._hex(token, 32): return "Invalid import request token."
@@ -40,7 +40,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	directory = ProjectSettings.globalize_path("user://import-jobs/" + token)
 	if DirAccess.dir_exists_absolute(directory): return "Import job directory already exists."
 	var files := FILES.new()
-	for module in ["geojson.py", "import_layer.py"]:
+	for module in ["geojson.py", "import_layer.py", "projection.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "Importer module is missing."
 		if error != "":
@@ -48,7 +48,13 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 			return error
 	output_path = directory.path_join("layer.json")
 	var arguments := PackedStringArray(["-B", "-u", directory.path_join("geojson.py"), source, output_path,
-		"--coordinates", "local-metres", "--license", license_name, "--accuracy", accuracy, "--layer-id", token, "--watch-parent"])
+		"--coordinates", str(coordinates.get("mode", "")), "--license", license_name, "--accuracy", accuracy, "--layer-id", token, "--watch-parent"])
+	if coordinates.get("mode") == "wgs84-utm":
+		for key in ["origin", "local_origin_m"]:
+			if coordinates.get(key) is not Array or coordinates[key].size() != 2:
+				cleanup()
+				return "Geographic/local origins are required."
+		arguments.append_array(PackedStringArray(["--origin", str(coordinates.origin[0]), str(coordinates.origin[1]), "--local-origin", str(coordinates.local_origin_m[0]), str(coordinates.local_origin_m[1])]))
 	var child := _spawn(python, arguments)
 	pid = int(child.get("pid", -1))
 	stdio = child.get("stdio")
@@ -177,7 +183,7 @@ func shutdown() -> void:
 func cleanup() -> void:
 	if directory == "": return
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "import_layer.py", "layer.json"]:
+	for name in ["geojson.py", "import_layer.py", "projection.py", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)

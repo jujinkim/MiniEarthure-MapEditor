@@ -5,8 +5,8 @@ private data or runtime generator is imported. `scripts/importers/import_layer.p
 defines the version-1 typed interchange; `scripts/import_layer.gd` revalidates
 untrusted results before native MapKit checks and explicit adoption.
 
-Current adapter: explicit local-metre LineString and single-ring Polygon input.
-This local extension is not RFC 7946 geographic GeoJSON. Legacy `crs`, Z, polygon
+Current adapter `geojson-v2`: explicit local-metre or WGS84 LineString and single-ring Polygon input.
+The local-metre extension is not RFC 7946 geographic GeoJSON. Legacy `crs`, Z, polygon
 holes, other geometry and invalid/duplicate JSON keys are rejected, never silently
 flattened. Road endpoints remain disconnected; building/vegetation defaults are
 reported as estimates. Source accuracy defaults to unknown, not coordinate precision.
@@ -41,8 +41,8 @@ python3 scripts/check_documents.py --godot /path/to/godot --script import_layer_
 
 I01/I03 Mac import/native/document, rendered adoption and compiled resource-PCK
 checks are scoped evidence. Actual Windows/Linux exported filesystem/UI and
-installed Client acceptance remain open. Geographic/heightmap adapters and external
-OSM/Overture/DEM source workflows remain I02.
+installed Client acceptance remain open. WGS84 projection is implemented below;
+heightmap ImportLayer staging and external OSM/Overture/DEM workflows remain I02.
 
 ## Local process lifecycle (I03)
 
@@ -84,3 +84,62 @@ runners. No network/download progress is claimed before external adapters exist.
 
 Sources: [GeoJSON](https://www.rfc-editor.org/rfc/rfc7946),
 [Godot OS process API](https://docs.godotengine.org/en/stable/classes/class_os.html).
+
+
+## WGS84 local projection (I02 local vector unit)
+
+Select WGS84 longitude/latitude explicitly, enter a geographic origin and where
+that origin belongs in local map metres. Source order is always `[longitude,
+latitude]`; output local x is easting and local y is northing. Height properties
+remain local authored metres; Z/vertical-datum conversion is unsupported. The
+source is not clipped, resampled or silently repaired.
+
+Optional independent Python setup (no private repository needed):
+
+```sh
+python3 -m venv .venv-import
+.venv-import/bin/python -m pip install -r requirements-import.txt
+```
+
+On Windows use `.venv-import/Scripts/python.exe`. Select that executable in the
+import wizard. Local metre imports remain standard-library-only. WGS84 requires
+pyproj 3.7.2; missing/mismatched dependencies return an actionable error and leave
+the map unchanged. Dependency installation is explicit; the Editor does not run pip.
+
+The offline transformer uses WGS84 EPSG:4326 to the standard six-degree UTM strip
+containing the origin (zones 1–60; longitude 180 selects 60), with north/south EPSG
+326xx/327xx from origin latitude. Always-xy, no ballpark and best operation are
+explicit; PROJ network access is disabled. Origin easting/northing is subtracted,
+then the chosen local origin is added and values are rounded once to integer cm.
+The review/attribution retain source/target CRS, origins, axis order, radius,
+quantization and actual pyproj/PROJ versions. This is a projected grid, not an
+assertion of survey/ground-distance accuracy. Source accuracy stays independent.
+
+This initial bounded profile accepts latitude -80..84, one standard strip and
+hemisphere, and points no farther than 20 km from the origin. Norway/Svalbard
+special-zone selection, cross-zone/equator/antimeridian maps, arbitrary CRS,
+vertical datum conversion, multipart/holes and raster reprojection are not claimed.
+Out-of-profile data rejects the entire import; choose/split the source area explicitly.
+Native MapKit still checks all geometry and map bounds before adoption. Existing
+stored documents are never reprojected automatically by a library/tool update.
+
+Geographic checks (install optional requirements first):
+
+```sh
+.venv-import/bin/python -m unittest discover -s tests -p 'test_*.py' -v
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/path/.venv-import/bin/python --script projection_validator --script import_layer_validator --script import_job_validator --log-dir /new/path/geographic
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/path/.venv-import/bin/python --script projection_validator --resource-pack --log-dir /new/path/geographic-pack
+```
+
+`--full` now includes geographic validation and therefore needs this optional
+Python via `--import-python`; local-only checks can select specific scripts.
+The tests cover official north/south PROJ reference values, local-cm fixture parity,
+axis/radius/zone rejection, metadata/recovery/package/native generation and changed
+source → new layer → Undo/Redo without replacing an existing saved package (I04
+local vector scope). Existing E03 PNG16 authoring import remains a separate direct
+terrain-edit operation; it is not a completed staged raster ImportLayer/reimport
+workflow. That raster unit is next before external PBF/Overture/DEM adapters.
+
+Projection references: [PROJ UTM](https://proj.org/en/stable/operations/projections/utm.html),
+[pyproj Transformer](https://pyproj4.github.io/pyproj/stable/api/transformer.html).
+No third-party implementation is copied; optional packages retain their own licenses.

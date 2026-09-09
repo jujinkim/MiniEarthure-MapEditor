@@ -1,0 +1,2 @@
+# Optional WGS84 projection; local-metre imports use Python standard library only.
+pyproj==3.7.2

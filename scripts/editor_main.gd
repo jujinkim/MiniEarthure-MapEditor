@@ -81,6 +81,12 @@ var import_job: RefCounted
 var import_python: LineEdit
 var last_import_source := ""
 var import_progress: ProgressBar
+var import_coordinate_mode: OptionButton
+var import_origin_lon: SpinBox
+var import_origin_lat: SpinBox
+var import_origin_x: SpinBox
+var import_origin_y: SpinBox
+var import_coordinates_request := {}
 var selected_field := ""
 var selected_record: Dictionary = {}
 var displayed_map_id := ""
@@ -333,13 +339,16 @@ func _build_ui() -> void:
 	dialog.file_selected.connect(_path_selected)
 	add_child(dialog)
 	import_dialog = ConfirmationDialog.new()
-	import_dialog.title = "Import local-metre GeoJSON"
-	import_dialog.dialog_text = "Coordinates must be local x/y metres. Geographic longitude/latitude is unsupported.\nA new layer is added; source files remain unchanged. Python 3 must be installed."
+	import_dialog.title = "Import GeoJSON"
+	import_dialog.ok_button_text = "Choose source…"
 	import_license = LineEdit.new()
 	import_license.placeholder_text = "Source license (required)"
 	import_license.custom_minimum_size = Vector2(540, 40)
 	var import_fields := VBoxContainer.new()
+	import_fields.custom_minimum_size.x = 700
 	import_dialog.add_child(import_fields)
+	_label(import_fields, "Select coordinates explicitly; review before adopting. Original files stay unchanged.\nPython 3 is required. WGS84 also needs pyproj 3.7.2 in the selected Python.")
+	import_fields.get_child(0).custom_minimum_size.x = 700
 	import_fields.add_child(import_license)
 	import_accuracy = LineEdit.new()
 	import_accuracy.placeholder_text = "Source accuracy / resolution (unknown if omitted)"
@@ -350,6 +359,20 @@ func _build_ui() -> void:
 	settings.load("user://editor_tools.cfg")
 	import_python.text = str(settings.get_value("import", "python", "python" if OS.get_name() == "Windows" else "python3"))
 	import_fields.add_child(import_python)
+	import_coordinate_mode = OptionButton.new()
+	import_coordinate_mode.add_item("Local x/y metres (explicit extension)")
+	import_coordinate_mode.add_item("WGS84 longitude/latitude → local map (UTM)")
+	import_fields.add_child(import_coordinate_mode)
+	var geographic := GridContainer.new()
+	geographic.columns = 2
+	import_fields.add_child(geographic)
+	import_origin_lon = _import_number(geographic, "Origin longitude (degrees)", -180, 180, 0, 0.000001)
+	import_origin_lat = _import_number(geographic, "Origin latitude (degrees)", -80, 84, 0, 0.000001)
+	import_origin_x = _import_number(geographic, "Origin maps to local x (m)", -100000, 100000, 512, 0.01)
+	import_origin_y = _import_number(geographic, "Origin maps to local y (m)", -100000, 100000, 512, 0.01)
+	geographic.visible = false
+	import_coordinate_mode.item_selected.connect(func(index): geographic.visible = index == 1)
+
 	_button(import_fields, "Retry last source", func():
 		import_dialog.hide()
 		if last_import_source == "": _status("Choose a source file first.")
@@ -372,6 +395,17 @@ func _build_ui() -> void:
 	import_review.canceled.connect(_discard_import)
 	add_child(import_review)
 	_build_test_drive_dialog()
+
+func _import_number(parent: Control, title: String, minimum: float, maximum: float, initial: float, step_size: float) -> SpinBox:
+	_label(parent, title)
+	var value := SpinBox.new()
+	value.min_value = minimum
+	value.max_value = maximum
+	value.step = step_size
+	value.value = initial
+	value.custom_minimum_size.x = 220
+	parent.add_child(value)
+	return value
 
 func _checkbox_icon(checked: bool) -> Texture2D:
 	var icon := Image.new()
@@ -411,7 +445,7 @@ func _choose(action: String) -> void:
 		dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE if action == "export" else FileDialog.FILE_MODE_OPEN_FILE
 		dialog.filters = PackedStringArray(["*.memap ; Map package"] if action == "export" else ["*.json ; Recovery snapshot"])
 		if action == "import":
-			dialog.filters = PackedStringArray(["*.geojson,*.json ; Local-metre GeoJSON"])
+			dialog.filters = PackedStringArray(["*.geojson,*.json ; GeoJSON (explicit coordinates)"])
 		if action == "recover":
 			dialog.filters = PackedStringArray(["* ; Recovery, previous or pending document"])
 			dialog.current_dir = ProjectSettings.globalize_path("user://recovery")
@@ -462,7 +496,8 @@ func _save() -> void:
 
 func _import_geojson() -> void:
 	if not busy:
-		import_dialog.popup_centered(Vector2i(700, 300))
+		import_dialog.get_ok_button().disabled = not IMPORT_LAYER._text(import_license.text.strip_edges())
+		import_dialog.popup_centered(Vector2i(760, 520))
 
 func _export() -> void:
 	if store.project_path == "":
@@ -834,7 +869,8 @@ func _start_import(source: String, license_name: String) -> void:
 	import_identity = Crypto.new().generate_random_bytes(16).hex_encode()
 	var job := IMPORT_JOB.new()
 	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
-	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity)
+	import_coordinates_request = {"mode":"local-metres"} if import_coordinate_mode.selected == 0 else {"mode":"wgs84-utm", "origin":[import_origin_lon.value,import_origin_lat.value], "local_origin_m":[import_origin_x.value,import_origin_y.value]}
+	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request)
 	if failure != "":
 		_status("E_IMPORT: " + failure)
 		return
@@ -915,7 +951,7 @@ func _finish_import(result: Dictionary) -> void:
 		_status("Document changed during import; retry to add the new layer.")
 		return
 	var layer := IMPORT_LAYER.new()
-	var failure := layer.load_value(result.data, import_identity)
+	var failure := layer.load_value(result.data, import_identity, import_coordinates_request)
 	if failure == "": failure = layer.validate_for(store)
 	if failure != "":
 		_status("E_IMPORT: " + failure)
