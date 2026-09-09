@@ -101,6 +101,11 @@ var download_dialog: ConfirmationDialog
 var download_url: LineEdit
 var download_summary: TextEdit
 var download_plan := {}
+var download_revision := 0
+var download_request_revision := -1
+var osm_crop_button: Button
+var osm_panel: RefCounted
+var osm_import_revision := -1
 var acquisition_mode := ""
 var download_sources := {}
 var overture_dialog: ConfirmationDialog
@@ -400,6 +405,7 @@ func _build_ui() -> void:
 	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)", "Overture building area snapshot (.overture.json)"]: import_source_format.add_item(format_title)
 	import_fields.add_child(import_source_format)
 	_button(import_fields, "Download Geofabrik region…", _open_download)
+	osm_crop_button = _button(import_fields, "OSM crop area…", func(): osm_panel.open())
 	_button(import_fields, "Download Overture building area…", _open_overture)
 	_button(import_fields, "Import Copernicus DEM…", func(): dem_panel.open())
 	import_fields.add_child(import_license)
@@ -1026,6 +1032,12 @@ func _start_import(source: String, license_name: String) -> void:
 	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
 	import_coordinates_request = {"mode":"local-metres"} if import_coordinate_mode.selected == 0 else {"mode":"wgs84-utm", "origin":[import_origin_lon.value,import_origin_lat.value], "local_origin_m":[import_origin_x.value,import_origin_y.value]}
 	var input_format: String = ["geojson", "pbf", "osm", "overture"][import_source_format.selected]
+	osm_import_revision = osm_panel.revision
+	if input_format in ["osm", "pbf"] and osm_panel.enabled.button_pressed:
+		if osm_panel.error() != "":
+			_status(osm_panel.error())
+			return
+		import_coordinates_request.osm_bbox = osm_panel.bbox()
 	import_coordinates_request.adapter = "overture-buildings-v1" if input_format == "overture" else ("geojson-v2" if input_format == "geojson" else "osm-extract-v1")
 	if input_format != "geojson": license_name = IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
 	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, str(download_sources.get(source, "")))
@@ -1106,6 +1118,9 @@ func _process(_delta: float) -> void:
 		_status("Client launched (PID %d). Close Client to end the test. Snapshot: %s" % [last_drive_result.data.pid, result.data.path] if last_drive_result.ok else store.reason(last_drive_result))
 		return
 func _finish_import(result: Dictionary) -> void:
+	if osm_import_revision != osm_panel.revision:
+		_status("OSM crop selection changed during import; retry. Original source retained.")
+		return
 	if not result.ok:
 		_operation_status("Import stopped · Use Retry import to review settings", store.reason(result))
 		return
@@ -1311,30 +1326,34 @@ func _launch_test_drive() -> void:
 	_status("Validating and packaging test-drive snapshot…")
 
 func _setup_download() -> void:
+	osm_panel = preload("./osm_area_panel.gd").new()
+	osm_panel.setup(self)
 	download_dialog = ConfirmationDialog.new()
 	download_dialog.title = "OSM region download · Geofabrik"
 	download_dialog.ok_button_text = "Download reviewed region"
 	var fields := VBoxContainer.new()
 	fields.custom_minimum_size = Vector2(700, 350)
 	download_dialog.add_child(fields)
-	_label(fields, "Public region PBF URL from download.geofabrik.de. Entire provider region; no custom crop.\nCheck size first. Existing 32 MiB / simple-way import limits still apply.")
+	_label(fields, "Select a region or paste its public Geofabrik PBF URL. Download is the whole region.\nOptional OSM crop applies later on import; the 32 MiB source limit still applies.")
 	download_url = LineEdit.new()
 	download_url.placeholder_text = "https://download.geofabrik.de/europe/monaco-latest.osm.pbf"
 	fields.add_child(download_url)
 	download_url.text_changed.connect(func(_text):
+		download_revision += 1
 		download_plan.clear()
 		download_dialog.get_ok_button().disabled = true
 		download_summary.text = "URL changed. Check region and size again."
 	)
+	osm_panel.setup_catalog(fields)
 	_button(fields, "Check region and size", func(): _begin_acquisition({"mode":"probe", "url":download_url.text.strip_edges()}))
 	download_summary = TextEdit.new()
 	download_summary.editable = false
 	download_summary.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	download_summary.custom_minimum_size = Vector2(680, 230)
+	download_summary.custom_minimum_size = Vector2(680, 140)
 	fields.add_child(download_summary)
 	download_dialog.get_ok_button().disabled = true
 	download_dialog.confirmed.connect(func():
-		if download_plan.is_empty(): return
+		if download_plan.is_empty() or download_plan.requested_url != download_url.text.strip_edges(): return
 		var folder := ProjectSettings.globalize_path("user://import-sources")
 		var error := DirAccess.make_dir_recursive_absolute(folder)
 		if error != OK:
@@ -1356,6 +1375,7 @@ func _open_download() -> void:
 func _begin_acquisition(request: Dictionary) -> void:
 	if busy: return
 	_discard_import()
+	if request.mode in ["probe", "download", "catalog"]: download_request_revision = download_revision
 	if request.mode == "probe": download_plan.clear()
 	download_dialog.get_ok_button().disabled = true
 	var job := _new_download_job()
@@ -1392,6 +1412,12 @@ func _finish_acquisition(result: Dictionary) -> void:
 		import_source_format.item_selected.emit(3)
 		_status("Overture snapshot retained: " + last_import_source + ". Set origins, then Import / retry last source.")
 		import_dialog.popup_centered(Vector2i(760, 550))
+		return
+	if mode in ["probe", "download", "catalog"] and download_request_revision != download_revision:
+		_status("Region selection changed; completed sources retained without selection. Check again.")
+		return
+	if mode == "catalog":
+		osm_panel.load_catalog(result.data)
 		return
 	if mode == "probe":
 		if result.data.requested_url != download_url.text.strip_edges(): return

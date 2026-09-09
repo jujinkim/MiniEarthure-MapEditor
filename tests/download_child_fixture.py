@@ -1,5 +1,6 @@
 """Replace only transport for native UI/IPC tests; run the production downloader."""
 import io
+import json
 from email.message import Message
 from pathlib import Path
 import sys
@@ -13,10 +14,11 @@ with tempfile.TemporaryDirectory() as directory:
 class Response(io.BytesIO):
     status=200
     def __init__(self,url):
-        super().__init__(raw)
+        payload = json.dumps({"type":"FeatureCollection","features":[{"properties":{"id":"monaco","name":"Monaco","parent":"europe","urls":{"pbf":d.BASE+"europe/monaco-latest.osm.pbf"}}}]}).encode() if url == d.CATALOG else raw
+        super().__init__(payload)
         self.url=url
         self.headers=Message()
-        self.headers['Content-Length']=str(len(raw))
+        self.headers['Content-Length']=str(len(payload))
         self.headers['ETag']='"fixture"'
     def geturl(self): return self.url
     def read(self, size=-1):
@@ -26,6 +28,7 @@ class Response(io.BytesIO):
         return super().read(size)
 
 def opener(url,method,headers=None): return Response(url)
+d.catalog.__defaults__=(opener,)
 d.probe.__defaults__=(opener,)
 d.download.__defaults__=(opener,)
 sys.argv=sys.argv[1:]

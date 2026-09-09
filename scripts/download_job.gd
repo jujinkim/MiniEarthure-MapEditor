@@ -11,7 +11,7 @@ func start_acquisition(request: Dictionary, python: String, token: String) -> St
 	directory = ProjectSettings.globalize_path("user://import-jobs/" + token)
 	if DirAccess.dir_exists_absolute(directory): return "Download job already exists."
 	var files := FILES.new()
-	for module in ["osm_download.py", "geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py", "copernicus_dem.py"]:
+	for module in ["osm_download.py", "geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "overture_area.py", "copernicus_dem.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "Download module missing."
 		if error != "":

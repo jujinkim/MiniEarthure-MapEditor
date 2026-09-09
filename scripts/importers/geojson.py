@@ -140,7 +140,10 @@ def main():
     parser.add_argument("--layer-id", required=True)
     parser.add_argument("--watch-parent", action="store_true")
     parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture"], default="geojson")
+    parser.add_argument("--osm-bbox", nargs=4, type=float)
     args = parser.parse_args()
+    if args.osm_bbox is not None and args.input_format not in ("osm", "pbf"):
+        raise ValueError("OSM bbox is only valid for OSM PBF/XML")
     if args.watch_parent:
         watch_parent_lifetime()
     sequence = 0
@@ -156,6 +159,7 @@ def main():
     if len(raw) != size: raise ValueError("source size changed during read; retry")
     event("read", len(raw), size)
     event("parse", 0, size)
+    osm_crop = None
     osm_counts = None
     overture_metadata = None
     if args.input_format == "geojson":
@@ -172,6 +176,9 @@ def main():
         if args.license != LICENSE:
             raise ValueError("OSM attribution must retain OpenStreetMap contributors and ODbL-1.0")
         value, osm_counts = parse(raw, args.input_format)
+        if args.osm_bbox is not None:
+            from osm_area import crop
+            value, osm_crop = crop(value, args.osm_bbox)
     event("parse", size, size)
     options = {"mode": args.coordinates}
     if args.coordinates == "wgs84-utm":
@@ -183,6 +190,11 @@ def main():
     if osm_counts is not None:
         from osm_extract import finish
         result = finish(result, osm_counts)
+        if osm_crop is not None:
+            result.coordinates["osm_crop"] = osm_crop
+            result.warnings.insert(0, "OSM derived geometry crop: " + json.dumps(osm_crop, sort_keys=True))
+            result.warning_count += 1
+            result.warnings = result.warnings[:50]
     if overture_metadata is not None:
         from overture_area import finish
         result = finish(result, overture_metadata)

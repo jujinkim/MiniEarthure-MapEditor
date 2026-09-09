@@ -44,7 +44,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	directory = ProjectSettings.globalize_path("user://import-jobs/" + token)
 	if DirAccess.dir_exists_absolute(directory): return "Import job directory already exists."
 	var files := FILES.new()
-	for module in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py"]:
+	for module in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "overture_area.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "Importer module is missing."
 		if error != "":
@@ -60,6 +60,12 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 				cleanup()
 				return "Geographic/local origins are required."
 		arguments.append_array(PackedStringArray(["--origin", str(coordinates.origin[0]), str(coordinates.origin[1]), "--local-origin", str(coordinates.local_origin_m[0]), str(coordinates.local_origin_m[1])]))
+	if coordinates.has("osm_bbox"):
+		if input_format not in ["osm", "pbf"] or coordinates.osm_bbox is not Array or coordinates.osm_bbox.size() != 4:
+			cleanup()
+			return "OSM crop requires four coordinates and an OSM source."
+		arguments.append("--osm-bbox")
+		for value in coordinates.osm_bbox: arguments.append(str(value))
 	var child := _spawn(python, arguments)
 	pid = int(child.get("pid", -1))
 	stdio = child.get("stdio")
@@ -187,7 +193,7 @@ func shutdown() -> void:
 func cleanup() -> void:
 	if directory == "": return
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py", "osm_download.py", "copernicus_dem.py", "dem.png.part", "request.json", "download.part", "layer.json"]:
+	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "overture_area.py", "osm_download.py", "copernicus_dem.py", "dem.png.part", "request.json", "download.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)

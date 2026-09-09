@@ -8,3 +8,6 @@ overturemaps==1.0.2
 
 # Optional local Copernicus COG decoding; no GDAL network reads.
 rasterio==1.4.4
+
+# Optional bounded OSM geometry intersection; data remains ODbL.
+shapely==2.1.2

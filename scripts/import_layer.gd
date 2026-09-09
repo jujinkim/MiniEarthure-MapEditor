@@ -53,6 +53,19 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	var coordinate_error := _coordinates(raw.get("coordinates"), requested)
 	if coordinate_error != "": return coordinate_error
 	if raw.adapter == "osm-extract-v1" and (source.license != OSM_LICENSE or raw.coordinates.mode != "wgs84-utm"): return "OSM requires geographic coordinates and ODbL attribution."
+	var crop: Variant = raw.coordinates.get("osm_crop")
+	if requested.has("osm_bbox") or crop != null:
+		if raw.adapter != "osm-extract-v1" or crop is not Dictionary or crop.get("policy") != "geometry-intersection-v1" or crop.get("shapely") != "2.1.2" or not _text(crop.get("geos")): return "Invalid OSM crop provenance."
+		var bbox: Variant = crop.get("bbox")
+		if bbox is not Array or bbox.size() != 4: return "Invalid OSM crop area."
+		for i in range(4):
+			if not _finite(bbox[i], -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84): return "Invalid OSM crop coordinate."
+		if bbox[0] >= bbox[2] or bbox[1] >= bbox[3] or bbox[2]-bbox[0] > 0.02 or bbox[3]-bbox[1] > 0.02: return "Invalid OSM crop size."
+		if not requested.is_empty() and JSON.stringify(bbox) != JSON.stringify(requested.get("osm_bbox")): return "OSM crop selection changed."
+		if crop.get("counts") is not Dictionary: return "Invalid OSM crop counts."
+		for key in ["input_features", "outside_features", "changed_features", "output_features", "boundary_contacts"]:
+			if not _count(crop.counts.get(key), 200000): return "Invalid OSM crop count."
+		if crop.counts.output_features != raw.get("feature_count"): return "OSM crop count mismatch."
 	var overture_building_ids := {}
 	if raw.adapter == "overture-buildings-v1":
 		if source.license != OVERTURE_LICENSE or raw.coordinates.mode != "wgs84-utm": return "Overture requires WGS84 and attribution."

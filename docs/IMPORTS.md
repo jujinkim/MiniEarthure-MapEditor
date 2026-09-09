@@ -335,9 +335,8 @@ headers, requested/resolved URLs, transfer bytes and SHA-256. A downloaded file
 is not automatically a valid/adopted map. The existing whole-input 32 MiB,
 20 km projection and the bounded way/multipolygon geometry limits still apply.
 
-This profile selects a whole predefined provider region by URL. It does not
-fetch the global region catalog, crop a custom bbox or increase large-region
-admission. Completed snapshots use the multipolygon assembly profile above. [Geofabrik's technical contract](https://download.geofabrik.de/technical.html)
+This profile selects a whole predefined provider region by URL. The OSM area extension below adds a catalog browser and derived bbox crop; it
+does not increase whole-source download or large-region admission. Completed snapshots use the multipolygon assembly profile above. [Geofabrik's technical contract](https://download.geofabrik.de/technical.html)
 uses buffered polygons and complete crossing ways/multipolygons, so content may
 extend beyond nominal borders. Many regions therefore cannot yet be converted
 by the bounded local adapter. [Provider licensing](https://www.geofabrik.de/data/download.html)
@@ -711,8 +710,8 @@ Cancel on the confirmation returns to selection. Cancellation, deadline, owner
 close and document-generation checks retain the existing source/partial ownership
 rules. Selection/review do not mutate the document or Undo history.
 
-This unit supports the existing Overture query profile. Geofabrik remains an
-explicit whole-region URL/size review; no OSM crop or region catalog is implied.
+This unit supports the existing Overture query profile. The OSM area extension
+below separately adds region catalog selection and derived geometry cropping.
 Copernicus uses its separate single-cell or bounded mosaic workflow below. Tiled
 basemaps, large-area queries and OSM region/crop support remain separate work.
 Validation: `area_selection_validator`, existing `overture_validator` (including
@@ -725,3 +724,62 @@ Mosaic regression entry points: `tests/test_copernicus_dem.py` and
 original synthetic COGs and exercise mixed resolution/corner interpolation,
 shared edges, aggregate caps, completed-source preservation, complete native
 adoption/history, outside-neighbor seam rejection, stale selection and shutdown.
+
+
+## OSM bbox crop and region selection (I02)
+
+**Import vector → Download Geofabrik region → Load official region list** explicitly
+fetches the official `index-v1-nogeom.json`, with a 2 MiB / 5,000-entry cap and the
+owned 120-second worker / 15-second socket deadline. Search name, ID or parent;
+select a row to set its public PBF URL, then **Check region and size** and separately
+**Download reviewed region**. There is no inferred coverage, expected size or
+automatic download from catalog selection. Manual URL input remains available.
+Only the exact official catalog endpoint is admitted for the index; public PBF
+URLs retain the existing same-host/conditional identity/32 MiB transfer rules.
+A region edit, including changing away and back, rejects a late probe or download
+selection. Completed originals remain on disk even when auto-selection is rejected.
+
+**OSM crop: off/on → Crop OSM PBF/XML during import** enables an explicit W/S/E/N
+rectangle, at most 0.02 degrees per side. Drag the offline coordinate diagram or
+enter precise coordinates; **Area at import origin** seeds a box without changing
+origins. **Keep selection** returns to import; import still requires an explicit
+source and geographic/local origins, candidate review and atomic adoption. Closing
+the crop window retains these form settings; it does not adopt anything. The main
+import button reports on/off. Invalid bounds block import. Crop settings only apply
+to OSM sources; other formats keep their existing separate selection contracts.
+Changing crop settings discards the reviewed candidate and invalidates an in-flight
+result even when the values are subsequently restored.
+
+The original PBF/XML is fully parsed under the existing entity/reference/feature
+caps before cropping. Unsupported structures, missing references, malformed source
+geometry and budgets still reject the complete candidate, including outside the
+box. A tiny bbox cannot make an oversized provider region admissible. This is
+bounded derived geometry processing, not a remote bbox service or source PBF rewrite.
+
+Optional **shapely==2.1.2** performs double-precision WGS84 planar intersections
+before the existing offline UTM/centimetre conversion. Road centerlines split into
+separate imported lines; widths may extend outside the bbox and endpoints remain
+unconnected until edited. Building/forest/orchard polygons retain holes and split
+parts, with shared topology checks before native validation. Artificial walls at
+cut building edges are a crop consequence, not surveyed building geometry. Boundary
+point/line contacts without the required dimension are omitted and counted; no
+repair, padding, flattening or invented structural heights. Polygon/line output
+uses the existing 200,000-position, 20,000-feature, 12 MiB result and native/Undo
+budgets. Complex GEOS work is cancellable by terminating the owned process; these
+caps are not a measured native-memory guarantee or a cross-GEOS byte-hash promise.
+
+Review/provenance retain original source bytes/hash/name/ODbL, selected bbox,
+`geometry-intersection-v1`, Shapely/GEOS versions and input/outside/changed/output/
+boundary-contact counts. The ImportLayer consumer rechecks crop identity/counts
+against the request. Reimport creates a new layer. Existing sources, project and
+packages are never rewritten by crop; adoption/Undo/Redo retain existing atomic
+history and native geometry checks. Building courtyards still require recipe 5.
+
+Verification: `test_osm_area.py`, `test_osm_catalog.py`, existing OSM Python tests,
+`osm_area_validator`, `download_validator`, `osm_import_validator`,
+`osm_multipolygon_validator`, `import_job_validator`, `import_layer_validator`,
+and standalone resource/rendered checks. Official contracts checked 2026-09-09:
+[Geofabrik catalog and buffered complete extracts](https://download.geofabrik.de/technical.html),
+[Shapely intersection](https://shapely.readthedocs.io/en/stable/reference/shapely.intersection.html).
+Actual regional import/accuracy, Windows/Linux dialogs/distributions and large-area
+support remain separate acceptance or implementation work; this does not complete I02.

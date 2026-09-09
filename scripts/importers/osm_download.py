@@ -15,6 +15,8 @@ from import_layer import MAX_INPUT, strict_json
 from osm_extract import LICENSE
 
 BASE = "https://download.geofabrik.de/"
+CATALOG = BASE + "index-v1-nogeom.json"
+CATALOG_LIMIT = 2 * 1024 * 1024
 PATTERN = r"https://download\.geofabrik\.de/(?:[a-z0-9-]+/)*[a-z0-9-]+\.osm\.pbf"
 
 
@@ -36,7 +38,7 @@ class Redirects(urllib.request.HTTPRedirectHandler):
 
 
 def open_remote(url, method, headers=None):
-    request = urllib.request.Request(checked_url(url), method=method, headers={
+    request = urllib.request.Request(url if url == CATALOG else checked_url(url), method=method, headers={
         "User-Agent": "MiniEarthure-MapEditor/1.0 (bounded user-requested extract)",
         "Accept-Encoding": "identity", **(headers or {})})
     try:
@@ -61,6 +63,33 @@ def metadata(response):
     if any(len(x) > 256 or any(ord(c) < 32 for c in x) for x in (etag, modified)):
         raise ValueError("Invalid provider identity headers")
     return dict(url=checked_url(response.geturl()), bytes=size, etag=etag, modified=modified)
+
+
+def catalog(opener=open_remote):
+    with opener(CATALOG, "GET") as response:
+        if response.status != 200 or response.geturl() != CATALOG or response.headers.get("Content-Encoding", "identity") != "identity":
+            raise ValueError("Expected official uncompressed region catalog")
+        raw = response.read(CATALOG_LIMIT + 1)
+        if len(raw) > CATALOG_LIMIT: raise ValueError("Region catalog exceeds 2 MiB")
+    value = strict_json(raw)
+    if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or not isinstance(value.get("features"), list) or len(value["features"]) > 5000:
+        raise ValueError("Invalid region catalog")
+    regions, seen = [], set()
+    for feature in value["features"]:
+        properties = feature.get("properties", {})
+        identity, name = properties.get("id"), properties.get("name")
+        parent = properties.get("parent") or ""
+        if not isinstance(identity, str) or not re.fullmatch(r"[a-zA-Z0-9/-]{1,200}", identity) or identity in seen:
+            raise ValueError("Invalid/duplicate region ID")
+        if not isinstance(name, str) or not 0 < len(name) <= 200 or any(ord(c) < 32 for c in name):
+            raise ValueError("Invalid region name")
+        if not isinstance(parent, str) or len(parent) > 200: raise ValueError("Invalid region parent")
+        seen.add(identity)
+        url = properties.get("urls", {}).get("pbf")
+        if url is not None: regions.append(dict(id=identity, name=name, parent=parent, url=checked_url(url)))
+    if not regions: raise ValueError("Catalog has no public PBF regions")
+    return dict(regions=sorted(regions, key=lambda r: (r["name"].casefold(), r["id"])), source=CATALOG,
+                sha256=hashlib.sha256(raw).hexdigest(), bytes=len(raw))
 
 
 def probe(url, opener=open_remote):
@@ -130,8 +159,10 @@ def main():
         nonlocal seq
         seq += 1
         print(json.dumps(dict(request=args.layer_id, seq=seq, stage=stage, completed=completed, total=total, unit="bytes", **extra)), flush=True)
-    event("acquire", 0, 0 if request["mode"] == "probe" else request["plan"]["bytes"] or MAX_INPUT)
-    if request["mode"] == "probe":
+    event("acquire", 0, 0 if request["mode"] in ("probe", "catalog") else request["plan"]["bytes"] or MAX_INPUT)
+    if request["mode"] == "catalog":
+        result = catalog()
+    elif request["mode"] == "probe":
         result = probe(request["url"])
     elif request["mode"] == "download":
         result = download(request["plan"], args.output.parent / "download.part", Path(request["destination"]),
