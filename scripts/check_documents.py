@@ -17,6 +17,8 @@ def main():
     parser.add_argument('--godot', default='godot')
     parser.add_argument('--log-dir', type=Path, required=True)
     parser.add_argument('--full', action='store_true', help='Also run edit/import/preview and installed-client adapter regressions')
+    parser.add_argument('--script', action='append', help='Run only named test scripts (repeatable)')
+    parser.add_argument('--rendered', action='store_true', help='Run behavior on the native display; import remains headless')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     godot = shutil.which(args.godot)
@@ -58,8 +60,10 @@ def main():
                     ('user-path', [godot, '--headless', '--path', str(project), '--script', 'res://check_user_path.gd'])]
         scripts = ['document_history_validator', 'document_recovery_validator']
         if args.full:
-            scripts += ['editor_validator', 'test_drive_validator']
-        commands += [(name, [godot, '--headless', '--path', str(project), '--script', f'res://tests/{name}.gd']) for name in scripts]
+            scripts += ['editor_validator', 'test_drive_validator', 'workbench_validator']
+        if args.script:
+            scripts = args.script
+        commands += [(name, [godot, *([] if args.rendered else ['--headless']), '--path', str(project), '--script', f'res://tests/{name}.gd']) for name in scripts]
         for name, command in commands:
             started = time.monotonic()
             log = args.log_dir / f'{name}.log'

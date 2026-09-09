@@ -20,17 +20,21 @@ godot --headless --path . --script res://tests/editor_validator.gd
 godot --headless --path . --script res://tests/test_drive_validator.gd
 ```
 
-For document/history/recovery checks with isolated user data and no private game
+For workbench/document/history/recovery checks with isolated user data and no private game
 dependencies, use `python3 scripts/check_documents.py --godot /path/to/godot --full
 --log-dir /new/path/checks`. See [document and recovery contracts](docs/DOCUMENTS.md).
 
-New creates a 1024x1024 metre map. Click road/polygon vertices, then right-click to
-finish. Roads reuse snapped existing endpoints. Shift-select polygons, drag to
-move, duplicate with Ctrl+D. Wheel zooms; middle-drag pans. Property controls
-change width/surface, building height/base elevation, or planting spacing/density.
-Ctrl+Z/Ctrl+Y undo/redo; Ctrl+S saves. Commands group a complete polygon, road or
-drag. Save chooses a project directory. Export writes a new `.memap`; existing
-outputs are preserved. Package files can be unpacked with the public MapKit CLI.
+New creates a 1024x1024 metre map. Click road/polygon vertices and right-click to
+finish. The 2D workbench supports object/box/multiple selection, configurable grid
+and vertex snapping, graph-aware movement, duplication and deletion. Type/import
+layers have Show/Lock/opacity controls and an object filter. The property inspector
+applies changed fields to a whole selection. Resize or hide the docks; view
+preferences stay separate from map content. See [workbench controls and contracts](docs/WORKBENCH.md).
+
+Ctrl/Cmd+Z and Ctrl/Cmd+Y undo/redo; Ctrl/Cmd+S saves. Commands group a complete
+polygon, road, property apply or drag. Save chooses a project directory. Export
+writes a new `.memap`; existing outputs are preserved. Packages can be unpacked
+with the public MapKit CLI.
 
 Recovery snapshots live in Godot's user-data `recovery` directory, separate from
 map content. Autosave runs every 15 seconds and before New/Open/Recover/Close;
@@ -69,8 +73,9 @@ an additional headless, bounded native launch. It does not require private sourc
 ## Current boundaries
 
 This is an early editor, not the completed transition plan. Terrain brush/import
-UI, bridge/tunnel editing, asset library/authoring UI, deletion/road movement,
-full layer management and incremental multi-cell preview remain outstanding. Preview attachment is not yet frame-budgeted.
+UI, bridge/tunnel editing, asset library/authoring UI and incremental multi-cell
+preview remain outstanding. E01 provides 2D type/import view layers; hiding a
+layer never removes its source records from preview or export. Preview attachment is not yet frame-budgeted.
 
 Import GeoJSON asks for an explicit license and local-metre coordinates, then runs
 the isolated Python 3 adapter in a child process. It emits a new layer and warnings,
@@ -79,7 +84,9 @@ and progress IPC remain outstanding. WGS84,
 OSM/PBF/downloads, Overture and Copernicus import adapters are not implemented.
 
 Linux native build, command/save/recovery/export and rendered preview are tested.
-Native Windows export/interaction and game driving acceptance remain unverified.
+E01 Mac pointer/key, layer/property/panel and graph-safety checks are scoped
+workbench evidence. Native Windows/Linux final export/interaction and full authoring/game
+driving acceptance remain unverified.
 No CI/CD or private game assets are included.
 
 Cold headless import uses `--frame-delay 1000` to avoid the observed Godot

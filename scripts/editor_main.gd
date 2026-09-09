@@ -17,8 +17,22 @@ var canvas: Control
 var status_label: Label
 var project_label: Label
 var properties: VBoxContainer
-var pending_record: Dictionary = {}
-var layers: ItemList
+const EDIT := preload("./workbench_edit.gd")
+const LAYERS := preload("./workbench_layers.gd")
+var layers: VBoxContainer
+var left_dock: VBoxContainer
+var right_dock: VSplitContainer
+var outer_split: HSplitContainer
+var center_split: HSplitContainer
+var validation_label: Label
+var selection_label: Label
+var apply_button: Button
+var property_changes := {}
+var property_records: Array[Dictionary] = []
+var tool_buttons := {}
+var snap_toggle: CheckButton
+var snap_size: SpinBox
+var view_settings := ConfigFile.new()
 var viewport: SubViewport
 var preview_world: Node3D
 var preview_x: SpinBox
@@ -37,9 +51,11 @@ var displayed_map_id := ""
 
 func _ready() -> void:
 	get_tree().auto_accept_quit = false
+	get_window().min_size = Vector2i(1024, 720)
 	_build_ui()
 	store.changed.connect(_document_changed)
 	store.new_document()
+	_restore_workbench.call_deferred()
 	var timer := Timer.new()
 	timer.wait_time = 15
 	timer.timeout.connect(_autosave)
@@ -82,6 +98,18 @@ func _build_ui() -> void:
 	active.set_border_width_all(1)
 	ui_theme.set_stylebox("hover", "Button", active)
 	ui_theme.set_stylebox("pressed", "Button", active)
+	ui_theme.set_stylebox("panel", "Tree", panel)
+	ui_theme.set_stylebox("selected", "Tree", active)
+	ui_theme.set_stylebox("selected_focus", "Tree", active)
+	ui_theme.set_color("font_color", "Tree", Color("e1e3e6"))
+	ui_theme.set_icon("unchecked", "Tree", _checkbox_icon(false))
+	ui_theme.set_icon("checked", "Tree", _checkbox_icon(true))
+	var focus_style := StyleBoxFlat.new()
+	focus_style.bg_color = Color(0, 0, 0, 0)
+	focus_style.border_color = Color("ffe14c")
+	focus_style.set_border_width_all(1)
+	for control in ["Button", "Tree", "LineEdit"]:
+		ui_theme.set_stylebox("focus", control, focus_style)
 	theme = ui_theme
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -100,66 +128,114 @@ func _build_ui() -> void:
 	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Import GeoJSON", _import_geojson], ["Export .memap", _export], ["Test Drive", _test_drive]]:
 		_button(bar, entry[0], entry[1])
 	project_label = Label.new()
+	project_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	column.add_child(project_label)
-	var split := HSplitContainer.new()
+	outer_split = HSplitContainer.new()
+	var split := outer_split
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(split)
-	var left := VBoxContainer.new()
-	left.custom_minimum_size.x = 170
-	split.add_child(left)
-	_label(left, "TOOLS")
-	var group := ButtonGroup.new()
-	for name in ["Select", "Road", "Building", "Forest", "Orchard"]:
-		var tool_button := _button(left, name, func():
-			canvas.tool = name
-			canvas.draft.clear()
-			canvas.queue_redraw()
-		)
-		tool_button.toggle_mode = true
-		tool_button.button_group = group
-		tool_button.button_pressed = name == "Select"
-	_button(left, "Duplicate", func(): canvas.duplicate_selection())
-	_label(left, "OBJECTS")
-	layers = ItemList.new()
-	layers.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	layers.item_selected.connect(func(index):
-		canvas.selected.assign([layers.get_item_text(index)])
-		_selection(canvas.selected)
-		canvas.queue_redraw()
-	)
-	left.add_child(layers)
-	var center_split := HSplitContainer.new()
-	center_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	split.add_child(center_split)
 	canvas = CANVAS.new()
 	canvas.store = store
-	canvas.custom_minimum_size = Vector2(480, 420)
+	canvas.custom_minimum_size = Vector2(300, 280)
 	canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	canvas.status.connect(_status)
 	canvas.selection_changed.connect(_selection)
-	center_split.add_child(canvas)
-	var right := VBoxContainer.new()
-	right.custom_minimum_size.x = 340
-	center_split.add_child(right)
-	_label(right, "PROPERTIES")
+	left_dock = VBoxContainer.new()
+	var left := left_dock
+	left.custom_minimum_size.x = 245
+	split.add_child(left)
+	_label(left, "TOOLS")
+	var tools := HFlowContainer.new()
+	left.add_child(tools)
+	var group := ButtonGroup.new()
+	for name in ["Select", "Road", "Building", "Forest", "Orchard"]:
+		var tool_button := _button(tools, name, _set_tool.bind(name))
+		tool_button.toggle_mode = true
+		tool_button.button_group = group
+		tool_button.button_pressed = name == "Select"
+		tool_buttons[name] = tool_button
+	var edits := HBoxContainer.new()
+	left.add_child(edits)
+	_button(edits, "Duplicate", func(): canvas.duplicate_selection())
+	_button(edits, "Delete", func(): canvas.delete_selection())
+	var snap := HBoxContainer.new()
+	left.add_child(snap)
+	snap_toggle = CheckButton.new()
+	snap_toggle.text = "Snap (m)"
+	snap_toggle.button_pressed = true
+	snap_toggle.toggled.connect(func(value):
+		canvas.cancel_interaction()
+		canvas.snap_enabled = value
+	)
+	snap.add_child(snap_toggle)
+	snap_size = SpinBox.new()
+	snap_size.min_value = 0.01
+	snap_size.max_value = 100
+	snap_size.step = 0.01
+	snap_size.value = 1
+	snap_size.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	snap_size.value_changed.connect(func(value):
+		canvas.cancel_interaction()
+		canvas.snap_cm = round(value * 100)
+	)
+	snap.add_child(snap_size)
+	layers = LAYERS.new()
+	layers.canvas = canvas
+	layers.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layers.state_changed.connect(_save_workbench)
+	left.add_child(layers)
+	center_split = HSplitContainer.new()
+	center_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	split.add_child(center_split)
+	var center := VBoxContainer.new()
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_split.add_child(center)
+	selection_label = Label.new()
+	selection_label.text = "2D MAP  ·  Select  ·  0 selected"
+	center.add_child(selection_label)
+	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center.add_child(canvas)
+	_label(center, "Wheel: zoom · Middle drag: pan · Shift: toggle · Empty drag: box")
+	right_dock = VSplitContainer.new()
+	right_dock.custom_minimum_size.x = 300
+	center_split.add_child(right_dock)
+	var property_dock := VBoxContainer.new()
+	property_dock.custom_minimum_size.y = 140
+	property_dock.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_dock.add_child(property_dock)
+	_label(property_dock, "PROPERTIES")
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	property_dock.add_child(scroll)
 	properties = VBoxContainer.new()
-	properties.custom_minimum_size.y = 230
-	properties.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right.add_child(properties)
-	_button(right, "Apply properties", _apply_properties)
+	properties.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(properties)
+	apply_button = _button(property_dock, "Apply properties", _apply_properties)
+	var preview_dock := VBoxContainer.new()
+	preview_dock.custom_minimum_size.y = 160
+	preview_dock.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_dock.add_child(preview_dock)
 	var controls := HBoxContainer.new()
-	right.add_child(controls)
+	preview_dock.add_child(controls)
 	_label(controls, "Cell")
 	preview_x = SpinBox.new()
 	preview_y = SpinBox.new()
 	for spin in [preview_x, preview_y]:
+		spin.min_value = 0
 		spin.max_value = 127
 		controls.add_child(spin)
 	_button(controls, "3D Preview", _preview)
+	var preview_hint := Label.new()
+	preview_hint.text = "Full cell preview · 2D layer filters do not change export"
+	preview_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview_hint.add_theme_font_size_override("font_size", 12)
+	preview_dock.add_child(preview_hint)
 	var preview_container := SubViewportContainer.new()
 	preview_container.stretch = true
-	preview_container.custom_minimum_size = Vector2(340, 250)
-	right.add_child(preview_container)
+	preview_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	preview_container.custom_minimum_size = Vector2(280, 100)
+	preview_dock.add_child(preview_container)
 	viewport = SubViewport.new()
 	viewport.size = Vector2i(680, 500)
 	viewport.own_world_3d = true
@@ -173,10 +249,20 @@ func _build_ui() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -25, 0)
 	preview_world.add_child(sun)
+	var view_bar := HBoxContainer.new()
+	column.add_child(view_bar)
+	_button(view_bar, "Tools / layers", func(): left_dock.visible = not left_dock.visible)
+	_button(view_bar, "Properties / 3D", func(): right_dock.visible = not right_dock.visible)
+	_button(view_bar, "Fit map (F)", func(): canvas.fit_map())
+	_button(view_bar, "Reset panels", _reset_panels)
+	validation_label = Label.new()
+	validation_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	validation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	view_bar.add_child(validation_label)
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.custom_minimum_size.y = 48
-	status_label.text = "Click vertices; right-click to finish. Shift-select. Drag polygons to move. Wheel zoom; middle-drag pan."
+	status_label.text = "V Select · R Road · B Building · G Forest · O Orchard · Ctrl/Cmd+A/D/Z/Y/S · Delete · Escape cancels"
 	column.add_child(status_label)
 	dialog = FileDialog.new()
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -197,6 +283,12 @@ func _build_ui() -> void:
 	add_child(import_dialog)
 	_build_test_drive_dialog()
 
+func _checkbox_icon(checked: bool) -> Texture2D:
+	var icon := Image.new()
+	var tick := '<path d="M4 8l3 3 5-6" fill="none" stroke="#ffe14c" stroke-width="2"/>' if checked else ""
+	icon.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect x="1" y="1" width="14" height="14" rx="2" fill="#15181e" stroke="#b8bcc5"/>' + tick + '</svg>')
+	return ImageTexture.create_from_image(icon)
+
 func _button(parent: Node, text: String, action: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
@@ -207,6 +299,8 @@ func _button(parent: Node, text: String, action: Callable) -> Button:
 func _label(parent: Node, text: String) -> void:
 	var label := Label.new()
 	label.text = text
+	if parent is VBoxContainer:
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(label)
 
 func _new() -> void:
@@ -290,42 +384,62 @@ func _export() -> void:
 
 func _validate() -> void:
 	var result: Dictionary = JSON.parse_string(store.bridge.validate_document(JSON.stringify(store.document)))
-	_status("Document valid. Export also verifies files and terrain seams." if result.ok else store.reason(result))
+	validation_label.text = "Valid document · Files/seams checked on export" if result.ok else store.reason(result)
+	_status(validation_label.text)
 
 func _selection(ids: Array) -> void:
 	selected_record = {}
 	selected_field = ""
-	if ids.size() == 1:
-		for field in ["roads", "buildings", "zones", "placements"]:
-			for record: Dictionary in store.document[field]:
-				if str(record.id) == str(ids[0]):
-					selected_record = record.duplicate(true)
-					selected_field = field
+	property_records.clear()
+	property_changes.clear()
+	for entry in EDIT.entries(store.document):
+		if (entry.key in ids or str(entry.record.id) in ids) and canvas.available(entry, true):
+			property_records.append(entry.duplicate(true))
 	for child in properties.get_children():
+		properties.remove_child(child)
 		child.queue_free()
-	pending_record = selected_record.duplicate(true)
-	if selected_record.is_empty():
-		_label(properties, "Select one object.")
+	if layers != null: layers.sync_selection()
+	selection_label.text = "2D MAP  ·  %s  ·  %d selected" % [canvas.tool, property_records.size()]
+	apply_button.disabled = property_records.is_empty()
+	if property_records.is_empty():
+		_label(properties, "Select objects on the map or in layers.")
+		_label(properties, "Shift toggles; drag empty space to box-select.")
 		return
-	_label(properties, str(selected_record.id))
+	selected_field = property_records[0].field
+	selected_record = property_records[0].record.duplicate(true)
+	var title := Label.new()
+	title.text = str(selected_record.id) if property_records.size() == 1 else "%d objects selected" % property_records.size()
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	properties.add_child(title)
+	_number_property("Move X (m)", 0, -100000, 100000, func(v): property_changes.move_x = int(round(v * 100)))
+	_number_property("Move Y (m)", 0, -100000, 100000, func(v): property_changes.move_y = int(round(v * 100)))
+	for entry in property_records:
+		if entry.field != selected_field:
+			_label(properties, "Mixed types · translation only")
+			return
+	if property_records.size() > 1:
+		_label(properties, "Only changed fields apply to all selected objects.")
 	match selected_field:
 		"buildings":
-			_number_property("Height (m)", float(selected_record.height_cm) / 100.0, 0.1, 1000.0, func(v): pending_record.height_cm = int(round(v * 100)))
-			_number_property("Base elevation (m)", float(selected_record.base_cm) / 100.0, -10000.0, 10000.0, func(v): pending_record.base_cm = int(round(v * 100)))
+			_number_property("Height (m)", float(selected_record.height_cm) / 100.0, 0.1, 1000.0, func(v): property_changes.height_cm = int(round(v * 100)))
+			_number_property("Base (m)", float(selected_record.base_cm) / 100.0, -10000.0, 10000.0, func(v): property_changes.base_cm = int(round(v * 100)))
 		"roads":
-			_number_property("Width (m)", float(selected_record.widths_cm[0]) / 100.0, 0.2, 100.0, func(v):
-				for i in range(pending_record.widths_cm.size()):
-					pending_record.widths_cm[i] = int(round(v * 100))
-			)
-			_choice_property("Surface", ["asphalt", "concrete", "dirt", "gravel", "grass"], str(selected_record.surfaces[0]), func(v):
-				for i in range(pending_record.surfaces.size()):
-					pending_record.surfaces[i] = v
-			)
+			_number_property("All widths (m)", float(selected_record.widths_cm[0]) / 100.0, 0.2, 100.0, func(v): property_changes.width_cm = int(round(v * 100)))
+			_choice_property("All surfaces", ["asphalt", "concrete", "dirt", "gravel", "grass"], str(selected_record.surfaces[0]), func(v): property_changes.surface = v)
 			_label(properties, "Structure: " + str(selected_record.kind))
+			_label(properties, "Moving endpoints also moves incident road ends.")
 		"zones":
-			_number_property("Spacing (m)", float(selected_record.spacing_cm) / 100.0, 2.0, 200.0, func(v): pending_record.spacing_cm = int(round(v * 100)))
-			_number_property("Density (%)", float(selected_record.density_per_mille) / 10.0, 0.0, 100.0, func(v): pending_record.density_per_mille = int(round(v * 10)))
-			_choice_property("Planting", ["forest", "orchard"], str(selected_record.kind), func(v): pending_record.kind = v)
+			_number_property("Spacing (m)", float(selected_record.spacing_cm) / 100.0, 2.0, 200.0, func(v): property_changes.spacing_cm = int(round(v * 100)))
+			_number_property("Density (%)", float(selected_record.density_per_mille) / 10.0, 0.0, 100.0, func(v): property_changes.density_per_mille = int(round(v * 10)))
+			_choice_property("Planting", ["forest", "orchard"], str(selected_record.kind), func(v): property_changes.kind = v)
+		"placements":
+			_label(properties, "Asset: " + str(selected_record.asset_id))
+			_choice_property("Rotation", ["0", "90", "180", "270"], str(int(selected_record.quarter_turns) * 90), func(v): property_changes.quarter_turns = int(v) / 90)
+		"repetitions":
+			_label(properties, "Asset: " + str(selected_record.asset_id))
+			_number_property("Spacing (m)", float(selected_record.spacing_cm) / 100.0, 0.01, 1000.0, func(v): property_changes.spacing_cm = int(round(v * 100)))
+		"nodes":
+			_label(properties, "Shared road endpoint · level " + str(selected_record.level))
 
 func _number_property(label: String, value: float, minimum: float, maximum: float, change: Callable) -> void:
 	var row := HBoxContainer.new()
@@ -352,24 +466,92 @@ func _choice_property(label: String, values: Array, current: String, change: Cal
 	row.add_child(select)
 
 func _apply_properties() -> void:
-	if selected_record.is_empty():
-		return
-	var failure := store.apply_command("Edit properties", [{"field": selected_field, "id": selected_record.id, "before": selected_record, "after": pending_record}])
+	canvas.cancel_interaction()
+	if property_records.is_empty(): return
+	var delta := Vector2(property_changes.get("move_x", 0), property_changes.get("move_y", 0))
+	var plan := EDIT.plan(store.document, canvas.selected, "move", delta)
+	var patches: Array = plan.patches
+	for entry in property_records:
+		if not canvas.available(entry, true):
+			_status("Selection is hidden or locked.")
+			return
+		var after: Dictionary = entry.record.duplicate(true)
+		var existing := -1
+		for i in range(patches.size()):
+			if EDIT.key(patches[i].field, patches[i].id) == entry.key:
+				after = patches[i].after
+				existing = i
+		for key: String in property_changes:
+			if key in ["move_x", "move_y"]: continue
+			if key == "width_cm": after.widths_cm.fill(property_changes[key])
+			elif key == "surface": after.surfaces.fill(property_changes[key])
+			else: after[key] = property_changes[key]
+		if existing >= 0: patches[existing].after = after
+		elif after != entry.record: patches.append(EDIT.patch(entry.field, entry.record, after))
+	for entry in EDIT.entries(store.document):
+		if entry.key in plan.affected and not canvas.available(entry, true):
+			_status("Movement affects a hidden or locked layer: " + entry.key)
+			return
+	var failure := store.apply_command("Edit selection properties", patches)
 	_status(failure if failure != "" else "Properties updated.")
-	_selection(canvas.selected)
+	if failure == "": _selection(canvas.selected)
 
 func _document_changed() -> void:
 	generation += 1
 	canvas.cancel_interaction()
-	if displayed_map_id != str(store.document.get("map_id", "")):
+	var map_id := str(store.document.get("map_id", ""))
+	if displayed_map_id != map_id:
 		canvas.selected.clear()
-	displayed_map_id = str(store.document.get("map_id", ""))
+		canvas.layer_state = view_settings.get_value("layers", map_id, {}).duplicate(true)
+		canvas.fit_map()
+	displayed_map_id = map_id
+	canvas.normalize_selection()
+	layers.refresh()
 	_selection(canvas.selected)
-	layers.clear()
-	for field in ["roads", "buildings", "zones", "placements"]:
-		for record: Dictionary in store.document.get(field, []):
-			layers.add_item(str(record.id))
+	validation_label.text = "Document valid · Preview needs refresh"
+	var bounds: Dictionary = store.document.bounds
+	preview_x.max_value = ceili(float(bounds.max[0] - bounds.min[0]) / store.document.cell_size_cm) - 1
+	preview_y.max_value = ceili(float(bounds.max[1] - bounds.min[1]) / store.document.cell_size_cm) - 1
 	project_label.text = (store.project_path if store.project_path != "" else "Unsaved project") + ("  • modified" if store.dirty else "")
+	canvas.queue_redraw()
+
+func _set_tool(name: String) -> void:
+	canvas.tool = name
+	tool_buttons[name].button_pressed = true
+	_selection(canvas.selected)
+	canvas.queue_redraw()
+
+func _reset_panels() -> void:
+	left_dock.show()
+	right_dock.show()
+	outer_split.split_offset = 0
+	center_split.split_offset = int(size.x * 0.35)
+	right_dock.split_offset = 0
+
+func _restore_workbench() -> void:
+	view_settings.load("user://workbench.cfg")
+	left_dock.visible = bool(view_settings.get_value("panels", "left_visible", true))
+	right_dock.visible = bool(view_settings.get_value("panels", "right_visible", true))
+	outer_split.split_offset = int(view_settings.get_value("panels", "left", 0))
+	center_split.split_offset = int(view_settings.get_value("panels", "right", int(size.x * 0.35)))
+	right_dock.split_offset = int(view_settings.get_value("panels", "vertical", 0))
+	snap_toggle.button_pressed = bool(view_settings.get_value("snap", "enabled", true))
+	snap_size.value = clampf(float(view_settings.get_value("snap", "metres", 1.0)), 0.01, 100.0)
+	canvas.layer_state = view_settings.get_value("layers", displayed_map_id, {}).duplicate(true)
+	layers.refresh()
+
+func _save_workbench() -> void:
+	if canvas == null or left_dock == null: return
+	view_settings.set_value("panels", "left_visible", left_dock.visible)
+	view_settings.set_value("panels", "right_visible", right_dock.visible)
+	view_settings.set_value("panels", "left", outer_split.split_offset)
+	view_settings.set_value("panels", "right", center_split.split_offset)
+	view_settings.set_value("panels", "vertical", right_dock.split_offset)
+	view_settings.set_value("snap", "enabled", canvas.snap_enabled)
+	view_settings.set_value("snap", "metres", canvas.snap_cm / 100.0)
+	if displayed_map_id != "": view_settings.set_value("layers", displayed_map_id, canvas.layer_state)
+	var failure := view_settings.save("user://workbench.cfg")
+	if failure != OK: _status("Workbench settings could not be saved: " + error_string(failure))
 
 func _preview() -> void:
 	if busy:
@@ -490,20 +672,34 @@ func _process(_delta: float) -> void:
 	var camera: Camera3D = preview_world.get_node("PreviewCamera")
 	camera.position = center + Vector3(35, 55, 45) * cell_size / 51200.0
 	camera.look_at(center)
-	_status("Preview ready  ·  " + str(result.data.generated_sha256))
+	validation_label.text = "Preview ready · cell %d / %d" % [preview_x.value, preview_y.value]
+	_status(validation_label.text)
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if event is not InputEventKey or not event.pressed or event.echo:
-		return
-	if event.ctrl_pressed:
+	if event is not InputEventKey or not event.pressed or event.echo: return
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus is LineEdit or focus is TextEdit: return
+	var handled := true
+	if event.ctrl_pressed or event.meta_pressed:
 		match event.keycode:
 			KEY_S: _save()
-			KEY_Z:
-				_history(event.shift_pressed)
+			KEY_Z: _history(event.shift_pressed)
 			KEY_Y: _history(true)
 			KEY_D: canvas.duplicate_selection()
-	elif event.keycode == KEY_ESCAPE:
-		canvas.cancel_interaction()
+			KEY_A: canvas.select_all()
+			_: handled = false
+	else:
+		match event.keycode:
+			KEY_ESCAPE: canvas.cancel_interaction()
+			KEY_DELETE, KEY_BACKSPACE: canvas.delete_selection()
+			KEY_V: _set_tool("Select")
+			KEY_R: _set_tool("Road")
+			KEY_B: _set_tool("Building")
+			KEY_G: _set_tool("Forest")
+			KEY_O: _set_tool("Orchard")
+			KEY_F: canvas.fit_map()
+			_: handled = false
+	if handled: get_viewport().set_input_as_handled()
 
 func _history(forward: bool) -> void:
 	canvas.cancel_interaction()
@@ -512,9 +708,13 @@ func _history(forward: bool) -> void:
 		_status(failure)
 
 func _status(text: String) -> void:
+	if busy and text.begins_with("x "): return
+	if validation_label != null and text.begins_with("E_"):
+		validation_label.text = "Edit/operation rejected · " + text
 	status_label.text = text
 
 func _exit_tree() -> void:
+	_save_workbench()
 	if worker.is_started():
 		worker.wait_to_finish()
 	if store.dirty:
