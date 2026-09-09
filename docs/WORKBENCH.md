@@ -70,8 +70,8 @@ Drag the two horizontal splitters or the properties/preview vertical splitter.
 The bottom controls toggle either dock and restore panel defaults. Properties
 scroll independently; the object tree scrolls and can collapse categories.
 Validation/preview state has its own label, separate from pointer coordinates.
-Whole-cell preview still runs the existing MapKit worker; incremental preview and
-frame-budgeted attachment remain E04.
+Affected-cell preview and frame-budgeted attachment use the same MapKit worker
+and renderer; see [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md).
 
 Panel widths/visibility, grid settings and per-map layer view settings live in
 `user://workbench.cfg`, separate from map content, provenance and Undo history.
@@ -119,7 +119,7 @@ controls, unintended edits, stale attachment or lost original data. Large-map
 selection/redraw/property costs remain a representative-map performance gate;
 the current vector queries scan document objects and are not a spatial index.
 
-E03 authoring is now implemented; see [AUTHORING.md](AUTHORING.md). Next is the
-independent E04 preview/export unit. Preserve the vector planner and E02/E03 atomic
-record/payload boundaries. Incremental preview, file-copy Save As and complete
-platform/performance/installed-Client acceptance remain separate work.
+E03 authoring is now implemented; see [AUTHORING.md](AUTHORING.md). E04 preview/export and file-copy Save As are implemented in
+[PREVIEW_EXPORT.md](PREVIEW_EXPORT.md). The vector planner and atomic record/payload
+boundaries are preserved. Complete platform/performance/installed-Client acceptance
+remains separate work.

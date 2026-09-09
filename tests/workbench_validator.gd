@@ -231,7 +231,10 @@ func run() -> void:
 	check(ui.store.open_project(directory) == "" and ui.store.document == saved, "save/reopen preserves the document independently of view state")
 	check(ui.store.recover(recovery) == "", "workbench recovery opens")
 	await click_button("Validate")
-	check(ui.validation_label.text.begins_with("Valid document"), "validation has persistent dedicated status")
+	var validation_deadline := Time.get_ticks_msec() + 20000
+	while ui.busy and Time.get_ticks_msec() < validation_deadline: await create_timer(0.002).timeout
+	check(not ui.busy and ui.validation_label.text.begins_with("Validated"), "asynchronous file validation has persistent dedicated status")
+	ui.export_report.hide()
 	await click_button("3D Preview")
 	for _i in range(600):
 		await process_frame

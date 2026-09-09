@@ -51,7 +51,7 @@ E03 now uses this boundary for raster brushes and immutable binary tile mementos
 see [AUTHORING.md](AUTHORING.md). File-command raw before/after bytes count toward
 the shared 16 MiB budget. History detects changed payloads before travel. Cell
 identities use canonical integer coordinates across JSON number/key normalization.
-Incremental preview remains E04 work.
+Incremental preview is defined in [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md).
 
 ## Save and recovery
 
@@ -88,9 +88,9 @@ cannot silently replace an existing primary without a known base.
 
 Recovery contains document records and file references, not copies of imported
 PNGs/GLBs or other source files. Keep original referenced files available; preview
-and packaging validate them. Save As for documents with external assets/heightmaps
-is blocked rather than writing a project with missing files; copying those files
-belongs to the remaining file/export tools. Recovery history is separate from
+and packaging validate them. Save As copies current and Undo/Redo-only asset/heightmap files into a new directory,
+validates the candidate and publishes its document last; see
+[PREVIEW_EXPORT.md](PREVIEW_EXPORT.md). Original files are retained. Recovery history is separate from
 map contents. Old session snapshots and interrupted candidates are retained for
 the user; automatic disk cleanup is not implemented.
 

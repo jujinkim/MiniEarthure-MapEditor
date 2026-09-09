@@ -43,9 +43,11 @@ failed retention keeps the current document open. Recover selects an autosave,
 for external changes. Recovery validates the document and checksum with fresh undo
 history. Undo/Redo share 200 commands / 16 MiB of serialized mementos. Escape or
 focus/tool changes cancel a drag. Save As to a new directory resolves document
-conflicts; copying referenced assets/heightmaps to a new project remains pending.
-3D Preview generates the chosen cell
-on a worker; stale preview results never attach after document edits.
+conflicts and copies current/history-referenced assets and heightmaps while preserving
+originals. 3D Preview refreshes affected selected cells on a worker, reuses unchanged
+cached cells and attaches candidates across frames. Validate/Export show file/index/
+overview and compressed/expanded capacity reports; full 3D checks are optional.
+See [preview, Save As and export contracts](docs/PREVIEW_EXPORT.md).
 
 ## Test drive in installed Client
 
@@ -72,10 +74,11 @@ an additional headless, bounded native launch. It does not require private sourc
 
 ## Current boundaries
 
-This is an early editor, not the completed transition plan. Terrain brush/import
-UI, bridge/tunnel editing, asset library/authoring UI and incremental multi-cell
-preview remain outstanding. E01 provides 2D type/import view layers; hiding a
-layer never removes its source records from preview or export. Preview attachment is not yet frame-budgeted.
+The implementation includes terrain brush/PNG16, bridge/tunnel editing, asset/proxy
+authoring, affected-cell preview, bounded attachment and file-copy/export tools.
+E01's 2D type/import view layers never remove source records from preview or export.
+Full platform, representative-map performance and installed-Client authoring acceptance
+remain open; this is not the completed transition plan.
 
 Import GeoJSON asks for an explicit license and local-metre coordinates, then runs
 the isolated Python 3 adapter in a child process. It emits a new layer and warnings,
@@ -106,5 +109,6 @@ synthetic project through open, preview, save/export, failed replacement and
 resource cleanup without installing the private game.
 
 Authoring tools (terrain strokes/PNG16, structural roads, buildings/zones, assets/proxies):
-[AUTHORING.md](docs/AUTHORING.md). E04 incremental preview/file-copy Save As and final
-native-platform/performance acceptance remain open.
+[AUTHORING.md](docs/AUTHORING.md). Incremental preview/file-copy Save As/export:
+[PREVIEW_EXPORT.md](docs/PREVIEW_EXPORT.md). Final native-platform/performance and E05
+installed-Client authoring acceptance remain open.

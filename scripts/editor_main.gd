@@ -1,4 +1,26 @@
 extends Control
+const PACKAGE_WORK := preload("./package_work.gd")
+const PAYLOAD_FILES := preload("./authoring_files.gd")
+const REPORT := preload("./export_report.gd")
+const ATTACH_USEC := 8000
+const CACHE_CELLS := 4
+const CACHE_BYTES := 256 * 1024 * 1024
+var package_work: RefCounted
+var package_operation := ""
+var package_destination := ""
+var package_cell := Vector2i.ZERO
+var render_job := {}
+var render_staged: Node3D
+var render_data := {}
+var render_batch_estimate := 1000
+var preview_cache := {}
+var cache_clock := 0
+var preview_due := 0
+var preview_enabled := false
+var preview_stats := {"generated": 0, "reused": 0, "attachment_frames": 0, "max_batch_usec": 0, "max_frame_usec": 0}
+var export_report: AcceptDialog
+var last_export_report := {}
+var full_generation: CheckButton
 const TEST_DRIVE := preload("./test_drive_launcher.gd")
 var test_drive_launcher := TEST_DRIVE.new()
 var drive_dialog: ConfirmationDialog
@@ -241,11 +263,20 @@ func _build_ui() -> void:
 		spin.max_value = 127
 		controls.add_child(spin)
 	_button(controls, "3D Preview", _preview)
+	preview_x.value_changed.connect(_preview_cell_changed)
+	preview_y.value_changed.connect(_preview_cell_changed)
 	var preview_hint := Label.new()
-	preview_hint.text = "Full cell preview · 2D layer filters do not change export"
+	preview_hint.text = "Affected cells refresh automatically · 2D filters do not change export"
 	preview_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	preview_hint.add_theme_font_size_override("font_size", 12)
 	preview_dock.add_child(preview_hint)
+	full_generation = CheckButton.new()
+	full_generation.text = "Full 3D check on Validate / Export"
+	full_generation.add_theme_font_size_override("font_size", 12)
+	preview_dock.add_child(full_generation)
+	export_report = REPORT.new()
+	export_report.theme = theme
+	add_child(export_report)
 	var preview_container := SubViewportContainer.new()
 	preview_container.stretch = true
 	preview_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -266,6 +297,7 @@ func _build_ui() -> void:
 	preview_world.add_child(sun)
 	var view_bar := HBoxContainer.new()
 	column.add_child(view_bar)
+	_button(view_bar, "Cancel operation", _cancel_operation)
 	_button(view_bar, "Tools / layers", func(): left_dock.visible = not left_dock.visible)
 	_button(view_bar, "Properties / 3D", func(): right_dock.visible = not right_dock.visible)
 	_button(view_bar, "Fit map (F)", func(): canvas.fit_map())
@@ -369,10 +401,8 @@ func _path_selected(path: String) -> void:
 			if busy:
 				_status("Wait for the current preview or export.")
 				return
-			failure = store.save_project(store.project_path)
-			if failure == "":
-				_start_worker("export", store.project_path, path)
-				return
+			_start_package("export", path)
+			return
 	_status(failure if failure != "" else "Ready: " + path)
 	_document_changed()
 
@@ -398,9 +428,7 @@ func _export() -> void:
 	_choose("export")
 
 func _validate() -> void:
-	var result: Dictionary = JSON.parse_string(store.bridge.validate_document(JSON.stringify(store.document)))
-	validation_label.text = "Valid document · Files/seams checked on export" if result.ok else store.reason(result)
-	_status(validation_label.text)
+	_start_package("report")
 
 func _selection(ids: Array) -> void:
 	selected_record = {}
@@ -516,9 +544,15 @@ func _apply_properties() -> void:
 
 func _document_changed() -> void:
 	generation += 1
+	if package_work != null: package_work.cancel()
+	_cancel_attachment()
+	if preview_enabled: preview_due = Time.get_ticks_msec() + 150
 	canvas.cancel_interaction()
 	var map_id := str(store.document.get("map_id", ""))
 	if displayed_map_id != map_id:
+		_clear_preview_cache()
+		preview_enabled = false
+		preview_due = 0
 		canvas.selected.clear()
 		canvas.layer_state = view_settings.get_value("layers", map_id, {}).duplicate(true)
 		canvas.fit_map()
@@ -572,20 +606,170 @@ func _save_workbench() -> void:
 	if failure != OK: _status("Workbench settings could not be saved: " + error_string(failure))
 
 func _preview() -> void:
+	preview_enabled = true
+	preview_due = 0
+	_start_package("preview")
+
+func _preview_cell_changed(_value: float) -> void:
+	if preview_enabled:
+		generation += 1
+		if package_work != null: package_work.cancel()
+		_cancel_attachment()
+		preview_due = Time.get_ticks_msec() + 150
+
+func _start_package(operation: String, destination: String = "") -> void:
 	if busy:
-		_status("Preview or export already running.")
+		_status("Another operation is running; cancel it or wait.")
 		return
-	if not store.document.heightmaps.is_empty() or not store.document.assets.is_empty():
-		_status("Asset/heightmap preview requires a saved project.")
-		if store.project_path == "":
-			return
-		var failure := store.save_project(store.project_path)
-		if failure != "":
-			_status(failure)
-			return
-		_start_worker("project", store.project_path, "")
-	else:
-		_start_worker("document", JSON.stringify(store.document), "")
+	if store.has_gesture():
+		_status("Finish or cancel the current gesture first.")
+		return
+	if operation == "export" and FileAccess.file_exists(destination):
+		_status("E_EXPORT_EXISTS: Choose a new package filename; existing files are preserved.")
+		return
+	package_work = PACKAGE_WORK.new()
+	package_operation = operation
+	package_destination = destination
+	package_cell = Vector2i(int(preview_x.value), int(preview_y.value))
+	worker_generation = generation
+	var document: Dictionary = store.document.duplicate(true)
+	var source: String = store.project_path
+	var cached: Dictionary = preview_cache.get(package_cell, {}).duplicate()
+	cached.erase("root")
+	var cell := package_cell
+	var full := full_generation.button_pressed
+	var task: RefCounted = package_work
+	busy = true
+	var err := worker.start(func(): return {"operation": "package", "result": task.run(document, source, operation, cell, cached, full)})
+	if err != OK:
+		busy = false
+		package_work = null
+		_status(error_string(err))
+
+func _cancel_operation() -> void:
+	generation += 1
+	preview_due = 0
+	if package_work != null: package_work.cancel()
+	_cancel_attachment()
+	_status("Operation cancelled; previous preview and original files retained.")
+
+func _cancel_attachment() -> void:
+	if render_job.is_empty(): return
+	RENDERER.cancel(render_job)
+	render_job = {}
+	if is_instance_valid(render_staged): render_staged.queue_free()
+	render_staged = null
+	render_data = {}
+	busy = false
+
+func _clear_preview_cache() -> void:
+	for entry: Dictionary in preview_cache.values():
+		if is_instance_valid(entry.root): entry.root.queue_free()
+	preview_cache.clear()
+
+func _show_cached(cell: Vector2i) -> void:
+	cache_clock += 1
+	preview_cache[cell].used = cache_clock
+	for key: Vector2i in preview_cache: preview_cache[key].root.visible = key == cell
+	var bounds: Dictionary = store.document.bounds
+	var cell_size := float(store.document.cell_size_cm)
+	var center := RENDERER.scene_position([bounds.min[0] + (cell.x + 0.5) * cell_size, 0, bounds.min[1] + (cell.y + 0.5) * cell_size])
+	var camera: Camera3D = preview_world.get_node("PreviewCamera")
+	camera.position = center + Vector3(35, 55, 45) * cell_size / 51200.0
+	camera.look_at(center)
+	validation_label.text = "Preview ready · cell %d / %d" % [cell.x, cell.y]
+	_status(validation_label.text)
+
+func _package_finished(result: Dictionary) -> void:
+	var stale: bool = generation != worker_generation or package_work.stopped()
+	package_work = null
+	if stale:
+		if result.ok and result.data.has("scratch"): PAYLOAD_FILES.remove_scratch(result.data.scratch)
+		_status("Operation cancelled or document changed; prior preview and files retained.")
+		return
+	if not result.ok:
+		validation_label.text = store.reason(result)
+		_status(validation_label.text)
+		return
+	if package_operation != "preview":
+		last_export_report = result.data
+		if package_operation == "export":
+			var failure := _publish_package(result.data.path, package_destination)
+			PAYLOAD_FILES.remove_scratch(result.data.scratch)
+			if failure != "":
+				_status(failure)
+				return
+			last_export_report.path = package_destination
+		_status("Exported validated package: " + package_destination if package_operation == "export" else "Validated immutable snapshot; capacity report ready.")
+		validation_label.text = "Validated · %d bytes · base goal %s" % [result.data.package_bytes, "met" if result.data.base_target_met else "exceeded"]
+		export_report.show_report(result.data)
+		return
+	if result.data.get("reused", false):
+		preview_stats.reused += 1
+		_show_cached(package_cell)
+		return
+	preview_stats.generated += 1
+	render_data = result.data
+	render_batch_estimate = 1000
+	render_staged = Node3D.new()
+	render_staged.visible = false
+	preview_world.add_child(render_staged)
+	render_job = RENDERER.begin(result.data.chunk, render_staged)
+	busy = true
+
+func _publish_package(source: String, destination: String) -> String:
+	if FileAccess.file_exists(destination): return "E_EXPORT_EXISTS: Existing package preserved; choose a new filename."
+	var pending := destination + ".pending-" + Crypto.new().generate_random_bytes(8).hex_encode()
+	var err := DirAccess.copy_absolute(source, pending)
+	if err != OK: return "E_EXPORT_IO: " + error_string(err)
+	if FileAccess.get_sha256(source) != FileAccess.get_sha256(pending):
+		return "E_EXPORT_IO: Copy verification failed; pending file retained."
+	if FileAccess.file_exists(destination): return "E_EXPORT_EXISTS: Destination appeared; pending copy retained."
+	err = DirAccess.rename_absolute(pending, destination)
+	return "" if err == OK else "E_EXPORT_IO: Pending copy retained: " + error_string(err)
+
+func _advance_attachment() -> void:
+	if generation != worker_generation:
+		_cancel_attachment()
+		return
+	var started := Time.get_ticks_usec()
+	preview_stats.attachment_frames += 1
+	while not render_job.is_empty():
+		var batch := Time.get_ticks_usec()
+		var done := RENDERER.advance(render_job)
+		var batch_usec := Time.get_ticks_usec() - batch
+		render_batch_estimate = maxi(render_batch_estimate, batch_usec)
+		preview_stats.max_batch_usec = maxi(preview_stats.max_batch_usec, batch_usec)
+		if done:
+			if not render_job.error.is_empty():
+				var failure := store.reason({"ok": false, "error": render_job.error})
+				_cancel_attachment()
+				_status(failure)
+				return
+			# Publish once; keep the old root visible throughout candidate attachment.
+			if preview_cache.has(package_cell): preview_cache[package_cell].root.queue_free()
+			preview_cache[package_cell] = {"root": render_staged, "signature": render_data.signature, "charge": render_data.charge, "used": cache_clock + 1}
+			render_job = {}
+			render_staged = null
+			render_data = {}
+			_trim_preview_cache(package_cell)
+			_show_cached(package_cell)
+			busy = false
+			break
+		if Time.get_ticks_usec() - started + render_batch_estimate >= ATTACH_USEC: break
+	preview_stats.max_frame_usec = maxi(preview_stats.max_frame_usec, Time.get_ticks_usec() - started)
+
+func _trim_preview_cache(keep: Vector2i) -> void:
+	while true:
+		var charge := 0
+		var oldest := keep
+		for cell: Vector2i in preview_cache:
+			charge += int(preview_cache[cell].charge)
+			if cell != keep and (oldest == keep or preview_cache[cell].used < preview_cache[oldest].used): oldest = cell
+		if preview_cache.size() <= CACHE_CELLS and charge <= CACHE_BYTES: return
+		if oldest == keep: return
+		preview_cache[oldest].root.queue_free()
+		preview_cache.erase(oldest)
 
 func _start_worker(operation: String, source: String, destination: String) -> void:
 	if busy:
@@ -594,8 +778,6 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 	busy = true
 	worker_generation = generation
 	var test_request := drive_request.duplicate(true)
-	var x := int(preview_x.value)
-	var y := int(preview_y.value)
 	var import_script := ProjectSettings.globalize_path("user://importers/geojson.py")
 	if operation == "import":
 		var source_code := FileAccess.get_file_as_string("res://scripts/importers/geojson.py")
@@ -616,32 +798,30 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 				result = {"ok": true, "data": JSON.parse_string(FileAccess.get_file_as_string(import_output))}
 				DirAccess.remove_absolute(import_output)
 			return {"operation": operation, "result": result}
-		var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
-		var text := ""
-		if operation == "export":
-			text = bridge.export_project(source, destination)
-		elif operation == "project":
-			text = bridge.open_project(source)
-			if JSON.parse_string(text).ok:
-				var prepared: Dictionary = bridge.generate_chunk_packed(x, y)
-				if prepared.ok: prepared = bridge.with_presentation(prepared.data)
-				return {"operation": operation, "result": prepared}
-		else:
-			return {"operation": operation, "result": bridge.preview_document_packed(source, x, y)}
-		return {"operation": operation, "result": JSON.parse_string(text)}
+		return {"operation": operation, "result": TEST_DRIVE.error("E_STATE", "Unsupported worker operation.")}
 	)
 	if err != OK:
 		busy = false
 		_status(error_string(err))
 	else:
-		_status("Importing local GeoJSON…" if operation == "import" else ("Exporting package…" if operation == "export" else "Generating preview cell…"))
+		_status("Importing local GeoJSON…" if operation == "import" else "Preparing test drive…")
 
 func _process(_delta: float) -> void:
-	if not busy or worker.is_alive():
+	if not render_job.is_empty():
+		_advance_attachment()
+		return
+	if not busy:
+		if preview_due > 0 and Time.get_ticks_msec() >= preview_due: _preview()
+		return
+	if worker.is_alive():
+		if package_work != null: validation_label.text = package_work.status()
 		return
 	var output: Dictionary = worker.wait_to_finish()
 	busy = false
 	var result: Dictionary = output.result
+	if output.operation == "package":
+		_package_finished(result)
+		return
 	if not result.ok:
 		if output.operation == "test_drive":
 			last_drive_result = result
@@ -667,31 +847,6 @@ func _process(_delta: float) -> void:
 		var failure := store.apply_command("Import " + str(layer.source), patches)
 		_status(failure if failure != "" else "Imported new layer. " + " · ".join(layer.warnings))
 		return
-	if output.operation == "export":
-		_status("Exported %d bytes  ·  user assets %d expanded bytes  ·  %s" % [result.data.package_bytes, result.data.user_asset_bytes, result.data.world_content_hash.left(12)])
-		return
-	if generation != worker_generation:
-		_status("Document changed during preview; generate again.")
-		return
-	var staged := Node3D.new()
-	preview_world.add_child(staged)
-	var render_job := RENDERER.begin(result.data.chunk, staged)
-	while not RENDERER.advance(render_job): pass
-	if not render_job.error.is_empty():
-		staged.queue_free()
-		_status(store.reason({"ok": false, "error": render_job.error}))
-		return
-	for child in preview_world.get_children():
-		if child != staged and child.name != "PreviewCamera" and child is not DirectionalLight3D:
-			child.queue_free()
-	var bounds: Dictionary = store.document.bounds
-	var cell_size := float(store.document.cell_size_cm)
-	var center := RENDERER.scene_position([bounds.min[0] + (preview_x.value + 0.5) * cell_size, 0, bounds.min[1] + (preview_y.value + 0.5) * cell_size])
-	var camera: Camera3D = preview_world.get_node("PreviewCamera")
-	camera.position = center + Vector3(35, 55, 45) * cell_size / 51200.0
-	camera.look_at(center)
-	validation_label.text = "Preview ready · cell %d / %d" % [preview_x.value, preview_y.value]
-	_status(validation_label.text)
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is not InputEventKey or not event.pressed or event.echo: return
@@ -737,8 +892,12 @@ func _status(text: String) -> void:
 
 func _exit_tree() -> void:
 	_save_workbench()
+	if package_work != null: package_work.cancel()
+	_cancel_attachment()
 	if worker.is_started():
-		worker.wait_to_finish()
+		var output: Variant = worker.wait_to_finish()
+		if output is Dictionary and output.operation == "package" and output.result.ok and output.result.data.has("scratch"):
+			PAYLOAD_FILES.remove_scratch(output.result.data.scratch)
 	if store.dirty:
 		store.autosave()
 

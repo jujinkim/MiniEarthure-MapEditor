@@ -60,7 +60,7 @@ def main():
                     ('user-path', [godot, '--headless', '--path', str(project), '--script', 'res://check_user_path.gd'])]
         scripts = ['document_history_validator', 'document_recovery_validator']
         if args.full:
-            scripts += ['editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator']
+            scripts += ['editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator']
         if args.script:
             scripts = args.script
         commands += [(name, [godot, *([] if args.rendered else ['--headless']), '--path', str(project), '--script', f'res://tests/{name}.gd']) for name in scripts]

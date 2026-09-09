@@ -1,6 +1,7 @@
 extends RefCounted
 ## MapDocument is authoritative; views never become saved state.
 signal changed
+const SNAPSHOT := preload("./project_snapshot.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const FILES := preload("./document_files.gd")
 const HISTORY_BYTES := 16 * 1024 * 1024
@@ -295,14 +296,18 @@ func save_project(path: String) -> String:
 	if not validation.ok:
 		return reason(validation)
 	var absolute := ProjectSettings.globalize_path(path).simplify_path()
-	# E02 never moves imported binaries; file-copy Save As belongs to the file tools.
-	if absolute != project_path and (not document.heightmaps.is_empty() or not document.assets.is_empty()):
-		return "This document references project files. Save in its original directory; file-copy Save As is pending."
 	var destination := absolute.path_join("document.json")
 	var expected := _disk_digest if destination == _disk_path else ""
-	var failure := files.write(destination, str(validation.data.canonical), expected)
+	var failure := ""
+	if absolute != project_path and (not document.heightmaps.is_empty() or not document.assets.is_empty() or history_bytes > 0):
+		var captured := SNAPSHOT.capture(document, project_path, undo_stack + redo_stack)
+		if not captured.ok: return reason(captured)
+		failure = SNAPSHOT.copy_to(captured.data, absolute)
+	else:
+		failure = files.write(destination, str(validation.data.canonical), expected)
 	if failure == "":
 		document = validation.data.document
+		if project_path != absolute: _autosaved_signature = ""
 		project_path = absolute
 		_disk_path = destination
 		_disk_digest = str(validation.data.canonical).sha256_text()

@@ -124,7 +124,7 @@ Installed immutable payloads are retained after Undo, cancellation after install
 or history eviction because saved documents, previous versions and recovery
 snapshots can still reference them. Binary files are not embedded in recovery JSON.
 Keep the project directory with its snapshots. Automatic on-disk garbage collection is not implemented; no source cleanup is
-performed. External-file-copy Save As remains E04 work.
+performed. External-file-copy Save As is defined in [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md).
 A failed operation may leave an unreferenced new immutable payload if filesystem
 installation succeeded before a later write/commit failure. It never replaces the
 original document. Single-user checks do not claim cross-process write locking or
@@ -155,8 +155,7 @@ require the complete edit → cancel → Undo/Redo → save/recover → export p
 visible controls, exact seams/graph invariants and no lost source bytes/diagnostics.
 Representative-map p95/RSS and E05 installed-Client driving remain separate gates.
 
-Next independent unit is **E04 preview/export**: affected-cell invalidation,
-frame-budgeted preview attachment, external-file-copy Save As and capacity/error
-presentation. Preserve these command/payload boundaries; do not redo generation
-contracts or relax safety budgets. Final platform/full-authoring acceptance remains
-open until those gates pass.
+**E04 preview/export** is implemented in [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md):
+affected-cell invalidation, frame-budgeted preview attachment, file-copy Save As
+and capacity/error presentation preserve these command/payload boundaries.
+E05 installed-Client authoring and final platform/performance acceptance remain open.
