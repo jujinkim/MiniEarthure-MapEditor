@@ -45,6 +45,22 @@ def multipolygon_xml():
     return ET.tostring(root, encoding="unicode")
 
 
+def structural_xml():
+    import xml.etree.ElementTree as ET
+    root = ET.Element("osm", version="0.6", generator="mapeditor-synthetic")
+    # Explicit approaches, elevated span and a depressed tunnel, spaced apart.
+    for identity, (x, z, h) in enumerate([(0,0,0),(20,0,0),(50,0,6),(90,0,6),(120,0,0),(140,0,0),
+                                            (0,80,0),(20,80,0),(50,80,-6),(90,80,-6),(120,80,0),(140,80,0)], 1):
+        node = ET.SubElement(root, "node", id=str(identity), lon=str(9+x/64000), lat=str(55+z/111000))
+        ET.SubElement(node, "tag", k="ele", v=str(h))
+    for identity, refs, tags in [(1,[1,2],{}),(2,[2,3,4,5],{"bridge":"yes","layer":"1"}),(3,[5,6],{}),
+                                 (4,[7,8],{}),(5,[8,9,10,11],{"tunnel":"yes","layer":"-1","maxheight:physical":"4.5"}),(6,[11,12],{})]:
+        way = ET.SubElement(root, "way", id=str(identity))
+        for ref in refs: ET.SubElement(way, "nd", ref=str(ref))
+        for key,value in dict(highway="residential",width="4",**tags).items(): ET.SubElement(way,"tag",k=key,v=value)
+    return ET.tostring(root, encoding="unicode")
+
+
 def pbf(path, xml=XML):
     import osmium
     # Tests own their temporary destination; never overwrite an existing file.
@@ -55,5 +71,5 @@ def pbf(path, xml=XML):
 
 
 if __name__ == "__main__":
-    xml = multipolygon_xml() if len(sys.argv) > 3 else XML
+    xml = structural_xml() if len(sys.argv) > 3 and sys.argv[3] == "structures" else multipolygon_xml() if len(sys.argv) > 3 else XML
     pbf(sys.argv[1], xml.replace("12 m", sys.argv[2] + " m") if len(sys.argv) > 2 else xml)

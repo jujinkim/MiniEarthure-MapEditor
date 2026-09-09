@@ -1,6 +1,7 @@
 """Bounded offline OSM snapshot adapter; no private modules or source writes."""
 from importlib.metadata import version, PackageNotFoundError
 import re
+from collections import Counter
 
 from import_layer import MAX_INPUT, MAX_POINTS
 from polygon_geometry import Budget, group_rings
@@ -49,6 +50,77 @@ def vertical(tags):
         raise ValueError("OSM bridge/tunnel/nonzero layer requires explicit vertical geometry")
     if any(key in tags for key in ("building:part", "min_height", "building:min_level", "incline", "ele", "level")):
         raise ValueError("OSM unsupported vertical semantics")
+
+
+def road_vertical(tags, references, node_tags):
+    """Explicit EGM96 node heights; layer is ordering, never metres."""
+    bridge, tunnel = tags.get("bridge", "no"), tags.get("tunnel", "no")
+    if bridge not in ("no", "0", "yes") or tunnel not in ("no", "0", "yes") or bridge == tunnel == "yes":
+        raise ValueError("OSM unsupported/ambiguous bridge or tunnel type")
+    kind = "bridge" if bridge == "yes" else "tunnel" if tunnel == "yes" else "ground"
+    if not re.fullmatch(r"-?[0-9]+", tags.get("layer", "0")) or not -5 <= int(tags.get("layer", "0")) <= 5:
+        raise ValueError("OSM layer requires an integer from -5 to 5; it is not elevation")
+    if kind == "ground" and int(tags.get("layer", "0")) != 0:
+        raise ValueError("OSM nonzero ground layer requires explicit supported structure")
+    forbidden = ("building:part", "min_height", "building:min_level", "incline", "ele", "level", "height", "covered", "location")
+    if any(k in tags for k in forbidden) or any(k.startswith("ele:") for k in tags):
+        raise ValueError("OSM unsupported vertical semantics on road")
+    elevations = []
+    for ref in references:
+        tags_at_node = node_tags.get(ref, {})
+        if any(k in tags_at_node for k in ("layer", "level", "incline", "bridge", "tunnel")) or any(k.startswith("ele:") for k in tags_at_node):
+            raise ValueError("OSM unsupported road-node vertical semantics")
+        if "ele" in tags_at_node:
+            raw = tags_at_node["ele"]
+            if not re.fullmatch(r"-?[0-9]+(?:\.[0-9]+)?(?: m)?", raw):
+                raise ValueError("OSM node ele requires signed decimal metres (EGM96)")
+            value = float(raw.removesuffix(" m"))
+            if not -10000 <= value <= 10000:
+                raise ValueError("OSM node elevation outside native range")
+            elevations.append(value)
+    if elevations and len(elevations) != len(references) or kind != "ground" and not elevations:
+        raise ValueError("OSM explicit vertical geometry requires ele on every road node; no interpolation of missing heights")
+    if not elevations:
+        if "maxheight:physical" in tags:
+            raise ValueError("OSM physical clearance requires an explicit supported tunnel")
+        return {}
+    result = dict(elevations_m=elevations, road_kind=kind, osm_node_refs=references,
+                  osm_way_layer=int(tags.get("layer", "0")))
+    if kind == "tunnel":
+        if "maxheight:physical" not in tags:
+            raise ValueError("OSM tunnel requires maxheight:physical; legal maxheight is not geometry")
+        clearance = metres(tags, "maxheight:physical")
+        if not 2 <= clearance <= 50:
+            raise ValueError("OSM tunnel physical clearance requires 2..50 metres")
+        result["clearance_m"] = clearance
+    elif "maxheight:physical" in tags:
+        raise ValueError("OSM physical clearance only supported on tunnel ways")
+    return result
+
+
+def split_vertical_roads(features):
+    """Join only shared source node IDs; split explicit roads at graph junctions."""
+    roads = [f for f in features if "osm_node_refs" in f["properties"]]
+    uses = Counter(ref for f in roads for ref in f["properties"]["osm_node_refs"])
+    ground = set(ref for f in roads if f["properties"]["road_kind"] == "ground" for ref in f["properties"]["osm_node_refs"])
+    output = []
+    for feature in features:
+        p = feature["properties"]
+        if "osm_node_refs" not in p:
+            output.append(feature)
+            continue
+        refs = p["osm_node_refs"]
+        if len(set(refs)) != len(refs):
+            raise ValueError("OSM explicit road repeats nodes; prepare unambiguous segments")
+        if p["road_kind"] != "ground" and (refs[0] not in ground or refs[-1] not in ground):
+            raise ValueError("OSM structure endpoints require explicit-height ground connections; prepare complete approaches")
+        cuts = [0] + [i for i in range(1, len(refs)-1) if uses[refs[i]] > 1] + [len(refs)-1]
+        for a,b in zip(cuts,cuts[1:]):
+            if len(output) >= MAX_FEATURES:
+                raise ValueError("OSM split feature budget exceeded")
+            properties = dict(p, osm_node_refs=refs[a:b+1], elevations_m=p["elevations_m"][a:b+1])
+            output.append(dict(type="Feature", properties=properties, geometry=dict(type="LineString", coordinates=feature["geometry"]["coordinates"][a:b+1])))
+    return output
 
 
 def canonical_ring(ring):
@@ -144,6 +216,7 @@ def parse(raw, input_format):
             raise ValueError("OSM XML must be UTF-8 without entities, DTDs or change records")
     osmium = dependency()
     nodes, ways, seen, area_members = {}, [], set(), set()
+    node_tags = {}
     all_ways, relations = {}, []
     counts = dict(nodes=0, ways=0, relations=0, ignored_ways=0, ignored_relations=0, tagged_nodes=0, assembled_relations=0, outer_rings=0, inner_rings=0, member_ways=0)
     refs = 0
@@ -170,6 +243,7 @@ def parse(raw, input_format):
                 if len(nodes) >= MAX_POINTS or not entity.location.valid():
                     raise ValueError("OSM node budget or invalid location")
                 nodes[entity.id] = [entity.lon, entity.lat]
+                if tags: node_tags[entity.id] = tags
             elif kind == "w":
                 counts["ways"] += 1
                 refs += len(entity.nodes)
@@ -213,7 +287,7 @@ def parse(raw, input_format):
             raise ValueError("selected OSM way belongs to an area relation; no silent holes/flattening")
         if any(ref not in nodes for ref in references):
             raise ValueError(f"OSM way {identity}: missing referenced node; use a complete extract")
-        vertical(tags)
+        if kind != "road": vertical(tags)
         points = [nodes[ref] for ref in references]
         properties = {}
         if kind == "road":
@@ -221,6 +295,7 @@ def parse(raw, input_format):
                 raise ValueError(f"OSM way {identity}: unsupported highway/area profile")
             if len(references) < 2 or references[0] == references[-1]:
                 raise ValueError(f"OSM way {identity}: closed/short road requires explicit segmentation")
+            properties.update(road_vertical(tags, references, node_tags))
             if "width" in tags: properties["width_m"] = metres(tags, "width")
             if "surface" in tags: properties["surface"] = tags["surface"]
             geometry = dict(type="LineString", coordinates=points)
@@ -234,6 +309,10 @@ def parse(raw, input_format):
                 properties["landuse"] = "orchard" if tags.get("landuse") == "orchard" else "forest"
             geometry = dict(type="Polygon", coordinates=[points])
         features.append(dict(type="Feature", properties=properties, geometry=geometry))
+    features = split_vertical_roads(features)
+    counts["explicit_height_roads"] = sum("elevations_m" in f["properties"] for f in features)
+    counts["bridge_segments"] = sum(f["properties"].get("road_kind") == "bridge" for f in features)
+    counts["tunnel_segments"] = sum(f["properties"].get("road_kind") == "tunnel" for f in features)
     features.extend(assembled)
     if len(features) > MAX_FEATURES:
         raise ValueError("OSM selected feature budget exceeded")
@@ -250,6 +329,11 @@ def finish(layer, counts):
     layer.warning("OSM input counts: " + ", ".join(f"{key}={value}" for key, value in counts.items()))
     layer.warning("Selected ways and explicit multipolygons are imported; POIs, other ways/relations and other tags are omitted. No routing/access/oneway semantics.")
     layer.warning("Ground elevation/base, missing width/height/surface, vegetation and materials are estimates; building levels/roof tags are not interpreted.")
+    if counts.get("explicit_height_roads"):
+        layer.warning("Explicit OSM node ele metres use EGM96 sea level as map Y=0; no vertical offset/datum conversion or terrain alignment. Verify against your map before adoption.")
+        layer.warning("Explicit-height roads join only shared OSM node IDs (including split interior junctions); structure ends require explicit ground approaches. Layer is ordering only, never height. Bridges add no invented supports or under-deck clearance; tunnel ceiling uses maxheight:physical, not legal maxheight.")
+        layer.warning("Only bridge=yes/tunnel=yes with complete node elevations supported. Road grades interpolate between supplied nodes; tunnel cross-section is rectangular and physical clearance is constant (shape estimate). Access/oneway/vehicle limits remain omitted.")
+        if counts.get("tunnel_segments"): layer.estimate("rectangular_tunnel_cross_section")
     # Put source-level omissions before per-road warning samples, even at the cap.
     layer.warnings = (layer.warnings + previous)[:50]
     layer.encode()

@@ -38,6 +38,15 @@ def crop(collection, selected):
             raise ValueError("Invalid OSM geometry before crop; no repair or silent filtering")
         if source.bounds[2]-source.bounds[0] > 180:
             raise ValueError("OSM antimeridian geometry is unsupported")
+        if "osm_node_refs" in feature["properties"]:
+            if not window.covers(source):
+                raise ValueError("OSM bbox must contain complete explicit-height roads and ground connections; no partial vertical crop")
+            # Retain exact vertex order/profile and source graph node IDs.
+            points += len(feature["geometry"]["coordinates"])
+            if points > MAX_POINTS or len(output) >= 20_000:
+                raise ValueError("OSM crop output budget exceeded")
+            output.append(feature)
+            continue
         clipped = source.intersection(window)
         expected = "LineString" if source.geom_type == "LineString" else "Polygon"
         geometries = parts(clipped, expected)

@@ -14,7 +14,7 @@ from projection import Coordinates
 from polygon_geometry import Budget, group_rings
 
 
-def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None):
+def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False):
     if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or "crs" in value:
         raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
     raw = source_bytes if source_bytes is not None else json.dumps(value, sort_keys=True, allow_nan=False).encode()
@@ -31,6 +31,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
         layer.point(*p)
         return p
 
+    graph_nodes = {}
     for index, feature in enumerate(features):
         if not isinstance(feature, dict) or feature.get("type") != "Feature":
             raise ValueError("expected Feature")
@@ -50,21 +51,34 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             return number(properties.get(key, default), key, minimum, maximum)
 
         if kind == "LineString":
-            elevation = round(scalar("elevation_m", 0.2) * 100)
-            points = [[p[0], elevation, p[1]] for p in map(point, coordinates)]
+            if "osm_node_refs" in properties and not osm_graph:
+                raise ValueError("OSM graph metadata requires the OSM conversion path; no silent flattening")
+            explicit = osm_graph and "elevations_m" in properties
+            elevations = properties.get("elevations_m") if explicit else [scalar("elevation_m", 0.2)] * len(coordinates)
+            if not isinstance(elevations, list) or len(elevations) != len(coordinates):
+                raise ValueError("road elevation profile must match coordinates")
+            points = [[p[0], round(number(h, "road elevation", -10000 if explicit else -100000, 10000 if explicit else 100000) * 100), p[1]] for p,h in zip(map(point, coordinates), elevations)]
             if len(points) < 2:
                 raise ValueError("road requires two points")
             level = scalar("level", 0, -100, 100)
             if int(level) != level:
                 raise ValueError("level must be integral")
-            for suffix, p in [("from", points[0]), ("to", points[-1])]:
-                layer.add("nodes", {"id": identity + "-" + suffix, "position": p, "level": int(level)})
+            endpoints = []
+            for offset, suffix, p in [(0, "from", points[0]), (-1, "to", points[-1])]:
+                node_id = f"import-{layer.layer_id}-osm-node-{properties['osm_node_refs'][offset]}" if explicit else identity + "-" + suffix
+                record = {"id": node_id, "position": p, "level": int(level)}
+                if node_id in graph_nodes and graph_nodes[node_id] != record:
+                    raise ValueError("OSM shared node has conflicting geometry")
+                if node_id not in graph_nodes:
+                    layer.add("nodes", record)
+                    graph_nodes[node_id] = record
+                endpoints.append(node_id)
             width = round(scalar("width_m", 8, 0.01, 1000) * 100)
             surface = text(properties.get("surface", "asphalt"), "surface", 64)
             if "surface" not in properties: layer.estimate("surface")
-            layer.add("roads", {"id": identity, "from": identity + "-from", "to": identity + "-to", "points": points,
-                "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": "ground", "clearance_cm": None, "sidewalk_cm": None})
-            layer.warning(f"{index}: disconnected endpoints; connect explicitly in Editor")
+            layer.add("roads", {"id": identity, "from": endpoints[0], "to": endpoints[1], "points": points,
+                "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": properties["road_kind"] if explicit else "ground", "clearance_cm": round(properties["clearance_m"] * 100) if explicit and "clearance_m" in properties else None, "sidewalk_cm": None})
+            if not explicit: layer.warning(f"{index}: disconnected endpoints; connect explicitly in Editor")
         elif kind in ("Polygon", "MultiPolygon"):
             polygons = [coordinates] if kind == "Polygon" else coordinates
             if not polygons:
@@ -186,7 +200,7 @@ def main():
     elif args.origin is not None or args.local_origin is not None:
         raise ValueError("local-metre mode must not specify geographic origins")
     result = convert(value, args.source_name or args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
-        progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options)
+        progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options, osm_graph=osm_counts is not None)
     if osm_counts is not None:
         from osm_extract import finish
         result = finish(result, osm_counts)

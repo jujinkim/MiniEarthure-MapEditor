@@ -239,8 +239,9 @@ missing dimensions, vegetation and material/roof values remain estimates.
 Missing selected-way nodes, repeated IDs/deletions/history, unsupported highway
 classes/area or closed roads, nonclosed polygons, ambiguous categories, unsupported
 feature relations and selected ways in unhandled boundary/multipolygon relations
-reject the whole import. Bridge/tunnel/nonzero layer and explicit unsupported
-vertical tags also reject it. They are never silently flattened or repaired.
+reject the whole import. The explicit-height structural extension below replaces
+the former blanket bridge/tunnel rejection; all other unsupported vertical tags
+still reject. They are never silently flattened or repaired.
 
 ### Multipolygon assembly extension — 2026-09-09
 
@@ -783,3 +784,57 @@ and standalone resource/rendered checks. Official contracts checked 2026-09-09:
 [Shapely intersection](https://shapely.readthedocs.io/en/stable/reference/shapely.intersection.html).
 Actual regional import/accuracy, Windows/Linux dialogs/distributions and large-area
 support remain separate acceptance or implementation work; this does not complete I02.
+
+
+## Explicit OSM bridges, tunnels and ground connections (I02, 2026-09-10)
+
+The existing OSM PBF/XML import and review/adopt flow now accepts `bridge=yes`
+and `tunnel=yes` roads with **`ele` on every referenced node**, and explicit-height
+ground approaches. This is a bounded source profile, not general OSM terrain
+reconstruction. Node `ele` accepts signed decimal metres, optional ` m`, within
+±10,000 m. Heights retain the OSM EGM96 sea-level reference: **map Y=0 means
+EGM96 zero**, without offset or datum conversion. Review this against the existing
+map before adoption; Copernicus EGM2008 is a different datum and is not converted.
+Missing elevations are rejected, never interpolated from neighboring node tags.
+The generated road linearly grades between fully supplied vertices.
+
+- `bridge=yes` maps to MapKit `bridge`; no invented piers, deck thickness or
+  under-bridge clearance. `height`/`min_height` cannot substitute for deck elevation.
+- `tunnel=yes` maps to `tunnel` and requires `maxheight:physical` in 2..50 m.
+  This becomes a constant clearance above the graded floor. The rectangular
+  cross-section is an explicitly reviewed estimate. Legal `maxheight` is never
+  used as physical geometry; access/vehicle restrictions are not implemented.
+- Each structure endpoint must be shared with an explicit-height **ground** way.
+  Missing approaches and structures connected only to other structures reject.
+  Interior shared source nodes split roads into bounded segments. Only matching
+  OSM node IDs join; coincident coordinates and geometric crossings never weld.
+  Graph node level stays zero, with elevation carrying the vertical geometry.
+- Integer `layer` from -5 to 5 is accepted on structures as source ordering, not
+  converted to metres or graph-node levels. Nonzero ground layers reject. Source
+  bytes/hash remain authoritative for ignored ordering tags.
+- Other bridge/tunnel types, way-level `ele`, `ele:*` alternate datums, `incline`,
+  `level`, covered/location structures, vertical building parts and ambiguous or
+  partial node profiles reject the whole candidate. Width/surface defaults and
+  omissions still appear in review. Tagged-node counts include consumed `ele`.
+- Bbox selection must contain **all** explicit-height roads and their approaches.
+  Their original coordinate order/graph/profile is retained exactly. Partial or
+  wholly outside explicit-height roads reject, since ordinary 2D crop would lose
+  vertical and connection semantics. Legacy ground/polygon crop is unchanged.
+
+This replaces the earlier independent-endpoint rule only for explicit-height
+roads. Untagged ground roads retain the previous estimated elevation and independent
+endpoints. Source/record/point/output caps and native geometry/budget validation
+still apply after splitting. Import metadata prominently reviews vertical datum,
+geometry estimates, structural counts and limitations before one-command additive
+adoption; cancel, stale review, Undo/Redo, source and prior-package retention remain.
+No MapKit ABI, recipe or generator change is required. Tests use synthetic PBF/XML.
+
+Tag semantics: [OSM ele](https://wiki.openstreetmap.org/wiki/Key:ele),
+[physical clearance](https://wiki.openstreetmap.org/wiki/Key:maxheight:physical),
+[legal maxheight](https://wiki.openstreetmap.org/wiki/Key:maxheight).
+Run `python -B -m unittest discover -s tests -p 'test_osm*.py' -v` with optional
+requirements, and `scripts/check_documents.py --script osm_structures_validator
+--resource-pack --log-dir /new/structures` with the documented Godot/Python arguments.
+The full runner now includes the new validator. Real regional accuracy, datum
+alignment, partial structural crop, chained structure approaches, other source
+profiles and target-platform acceptance remain separate work.
