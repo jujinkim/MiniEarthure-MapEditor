@@ -124,3 +124,8 @@ Authoring tools (terrain strokes/PNG16, structural roads, buildings/zones, asset
 [AUTHORING.md](docs/AUTHORING.md). Incremental preview/file-copy Save As/export:
 [PREVIEW_EXPORT.md](docs/PREVIEW_EXPORT.md). Final native-platform/performance and E05
 installed-Client authoring acceptance remain open.
+
+
+Reproducible offline synthetic reference projects, frozen source/generated hashes,
+capacity accounting and scoped validation: [REFERENCE_MAPS.md](docs/REFERENCE_MAPS.md).
+These development fixtures do not establish representative-map performance acceptance.

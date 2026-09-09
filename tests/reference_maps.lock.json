@@ -1,0 +1,512 @@
+{
+  "baseline": {
+    "attributions": [
+      {
+        "license": "MIT",
+        "notice": "Original synthetic geometry and terrain; no external datasets; not a surveyed region",
+        "source": "p01-synthetic-v1"
+      }
+    ],
+    "authored_object_count": 2581,
+    "bounds_cm": {
+      "max": [
+        1000000,
+        1000000
+      ],
+      "min": [
+        0,
+        0
+      ]
+    },
+    "capacity": {
+      "base_package_bytes": 29566,
+      "base_target_bytes": 50000000,
+      "base_target_met": true,
+      "total_package_bytes": 29566,
+      "user_asset_compressed_bytes": 0
+    },
+    "cell_count": 400,
+    "cell_size_cm": 51200,
+    "counts": {
+      "assets": 0,
+      "buildings": 700,
+      "heightmaps": 400,
+      "nodes": 441,
+      "placements": 0,
+      "repetitions": 0,
+      "roads": 840,
+      "zones": 200
+    },
+    "generated_cells": {
+      "0/0": "363186008f42cafc1a64e536f1d157bdd3bf9c0585fcbabc8b20b3b52a1664e3",
+      "0/9": "19dc00f6587b8e7c68b4fa0d54a08c9875343ae1f9dd703273de955b1f62765c",
+      "11/11": "4dbff59efba7d7186aadc884bdca09f3844475d6119b81dcc841d6599fa800e5",
+      "18/18": "c711141cce6bb642ea1c10fd011e4a0e21eadb7419d48edd27693d32a98685ab",
+      "19/19": "6402cc45d392db72b7bd2923991e2da81fad25ec1721e2bf4a3ff3bbe12022b4",
+      "9/0": "0feb57ba81844bf5cd112dfd672b9325950456c67568eb387fee55483f2eb34f",
+      "9/9": "52f4c4d91862f4c853445188871f048eac6eb9376ea7716bb5720bd514300871"
+    },
+    "inspection": {
+      "base_data_bytes": 395021,
+      "cell_count": 400,
+      "expanded_bytes": 395021,
+      "package_bytes": 29566,
+      "package_sha256": "2135981b3caf810932d48f6ca8fb8ca78725cb134c7737d0b0e747432ccd2435",
+      "retained_memory_bytes": 14443178,
+      "user_asset_bytes": 0,
+      "validation_peak_bytes": 320771110,
+      "world_content_hash": "708bd6bc977d84679279e2c60e3a643d6ddd04a704be0581e0e9e93b9259ebc5"
+    },
+    "map_id": "p01-synthetic-v1-10km",
+    "profile": "p01-synthetic-v1",
+    "quadrants": [
+      {
+        "bounds": {
+          "max": [
+            500000,
+            500000
+          ],
+          "min": [
+            0,
+            0
+          ]
+        },
+        "buildings": 400,
+        "id": "urban"
+      },
+      {
+        "bounds": {
+          "max": [
+            1000000,
+            500000
+          ],
+          "min": [
+            500000,
+            0
+          ]
+        },
+        "buildings": 200,
+        "id": "residential"
+      },
+      {
+        "bounds": {
+          "max": [
+            500000,
+            1000000
+          ],
+          "min": [
+            0,
+            500000
+          ]
+        },
+        "buildings": 100,
+        "id": "rural"
+      },
+      {
+        "bounds": {
+          "max": [
+            1000000,
+            1000000
+          ],
+          "min": [
+            500000,
+            500000
+          ]
+        },
+        "buildings": 0,
+        "id": "forest"
+      }
+    ],
+    "road_centerline_planar_m": 420000.0,
+    "road_centerline_spatial_m": 420000.0,
+    "routes": [
+      {
+        "id": "east-west",
+        "purpose": "continuous flat connected road; 19 x-cell boundaries each way",
+        "start_cm": [
+          1000,
+          0,
+          50000
+        ],
+        "surface": "ew-0-1",
+        "waypoints_cm": [
+          [
+            1000,
+            0,
+            50000
+          ],
+          [
+            999000,
+            0,
+            50000
+          ]
+        ]
+      },
+      {
+        "id": "north-south",
+        "purpose": "continuous flat connected road; 19 y-cell boundaries each way",
+        "start_cm": [
+          50000,
+          0,
+          1000
+        ],
+        "surface": "ns-1-0",
+        "waypoints_cm": [
+          [
+            50000,
+            0,
+            1000
+          ],
+          [
+            50000,
+            0,
+            999000
+          ]
+        ]
+      }
+    ],
+    "source_files": {
+      "document.json": "e7d12852bd49a773df71f1c357fc39aba2576eaf433ef82aa330b48af9b8aef8",
+      "terrain/flat.png": "cfc5e674bb900da72162e4d7a9f6225a4497d8d31ed5f7ea09695ffac6a6fad8",
+      "terrain/hill.png": "b30ad568b7101067a30156cfc3d72ebfed31381ad9422aa8634666b51bcc8615"
+    },
+    "terrain": {
+      "description": "synthetic PNG16, 1 cm quantization, zero shared edges",
+      "source_accuracy_cm": null,
+      "spacing_cm": 200
+    },
+    "world_scale": 0.125
+  },
+  "baseline-user": {
+    "attributions": [
+      {
+        "license": "MIT",
+        "notice": "Original synthetic geometry and terrain; no external datasets; not a surveyed region",
+        "source": "p01-synthetic-v1"
+      }
+    ],
+    "authored_object_count": 2583,
+    "bounds_cm": {
+      "max": [
+        1000000,
+        1000000
+      ],
+      "min": [
+        0,
+        0
+      ]
+    },
+    "capacity": {
+      "base_package_bytes": 29903,
+      "base_target_bytes": 50000000,
+      "base_target_met": true,
+      "total_package_bytes": 30000,
+      "user_asset_compressed_bytes": 97
+    },
+    "cell_count": 400,
+    "cell_size_cm": 51200,
+    "counts": {
+      "assets": 1,
+      "buildings": 700,
+      "heightmaps": 400,
+      "nodes": 441,
+      "placements": 1,
+      "repetitions": 0,
+      "roads": 840,
+      "zones": 200
+    },
+    "generated_cells": {
+      "0/0": "69d32e1ea7e46aaef10bf3e8959615aca58db658997a37dc39166822a1187bfa"
+    },
+    "inspection": {
+      "base_data_bytes": 395754,
+      "cell_count": 400,
+      "expanded_bytes": 395961,
+      "package_bytes": 30000,
+      "package_sha256": "18615694e14e888f1fff0b825902febb8f1f5929d851ca985ca69d71023b29fc",
+      "retained_memory_bytes": 14469666,
+      "user_asset_bytes": 207,
+      "validation_peak_bytes": 320885506,
+      "world_content_hash": "66bb4a2c09253bfb088f255352efcf12a9d66944ba688c45cfb9918543918345"
+    },
+    "map_id": "p01-synthetic-v1-10km-user",
+    "profile": "p01-synthetic-v1",
+    "quadrants": [
+      {
+        "bounds": {
+          "max": [
+            500000,
+            500000
+          ],
+          "min": [
+            0,
+            0
+          ]
+        },
+        "buildings": 400,
+        "id": "urban"
+      },
+      {
+        "bounds": {
+          "max": [
+            1000000,
+            500000
+          ],
+          "min": [
+            500000,
+            0
+          ]
+        },
+        "buildings": 200,
+        "id": "residential"
+      },
+      {
+        "bounds": {
+          "max": [
+            500000,
+            1000000
+          ],
+          "min": [
+            0,
+            500000
+          ]
+        },
+        "buildings": 100,
+        "id": "rural"
+      },
+      {
+        "bounds": {
+          "max": [
+            1000000,
+            1000000
+          ],
+          "min": [
+            500000,
+            500000
+          ]
+        },
+        "buildings": 0,
+        "id": "forest"
+      }
+    ],
+    "road_centerline_planar_m": 420000.0,
+    "road_centerline_spatial_m": 420000.0,
+    "routes": [
+      {
+        "id": "east-west",
+        "purpose": "continuous flat connected road; 19 x-cell boundaries each way",
+        "start_cm": [
+          1000,
+          0,
+          50000
+        ],
+        "surface": "ew-0-1",
+        "waypoints_cm": [
+          [
+            1000,
+            0,
+            50000
+          ],
+          [
+            999000,
+            0,
+            50000
+          ]
+        ]
+      },
+      {
+        "id": "north-south",
+        "purpose": "continuous flat connected road; 19 y-cell boundaries each way",
+        "start_cm": [
+          50000,
+          0,
+          1000
+        ],
+        "surface": "ns-1-0",
+        "waypoints_cm": [
+          [
+            50000,
+            0,
+            1000
+          ],
+          [
+            50000,
+            0,
+            999000
+          ]
+        ]
+      }
+    ],
+    "source_files": {
+      "assets/white.png": "cfc5e674bb900da72162e4d7a9f6225a4497d8d31ed5f7ea09695ffac6a6fad8",
+      "document.json": "e4df860c0ad5e6aea972a9b76747e9ab9cdc2bd6447a421729057fb4947410d5",
+      "terrain/flat.png": "cfc5e674bb900da72162e4d7a9f6225a4497d8d31ed5f7ea09695ffac6a6fad8",
+      "terrain/hill.png": "b30ad568b7101067a30156cfc3d72ebfed31381ad9422aa8634666b51bcc8615"
+    },
+    "terrain": {
+      "description": "synthetic PNG16, 1 cm quantization, zero shared edges",
+      "source_accuracy_cm": null,
+      "spacing_cm": 200
+    },
+    "world_scale": 0.125
+  },
+  "structures": {
+    "attributions": [
+      {
+        "license": "MIT",
+        "notice": "Original synthetic geometry and terrain; no external datasets; not a surveyed region",
+        "source": "p01-synthetic-v1"
+      }
+    ],
+    "authored_object_count": 24,
+    "bounds_cm": {
+      "max": [
+        102400,
+        102400
+      ],
+      "min": [
+        0,
+        0
+      ]
+    },
+    "capacity": {
+      "base_package_bytes": 1798,
+      "base_target_bytes": 50000000,
+      "base_target_met": true,
+      "total_package_bytes": 1798,
+      "user_asset_compressed_bytes": 0
+    },
+    "cell_count": 4,
+    "cell_size_cm": 51200,
+    "counts": {
+      "assets": 0,
+      "buildings": 2,
+      "heightmaps": 0,
+      "nodes": 12,
+      "placements": 1,
+      "repetitions": 1,
+      "roads": 7,
+      "zones": 1
+    },
+    "generated_cells": {
+      "0/0": "36b5a047170f46fe0f36fd358ac4e1568ee37af08ab01a4138dfc46fba4450c8",
+      "0/1": "a525e889117723356e17075a2d4bc88d7ba7882eb1c31eaa77de0a5e123194b0",
+      "1/0": "9fd803f089373c1e840cf1b08593cb27a95885ba207db8ba64203509c82dabaf",
+      "1/1": "274e443453090237227b4aead7cad9f4f5a38565e65fea2a60aca4a5e068029c"
+    },
+    "inspection": {
+      "base_data_bytes": 4495,
+      "cell_count": 4,
+      "expanded_bytes": 4495,
+      "package_bytes": 1798,
+      "package_sha256": "a89129d104116bc8df7f89dab1d36a39f84e32309d5e163c3c2d4917e793e8cb",
+      "retained_memory_bytes": 1203662,
+      "user_asset_bytes": 0,
+      "validation_peak_bytes": 10027386,
+      "world_content_hash": "36bd47dda37b89408a2fc5a01336795bc1100daef9c29d3113ed45e416dba85b"
+    },
+    "limitations": [
+      "Bridge/elevated decks require explicit surface spawn; no connected ground approach is authored.",
+      "No real-world source accuracy or performance calibration."
+    ],
+    "map_id": "p01-synthetic-v1-structures",
+    "profile": "p01-synthetic-v1",
+    "road_centerline_planar_m": 3972.0,
+    "road_centerline_spatial_m": 3972.414216,
+    "routes": [
+      {
+        "id": "underpass",
+        "purpose": "grade entrances, walls, seam; tunnel also ceiling",
+        "start_cm": [
+          1000,
+          0,
+          50000
+        ],
+        "surface": "underpass",
+        "waypoints_cm": [
+          [
+            0,
+            0,
+            50000
+          ],
+          [
+            10000,
+            0,
+            50000
+          ],
+          [
+            25000,
+            -500,
+            50000
+          ],
+          [
+            75000,
+            -500,
+            50000
+          ],
+          [
+            92400,
+            0,
+            50000
+          ],
+          [
+            102400,
+            0,
+            50000
+          ]
+        ]
+      },
+      {
+        "id": "tunnel",
+        "purpose": "grade entrances, walls, seam; tunnel also ceiling",
+        "start_cm": [
+          1000,
+          0,
+          80000
+        ],
+        "surface": "tunnel",
+        "waypoints_cm": [
+          [
+            0,
+            0,
+            80000
+          ],
+          [
+            10000,
+            0,
+            80000
+          ],
+          [
+            25000,
+            -600,
+            80000
+          ],
+          [
+            75000,
+            -600,
+            80000
+          ],
+          [
+            92400,
+            0,
+            80000
+          ],
+          [
+            102400,
+            0,
+            80000
+          ]
+        ]
+      }
+    ],
+    "source_files": {
+      "document.json": "f601fa136833e4b339dcf848e278fee7ce32912a3e58e74989d6c6d0912637f0"
+    },
+    "terrain": {
+      "description": "implicit flat terrain",
+      "source_accuracy_cm": null,
+      "spacing_cm": null
+    },
+    "world_scale": 0.125
+  }
+}
