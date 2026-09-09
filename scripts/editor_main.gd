@@ -33,6 +33,8 @@ var drive_request: Dictionary = {}
 var last_drive_result: Dictionary = {}
 const AUTHOR_PANEL := preload("./authoring_panel.gd")
 var author_panel: AcceptDialog
+const DEM_PANEL := preload("./dem_panel.gd")
+var dem_panel: ConfirmationDialog
 const STORE := preload("./document_store.gd")
 const CANVAS := preload("./map_canvas.gd")
 const RENDERER := preload("res://addons/mapkit/godot/chunk_renderer.gd")
@@ -367,6 +369,7 @@ func _build_ui() -> void:
 	import_fields.add_child(import_source_format)
 	_button(import_fields, "Download Geofabrik region…", _open_download)
 	_button(import_fields, "Download Overture building area…", _open_overture)
+	_button(import_fields, "Import Copernicus DEM…", func(): dem_panel.open())
 	import_fields.add_child(import_license)
 	import_accuracy = LineEdit.new()
 	import_accuracy.placeholder_text = "Source accuracy / resolution (unknown if omitted)"
@@ -425,6 +428,9 @@ func _build_ui() -> void:
 	add_child(import_review)
 	_setup_download()
 	_setup_overture()
+	dem_panel = DEM_PANEL.new()
+	dem_panel.editor = self
+	add_child(dem_panel)
 	_build_test_drive_dialog()
 
 func _import_number(parent: Control, title: String, minimum: float, maximum: float, initial: float, step_size: float) -> SpinBox:
@@ -944,7 +950,7 @@ func _process(_delta: float) -> void:
 		var progress: Dictionary = import_job.progress
 		if not progress.is_empty():
 			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
-			validation_label.text = "%s %s · %d / %d %s" % ["Overture captured snapshot" if acquisition_mode == "overture" else "Import", progress.stage, progress.completed, progress.total, progress.unit]
+			validation_label.text = "%s %s · %d / %d %s" % ["Overture captured snapshot" if acquisition_mode == "overture" else "DEM" if acquisition_mode.begins_with("dem") else "Import", progress.stage, progress.completed, progress.total, progress.unit]
 		if import_job.done:
 			var result: Dictionary = import_job.result
 			import_job = null
@@ -1244,6 +1250,9 @@ func _begin_acquisition(request: Dictionary) -> void:
 func _finish_acquisition(result: Dictionary) -> void:
 	var mode := acquisition_mode
 	acquisition_mode = ""
+	if mode.begins_with("dem"):
+		dem_panel.finish(mode,result)
+		return
 	if not result.ok:
 		download_summary.text = str(result.error.message)
 		_status("E_DOWNLOAD: " + str(result.error.message))

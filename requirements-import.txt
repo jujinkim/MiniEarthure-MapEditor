@@ -5,3 +5,6 @@ osmium==4.3.1
 
 # Optional Overture area reader (public STAC/S3 + WKB).
 overturemaps==1.0.2
+
+# Optional local Copernicus COG decoding; no GDAL network reads.
+rasterio==1.4.4

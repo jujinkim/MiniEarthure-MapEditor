@@ -23,6 +23,7 @@ var progress := {}
 var terminal := {}
 var sequence := 0
 var phase := -1
+var progress_limit := 32 * 1024 * 1024
 var stages := ["read", "parse", "convert", "write", "complete"]
 var done := false
 var result := {}
@@ -102,13 +103,13 @@ func _event(line: PackedByteArray) -> void:
 		return
 	sequence += 1
 	var index := stages.find(raw.get("stage"))
-	if index < phase or index > phase + 1 or index < 0 or not terminal.is_empty() or not LAYER._count(raw.get("completed"), 32 * 1024 * 1024) or not LAYER._count(raw.get("total"), 32 * 1024 * 1024) or raw.completed > raw.total:
+	if index < phase or index > phase + 1 or index < 0 or not terminal.is_empty() or not LAYER._count(raw.get("completed"), progress_limit) or not LAYER._count(raw.get("total"), progress_limit) or raw.completed > raw.total:
 		_fail("Invalid import progress counters/stage.")
 		return
 	if index == phase and (raw.total != progress.total or raw.completed < progress.completed):
 		_fail("Import progress regressed.")
 		return
-	if raw.get("unit") != ("features" if raw.get("stage") == "convert" else "bytes"):
+	if raw.get("unit") != ("features" if raw.get("stage") == "convert" else "samples" if raw.get("stage") == "sample" else "bytes"):
 		_fail("Invalid import progress unit.")
 		return
 	phase = index
@@ -186,7 +187,7 @@ func shutdown() -> void:
 func cleanup() -> void:
 	if directory == "": return
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py", "osm_download.py", "request.json", "download.part", "layer.json"]:
+	for name in ["geojson.py", "import_layer.py", "projection.py", "osm_extract.py", "overture_area.py", "osm_download.py", "copernicus_dem.py", "dem.png.part", "request.json", "download.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)

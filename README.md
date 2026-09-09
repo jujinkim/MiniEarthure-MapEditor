@@ -93,7 +93,10 @@ owner shutdown and a parent-EOF watchdog stop helpers. OSM needs optional osmium
 4.3.1 and imports supported simple ways; incomplete/structural/area-relation
 geometry rejects rather than flattening. Terrain authoring also supports staged
 PNG16 review and explicit active-tile adoption. OSM downloads, general OSM
-geometry, Overture and Copernicus DEM remain subsequent work.
+geometry remains outside that profile. Overture building-area snapshots and Copernicus
+2021 DEM (one source tile/one local cell, explicit EGM2008 zero and bilinear
+sampling) are available through the import dialog; see the scoped contracts and
+remaining multi-theme/multi-cell limits in [IMPORTS](docs/IMPORTS.md).
 
 Linux native build, command/save/recovery/export and rendered preview are tested.
 E01 Mac pointer/key, layer/property/panel and graph-safety checks are scoped

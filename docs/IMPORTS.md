@@ -45,7 +45,7 @@ I01/I03 Mac import/native/document, rendered adoption and compiled resource-PCK
 checks are scoped evidence. Actual Windows/Linux exported filesystem/UI and
 installed Client acceptance remain open. WGS84 projection is implemented below;
 The staged local heightmap and local OSM extract profiles are documented below;
-The bounded OSM and Overture download profiles below are implemented; DEM remains I02.
+The bounded OSM/Overture download and Copernicus DEM profiles below are implemented.
 
 ## Local process lifecycle (I03)
 
@@ -188,8 +188,8 @@ immutable file installation preserve original files and saved packages on failur
 
 This small one-cell profile reuses E03 bounded synchronous PNG/native/file work;
 it does not claim cancellable in-stage processing, subprocess progress or RSS/frame
-latency acceptance. Cancel applies to the pending review. Larger/reprojected DEM
-and external adapters still require I03 process ownership and stage progress.
+latency acceptance. Cancel applies to the pending review. The Copernicus profile below adds owned-process geographic sampling. Larger multi-cell
+DEM mosaics remain unimplemented.
 No package schema, MapKit generator or game dependency changes are introduced.
 
 Checks (synthetic sources; isolated public project/user data):
@@ -420,3 +420,111 @@ Client drive remain acceptance work. Use licensed supported-size data in an isol
 validation project, record release/query/bytes/source hashes and test interrupted
 transfer/retry, explicit origin/import/adoption/recovery/export/Client drive. Do
 not infer whole-area/general-theme support from the synthetic fixtures.
+
+
+## Copernicus 2021 DEM (I02 bounded raster source)
+
+**Import vector → Import Copernicus DEM…** opens a separate terrain wizard. Save
+first; enter WGS84 longitude/latitude and its local x/y, target cell, spacing, and
+**EGM2008 height in metres corresponding to local height zero**. This does not
+convert orthometric heights to ellipsoidal heights. Local terrain is sampled
+EGM2008 height minus the explicit zero, in centimetres. No previous map is
+reprojected or vertically shifted by opening this dialog.
+
+Choose a local **2021 GLO-30 COG** or explicitly enable an AWS download. Local
+source identity is user-declared, not authenticated by filename or fingerprint.
+**Review area, source size and license / retry** calculates the projected full-cell
+area and captures local size/SHA-256, or HEADs the exact official GLO-30 tile.
+If explicitly enabled, only GLO-30 **HTTP 404** selects GLO-90. Review displays the
+actual resolution/fallback, tile URL, size, ETag, license, DSM warning and origins.
+403, rate limits, timeout, invalid data and missing sample support never trigger
+fallback or fabricated zero terrain. The optional GLO-90 choice applies to remote
+acquisition; local files in this profile are GLO-30.
+
+**Acquire reviewed source and sample** rechecks the plan, uses If-Match for a
+complete GET and captures bytes in an exclusive file in `user://import-sources`.
+Known source size is required, at most **64 MiB**. No redirects, transparent HTTP
+encoding, automatic retries or credential/proxy discovery are used. Reviews expire
+after ten minutes; changed size/identity/options require a new review. A complete
+COG and adjacent receipt are preserved even if later raster/native checks fail.
+Partial files belong only to the request; cancellation/owner close/parent EOF and
+the existing 120-second watchdog stop the child. Retry creates a new request and
+source identity; no existing original, capture, project or package is overwritten.
+The PNG is also published exclusively, after complete encoding. Cancellation after
+publication may retain a complete source/PNG without selecting or adopting it.
+
+The independent Python requires `rasterio==1.4.4` and existing `pyproj==3.7.2`;
+install `requirements-import.txt` explicitly. No installation or private code is
+performed by the Editor. Rasterio/GDAL reads only the captured local GTiff, with
+sidecar discovery disabled and a 16 MiB GDAL cache setting. The adapter admits a
+single-band, unscaled float32 north-up EPSG:4326 raster in the documented AWS
+2021 COG tile/sample-centre layout. The COG's removed south/east samples are
+accounted for. Bilinear interpolation uses full-resolution samples, never average
+overviews; missing/NaN/infinite support or a support crossing the source edge
+rejects rather than padding/clipping or silently looking at another tile.
+
+All target points use the existing offline single-strip/hemisphere/20 km UTM
+contract. A target cell is at most 1024 m, spacing divides the cell and is at least
+2 m, and there are at most 513 samples per side. The complete grid must fit one
+source tile. Source read windows are at most 1024² samples and storage blocks at
+most 2048² samples. Progress reports captured bytes and completed target samples
+as separate stages; native read/interpolation currently has start/end sample
+counters, not a smooth percentage. These admission/cache settings are not whole
+process RSS, frame latency or network speed guarantees. Main-thread final file
+hashing/native candidate checks remain bounded synchronous operations.
+
+PNG columns increase local easting and rows local northing. Heights round to
+nearest integer centimetres (ties to even), then to the smallest integer PNG step
+that fits unsigned 16-bit storage (1..100 cm). Review retains the explicit step,
+error bound, source window/resolution, pyproj/PROJ/rasterio/GDAL versions and the
+original COG SHA/size. Source accuracy remains **unknown** for this selected area;
+source spacing and output centimetres are not accuracy claims. Copernicus is a
+**DSM containing vegetation, buildings and infrastructure**, not bare-earth DTM.
+No building removal or terrain smoothing is inferred.
+
+After shared native MapKit validation, a second review offers **Adopt and activate
+tile / Discard**. It reuses the existing heightmap candidate: a fresh source layer,
+one active descriptor per cell, previous references, shared Undo/Redo budget,
+stale document/payload/lock rejection and atomic binary/text history. Attribution
+contains both the original source receipt and derived PNG identity/sampling
+contract. Native seams with active or implicit-flat neighboring cells must match;
+this unit does not silently flatten edges. In a multi-cell project an arbitrary
+new DEM tile may therefore reject. Multi-source mosaics and atomic multi-cell DEM
+adoption are **missing implementation**, not merely unverified performance.
+A one-cell project is the minimal supported end-to-end geographic terrain flow.
+
+Original synthetic COG-shaped fixtures exercise real Rasterio, projection, child
+IPC, PNG16/native validation, source identity, reimport/Undo/Redo/recovery/package
+preservation, cancellation/deadline/owner close, stale coordinates and review UI.
+The HTTP tests replace transport, not parsing/normalization. They test conditional
+GET, 404-only fallback, framing/size/identity/truncation/cancellation and exclusive
+publication. Actual live provider downloads, real terrain accuracy/DSM semantics,
+large areas, Windows/Linux native exports and installed Client driving remain
+separate acceptance. Run with an isolated user directory; never use user datasets
+as fixtures or clean up completed COG captures as test scratch.
+
+```sh
+.venv-import/bin/python -B -m unittest discover -s tests -p 'test_*.py' -v
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/.venv-import/bin/python --script dem_validator --script heightmap_import_validator --script import_job_validator --script download_validator --script overture_validator --log-dir /new/dem-core
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/.venv-import/bin/python --script dem_validator --rendered --log-dir /new/dem-rendered
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/.venv-import/bin/python --script dem_validator --resource-pack --log-dir /new/dem-resource
+```
+
+Official source contracts checked 2026-09-09:
+[AWS registry / 2021 release](https://registry.opendata.aws/copernicus-dem/),
+[COG dimensions, sample centres, naming and license](https://copernicus-dem-30m.s3.amazonaws.com/readme.html),
+[DSM, WGS84/EGM2008 and attribution](https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM),
+[Rasterio window/block reads](https://rasterio.readthedocs.io/en/stable/topics/windowed-rw.html).
+Data licenses are separate from this MIT adapter. The source notice is retained
+for adapted GLO-30/GLO-90 terrain; publishing derived data still follows the linked
+source license. This AWS 2021 path does not assert access to newer CDSE releases.
+
+2026-09-09 scoped Mac validation: 38 Python tests including 9 DEM tests passed;
+50 native DEM checks, 52 rendered checks with both 1024×720 dialogs inspected,
+and 50 checks against a compiled host resource PCK passed. Existing heightmap,
+ImportJob, Geofabrik, Overture and document-history regressions also passed.
+The runner uses copied public sources, isolated user data and original synthetic
+COGs. Runtime/MapKit generation did not change. Actual provider/OS/driving and
+multi-cell implementation limits above remain open; this is not final release
+acceptance. Rasterio reads emitted a NumPy 2.5 shape-setting deprecation warning
+in Python tests; native runner diagnostics were empty.
