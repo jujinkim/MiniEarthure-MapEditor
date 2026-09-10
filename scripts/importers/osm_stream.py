@@ -175,19 +175,21 @@ def _potential(tags):
 
 
 def _structure_closure(db, event, size):
-    """Visit every incident highway at structural source nodes, transit structures.
+    """Visit all incident highways at structural/loop nodes; transit both kinds.
 
-    Ground roads are included whole but are never traversal edges. A separate
+    Open ground approaches are included whole but are not traversal edges. A separate
     operation cap bounds dense incidence, in addition to payload/index quotas.
     """
     if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
         raise ValueError("OSM selected entity budget exceeded")
     pending, admitted = deque(), set()
-    for (way,) in db.execute("SELECT s.id FROM structural_ways s JOIN chosen c ON c.id=s.id ORDER BY s.id"):
+    # Probe only admitted IDs. A whole-source UNION could build an unbudgeted
+    # temporary set containing millions of unrelated ways before first yield.
+    for (way,) in db.execute("SELECT c.id FROM chosen c WHERE EXISTS (SELECT 1 FROM structural_ways s WHERE s.id=c.id) OR EXISTS (SELECT 1 FROM loop_ways l WHERE l.id=c.id) ORDER BY c.id"):
         if len(admitted) >= MAX_FEATURES: raise ValueError("OSM selected approach/feature budget exceeded")
         admitted.add(way)
         pending.append(way)
-    nodes, payload_bytes, references, visits, structures = set(), 0, 0, 0, 0
+    nodes, payload_bytes, references, visits, structures, loops = set(), 0, 0, 0, 0, 0
     event("index_relations", size, size)
     while pending:
         way = pending.popleft()
@@ -197,7 +199,8 @@ def _structure_closure(db, event, size):
         refs, _ = json.loads(raw)
         references += len(refs)
         if references > MAX_REFS: raise ValueError("OSM structure closure reference budget exceeded")
-        structures += 1
+        structures += bool(db.execute("SELECT 1 FROM structural_ways WHERE id=?", (way,)).fetchone())
+        loops += bool(db.execute("SELECT 1 FROM loop_ways WHERE id=?", (way,)).fetchone())
         for ref in refs:
             if ref in nodes: continue
             nodes.add(ref)
@@ -209,12 +212,13 @@ def _structure_closure(db, event, size):
                 if len(admitted) >= MAX_FEATURES: raise ValueError("OSM selected approach/feature budget exceeded")
                 admitted.add(peer)
                 db.execute("INSERT OR IGNORE INTO chosen VALUES(?)", (peer,))
-                if db.execute("SELECT 1 FROM structural_ways WHERE id=?", (peer,)).fetchone():
+                if db.execute("SELECT 1 FROM structural_ways WHERE id=? UNION ALL SELECT 1 FROM loop_ways WHERE id=?", (peer,peer)).fetchone():
                     pending.append(peer)
         event("index_relations", size, size)
     if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
         raise ValueError("OSM selected entity budget exceeded")
-    return dict(profile="structural-incidence-v1", ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits)
+    return dict(profile="loop-structural-incidence-v1" if loops else "structural-incidence-v1",
+                ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits, **(dict(loops=loops) if loops else {}))
 
 
 def extract(source, selected, directory, event=lambda *a: None, supplement=None):
@@ -243,6 +247,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None)
             CREATE TABLE chosen(id INTEGER PRIMARY KEY);
             CREATE TABLE road_nodes(node INTEGER, way INTEGER, PRIMARY KEY(node,way)) WITHOUT ROWID;
             CREATE TABLE structural_ways(id INTEGER PRIMARY KEY);
+            CREATE TABLE loop_ways(id INTEGER PRIMARY KEY);
 
         """)
         totals = dict(nodes=0, ways=0, relations=0, references=0)
@@ -287,6 +292,8 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None)
                 db.executemany("INSERT OR IGNORE INTO road_nodes VALUES(?,?)", ((ref,entity.id) for ref in refs))
                 if any(tags.get(k, "no") not in ("no", "0") for k in ("bridge", "tunnel")):
                     db.execute("INSERT INTO structural_ways VALUES(?)", (entity.id,))
+                elif len(refs) > 1 and refs[0] == refs[-1]:
+                    db.execute("INSERT INTO loop_ways VALUES(?)", (entity.id,))
             if _potential(tags) and intersects(box):
                 db.execute("INSERT INTO chosen VALUES(?)", (entity.id,))
         def relation(entity):

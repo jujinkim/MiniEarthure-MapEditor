@@ -89,6 +89,8 @@ static func frame_error(doc: Dictionary, frame: Dictionary, coordinates: Diction
 		if meta.get("adapter") == "osm-extract-v1" and meta.get("coordinates") is Dictionary and meta.get("layer_id") is String:
 			if not layers.has(meta.layer_id): continue
 			horizontal = meta.coordinates
+			# Source-connected estimated ground loops have no vertical datum.
+			if horizontal.has("osm_ground_loops") and horizontal.get("vertical", {}).get("explicit_points", 0) == 0: continue
 			var declared: Variant = horizontal.get("vertical", {"target_crs":CRS.EGM96, "vertical_zero_m":0})
 			if declared is not Dictionary: return "Existing OSM vertical provenance is incomplete."
 			other = declared

@@ -51,7 +51,10 @@ func run() -> void:
 		check(roads[1].points[2][1] == 600 and roads[4].points[2][1] == -600 and roads[4].clearance_cm == 450,"explicit grades and physical clearance survive")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo() == "" and ui.store.document.roads.is_empty(),"one-command undo removes whole structure graph")
-	check(ui.store.redo() == "" and ui.store.document == adopted,"redo restores exact graph")
+	# History updates last_edited; crossing a wall-clock second is not a graph
+	# mutation. Compare canonical content, then capture the current cancellation baseline.
+	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"redo restores exact graph")
+	adopted = ui.store.document.duplicate(true)
 	var base := ProjectSettings.globalize_path("user://structures-project")
 	check(ui.store.save_project(base) == "", "save structured source project")
 	var package := base + ".memap"

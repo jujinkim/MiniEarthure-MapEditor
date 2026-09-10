@@ -66,9 +66,11 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 if not isinstance(line, list) or len(line) < 2:
                     raise ValueError("road requires an array of at least two positions")
                 road_id = identity if kind == "LineString" else f"{identity}-part-{part}"
+                if osm_graph and "osm_loop_range" in properties: road_id += "-loop"
                 if "osm_node_refs" in properties and not osm_graph:
                     raise ValueError("OSM graph metadata requires the OSM conversion path; no silent flattening")
                 explicit = osm_graph and "elevations_m" in properties
+                connected = osm_graph and "osm_node_refs" in properties
                 elevations = properties.get("elevations_m") if explicit else [scalar("elevation_m", 0.2)] * len(line)
                 if not isinstance(elevations, list) or len(elevations) != len(line):
                     raise ValueError("road elevation profile must match coordinates")
@@ -78,7 +80,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     raise ValueError("level must be integral")
                 endpoints = []
                 for offset, suffix, p in [(0, "from", points[0]), (-1, "to", points[-1])]:
-                    node_id = f"import-{layer.layer_id}-osm-node-{properties['osm_node_refs'][offset]}" if explicit else road_id + "-" + suffix
+                    node_id = f"import-{layer.layer_id}-osm-node-{properties['osm_node_refs'][offset]}" if connected else road_id + "-" + suffix
                     record = {"id": node_id, "position": p, "level": int(level)}
                     if node_id in graph_nodes and graph_nodes[node_id] != record:
                         raise ValueError("OSM shared node has conflicting geometry")
@@ -91,7 +93,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 if "surface" not in properties: layer.estimate("surface")
                 layer.add("roads", {"id": road_id, "from": endpoints[0], "to": endpoints[1], "points": points,
                     "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": properties["road_kind"] if explicit else "ground", "clearance_cm": round(properties["clearance_m"] * 100) if explicit and "clearance_m" in properties else None, "sidewalk_cm": None})
-                if not explicit:
+                if not connected:
                     label = str(index) if kind == "LineString" else f"{index} part {part}"
                     layer.warning(f"{label}: disconnected endpoints; connect explicitly in Editor")
                 if kind == "MultiLineString":
@@ -142,6 +144,14 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             raise ValueError(f"unsupported geometry {kind}; no features imported")
         if progress and (index % 100 == 0 or index + 1 == len(features)):
             progress(index + 1, len(features))
+    if osm_graph and value.get("osm_ground_loops"):
+        retained = []
+        for index, feature in enumerate(features):
+            p = feature["properties"]
+            if "osm_loop_range" not in p: continue
+            retained.append(dict(road_id=f"import-{layer.layer_id}-{index}-loop", source_way=str(p["osm_way_id"]),
+                source_range=p["osm_loop_range"], refs=list(map(str,p["osm_node_refs"])), explicit_height="elevations_m" in p))
+        layer.coordinates["osm_ground_loops"] = dict(value["osm_ground_loops"], retained=retained)
     if osm_graph and value.get("osm_connections"):
         # Keep original source joins even when neither arm survives the crop.
         # Map each retained arm to the exact normalized output feature/way.

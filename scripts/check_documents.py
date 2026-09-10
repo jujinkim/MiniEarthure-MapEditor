@@ -70,6 +70,7 @@ def main():
         if args.script:
             scripts = args.script
         elif args.full:
+            scripts.append('osm_loops_validator')
             scripts.append('multilines_validator')
             scripts.append('import_review_validator')
             scripts.append('vertical_validator')

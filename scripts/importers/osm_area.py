@@ -28,7 +28,8 @@ def explicit_parts(feature, selected, identity):
     IDs are local to this feature/segment; position equality is not connectivity.
     """
     p = feature["properties"]
-    coordinates, refs, heights = feature["geometry"]["coordinates"], p["osm_node_refs"], p["elevations_m"]
+    coordinates, refs = feature["geometry"]["coordinates"], p["osm_node_refs"]
+    heights = p.get("elevations_m")
     current = None
     for index, (a, b) in enumerate(zip(coordinates, coordinates[1:])):
         if a == b:
@@ -42,8 +43,8 @@ def explicit_parts(feature, selected, identity):
         lo, hi = interval
 
         def endpoint(t, side):
-            if t == 0: return list(a), refs[index], heights[index]
-            if t == 1: return list(b), refs[index+1], heights[index+1]
+            if t == 0: return list(a), refs[index], heights[index] if heights is not None else None
+            if t == 1: return list(b), refs[index+1], heights[index+1] if heights is not None else None
             point = [max(selected[k], min(selected[k+2], a[k]+t*(b[k]-a[k]))) for k in range(2)]
             # Preserve the selected boundary exactly (including corner ties),
             # rather than retaining cancellation error from a + t * delta.
@@ -51,17 +52,20 @@ def explicit_parts(feature, selected, identity):
                 if b[axis] != a[axis]:
                     for boundary in (selected[axis], selected[axis+2]):
                         if t == (boundary-a[axis])/(b[axis]-a[axis]): point[axis] = boundary
-            return point, f"crop-{identity}-{index}-{side}", heights[index]+t*(heights[index+1]-heights[index])
+            return point, f"crop-{identity}-{index}-{side}", heights[index]+t*(heights[index+1]-heights[index]) if heights is not None else None
 
         start, end = endpoint(lo, "in"), endpoint(hi, "out")
         if current is None:
             span = [index + lo, index + hi]
-            current = dict(type="Feature", properties=dict(p, osm_node_refs=[start[1]], elevations_m=[start[2]]),
+            current = dict(type="Feature", properties=dict(p, osm_node_refs=[start[1]]),
                            geometry=dict(type="LineString", coordinates=[start[0]]))
+            if heights is not None: current["properties"]["elevations_m"] = [start[2]]
+            if "osm_loop_range" in p: current["properties"]["osm_loop_range"] = [p["osm_loop_range"][0]+span[0],0]
         span[1] = index + hi
         current["geometry"]["coordinates"].append(end[0])
         current["properties"]["osm_node_refs"].append(end[1])
-        current["properties"]["elevations_m"].append(end[2])
+        if heights is not None: current["properties"]["elevations_m"].append(end[2])
+        if "osm_loop_range" in p: current["properties"]["osm_loop_range"][1] = p["osm_loop_range"][0]+span[1]
         if hi < 1:
             yield current, span
             current = None
@@ -87,7 +91,7 @@ def crop(collection, selected):
     output, budget = [], Budget()
     counts = dict(input_features=len(collection["features"]), outside_features=0, changed_features=0, output_features=0, boundary_contacts=0)
     points = 0
-    has_explicit = any("osm_node_refs" in f["properties"] for f in collection["features"])
+    has_explicit = any("elevations_m" in f["properties"] for f in collection["features"])
     vertical_counts = dict(clipped_ground_features=0, outside_explicit_features=0, retained_structure_features=0)
     retained_structures, incomplete_structures = set(), set()
     structure_sources = []
@@ -139,7 +143,7 @@ def crop(collection, selected):
                     spans.append(span)
                 if len(output) > before:
                     counts["changed_features"] += 1
-                    if not structure: vertical_counts["clipped_ground_features"] += 1
+                    if not structure and "elevations_m" in p: vertical_counts["clipped_ground_features"] += 1
             if structure:
                 for offset, span in enumerate(spans):
                     retained_structures.add(p["osm_way_id"])
@@ -149,7 +153,7 @@ def crop(collection, selected):
             if len(output) == before:
                 counts["outside_features"] += 1
                 counts["boundary_contacts"] += source.intersects(window)
-                vertical_counts["outside_explicit_features"] += 1
+                if "elevations_m" in p: vertical_counts["outside_explicit_features"] += 1
             continue
         clipped = source.intersection(window)
         expected = "LineString" if source.geom_type == "LineString" else "Polygon"
@@ -210,4 +214,5 @@ def crop(collection, selected):
             meta["vertical"].update(profile="explicit-connected-structure-crop-v1", connection_sections=sorted(connection_sections))
     result = dict(type="FeatureCollection", features=output)
     if connections: result["osm_connections"] = connections
+    if "osm_ground_loops" in collection: result["osm_ground_loops"] = collection["osm_ground_loops"]
     return result, meta

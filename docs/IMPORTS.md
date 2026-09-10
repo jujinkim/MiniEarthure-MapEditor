@@ -2282,13 +2282,95 @@ installed builds, real-region accuracy, driving and performance are still open.
 | Source family | Current capability and independent remaining work |
 | --- | --- |
 | GeoJSON | Multipart lines now join existing LineString and polygon/courtyard support. Arbitrary geometry collections, point semantics and structural profiles remain unsupported. |
-| OSM | Explicit structures, connected junctions, partial crop and local height supplements are delivered. Closed ground highway ways still require explicit segmentation; closed-loop connectivity, native junctions and crop/stream completeness need a separate contract. |
+| OSM | Explicit structures, connected junctions, partial crop and local height supplements are delivered. The closed ground-road extension below now supplies source-node segmentation, ground approaches and crop/stream completeness. Direct structural mouths on loops, closed structural ways and other unsupported semantics remain separate. |
 | Overture | Building parts/courtyards, ground transportation intervals/connectors and land-cover forests are delivered. Bridge/tunnel heights, other flags/classes and larger selected areas remain unsupported. |
 | DEM/PNG | Local COG mosaics and staged full-cell PNGs are delivered. General geoid file preparation, broader raster profiles and larger selections remain separate from this line-geometry adapter. |
 
-Next source unit: bounded **OSM closed ground-road input and explicit connectivity**.
+Historical next source unit (now delivered below): bounded **OSM closed ground-road input and explicit connectivity**.
 Start with the closed-road refusal in `osm_extract.parse`, `split_vertical_roads`,
 `osm_area.crop` and `osm_stream.extract`; define original-node identities, incident
 approaches, deterministic segmentation and native acceptance before changing the
 refusal. This is a distinct OSM graph/crop/stream task, not more multipart-line
 normalization. Remote source acquisition remains excluded; do not simply raise caps.
+
+## Closed OSM ground roads and explicit connections — 2026-09-10
+
+This extension replaces the earlier closed-highway refusal **only for simple
+ground loops and their incident ground approaches**. It uses public MapKit's
+existing road/node contract. No native, recipe, package or ABI change is required.
+
+- A closed way needs at least three distinct original nodes plus the repeated
+  closing reference. Repeated interior nodes/positions, backtracks, self-crossings,
+  zero area/segments, missing nodes and unsupported highway/area/vertical tags
+  reject the complete candidate. The existing shared two-million topology-operation
+  budget also covers loop boundaries before crop. No repair or node welding occurs.
+- Split a loop at **every original source vertex**, in source way-ID order and
+  original traversal direction. Each pair becomes an open road with original OSM
+  endpoint IDs; the final segment reconnects to the first node. No self-edge is
+  emitted. Road width/surface and estimated-field counts apply to output segments.
+  An isolated loop is supported. Rotating/reversing a way changes traversal, while
+  reordering entities does not change normalized output.
+- Every ground highway incident to a loop's original node is collected whole.
+  Split those approaches at shared graph nodes, including interior nodes. Only
+  source ID equality creates connections; coincident unshared nodes remain separate.
+  Ordinary unconnected ground ways retain their earlier independent-endpoint profile.
+  Direct bridge/tunnel incidence on the loop and closed structural ways remain
+  rejected; handling their mouths/clearance is a separate vertical graph unit.
+- Ground input without `ele` retains the existing estimated 0.2 m authored profile;
+  **recipe 2 ground surfaces follow terrain**, not that estimate. No EGM96 datum is
+  invented for these nodes. Explicit elevations must still cover the entire way;
+  all original-height validation/conversion happens before crop. Existing explicit
+  imports/DEM datum checks remain; estimated loop notices do not lock future data
+  to an invented vertical frame. Routing, one-way and roundabout priority semantics
+  remain omitted and are disclosed in review.
+- Bbox clipping walks each split segment in source order. Original boundary
+  vertices keep their IDs; fractional cuts receive unique feature/segment-local
+  IDs and never weld by position. Source ranges and height interpolation are
+  retained. Ground approaches may be clipped away; their original incidence stays
+  in provenance. Full-loop and all-incident validation always precede crop.
+- PBF streaming extends its existing bounded closure to traverse closed ground
+  ways as well as structures. Every incident highway is included even outside the
+  selected bbox, so an unsupported outside approach rejects. Open ground approaches
+  do not trigger unbounded network traversal. `structure_closure` keeps its old
+  profile when no loops are collected; `loop-structural-incidence-v1` additionally
+  records loop count. Existing payload/reference/incidence/index/deadline budgets
+  apply. Source PBF and unowned workspace files are never modified.
+
+`coordinates.osm_ground_loops`, profile `source-node-segments-v1`, records ordered
+source way IDs, exact original node sequences and whether each source is closed.
+Its retained array maps each output `-loop` road ID to its source way, interval,
+node references and explicit-height flag. Even cropped-away original ways remain
+reviewable. The Editor checks source order/closure/uniqueness/incidence, complete
+uncropped coverage, ordered nonoverlapping ranges, original-node identity,
+independent cut IDs, ground kind, point counts, endpoints and estimated heights.
+Missing or forged mappings reject. Summary and **Browse exact details** expose
+the contract and exact sequences; attribution notices preserve them in save,
+recovery and exported packages.
+
+Every retained loop graph requires explicitly selected **recipe 2+** and actual
+native generation of all affected road corridors, at most **16 cells**, during
+both review and adoption. The owned native supervisor requires nonzero completed
+generation; a zero-cell event cannot stand in for it. Existing 32-arm, 32 MiB
+snapshot/selected payload, 200,000 source refs/points, 20,000 features, 60,000 records,
+12 MiB result, 64 MiB payload, 16 MiB Undo and native geometry/work budgets remain.
+Splitting dense/short curves can exceed native mouth/work limits; rejection asks
+for a supported smaller/prepared extract and never silently simplifies the loop.
+These bounds do not certify real-region accuracy, memory or latency.
+
+The existing owned Python/Godot jobs, cancellation/deadline/EOF/cleanup, immutable
+review/adoption, source recheck and one-command Undo/Redo are reused. Tests use
+synthetic XML/PBF only. `test_osm_loops.py` checks conversion/crop/stream parity,
+outside approaches, heights, source preservation, exclusive output and quotas.
+`osm_loops_validator` exercises the compiled Editor, exact details, pointer adoption,
+actual road-owned floor continuity, native generation cancellation/deadline,
+stale/source mutation, crop adoption, save/recovery/package and native collapse.
+
+    python3 -B -m unittest discover -s tests -p 'test_osm*.py' -v
+    python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/import-python --script osm_loops_validator --script osm_structures_validator --script import_native_validator --resource-pack --log-dir /new/osm-loops
+
+Use `--rendered` and an existing `MAPEDITOR_LOOPS_CAPTURE_DIR` for native display
+review/details captures. Mac PCK/display checks do not replace installed Windows/
+Linux, actual driving/region accuracy, latency/RSS or final integration acceptance.
+Whole I02/I03/I04 and cutover remain open; remote source acquisition is excluded.
+Next waiting work is the separate I03 terrain-brush candidate validation/cancellation
+unit (`terrain_tools.finish/_plan`, canvas stroke lifetime and `authoring_files.apply`).

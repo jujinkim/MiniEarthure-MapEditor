@@ -75,9 +75,10 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if streaming.scan.nodes + streaming.scan.ways + streaming.scan.relations > 20000000 or streaming.selected.nodes + streaming.selected.ways + streaming.selected.relations > 250000 or not _count(streaming.selected.get("bytes"), 32 * 1024 * 1024): return "PBF streaming selection budget exceeded."
 		if streaming.has("structure_closure"):
 			var closure: Variant = streaming.structure_closure
-			if closure is not Dictionary or closure.get("profile") != "structural-incidence-v1": return "Invalid structural closure profile."
+			if closure is not Dictionary or closure.get("profile") not in ["structural-incidence-v1", "loop-structural-incidence-v1"]: return "Invalid structural closure profile."
 			for key in ["ways", "structures", "nodes", "visits"]:
 				if not _count(closure.get(key), 20000 if key in ["ways", "structures"] else 200000): return "Invalid structural closure budget."
+			if closure.profile == "loop-structural-incidence-v1" and (not _count(closure.get("loops"), 20000) or closure.loops < 1 or closure.loops + closure.structures > closure.ways or not raw.coordinates.has("osm_ground_loops")): return "Invalid OSM loop closure counts."
 			if closure.structures > closure.ways or closure.ways > streaming.selected.ways or closure.nodes > streaming.selected.nodes or closure.visits < closure.nodes: return "Invalid structural closure counts."
 	elif source.bytes > 32 * 1024 * 1024:
 		return "Non-streaming import source exceeds 32 MiB."
@@ -175,13 +176,15 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 			if patch.after.get("base_cm") != dimensions.base_cm or patch.after.get("height_cm") != dimensions.height_cm: return "Overture vertical dimensions changed."
 		ids[patch.id] = true
 		if patch.field == "nodes": nodes[patch.id] = true
-		if patch.field == "nodes" and patch.id.contains("-osm-node-") and raw.coordinates.has("vertical") and raw.coordinates.vertical.explicit_points == 0: return "Explicit OSM nodes require nonzero vertical source counts."
+		if patch.field == "nodes" and patch.id.contains("-osm-node-") and raw.coordinates.has("vertical") and raw.coordinates.vertical.explicit_points == 0 and not raw.coordinates.has("osm_ground_loops"): return "Explicit OSM nodes require nonzero vertical source counts."
 		if patch.field == "roads" and patch.after.get("kind") in ["bridge", "tunnel"]: structure_count += 1
 	if crop is Dictionary and crop.get("policy") in ["geometry-intersection-v2", "geometry-intersection-v3", "geometry-intersection-v4"] and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
 	for patch in raw.patches:
 		if patch.field == "roads" and (not nodes.has(patch.after.get("from")) or not nodes.has(patch.after.get("to"))): return "Imported roads must reference their own layer nodes."
 	var multiline_error: String = preload("./import_multilines.gd").validate(raw, get_script())
 	if multiline_error != "": return multiline_error
+	var loop_error: String = preload("./import_osm_loops.gd").validate(raw, get_script())
+	if loop_error != "": return loop_error
 	var connection_error := _structure_connections(raw, prefix)
 	if connection_error != "": return connection_error
 	if crop is Dictionary and crop.get("policy") in ["geometry-intersection-v3", "geometry-intersection-v4"]:
@@ -197,7 +200,10 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	# These already validated, <=256 KiB source documents are parsed once here;
 	# reopening the review does not parse raw JSON or traverse large mappings.
 	if value.coordinates.has("vertical"):
-		_review_prefix = preload("./import_vertical.gd").summary(value.coordinates.vertical) + "\n"
+		if value.coordinates.has("osm_ground_loops") and value.coordinates.vertical.explicit_points == 0:
+			_review_prefix = "No explicit OSM node heights. Ground heights are estimates; roads follow terrain. No source height datum was applied.\n"
+		else:
+			_review_prefix = preload("./import_vertical.gd").summary(value.coordinates.vertical) + "\n"
 	if value.coordinates.has("osm_height_supplement"):
 		_review_prefix += preload("./import_height_supplement.gd").summary(value.coordinates.osm_height_supplement) + "\n"
 	return ""
@@ -366,13 +372,16 @@ func has_structures() -> bool:
 		if patch.field == "roads" and patch.after.kind in ["bridge", "tunnel"]: return true
 	return false
 
+func requires_generation() -> bool:
+	return has_structures() or not value.get("coordinates", {}).get("osm_ground_loops", {}).get("retained", []).is_empty()
+
 func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 	if value.is_empty(): return "No import candidate."
 	if value.adapter == "osm-extract-v1":
 		var explicit := false
 		for patch: Dictionary in value.patches:
 			if patch.field == "nodes" and patch.id.contains("-osm-node-"): explicit = true; break
-		if explicit:
+		if explicit and (not value.coordinates.has("osm_ground_loops") or value.coordinates.get("vertical", {}).get("explicit_points", 0) > 0):
 			var frame: Dictionary = value.coordinates.get("vertical", {"target_crs":"EPSG:5773 / EGM96 metres", "vertical_zero_m":0})
 			var frame_error: String = preload("./import_vertical.gd").frame_error(store.document, frame, value.coordinates)
 			if frame_error != "": return frame_error
@@ -384,6 +393,9 @@ func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 	var result: Dictionary = store._validate(candidate)
 	if not result.ok: return store.reason(result)
 	if value.adapter == "osm-extract-v1":
+		if not value.coordinates.get("osm_ground_loops", {}).get("retained", []).is_empty():
+			if candidate.recipe_version < 2: return "OSM closed ground roads require explicit recipe 2 or newer for connected surfaces."
+			return _validate_structure_cells(store, result.data.document, context)
 		for patch: Dictionary in value.patches:
 			if patch.field == "roads" and patch.after.kind in ["bridge", "tunnel"]:
 				if candidate.recipe_version < 2: return "OSM bridges/tunnels require explicit recipe 2 or newer for connected surfaces."
@@ -431,7 +443,7 @@ func summary() -> String:
 	if value.is_empty(): return "No import candidate."
 	var text := preload("./import_review_text.gd")
 	var coordinates := {}
-	for key in ["mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_multilines", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
+	for key in ["mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
 		if value.coordinates.has(key): coordinates[key] = value.coordinates[key]
 	var estimates := ""
 	var count := 0

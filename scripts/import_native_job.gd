@@ -28,7 +28,9 @@ func start_validation(store: RefCounted, candidate: RefCounted, adopt: bool, sel
 	_attempted = true
 	if not LAYER._hex(token, 32) or candidate.value.is_empty(): return "Invalid vector validation request."
 	if adopt and not LAYER._hex(candidate.native_payload_digest, 64): return "Missing reviewed payload identity; import again."
-	structural = candidate.has_structures()
+	# Includes source-connected ground loops; zero generated cells cannot certify
+	# their native junction geometry either. Raster subclasses set this explicitly.
+	structural = candidate.requires_generation()
 	identity = token
 	import_kind = "native"
 	layer = candidate
@@ -111,8 +113,8 @@ func _event(line: PackedByteArray) -> void:
 	sequence += 1
 	phase = index
 	progress = raw
-	# Nonstructural imports validate/open the snapshot without generating cells.
-	# A zero-cell event cannot stand in for required structural surface checks.
+	# Plain vectors validate/open without generating cells. Structures and loop
+	# graphs require actual surface checks; zero cells cannot stand in for them.
 	if raw.stage == "generate": generated_all = (raw.total > 0 if structural else raw.total == 0) and raw.completed == raw.total
 	if raw.stage == "prepare": command_prepared = raw.total == 1 and raw.completed == 1
 	if raw.stage == "recheck": source_rechecked = raw.total == _source_bytes() and raw.completed == raw.total
