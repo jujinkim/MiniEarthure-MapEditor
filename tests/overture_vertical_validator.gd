@@ -25,18 +25,6 @@ func run() -> void:
 	ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512
 	ui.import_origin_y.value = 512
-	ui.overture_release.text = "2026-08-19.0"
-	var bounds := [9,55,9.001,55.001]
-	for i in range(4): ui.overture_bbox[i].value = bounds[i]
-	ui.overture_parts.button_pressed = true
-	ui.overture_ground.value = 2
-	ui._review_overture()
-	check(ui.overture_reviewed.include_parts and ui.overture_reviewed.ground_m == 2 and ui.overture_review.dialog_text.contains("building_part"), "review explicit dual query and ground")
-	ui.overture_ground.value = 3
-	check(ui.overture_reviewed.is_empty(), "ground change invalidates source review")
-	ui.overture_ground.value = 2
-	ui.overture_parts.button_pressed = false
-	check(not ui._overture_plan().has("include_parts"), "legacy query preserved")
 	var path := ProjectSettings.globalize_path("user://vertical.overture.json")
 	var output: Array = []
 	check(OS.execute(ui.import_python.text, PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/overture_fixture.py"),"--vertical",path]),output,true) == 0, "synthetic vertical source")

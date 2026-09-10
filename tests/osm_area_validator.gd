@@ -1,5 +1,5 @@
 extends SceneTree
-const FIXTURE := preload("res://tests/download_validator.gd")
+const UI := preload("res://scripts/editor_main.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 var failures: Array[String] = []
 var checks := 0
@@ -14,37 +14,18 @@ func wait_job(ui: Control) -> void:
 	while ui.busy and Time.get_ticks_msec()<deadline: await process_frame
 	check(not ui.busy,"owned job terminates: "+ui.status_label.text)
 func run() -> void:
-	var ui := FIXTURE.FixtureUI.new()
+	var ui := UI.new()
 	root.add_child(ui)
 	await process_frame
 	root.size = Vector2i(1024,720)
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	var before: Dictionary = ui.store.document.duplicate(true)
-	ui._open_download()
-	ui._begin_acquisition({"mode":"catalog"})
-	await wait_job(ui)
-	check(ui.osm_panel.regions.size()==1,"official catalog shape through owned worker")
-	ui.osm_panel.search.text="missing"
-	ui.osm_panel.search.text_changed.emit("missing")
-	check(ui.osm_panel.choices.item_count==0,"region search filters")
-	ui.osm_panel.search.text="monaco"
-	ui.osm_panel.search.text_changed.emit("monaco")
-	check(ui.osm_panel.choices.item_count==1,"region name search")
-	ui.osm_panel.choices.item_selected.emit(0)
-	check(ui.download_url.text.ends_with("monaco-latest.osm.pbf"),"explicit selection sets public URL")
-	ui._begin_acquisition({"mode":"probe","url":ui.download_url.text})
-	ui.download_url.text_changed.emit(ui.download_url.text)
-	await wait_job(ui)
-	check(ui.download_plan.is_empty(),"changed then restored region rejects late probe")
-	ui._begin_acquisition({"mode":"probe","url":ui.download_url.text})
-	await wait_job(ui)
-	check(not ui.download_plan.is_empty(),"fresh source review")
-	ui.download_dialog.hide()
-	ui.download_dialog.confirmed.emit()
-	await wait_job(ui)
-	var source: String = ui.last_import_source
-	check(FileAccess.file_exists(source),"source retained")
-	if source=="": quit(1); return
+	var source := ProjectSettings.globalize_path("user://local-crop.pbf")
+	var output: Array = []
+	check(OS.execute(ui.import_python.text, PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),source]),output,true)==0,"local synthetic PBF")
+	ui.import_source_format.select(1)
+	ui.import_source_format.item_selected.emit(1)
+	if not FileAccess.file_exists(source): quit(1); return
 	var original := FileAccess.get_sha256(source)
 	ui.import_origin_lon.value=9
 	ui.import_origin_lat.value=55

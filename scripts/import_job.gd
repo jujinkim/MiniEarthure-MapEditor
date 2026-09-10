@@ -204,7 +204,7 @@ func shutdown() -> void:
 func cleanup() -> void:
 	if directory == "": return
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "source.pbf.part", "source.pbf", "source-index.sqlite", "overture_area.py", "overture_transportation.py", "overture_land_cover.py", "osm_download.py", "copernicus_dem.py", "dem.png.part", "request.json", "download.part", "layer.json"]:
+	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "source.pbf.part", "source.pbf", "source-index.sqlite", "overture_area.py", "overture_transportation.py", "overture_land_cover.py", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)

@@ -6,7 +6,6 @@ This profile retains whole in-area segments and refuses unsupported semantics.
 from bisect import bisect_right
 import hashlib
 import json
-import sys
 from import_layer import ImportLayer, Source, MAX_INPUT, number, text, strict_json
 from projection import Coordinates
 import overture_area as area
@@ -33,15 +32,6 @@ def plan(release, bbox, ground_m):
 
 def checked_plan(value):
     return plan(value.get("release"), value.get("bbox"), value.get("ground_m"))
-
-
-def remote_features(query):
-    yield from area.read_features(query, ["segment", "connector"])
-
-
-def acquire(query, partial, destination, progress, features=remote_features):
-    return area.acquire(query, partial, destination, progress, features,
-                        checker=checked_plan, feature_limit=MAX_FEATURES)
 
 
 def identity(value):
@@ -362,10 +352,3 @@ def convert(parsed, source, raw, *, layer_id, coordinates, accuracy="unknown", p
     layer.warning("Complete segment/connector query required. Crossing bbox, missing refs, rail/water, restrictions, structures and incomplete/overlapping/conditional physical rules reject the whole candidate. No clipped or repaired graph.")
     layer.encode()
     return layer
-
-
-if __name__ == "__main__":
-    try: area.main(acquire)
-    except Exception as exc:
-        print(json.dumps({"error":str(exc)[:1024]}),file=sys.stderr)
-        sys.exit(1)

@@ -1,6 +1,5 @@
 """Bounded, reviewed forest-only Overture base/land_cover adapter (MIT)."""
 import json
-import sys
 import overture_area as area
 from import_layer import MAX_INPUT, number, text, strict_json
 from polygon_geometry import Budget, group_rings
@@ -19,15 +18,6 @@ def plan(release, bbox):
 
 def checked_plan(value):
     return plan(value.get("release"), value.get("bbox"))
-
-
-def remote_features(query):
-    yield from area.read_features(query, ["land_cover"])
-
-
-def acquire(query, partial, destination, progress, features=remote_features):
-    return area.acquire(query, partial, destination, progress, features,
-                        checker=checked_plan, feature_limit=MAX_FEATURES)
 
 
 def parse(raw):
@@ -120,10 +110,3 @@ def finish(layer, metadata):
     layer.warning("Forest spacing 8m / density 750 per mille, tree species/size/placement and terrain attachment are generated estimates, not source observations. No crop-to-orchard or wetland/mangrove-to-forest inference.")
     layer.encode()
     return layer
-
-
-if __name__ == "__main__":
-    try: area.main(acquire)
-    except Exception as exc:
-        print(json.dumps({"error":str(exc)[:1024]}),file=sys.stderr)
-        sys.exit(1)

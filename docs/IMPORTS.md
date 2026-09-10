@@ -1,5 +1,12 @@
 # Import boundary and adoption
 
+**Local files only (2026-09-10).** Obtain source files separately, then select them
+in the Editor. Direct Geofabrik catalog/probe/download, Overture remote readers
+and Copernicus availability/download controls and helper entry points are removed.
+No map-provider SDK or automatic fetch is needed. Existing sources, receipts,
+projects and packages remain untouched; their attribution and license notices stay.
+
+
 Editor-owned MIT adapters depend only on public tools. No MapServer/game module,
 private data or runtime generator is imported. `scripts/importers/import_layer.py`
 defines the version-1 typed interchange; `scripts/import_layer.gd` revalidates
@@ -9,7 +16,7 @@ Adapters include `geojson-v2` below and the bounded `osm-extract-v1` snapshot pr
 at the end of this document. Select the format explicitly in **Import vector**.
 The [PBF streaming extension](#osm-pbf-selected-area-streaming--2026-09-10)
 adds an explicit local-source profile beyond 32 MiB; earlier whole-source limits
-still apply when streaming is disabled and to the Geofabrik downloader.
+still apply when streaming is disabled.
 `geojson-v2`: explicit local-metre or WGS84 LineString, Polygon and MultiPolygon input.
 Forest/orchard polygon holes become existing zone exclusions; recipe-5 building holes
 are supported by the courtyard extension below, which supersedes earlier rejection.
@@ -49,7 +56,7 @@ I01/I03 Mac import/native/document, rendered adoption and compiled resource-PCK
 checks are scoped evidence. Actual Windows/Linux exported filesystem/UI and
 installed Client acceptance remain open. WGS84 projection is implemented below;
 The staged local heightmap and local OSM extract profiles are documented below;
-The bounded OSM/Overture download and Copernicus DEM profiles below are implemented.
+The bounded local Overture snapshot and Copernicus COG profiles below are implemented.
 
 ## Local process lifecycle (I03)
 
@@ -87,7 +94,7 @@ The resource mode compiles a host PCK then hides loose Editor product scripts/ma
 scene before executing the validator. It is not a native OS distribution and does
 not require repeating known missing-template exports. Supported-platform process,
 Python discovery/installation, native file dialogs and exported UI need actual OS
-runners. No network/download progress is claimed before external adapters exist.
+runners. Progress describes only local parsing, copying and sampling.
 
 Sources: [GeoJSON](https://www.rfc-editor.org/rfc/rfc7946),
 [Godot OS process API](https://docs.godotengine.org/en/stable/classes/class_os.html).
@@ -146,7 +153,7 @@ axis/radius/zone rejection, metadata/recovery/package/native generation and chan
 source → new layer → Undo/Redo without replacing an existing saved package (I04
 local vector scope). Existing E03 PNG16 authoring import remains a separate direct
 terrain-edit operation; the staged raster ImportLayer/reimport workflow below is a separate action.
-External OSM downloads/Overture/DEM adapters remain separate units.
+Other local source formats remain separate units; direct provider acquisition is outside scope.
 
 Projection references: [PROJ UTM](https://proj.org/en/stable/operations/projections/utm.html),
 [pyproj Transformer](https://pyproj4.github.io/pyproj/stable/api/transformer.html).
@@ -276,7 +283,7 @@ Simple existing single-ring GeoJSON/way output retains its previous record IDs.
 Review records assembled relation/outer/inner/member counts separately from ignored
 objects, retains source hash/ODbL and all dimension/material estimates, and adopts
 all parts/exclusions as one Undo command. New module `polygon_geometry.py` is copied
-into the existing owned import/download child and included in compiled resources;
+into the existing owned local import child and included in compiled resources;
 no new dependency, package schema, generator recipe or native ABI is introduced.
 
 Admission includes **all input entities**, even omitted ones: 32 MiB captured
@@ -313,9 +320,9 @@ python3 scripts/check_documents.py --godot /path/to/godot --import-python /absol
 
 Synthetic XML and real PBF serialization exercise parity, bounds, malformed input,
 omissions, process/native load, adoption/Undo/Redo, source/package preservation,
-recovery, cancellation and stale review. Downloads/remote extent selection,
-large-area processing, actual supported OS dialogs and representative source
-accuracy/performance remain unimplemented or unverified as separately named work.
+recovery, cancellation and stale review. Direct provider downloads are removed.
+Larger local areas, target OS dialogs and representative source accuracy/performance
+remain separately tracked implementation or verification work.
 
 Official contracts checked 2026-09-09:
 [pyosmium inputs](https://docs.osmcode.org/pyosmium/latest/user_manual/07-Input-Formats-And-Other-Sources/),
@@ -325,96 +332,31 @@ Official contracts checked 2026-09-09:
 
 ## Geofabrik region download wizard (I02 remote acquisition)
 
-From **Import vector → Download Geofabrik region**, paste a public `.osm.pbf`
-URL from [the provider region list](https://download.geofabrik.de/), then choose
-**Check region and size**. The review shows the complete provider region path,
-resolved dated URL, Content-Length when supplied, modification time, ODbL and
-contributor attribution. Unknown length is explicitly unknown; progress then
-uses the 32 MiB hard cap, not a promised final size or ETA. **Download reviewed
-region** is the separate acquisition action. Completed files appear under
-`user://import-sources`; set the WGS84/local origins and use **Import / retry last
-source** to reach the existing omission/estimate review and explicit adoption.
-The provider URL survives in source provenance; an adjacent JSON receipt retains
-headers, requested/resolved URLs, transfer bytes and SHA-256. A downloaded file
-is not automatically a valid/adopted map. The existing whole-input 32 MiB,
-20 km projection and the bounded way/multipolygon geometry limits still apply.
+**Removed on 2026-09-10.**
 
-This profile selects a whole predefined provider region by URL. The OSM area extension below adds a catalog browser and derived bbox crop; it
-does not increase whole-source download or large-region admission. Completed snapshots use the multipolygon assembly profile above. [Geofabrik's technical contract](https://download.geofabrik.de/technical.html)
-uses buffered polygons and complete crossing ways/multipolygons, so content may
-extend beyond nominal borders. Many regions therefore cannot yet be converted
-by the bounded local adapter. [Provider licensing](https://www.geofabrik.de/data/download.html)
-and [OSM attribution](https://www.openstreetmap.org/copyright) remain mandatory.
-
-Only HTTPS on `download.geofabrik.de`, bounded plain region PBF paths and at most
-three same-host redirects are allowed. No credentials, URL queries/fragments,
-proxies, encoded paths, compressed HTTP bodies or partial-content responses.
-HEAD checks size before acquisition. GET must match the reviewed URL, size and
-validators, with If-Match or If-Unmodified-Since; absent validators reject.
-Review expires after ten minutes. Transfer and IPC have byte limits, a 15-second
-socket timeout and the existing 120-second parent/child deadline. No automatic
-retry, parallel download or range resume; retry begins a new request from zero.
-
-The owned job streams to `download.part`, checks exact declared length/EOF and
-hashes bytes. It creates a receipt exclusively and atomically hard-links the
-completed source to a fresh destination without replacement on the same user-data
-filesystem. Failure to publish does not fall back to a non-atomic write. Existing
-sources/receipts are never removed. A crash between receipt/source publication
-can leave a receipt without its source; it is not a successful import. Cancellation,
-owner close, stale URL or changed document cannot start adoption; a fully published
-source is retained even if cancellation races with publication. Only request-owned
-partial/helper files are cleaned. Crash-abandoned job directories are not scanned
-or automatically resumed. Discard/reimport retain earlier documents and packages.
-
-Synthetic HTTP/PBF, owned native process, UI and resource-pack evidence lives in
-the root I02 download report. Actual provider HEAD was checked separately; the
-synthetic transport fixture is not a real regional import or performance result.
+The catalog, region/size/version probe, URL form and downloader have been removed.
+Select an already obtained local PBF/XML file through **Import vector**. Existing
+PBFs and receipts remain on disk. Crop/streaming and OSM source/ODbL notices remain;
+[extract boundaries](https://download.geofabrik.de/technical.html) describe source
+semantics, not an automatic service call. Historical results remain in repository
+history; no live-provider acquisition acceptance is required.
 
 
 ## Overture building area input (I02 scoped provider unit)
 
-**Import vector → Download Overture building area** selects an explicit dated
-release and west/south/east/north bbox, at most 0.02 degrees per side. The form
-shows the source/license, unknown transfer/count, 32 MiB snapshot/20,000 feature
-limits and preserved crossing footprints before **Download this area**. It does
-not guess the newest release, clip geometry or adopt a document automatically.
-Install the optional public `overturemaps==1.0.2` dependency from
-`requirements-import.txt` in the selected Python; no automatic installation.
-The official reader is called with the exact release, building type, STAC enabled,
-anonymous S3 and 15-second connection/request timeouts. Its API is pinned and
-exercised with real Arrow batches and WKB using synthetic sources.
+Select an existing **Overture building area snapshot** (`.overture.json`) in
+**Import vector**, choose explicit WGS84/local origins, import, review and adopt.
+The local version-1 snapshot embeds a dated release, west/south/east/north bbox
+(at most 0.02 degrees per side), complete feature properties/GERS IDs/source notices,
+and its fixed license. Snapshot size remains 32 MiB and building count 20,000.
+The optional vertical profile below has stricter bounds. Duplicate IDs, incomplete
+families and malformed metadata reject the whole input. No query, SDK, Arrow/WKB
+reader, remote snapshot writer or acquisition CLI remains in the Editor.
 
-The default profile queries **buildings/building only**; the explicit vertical
-profile below also queries `building_part`. Transportation, connectors,
-base/vegetation, places and large-area processing are unimplemented. They are not silently included, flattened or declared verified.
-The building footprint unit establishes remote area → preserved snapshot → typed
-review/adoption; it is not completion of all possible Overture theme adapters.
-
-The owned I03 helper captures returned properties (including GERS ID/version and
-full sources) and WKB-derived 2D geometry in a version-1 `.overture.json` snapshot.
-Dates serialize as ISO strings. All selected IDs must be unique. More than 20,000
-rows, a batch above 32 MiB, a WKB above 4 MiB, or serialized snapshot above 32 MiB
-fails before publication. Empty/failed queries do not publish. Completed snapshots
-are atomically hard-linked without replacement under `user://import-sources` and
-retained on later conversion failure, cancellation or discard. They are derived
-source captures, not byte-identical copies of upstream Parquet files; SHA-256 and
-byte count identify the captured snapshot. The snapshot embeds its query/license.
-No user source, older snapshot, document or package is overwritten or deleted.
-
-The provider's internal STAC/Arrow discovery, batches, read-ahead, retry behavior
-and transfer/RSS costs are **not bounded by the snapshot byte cap**. The helper's
-120-second deadline and parent EOF watchdog terminate the process, including a
-stalled provider call. The client can fall back to dataset discovery if STAC fails.
-There is no application retry/resume; user Retry creates a fresh owned request.
-Progress counts serialized snapshot bytes against the cap, not network bytes,
-estimated time or percent-complete. Partial cleanup removes only owned job files;
-crash-abandoned directories are not automatically scanned. Hard-link support on
-the same filesystem is required. This is admission control, not performance acceptance.
-
-After download, set explicit WGS84/local origins and choose **Import / retry last
-source**. Saved captures can also be selected with **Overture building area
-snapshot** in the format picker. Offline reimport needs pyproj 3.7.2, but does not
-need the network reader. The existing one-strip/hemisphere/20 km UTM profile and
+Previously captured files remain supported with their original SHA-256, bytes,
+release/bbox and provenance. The bounded local parser uses the selected Python's
+projection/geometry dependencies; `overturemaps` and `pyarrow` are unnecessary.
+The existing one-strip/hemisphere/20 km UTM profile and
 native map bounds/geometry validation apply to every position. Polygon and bounded
 MultiPolygon footprints, including recipe-5 courtyard holes and complete islands,
 are accepted (see the extensions below). The default profile rejects vertical
@@ -436,8 +378,8 @@ source-specific notices survive attribution/save/recovery/package I/O. Source
 licenses remain distinct from MIT code. Retaining metadata does not itself settle
 all derived-product distribution obligations.
 
-Changing the area while acquisition runs rejects late selection. Document changes,
-cancellation and owner close reject adoption, while completed sources remain.
+Document changes, cancellation and owner close reject local adoption while the
+original source remains.
 Review/discard and one-command atomic new-layer adoption use existing I01 gates;
 reimport and changed sources add a new layer, preserve existing geometry/files and
 support Undo/Redo. A stale or consumed candidate cannot be adopted again.
@@ -450,7 +392,7 @@ Official references checked 2026-09-09:
 
 ```sh
 .venv-import/bin/python -B -m unittest discover -s tests -p 'test_*.py' -v
-python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/.venv-import/bin/python --script overture_validator --script import_job_validator --script download_validator --script osm_import_validator --log-dir /new/overture-core
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/.venv-import/bin/python --script overture_validator --script import_job_validator --script local_only_validator --script osm_import_validator --log-dir /new/overture-core
 python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/.venv-import/bin/python --script overture_validator --rendered --log-dir /new/overture-rendered
 python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/.venv-import/bin/python --script overture_validator --resource-pack --log-dir /new/overture-pack
 ```
@@ -473,34 +415,30 @@ convert orthometric heights to ellipsoidal heights. Local terrain is sampled
 EGM2008 height minus the explicit zero, in centimetres. No previous map is
 reprojected or vertically shifted by opening this dialog.
 
-Choose a local **2021 GLO-30 COG** or explicitly enable an AWS download.
-Enable **Multi-source / multi-cell mosaic** to select a rectangle starting at Cell
-x/y, with 1..4 columns and rows. In this mode choose a folder of official GLO-30
-filenames (the final filename from each reviewed tile URL), or allow downloading.
-Local GLO-90 filenames are not inferred. Cell counts are disabled in single-cell
-mode. The source review enumerates all sources, sizes, identities, fallbacks,
-origins and cells before acquisition; adopting the later terrain review activates
-all listed cells in one operation. Local
-source identity is user-declared, not authenticated by filename or fingerprint.
-**Review area, source size and license / retry** calculates the projected full-cell
-area and captures local size/SHA-256, or HEADs the exact official GLO-30 tile.
-If explicitly enabled, only GLO-30 **HTTP 404** selects GLO-90. Review displays the
-actual resolution/fallback, tile URL, size, ETag, license, DSM warning and origins.
-403, rate limits, timeout, invalid data and missing sample support never trigger
-fallback or fabricated zero terrain. The optional GLO-90 choice applies to remote
-acquisition; local files in this profile are GLO-30.
+Choose an existing local **2021 GLO-30 COG**. Enable **Multi-source / multi-cell
+mosaic** for a rectangle starting at Cell x/y, with 1..4 columns and rows; select
+a local folder of official GLO-30 tile filenames. Local GLO-90 filenames are not
+inferred. The existing sampling helpers can still process previously captured
+GLO-90/mixed-resolution files with their unchanged legacy review metadata (old download choices are inert
+provenance in pure sampling), but the wizard
+accepts local GLO-30 only. There is no remote availability check or fallback option.
+Source provenance is user-declared, not authenticated by filename or fingerprint.
 
-**Acquire reviewed source and sample** rechecks the plan, uses If-Match for a
-complete GET and captures bytes in an exclusive file in `user://import-sources`.
-Known source size is required, at most **64 MiB combined** (also per-source). No redirects, transparent HTTP
-encoding, automatic retries or credential/proxy discovery are used. Reviews expire
-after ten minutes; changed size/identity/options require a new review. A complete
-COG and adjacent receipt are preserved even if later raster/native checks fail.
-Partial files belong only to the request; cancellation/owner close/parent EOF and
-the existing 120-second watchdog stop the child. Retry creates a new request and
-source identity; no existing original, capture, project or package is overwritten.
-The PNG is also published exclusively, after complete encoding. Cancellation after
-publication may retain a complete source/PNG without selecting or adopting it.
+**Review area, source size and license / retry** computes all projected cells,
+required source filenames, local sizes/SHA-256, DSM notice and vertical reference.
+Missing files or interpolation support reject the complete input without fetching,
+fallback or fabricated zero terrain. **Copy reviewed local source and sample**
+rechecks the plan and copies bytes into an exclusive file in `user://import-sources`.
+Known combined size is at most **64 MiB**. Reviews expire after ten minutes;
+changed size/hash/options require a fresh review. URI, relative and virtual GDAL
+paths are rejected before raster decoding; only existing local GTiff files are read.
+A complete COG and adjacent receipt survive later raster/native failures.
+
+Cancellation/owner close/parent EOF and the 120-second watchdog stop only the owned
+local helper. Retry starts fresh. Only known partial files in its job directory
+are cleaned; existing originals, captures, projects and packages are preserved.
+The PNG is published exclusively after complete encoding. Cancellation after
+publication may leave a complete source/PNG without selecting or adopting it.
 
 The independent Python requires `rasterio==1.4.4` and existing `pyproj==3.7.2`;
 install `requirements-import.txt` explicitly. No installation or private code is
@@ -568,16 +506,15 @@ Larger areas and actual provider/platform/accuracy acceptance remain separate.
 Original synthetic COG-shaped fixtures exercise real Rasterio, projection, child
 IPC, PNG16/native validation, source identity, reimport/Undo/Redo/recovery/package
 preservation, cancellation/deadline/owner close, stale coordinates and review UI.
-The HTTP tests replace transport, not parsing/normalization. They test conditional
-GET, 404-only fallback, framing/size/identity/truncation/cancellation and exclusive
-publication. Actual live provider downloads, real terrain accuracy/DSM semantics,
-large areas, Windows/Linux native exports and installed Client driving remain
-separate acceptance. Run with an isolated user directory; never use user datasets
+Offline tests reject retired remote requests and URI/VSI paths before decoding,
+exercise local copy cancellation/size/hash guards, and retain existing mixed-resolution
+sampling tests. Actual terrain accuracy, large areas, Windows/Linux native exports
+and installed Client driving remain separate acceptance. Run with an isolated user directory; never use user datasets
 as fixtures or clean up completed COG captures as test scratch.
 
 ```sh
 .venv-import/bin/python -B -m unittest discover -s tests -p 'test_*.py' -v
-python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/.venv-import/bin/python --script dem_validator --script heightmap_import_validator --script import_job_validator --script download_validator --script overture_validator --log-dir /new/dem-core
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/.venv-import/bin/python --script dem_validator --script heightmap_import_validator --script import_job_validator --script local_only_validator --script overture_validator --log-dir /new/dem-core
 python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/.venv-import/bin/python --script dem_validator --rendered --log-dir /new/dem-rendered
 python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/.venv-import/bin/python --script dem_validator --resource-pack --log-dir /new/dem-resource
 ```
@@ -692,37 +629,17 @@ separate; no representative-data or performance result is claimed.
 
 ## Bounded area-selection wizard — 2026-09-09
 
-In Import, choose **Download Overture area…** (Buildings). Enter a dated release and
-W/S/E/N coordinates, then **Fit coordinates** to inspect the envelope. Drag in the
-offline coordinate diagram in either direction to replace the bbox; numeric fields
-remain the precise keyboard path. **Area at import origin** explicitly seeds a
-0.001-degree box at the geographic import origin. It never changes geographic or
-local import origins. The diagram is not a geographic basemap, equal-distance map,
-provider coverage promise or a feature preview. Latitude increases upward.
+The surviving selector is **Import vector → OSM crop: off/on**. Enter W/S/E/N or
+drag the offline coordinate diagram in either direction. **Fit coordinates** and
+**Area at import origin** preserve explicit numeric selection without changing
+geographic/local origins. Latitude increases upward. The diagram is not a basemap,
+coverage promise or feature preview. Positive non-crossing boxes remain limited
+to 0.02 degrees per side. Changed-then-restored selection increments the revision
+and rejects stale local import results. Selection and cancel preserve the document.
+The remote Overture area/release/theme wizard has been removed.
 
-**Review selected area** validates the calendar date, positive non-crossing box and
-existing 0.02-degree-per-side provider limit before any helper starts. A separate
-**Download reviewed area** shows the exact release/bbox, unknown transfer/count,
-32 MiB captured-snapshot / 20,000-feature caps, 120s deadline and ODbL attribution.
-Network bytes and reader memory can exceed the snapshot cap. Returned buildings,
-including complete multipart/courtyard footprints, are not clipped to the box.
-Courtyards require the existing explicit recipe-5 import choice; vertical or
-underground parts remain unsupported. Then select explicit origins, import the
-preserved source, review the candidate and adopt as a new layer.
-
-Any release/coordinate edit invalidates confirmation and increments a selection
-revision: changing away and back also rejects a pending download's auto-selection.
-Cancel on the confirmation returns to selection. Cancellation, deadline, owner
-close and document-generation checks retain the existing source/partial ownership
-rules. Selection/review do not mutate the document or Undo history.
-
-This unit supports the existing Overture query profile. The OSM area extension
-below separately adds region catalog selection and derived geometry cropping.
-Copernicus uses its separate single-cell or bounded mosaic workflow below. Tiled
-basemaps, large-area queries and OSM region/crop support remain separate work.
-Validation: `area_selection_validator`, existing `overture_validator` (including
-changed-then-restored selection), `download_validator`, `import_job_validator`,
-and the standalone compiled-resource path in `scripts/check_documents.py`.
+Validation: `area_selection_validator`, `osm_area_validator`, `osm_stream_validator`,
+`local_only_validator`, `import_job_validator` and the standalone compiled pack.
 
 
 Mosaic regression entry points: `tests/test_copernicus_dem.py` and
@@ -734,16 +651,8 @@ adoption/history, outside-neighbor seam rejection, stale selection and shutdown.
 
 ## OSM bbox crop and region selection (I02)
 
-**Import vector → Download Geofabrik region → Load official region list** explicitly
-fetches the official `index-v1-nogeom.json`, with a 2 MiB / 5,000-entry cap and the
-owned 120-second worker / 15-second socket deadline. Search name, ID or parent;
-select a row to set its public PBF URL, then **Check region and size** and separately
-**Download reviewed region**. There is no inferred coverage, expected size or
-automatic download from catalog selection. Manual URL input remains available.
-Only the exact official catalog endpoint is admitted for the index; public PBF
-URLs retain the existing same-host/conditional identity/32 MiB transfer rules.
-A region edit, including changing away and back, rejects a late probe or download
-selection. Completed originals remain on disk even when auto-selection is rejected.
+Choose an already obtained local PBF/XML. The former online region catalog and
+URL probe/download workflow are removed; source files and existing receipts remain.
 
 **OSM crop: off/on → Crop OSM PBF/XML during import** enables an explicit W/S/E/N
 rectangle, at most 0.02 degrees per side. Drag the offline coordinate diagram or
@@ -782,7 +691,7 @@ packages are never rewritten by crop; adoption/Undo/Redo retain existing atomic
 history and native geometry checks. Building courtyards still require recipe 5.
 
 Verification: `test_osm_area.py`, `test_osm_catalog.py`, existing OSM Python tests,
-`osm_area_validator`, `download_validator`, `osm_import_validator`,
+`osm_area_validator`, `local_only_validator`, `osm_import_validator`,
 `osm_multipolygon_validator`, `import_job_validator`, `import_layer_validator`,
 and standalone resource/rendered checks. Official contracts checked 2026-09-09:
 [Geofabrik catalog and buffered complete extracts](https://download.geofabrik.de/technical.html),
@@ -847,12 +756,11 @@ profiles and target-platform acceptance remain separate work.
 
 ## Overture vertical building parts — 2026-09-10
 
-In **Download Overture building area**, enable **Include vertical building parts**
-and review **Common ground altitude (m)**. Both `building` and `building_part`
-readers use the same dated release and bbox. The stricter profile allows 256 total
-source features and 8192 ring positions, within the existing snapshot/IPC/native
-caps. Both readers must finish before exclusive snapshot publication; cancellation
-or a second-reader failure cannot publish a partial family.
+Select a local version-1 building snapshot with `include_parts=true`, explicit
+`ground_m`, and complete `building` / `building_part` families from one dated
+release and bbox. The profile allows 256 total source features and 8192 ring
+positions within existing source/IPC/native caps. Partial families reject as a
+whole. No remote readers or dual-query publication remain.
 
 Choose recipe 3 or newer explicitly (recipe 5 for courtyards). Every solid needs
 numeric `min_height` (including explicit zero) and `height`: base is common ground
@@ -886,29 +794,24 @@ python -B -m unittest discover -s tests -p 'test_overture*.py' -v
 python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/python --script overture_vertical_validator --script overture_geometry_validator --script import_job_validator --script import_layer_validator --resource-pack --log-dir /new/overture-vertical
 ```
 
-Actual provider accuracy/Internet acquisition, installed target platforms and
+Actual local source accuracy, installed target platforms and
 performance acceptance remain deferred. Larger areas, incomplete family handling,
 underground solids, automatic terrain alignment and other themes are unimplemented.
 
 
 ## Overture transportation ground graph — 2026-09-10
 
-`overture-transportation-v1` is a separate, bounded adapter; building snapshots and
-`overture-buildings-v1` keep their existing contract. In **Import vector → Download
-Overture area…**, select **Transportation · ground roads + connectors**. Choose a
-dated release, bbox and explicit road reference plane, review, then download.
-The acquisition uses `overturemaps 1.0.2` segment and connector readers for exactly
-one release/bbox. Both readers must finish before the immutable
-`.overture-roads.json` snapshot is exclusively published. Select that format for
-local snapshots too; choose geographic/local origins, import, review and adopt.
-The scrollable source form keeps Cancel and Review accessible at 1024×720.
+`overture-transportation-v1` is a separate bounded local adapter. Select **Overture
+transportation snapshot** (`.overture-roads.json`) in **Import vector**, choose
+geographic/local origins, import, review and adopt. The complete version-1 source
+embeds one dated release/bbox, explicit road plane, segment/connector records and
+source attribution. No SDK readers, source-query form or acquisition CLI remain.
 
 Supported profile:
 
 - Source cap: 32 MiB, 1024 total segment/connector features, 8192 source positions,
   at most 2048 split roads. Existing 12 MiB output/16 MiB history/native admission,
   owned worker deadline/pipe/parent lifetime and exclusive publication remain.
-  Provider Arrow/STAC/network allocations are not bounded by the snapshot cap.
 - Every source position must be strictly inside the reviewed bbox. No segment
   clipping or selected-feature dropping. Every endpoint and internal reference
   must resolve under the explicit-position contract below. All connectors must be referenced.
@@ -953,8 +856,7 @@ connector→node geometry and segment→ordered split-road mappings survive one 
 validated additive command, Undo/Redo, save/reopen/recovery and package export.
 The GDScript boundary rechecks mapping completeness, physical arrays, plane and
 source/output point counts before whole-document native validation. Reimport adds
-a new graph; source and previous package bytes remain unchanged. Selection changes,
-even changed then restored, invalidate acquisition review. Cancel/deadline/owner
+a new graph; source and previous package bytes remain unchanged. Cancel/deadline/owner
 close stop only the owned child; late document/selection results cannot be adopted.
 
 Official contracts consulted 2026-09-10:
@@ -966,7 +868,7 @@ Official contracts consulted 2026-09-10:
 Theme notice retains ODbL, OpenStreetMap contributors, TomTom and Overture, together
 with the original per-feature source notices. Only synthetic fixtures are tested.
 
-Mac verification: Python transportation tests (7) plus existing Overture tests
+Historical Mac verification before remote removal: Python transportation tests (7) plus existing Overture tests
 (15); real synthetic Arrow/WKB dual-reader/exclusive capture, whole rejection and
 budgets. Godot compiled PCK on a native display: transportation (67 checks), existing
 buildings/vertical parts, area selection, import-layer, worker lifetime and history
@@ -986,10 +888,10 @@ form initially exceeded the minimum window; its scrollable content now passes.
 No assertion was relaxed to accept a broken graph or partial source.
 
 Still unimplemented: conditional restrictions/routing, metric structures,
-rail/water paths, partial graph/large-region acquisition and terrain/datum alignment.
+rail/water paths, partial local graphs/larger areas and terrain/datum alignment.
 The physical-interval and explicit-position sections below supersede the earlier
 vertex/uniform-only limits. This delivery is not whole-I02 or final acceptance.
-Real provider/Internet/accuracy, installed Windows/Linux and Client driving,
+Representative local source accuracy, installed Windows/Linux and Client driving,
 representative performance and full integration remain deferred to their retained
 verification phase. A host PCK does not establish native target distribution.
 
@@ -1072,21 +974,16 @@ Use the preceding focused command with the three safety validators. Native code,
 ABI and MapKit pin are unchanged. Windows/Linux standalone builds, actual provider
 accuracy, user driving and performance/final integration remain deferred.
 
-Next independent unit: **I02 Overture land_cover vegetation input**. Determine
-which explicit source classes can map to the existing vegetation contract, retaining
-source classification, reviewed estimates, polygon holes and whole-input rejection.
-This is a new theme/acquisition/area-normalization unit, not another connector case.
 
 
 ## Overture land_cover vegetation — 2026-09-10
 
-Implemented bounded `overture-land-cover-v1` with `forest-high-detail-v1` source
-profile. Choose **Download Overture area → Land cover**, review a dated release
-and bbox, then import the retained `.overture-land-cover.json` using explicit
-WGS84/local origins. Select recipe **3 or newer** before native review/adoption.
-Acquisition uses overturemaps 1.0.2 `land_cover`, the same release/bbox, and the
-existing owned worker, captured-byte progress, deadline and exclusive publication.
-The full snapshot contains all returned records, including excluded classifications.
+The bounded local `overture-land-cover-v1` adapter retains `forest-high-detail-v1`.
+Choose **Overture land cover snapshot** in **Import vector** and select an existing
+`.overture-land-cover.json` with a dated release/bbox, full feature/source metadata
+and license. Set explicit WGS84/local origins and recipe **3 or newer**, then
+review/adopt. The full snapshot retains excluded classifications. No remote
+land-cover reader or theme acquisition workflow remains.
 
 Only `forest` with `cartography.min_zoom=8, max_zoom=15` maps to existing forest
 zones. Known nonforest subtypes (barren, crop, grass, mangrove, moss, shrub, snow,
@@ -1102,8 +999,8 @@ source/projected rings, declared hole owners and centimetre collapse are checked
 without repair. Current map bounds and native validation must admit every selected
 part. Maximum 256 source features, 8192 source positions, 256 parts per feature,
 16 holes per part, existing 2-million topology comparisons, 32 MiB input and
-12 MiB typed output remain enforced. Reader/network memory can exceed captured
-snapshot bytes; these limits do not claim a whole-process memory cap.
+12 MiB typed output remain enforced. These local admission limits do not claim
+a whole-process memory cap.
 
 Provenance retains IDs, version, sources/licenses, class, zooms, disposition,
 source/selected counts, all source-to-zone IDs and per-part exclusion counts.
@@ -1156,8 +1053,8 @@ The old bounded whole-source PBF/XML path remains available. Streaming is explic
 even for small PBFs so candidate-selection semantics never change merely with size.
 
 This replaces the former 32 MiB whole-source/no-streaming restriction only for
-local current PBF snapshots. GeoJSON/XML/Overture sources and Geofabrik download
-admission remain 32 MiB. Large-source network acquisition is a separate next unit.
+local current PBF snapshots. GeoJSON/XML/Overture snapshot admission remains
+32 MiB. Direct provider acquisition is outside product scope.
 Streaming requires osmium 4.3.1, shapely 2.1.2 and pyproj 3.7.2; the disk index uses
 Python's public SQLite module. Data remains ODbL, while the new adapter is MIT.
 
@@ -1256,13 +1153,53 @@ rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --import-pyt
 ```
 
 Mac resource packing is not Windows/Linux standalone installation acceptance.
-Actual provider sources/Internet, target platforms, representative performance
-and user driving remain deferred; whole I02/cutover remains open. The next separate
-unit is **large Geofabrik source acquisition/review feeding this local streaming
-profile**, including explicit transfer/disk/deadline budgets and interrupted
-download ownership. The present downloader still refuses sources above 32 MiB.
+Representative local sources, target platforms, performance and user driving
+remain deferred; whole I02/cutover stays open. Direct provider acquisition and its
+Internet acceptance were removed from scope on 2026-09-10. Further local input
+work is selected separately after this removal; no new local adapter is bundled.
 
 Official interfaces checked for this implementation:
 [PBF Blob/BlobHeader wire contract](https://raw.githubusercontent.com/openstreetmap/OSM-binary/master/osmpbf/fileformat.proto),
 [pyosmium FileBuffer/Reader/thread pool](https://docs.osmcode.org/pyosmium/latest/reference/IO/),
 [SQLite page-count quota](https://www.sqlite.org/pragma.html#pragma_max_page_count).
+
+
+## Local-only delivery — 2026-09-10
+
+The Editor now exposes only existing local inputs. `DemJob` shares ImportJob's
+process lifetime, deadline and cleanup but dispatches only `dem-plan` / `dem` local
+operations. GeoJSON/PBF/XML and all three captured Overture snapshot formats use
+the original ImportJob. The removed network-only `overturemaps` requirement is no
+longer installed; `shapely` remains necessary for local topology/crop, and pyosmium's
+transitive dependencies are retained by its public distribution.
+
+Reproduce affected Python checks and standalone compiled-resource regression with
+an isolated selected Python containing `requirements-import.txt`:
+
+```sh
+python -B -m unittest discover -s tests -p 'test_*.py' -v
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/local-python --script local_only_validator --script osm_stream_validator --script osm_area_validator --script osm_structures_validator --script overture_validator --script overture_geometry_validator --script overture_vertical_validator --script overture_transportation_validator --script overture_land_cover_validator --script dem_validator --script dem_mosaic_validator --script import_job_validator --script import_layer_validator --script document_history_validator --resource-pack --rendered --log-dir /new/local-only
+```
+
+Detailed historical counts above describe their dated revisions. The current
+local-only regressions replace remote transport/SDK cases with local fixtures and
+retain geometry, native adoption, source/package hashes, stale response, controlled
+deadline, cancellation/retry and owner-close checks. Mac verification additionally
+runs with outbound IP connections denied; installed target-platform and final
+integration acceptance remain separate. No user source/receipt/project migration
+or cleanup runs on startup. Abrupt-crash scratch recovery remains the existing I03
+limitation; it is never automatically resumed or adopted.
+
+Scoped Mac result: 89 distinct Python tests passed across the initial run and
+focused corrected reruns; 21 rendered Godot validators passed with the native
+MapKit binding and compiled host resources. The accepted build contains no remote
+provider entries. A fresh selected Python has no `overturemaps`/`pyarrow`; outbound
+IPv4/IPv6 probes fail with EPERM under the verification sandbox. Real map providers
+were not contacted. Python's Rasterio/NumPy 2.5 deprecation warning is recorded;
+numerical/PNG/seam checks pass, and no Godot diagnostics remain.
+
+The existing crash-recovery test now passes the isolated project/PCK explicitly to
+its child and writes a phase marker before killing it. This proves actual save
+boundary interruption instead of mistaking a child startup failure for a crash.
+Target-platform distribution, user driving, representative accuracy/performance
+and final integration remain deferred under the existing acceptance plan.

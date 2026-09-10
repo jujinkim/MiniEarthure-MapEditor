@@ -4,14 +4,19 @@ const FILES := preload("res://scripts/document_files.gd")
 
 class InterruptedFiles extends FILES:
 	var phase := ""
+	func crash(destination: String) -> void:
+		var marker := FileAccess.open(destination.get_base_dir().path_join("crash-phase.txt"), FileAccess.WRITE)
+		marker.store_string(phase)
+		marker.close()
+		OS.kill(OS.get_process_id())
 	func _publish(source: String, destination: String) -> Error:
 		if phase == "before_backup" and destination.ends_with(".previous"):
-			OS.kill(OS.get_process_id())
+			crash(destination)
 		if phase == "before_primary" and destination.ends_with("document.json"):
-			OS.kill(OS.get_process_id())
+			crash(destination)
 		var error := super._publish(source, destination)
 		if phase == "after_primary" and destination.ends_with("document.json"):
-			OS.kill(OS.get_process_id())
+			crash(destination)
 		return error
 
 func _initialize() -> void:

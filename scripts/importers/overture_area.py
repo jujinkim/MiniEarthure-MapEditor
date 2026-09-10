@@ -1,19 +1,12 @@
-"""Public Overture building-area snapshot acquisition and strict typed normalization."""
-import argparse
-import contextlib
+"""Public Overture building-area local snapshot parsing and strict typed normalization."""
 import datetime
 import hashlib
-from importlib.metadata import version, PackageNotFoundError
 import json
-import os
-from pathlib import Path
 import re
-import sys
 from import_layer import MAX_INPUT, MAX_POINTS, number, text, strict_json
 from polygon_geometry import Budget, group_rings
 
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
-CLIENT_VERSION = "1.0.2"
 MAX_FEATURES = 20000
 MAX_VERTICAL_FEATURES = 256
 MAX_VERTICAL_POINTS = 8192
@@ -37,80 +30,6 @@ def plan(release, bbox, include_parts=False, ground_m=0):
 
 def checked_plan(value):
     return plan(value.get("release"), value.get("bbox"), value.get("include_parts", False), value.get("ground_m", 0))
-
-
-def remote_features(query):
-    yield from read_features(query, ["building", "building_part"] if query.get("include_parts") else ["building"], query.get("include_parts", False))
-
-
-def read_features(query, kinds, explicit_types=True):
-    try:
-        if version("overturemaps") != CLIENT_VERSION: raise ImportError("version mismatch")
-        from overturemaps.core import record_batch_reader
-        from shapely import from_wkb, to_geojson
-    except (ImportError, PackageNotFoundError) as exc:
-        raise ValueError("Overture needs overturemaps 1.0.2; install requirements-import.txt in the selected Python") from exc
-    # Exhaust both readers for the same reviewed envelope/release before publication.
-    # Requiring complete contained parents during parse avoids partial bbox families.
-    for kind in kinds:
-        with contextlib.redirect_stdout(sys.stderr):
-            reader = record_batch_reader(kind, bbox=query["bbox"], release=query["release"], stac=True, connect_timeout=15, request_timeout=15)
-        if reader is None: raise ValueError("No Overture reader; area may be empty or provider unavailable")
-        with reader:
-            while True:
-                with contextlib.redirect_stdout(sys.stderr):
-                    try: batch = next(reader)
-                    except StopIteration: break
-                if batch.nbytes > MAX_INPUT or batch.num_rows > MAX_FEATURES:
-                    raise ValueError("Provider batch exceeds local admission; select a smaller area")
-                for row in batch.to_pylist():
-                    geometry = row.pop("geometry")
-                    if not isinstance(geometry, bytes) or len(geometry) > 4 * 1024 * 1024:
-                        raise ValueError("Invalid/oversized Overture WKB")
-                    shape = from_wkb(geometry)
-                    if shape.has_z or shape.has_m:
-                        raise ValueError("Overture Z/M geometry is unsupported")
-                    if explicit_types:
-                        if row.get("type", kind) != kind: raise ValueError("Provider feature type mismatch")
-                        row["type"] = kind
-                    yield dict(type="Feature", id=row.get("id"), geometry=json.loads(to_geojson(shape)), properties=row)
-
-
-def _json_default(value):
-    if isinstance(value, (datetime.date, datetime.datetime)): return value.isoformat()
-    raise ValueError("Unsupported provider value")
-
-
-def acquire(query, partial, destination, progress, features=remote_features, *, checker=checked_plan, feature_limit=None):
-    checked = checker(query)
-    if query != checked: raise ValueError("Overture review contract changed")
-    count, seen = 0, set()
-    header = json.dumps(dict(snapshot_version=1, **query), sort_keys=True).encode()[:-1] + b',"features":['
-    size = len(header)
-    progress(0, MAX_INPUT)
-    with partial.open("xb") as stream:
-        stream.write(header)
-        for feature in features(query):
-            count += 1
-            if count > (feature_limit if feature_limit is not None else MAX_VERTICAL_FEATURES if query.get("include_parts") else MAX_FEATURES): raise ValueError("Overture feature budget exceeded")
-            identity = text(feature.get("id"), "Overture ID", 128)
-            if identity in seen: raise ValueError("Duplicate Overture ID")
-            seen.add(identity)
-            encoded = json.dumps(feature, sort_keys=True, allow_nan=False, default=_json_default, separators=(",", ":")).encode()
-            size += len(encoded) + (1 if count > 1 else 0)
-            if size + 2 > MAX_INPUT: raise ValueError("Overture snapshot exceeds 32 MiB")
-            if count > 1: stream.write(b",")
-            stream.write(encoded)
-            if count % 100 == 0: progress(size, MAX_INPUT)
-        if count == 0: raise ValueError("No source features in selected area")
-        stream.write(b"]}")
-        stream.flush()
-        os.fsync(stream.fileno())
-    # Preserve the complete provider snapshot even if subsequent geometry conversion fails.
-    digest = hashlib.sha256(partial.read_bytes()).hexdigest()
-    os.link(partial, destination)  # exclusive atomic create on same filesystem
-    progress(size+2, MAX_INPUT)
-    return dict(query, path=str(destination), sha256=digest, actual_bytes=size+2, features=count)
 
 
 def parse(raw):
@@ -253,35 +172,3 @@ def finish(layer, metadata):
     layer.warning("Legacy base=0, unknown use represented as residential, flat roof/concrete and absent height are estimates; names/facade/roof/floors are not modeled.")
     layer.encode()
     return layer
-
-
-def main(acquirer=None):
-    if acquirer is None: acquirer = acquire
-    from geojson import watch_parent_lifetime
-    parser = argparse.ArgumentParser()
-    parser.add_argument("request", type=Path)
-    parser.add_argument("output", type=Path)
-    parser.add_argument("--layer-id", required=True)
-    parser.add_argument("--watch-parent", action="store_true")
-    args = parser.parse_args()
-    if args.watch_parent: watch_parent_lifetime()
-    if args.request.stat().st_size > 8192: raise ValueError("Oversized Overture request")
-    request = strict_json(args.request.read_bytes())
-    sequence = 0
-    def event(stage, completed, total, **extra):
-        nonlocal sequence
-        sequence += 1
-        print(json.dumps(dict(request=args.layer_id, seq=sequence, stage=stage, completed=completed, total=total, unit="bytes", **extra)), flush=True)
-    result = acquirer(request["plan"], args.output.parent / "download.part", Path(request["destination"]), lambda c,t:event("acquire",c,t))
-    encoded = json.dumps(result, sort_keys=True).encode()
-    event("write",0,len(encoded))
-    with args.output.open("xb") as stream: stream.write(encoded)
-    event("write",len(encoded),len(encoded))
-    event("complete",len(encoded),len(encoded),sha256=hashlib.sha256(encoded).hexdigest())
-
-
-if __name__ == "__main__":
-    try: main()
-    except Exception as exc:
-        print(json.dumps({"error":str(exc)[:1024]}),file=sys.stderr)
-        sys.exit(1)

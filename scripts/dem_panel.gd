@@ -6,8 +6,6 @@ var mosaic: CheckBox
 var selection_revision := 0
 var requested_revision := -1
 var source: LineEdit
-var allow_download: CheckBox
-var fallback: CheckBox
 var summary: TextEdit
 var review: ConfirmationDialog
 var review_text: RichTextLabel
@@ -18,8 +16,8 @@ var destination := ""
 var candidate: RefCounted
 
 func _ready() -> void:
-	title = "Copernicus DEM · 2021 source to local terrain cells"
-	ok_button_text = "Acquire reviewed source and sample"
+	title = "Local Copernicus DEM · 2021 source to local terrain cells"
+	ok_button_text = "Copy reviewed local source and sample"
 	get_ok_button().disabled = true
 	var column := VBoxContainer.new()
 	column.custom_minimum_size.x = 710
@@ -38,7 +36,7 @@ func _ready() -> void:
 	column.add_child(mosaic)
 	mosaic.toggled.connect(_mosaic_changed)
 	source = LineEdit.new()
-	source.placeholder_text = "Local 2021 GLO-30 COG (.tif), or blank for reviewed AWS download"
+	source.placeholder_text = "Local 2021 GLO-30 COG (.tif)"
 	column.add_child(source)
 	source.text_changed.connect(func(_value): invalidate())
 	picker = FileDialog.new()
@@ -51,14 +49,6 @@ func _ready() -> void:
 	editor._button(column,"Choose local COG / mosaic folder…",func():
 		picker.file_mode = FileDialog.FILE_MODE_OPEN_DIR if mosaic.button_pressed else FileDialog.FILE_MODE_OPEN_FILE
 		picker.popup_centered(Vector2i(800,550)))
-	allow_download = CheckBox.new()
-	allow_download.text = "Allow requested AWS download (combined size ≤ 64 MiB; completed source retained)"
-	column.add_child(allow_download)
-	allow_download.toggled.connect(func(_value): invalidate())
-	fallback = CheckBox.new()
-	fallback.text = "Allow GLO-90 only if GLO-30 tile is absent (HTTP 404)"
-	column.add_child(fallback)
-	fallback.toggled.connect(func(_value): invalidate())
 	editor._button(column,"Review area, source size and license / retry",prepare)
 	summary = TextEdit.new()
 	summary.editable = false
@@ -83,7 +73,7 @@ func _ready() -> void:
 func _mosaic_changed(enabled: bool) -> void:
 	fields["Cell columns"].editable=enabled
 	fields["Cell rows"].editable=enabled
-	source.placeholder_text="Local folder containing official 2021 GLO-30 tile filenames, or blank for AWS" if enabled else "Local 2021 GLO-30 COG (.tif), or blank for reviewed AWS download"
+	source.placeholder_text="Local folder containing official 2021 GLO-30 tile filenames" if enabled else "Local 2021 GLO-30 COG (.tif)"
 	invalidate()
 
 func _mosaic_summary() -> String:
@@ -91,11 +81,11 @@ func _mosaic_summary() -> String:
 	for item: Dictionary in plan.sources: bytes+=int(item.source.bytes)
 	var text := "Review %d cells from %d sources · %d bytes total\nLocal start cell: %s · columns/rows: %s · spacing: %s cm\nWGS84 bounds (west, south, east, north): %s\nEGM2008 heights minus %s m at local zero. DSM includes buildings and vegetation.\nBilinear sampling; source accuracy unknown; output spacing is not accuracy.\nIncludes conservative east/south interpolation support; no missing-data repair.\n" % [plan.cells.size(),plan.sources.size(),bytes,str(requested.cell),str(requested.cell_count),str(requested.spacing_cm),str(plan.bbox),str(requested.vertical_zero_m)]
 	for item: Dictionary in plan.sources:
-		text+="\nTile %s · GLO-%d%s · %d bytes\n%s\n%s\n%s\n" % [str(item.tile),item.resolution_m," (GLO-30 absent; fallback)" if item.fallback90 else "",item.source.bytes,item.source.get("path",item.source.get("url","")),"SHA-256: "+str(item.source.sha256) if item.source.has("sha256") else "ETag: "+str(item.source.etag),item.notice]
+		text+="\nTile %s · GLO-%d%s · %d bytes\n%s\n%s\n%s\n" % [str(item.tile),item.resolution_m,"",item.source.bytes,item.source.path,"SHA-256: "+str(item.source.sha256),item.notice]
 	return text+"\nLicense: "+LAYER.LICENSE+"\nCompleted sources survive cancel/failure. Review expires after 10 minutes."
 
 func options() -> Dictionary:
-	var result := {"coordinates":{"mode":"wgs84-utm","origin":[fields.Longitude.value,fields.Latitude.value],"local_origin_m":[fields["Local origin x (m)"].value,fields["Local origin y (m)"].value]},"cell":[fields["Cell x"].value,fields["Cell y"].value],"cell_size_cm":editor.store.document.cell_size_cm,"map_min_cm":editor.store.document.bounds.min.duplicate(),"spacing_cm":fields["Spacing (cm)"].value,"vertical_zero_m":fields["EGM2008 at local zero (m)"].value,"source":source.text.strip_edges(),"allow_download":allow_download.button_pressed,"fallback90":fallback.button_pressed}
+	var result := {"coordinates":{"mode":"wgs84-utm","origin":[fields.Longitude.value,fields.Latitude.value],"local_origin_m":[fields["Local origin x (m)"].value,fields["Local origin y (m)"].value]},"cell":[fields["Cell x"].value,fields["Cell y"].value],"cell_size_cm":editor.store.document.cell_size_cm,"map_min_cm":editor.store.document.bounds.min.duplicate(),"spacing_cm":fields["Spacing (cm)"].value,"vertical_zero_m":fields["EGM2008 at local zero (m)"].value,"source":source.text.strip_edges()}
 
 	if mosaic.button_pressed: result["cell_count"] = [fields["Cell columns"].value,fields["Cell rows"].value]
 	return result
@@ -108,7 +98,7 @@ func open() -> void:
 func _document_changed() -> void:
 	plan.clear()
 	get_ok_button().disabled = true
-	if editor.acquisition_mode.begins_with("dem") and editor.import_job != null: editor.import_job.cancel()
+	if editor.dem_mode.begins_with("dem") and editor.import_job != null: editor.import_job.cancel()
 
 func invalidate() -> void:
 	selection_revision += 1
@@ -128,8 +118,8 @@ func prepare() -> void:
 		return
 	requested = options().duplicate(true)
 	requested_revision = selection_revision
-	editor._begin_acquisition({"mode":"dem-plan","provider":"Copernicus","options":requested})
-	summary.text = "Checking projected cell/source size. No DEM GET until acquisition is selected."
+	editor._begin_dem({"mode":"dem-plan","options":requested})
+	summary.text = "Checking projected cells and local source hashes. The source is copied only after review."
 
 func acquire() -> void:
 	if editor.busy or plan.is_empty() or requested != options() or requested_revision != selection_revision: return
@@ -138,7 +128,7 @@ func acquire() -> void:
 		editor._status("Cannot create DEM capture folder.")
 		return
 	destination = folder.path_join(Crypto.new().generate_random_bytes(16).hex_encode()+".tif")
-	editor._begin_acquisition({"mode":"dem","provider":"Copernicus","plan":plan.duplicate(true),"destination":destination})
+	editor._begin_dem({"mode":"dem","plan":plan.duplicate(true),"destination":destination})
 	get_ok_button().disabled = true
 
 func finish(mode: String, result: Dictionary) -> void:
@@ -157,7 +147,7 @@ func finish(mode: String, result: Dictionary) -> void:
 			editor._status("DEM review does not match requested source.")
 			return
 		plan = result.data
-		summary.text = "Review before acquisition: source accuracy unknown locally; output spacing is not source accuracy.\nBilinear samples become local height = EGM2008 height − chosen local-zero height.\n" + JSON.stringify(plan,"  ")
+		summary.text = "Review before local copying: source accuracy unknown locally; output spacing is not source accuracy.\nBilinear samples become local height = EGM2008 height − chosen local-zero height.\n" + JSON.stringify(plan,"  ")
 		if requested.has("cell_count"): summary.text = _mosaic_summary()
 		get_ok_button().disabled = false
 		return

@@ -229,33 +229,5 @@ class TransportationTests(unittest.TestCase):
         self.assertEqual(ref["resolved_at"],0)
         self.assertAlmostEqual(ref["displacement_m"],0.0005,places=7)
 
-    def test_real_arrow_both_readers_atomic_capture_and_failure(self):
-        import pyarrow as pa
-        import overturemaps.core as core
-        from shapely.geometry import shape
-        value=snapshot();query=a.checked_plan(value);calls=[]
-        def reader(kind,**kwargs):
-            calls.append((kind,kwargs))
-            rows=[dict(f["properties"],geometry=shape(f["geometry"]).wkb) for f in value["features"] if f["properties"]["type"]==kind]
-            table=pa.Table.from_pylist(rows)
-            return pa.RecordBatchReader.from_batches(table.schema,table.to_batches())
-        with tempfile.TemporaryDirectory() as directory,patch.object(core,"record_batch_reader",reader):
-            root=Path(directory);events=[]
-            result=a.acquire(query,root/"partial",root/"source",lambda *args:events.append(args))
-            raw=(root/"source").read_bytes();self.layer(json.loads(raw))
-            self.assertEqual([c[0] for c in calls],["segment","connector"])
-            self.assertTrue(all(c[1]["release"]==query["release"] and c[1]["bbox"]==query["bbox"] for c in calls))
-            self.assertEqual(result["actual_bytes"],len(raw));self.assertEqual(events[-1],(len(raw),a.MAX_INPUT))
-            with self.assertRaises(FileExistsError):a.acquire(query,root/"again",root/"source",lambda *args:None)
-            self.assertEqual((root/"source").read_bytes(),raw)
-            def failed(query):
-                yield value["features"][4]
-                raise OSError("connector reader interrupted")
-            with self.assertRaises(OSError):a.acquire(query,root/"failed",root/"missing",lambda *args:None,failed)
-            self.assertFalse((root/"missing").exists())
-            invalid=copy.deepcopy(value);invalid["features"][4]["properties"]["road_flags"]=["is_bridge"]
-            a.acquire(query,root/"unsupported-partial",root/"unsupported",lambda *args:None,lambda _:iter(invalid["features"]))
-            with self.assertRaises(ValueError):a.parse((root/"unsupported").read_bytes())
-            self.assertTrue((root/"unsupported").is_file(),"complete rejected source retained")
 
 if __name__=="__main__":unittest.main()

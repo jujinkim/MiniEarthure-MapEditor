@@ -72,39 +72,5 @@ class VerticalTests(unittest.TestCase):
         value.pop("include_parts"); value.pop("ground_m")
         with self.assertRaises(ValueError): self.layer(value)
 
-    def test_both_arrow_queries_and_exclusive_capture(self):
-        import pyarrow as pa
-        import overturemaps.core as core
-        from shapely.geometry import shape
-        value = vertical_snapshot(); query = a.checked_plan(value); calls = []
-        def reader(kind, **kwargs):
-            calls.append((kind,kwargs))
-            rows = []
-            for f in value["features"]:
-                if f["properties"]["type"] == kind:
-                    rows.append(dict(f["properties"], geometry=shape(f["geometry"]).wkb))
-            table = pa.Table.from_pylist(rows)
-            return pa.RecordBatchReader.from_batches(table.schema, table.to_batches())
-        with tempfile.TemporaryDirectory() as directory, patch.object(core,"record_batch_reader", reader):
-            root = Path(directory); events = []
-            result = a.acquire(query, root/"partial", root/"source", lambda *args: events.append(args))
-            raw = (root/"source").read_bytes()
-            self.assertEqual(len(self.layer(json.loads(raw)).patches), 2)
-            self.assertEqual(result["actual_bytes"], len(raw))
-            self.assertEqual([c[0] for c in calls], ["building","building_part"])
-            self.assertTrue(all(c[1]["bbox"] == query["bbox"] and c[1]["release"] == query["release"] for c in calls))
-            self.assertEqual(events[-1], (len(raw), a.MAX_INPUT))
-            with self.assertRaises(FileExistsError): a.acquire(query, root/"again", root/"source", lambda *args:None)
-            self.assertEqual((root/"source").read_bytes(),raw)
-
-    def test_second_reader_failure_never_publishes(self):
-        value = vertical_snapshot(); query = a.checked_plan(value)
-        def failed(query):
-            yield value["features"][0]
-            raise OSError("parts interrupted")
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            with self.assertRaises(OSError): a.acquire(query,root/"partial",root/"source",lambda *args:None,failed)
-            self.assertFalse((root/"source").exists())
 
 if __name__ == "__main__": unittest.main()

@@ -3,7 +3,6 @@ import copy
 import json
 from pathlib import Path
 import sys
-import time
 
 QUERY = dict(provider="Overture", release="2026-08-19.0", bbox=[9,55,9.001,55.001], theme="buildings", type="building",
     license="ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings")
@@ -40,20 +39,6 @@ def vertical_snapshot():
     return value
 
 if __name__ == "__main__":
-    if sys.argv[1] == "--vertical":
-        Path(sys.argv[2]).write_text(json.dumps(vertical_snapshot()))
-        sys.exit(0)
-    if sys.argv[1] == "--multipart":
-        Path(sys.argv[2]).write_text(json.dumps(multipart_snapshot()))
-        sys.exit(0)
-    entry = sys.argv.pop(1)
-    sys.path.insert(0,str(Path(entry).parent))
-    import overture_area as adapter
-    original = adapter.acquire
-    def features(query):
-        yield copy.deepcopy(FEATURE)
-        if query["release"] == "2026-08-19.1": time.sleep(30)
-    def acquire(query,partial,destination,progress):
-        return original(query,partial,destination,progress,features)
-    adapter.acquire=acquire
-    adapter.main()
+    modes = {"--snapshot": snapshot, "--vertical": vertical_snapshot, "--multipart": multipart_snapshot}
+    value = modes[sys.argv[1]]()
+    Path(sys.argv[2]).write_text(json.dumps(value))

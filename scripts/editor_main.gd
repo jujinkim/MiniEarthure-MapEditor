@@ -96,34 +96,11 @@ var import_origin_lat: SpinBox
 var import_origin_x: SpinBox
 var import_origin_y: SpinBox
 var import_coordinates_request := {}
-const DOWNLOAD_JOB := preload("./download_job.gd")
-var download_dialog: ConfirmationDialog
-var download_url: LineEdit
-var download_summary: TextEdit
-var download_plan := {}
-var download_revision := 0
-var download_request_revision := -1
+const DEM_JOB := preload("./dem_job.gd")
 var osm_crop_button: Button
 var osm_panel: RefCounted
 var osm_import_revision := -1
-var acquisition_mode := ""
-var download_sources := {}
-var overture_dialog: ConfirmationDialog
-var overture_release: LineEdit
-var overture_limits: Label
-var overture_notice: Label
-var overture_scroll: ScrollContainer
-var overture_theme: OptionButton
-var overture_parts: CheckBox
-var overture_ground: SpinBox
-var overture_bbox: Array[SpinBox] = []
-var overture_requested := {}
-var overture_area: Control
-var overture_area_status: Label
-var overture_review: ConfirmationDialog
-var overture_reviewed := {}
-var overture_revision := 0
-var overture_request_revision := -1
+var dem_mode := ""
 
 var selected_field := ""
 var selected_record: Dictionary = {}
@@ -410,9 +387,7 @@ func _build_ui() -> void:
 	import_source_format = OptionButton.new()
 	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)", "Overture building area snapshot (.overture.json)", "Overture transportation snapshot (.overture-roads.json)", "Overture land cover snapshot (.overture-land-cover.json)"]: import_source_format.add_item(format_title)
 	import_fields.add_child(import_source_format)
-	_button(import_fields, "Download Geofabrik region…", _open_download)
 	osm_crop_button = _button(import_fields, "OSM crop area…", func(): osm_panel.open())
-	_button(import_fields, "Download Overture area…", _open_overture)
 	_button(import_fields, "Import Copernicus DEM…", func(): dem_panel.open())
 	import_fields.add_child(import_license)
 	import_accuracy = LineEdit.new()
@@ -474,8 +449,8 @@ func _build_ui() -> void:
 		_status("Imported layer discarded. Use Retry import to prepare it again.")
 	)
 	add_child(import_review)
-	_setup_download()
-	_setup_overture()
+	osm_panel = preload("./osm_area_panel.gd").new()
+	osm_panel.setup(self)
 	dem_panel = DEM_PANEL.new()
 	dem_panel.editor = self
 	add_child(dem_panel)
@@ -1053,7 +1028,7 @@ func _start_import(source: String, license_name: String) -> void:
 		import_coordinates_request.osm_bbox = osm_panel.bbox()
 	import_coordinates_request.adapter = "overture-land-cover-v1" if input_format == "overture-land-cover" else "overture-transportation-v1" if input_format == "overture-transportation" else "overture-buildings-v1" if input_format == "overture" else ("geojson-v2" if input_format == "geojson" else "osm-extract-v1")
 	if input_format != "geojson": license_name = IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if input_format == "overture-land-cover" else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if input_format == "overture-transportation" else IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
-	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, str(download_sources.get(source, "")))
+	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, "")
 	if failure != "":
 		_operation_status("Import failed · Use Retry import to adjust settings", "E_IMPORT: " + failure)
 		return
@@ -1093,13 +1068,13 @@ func _process(_delta: float) -> void:
 		var progress: Dictionary = import_job.progress
 		if not progress.is_empty():
 			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
-			validation_label.text = "%s %s · %d / %d %s" % ["Overture captured snapshot" if acquisition_mode in ["overture", "overture-transportation", "overture-land-cover"] else "DEM" if acquisition_mode.begins_with("dem") else "Import", progress.stage, progress.completed, progress.total, progress.unit]
+			validation_label.text = "%s %s · %d / %d %s" % ["DEM" if dem_mode.begins_with("dem") else "Import", progress.stage, progress.completed, progress.total, progress.unit]
 		if import_job.done:
 			var result: Dictionary = import_job.result
 			import_job = null
 			busy = false
 			import_progress.visible = false
-			if acquisition_mode != "": _finish_acquisition(result)
+			if dem_mode != "": _finish_dem(result)
 			else: _finish_import(result)
 		return
 	if not render_job.is_empty():
@@ -1338,280 +1313,21 @@ func _launch_test_drive() -> void:
 	_start_worker("test_drive", store.project_path, snapshot)
 	_status("Validating and packaging test-drive snapshot…")
 
-func _setup_download() -> void:
-	osm_panel = preload("./osm_area_panel.gd").new()
-	osm_panel.setup(self)
-	download_dialog = ConfirmationDialog.new()
-	download_dialog.title = "OSM region download · Geofabrik"
-	download_dialog.ok_button_text = "Download reviewed region"
-	var fields := VBoxContainer.new()
-	fields.custom_minimum_size = Vector2(700, 350)
-	download_dialog.add_child(fields)
-	_label(fields, "Select a region or paste its public Geofabrik PBF URL. Download is the whole region.\nOptional OSM crop applies later on import; the 32 MiB source limit still applies.")
-	download_url = LineEdit.new()
-	download_url.placeholder_text = "https://download.geofabrik.de/europe/monaco-latest.osm.pbf"
-	fields.add_child(download_url)
-	download_url.text_changed.connect(func(_text):
-		download_revision += 1
-		download_plan.clear()
-		download_dialog.get_ok_button().disabled = true
-		download_summary.text = "URL changed. Check region and size again."
-	)
-	osm_panel.setup_catalog(fields)
-	_button(fields, "Check region and size", func(): _begin_acquisition({"mode":"probe", "url":download_url.text.strip_edges()}))
-	download_summary = TextEdit.new()
-	download_summary.editable = false
-	download_summary.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	download_summary.custom_minimum_size = Vector2(680, 140)
-	fields.add_child(download_summary)
-	download_dialog.get_ok_button().disabled = true
-	download_dialog.confirmed.connect(func():
-		if download_plan.is_empty() or download_plan.requested_url != download_url.text.strip_edges(): return
-		var folder := ProjectSettings.globalize_path("user://import-sources")
-		var error := DirAccess.make_dir_recursive_absolute(folder)
-		if error != OK:
-			_status("Cannot create download source folder: " + error_string(error))
-			return
-		var destination := folder.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + ".osm.pbf")
-		_begin_acquisition({"mode":"download", "plan":download_plan.duplicate(true), "destination":destination})
-	)
-	download_dialog.canceled.connect(func():
-		if acquisition_mode != "" and import_job != null: import_job.cancel()
-	)
-	add_child(download_dialog)
-
-func _open_download() -> void:
-	if busy: return
-	import_dialog.hide()
-	download_dialog.popup_centered(Vector2i(760, 460))
-
-func _begin_acquisition(request: Dictionary) -> void:
+func _begin_dem(request: Dictionary) -> void:
 	if busy: return
 	_discard_import()
-	if request.mode in ["probe", "download", "catalog"]: download_request_revision = download_revision
-	if request.mode == "probe": download_plan.clear()
-	download_dialog.get_ok_button().disabled = true
-	var job := _new_download_job()
-	var failure: String = job.start_acquisition(request, import_python.text.strip_edges(), Crypto.new().generate_random_bytes(16).hex_encode())
+	var job := DEM_JOB.new()
+	var failure: String = job.start_local(request, import_python.text.strip_edges(), Crypto.new().generate_random_bytes(16).hex_encode())
 	if failure != "":
-		_status("E_DOWNLOAD: " + failure)
+		_status("E_DEM: " + failure)
 		return
-	acquisition_mode = request.mode
+	dem_mode = request.mode
 	import_job = job
 	worker_generation = generation
 	busy = true
 	import_progress.visible = true
-	download_summary.text = "Checking provider…" if request.mode == "probe" else "Downloading. Cancel stops this request; retry starts from zero."
 
-func _finish_acquisition(result: Dictionary) -> void:
-	var mode := acquisition_mode
-	acquisition_mode = ""
-	if mode.begins_with("dem"):
-		dem_panel.finish(mode,result)
-		return
-	if not result.ok:
-		download_summary.text = str(result.error.message)
-		_status("E_DOWNLOAD: " + str(result.error.message))
-		return
-	if generation != worker_generation:
-		_status("Document changed; download result will not start an import. Complete source files are retained.")
-		return
-	if mode in ["overture", "overture-transportation", "overture-land-cover"]:
-		if overture_request_revision != overture_revision or overture_requested != _overture_plan():
-			_status("Area changed; completed source retained without selecting it. Retry the new area.")
-			return
-		last_import_source = str(result.data.path)
-		var format_index := 5 if mode == "overture-land-cover" else 4 if mode == "overture-transportation" else 3
-		import_source_format.select(format_index)
-		import_source_format.item_selected.emit(format_index)
-		_status("Overture snapshot retained: " + last_import_source + ". Set origins, then Import / retry last source.")
-		import_dialog.popup_centered(Vector2i(760, 550))
-		return
-	if mode in ["probe", "download", "catalog"] and download_request_revision != download_revision:
-		_status("Region selection changed; completed sources retained without selection. Check again.")
-		return
-	if mode == "catalog":
-		osm_panel.load_catalog(result.data)
-		return
-	if mode == "probe":
-		if result.data.requested_url != download_url.text.strip_edges(): return
-		download_plan = result.data
-		var expected := "%d bytes" % int(download_plan.bytes) if download_plan.bytes != null else "unknown (progress shows bytes against the 32 MiB cap)"
-		download_summary.text = "Region: %s\nProvider: Geofabrik\n%s\nExpected transfer: %s; hard limit 32 MiB.\nModified: %s\n%s\n\nWhole provider polygon, buffered borders and complete crossing ways may extend beyond it. No automatic clipping or terrain accuracy guarantee.\nCompleted source + receipt are retained in import-sources. Partial downloads are discarded; retry is a fresh request. Then set WGS84 origins and review the imported layer." % [download_plan.region, download_plan.url, expected, download_plan.modified, download_plan.license]
-		download_dialog.get_ok_button().disabled = download_plan.etag == "" and download_plan.modified == ""
-	else:
-		var source: String = result.data.path
-		download_sources[source] = "Geofabrik " + str(result.data.url)
-		last_import_source = source
-		import_source_format.select(1)
-		import_source_format.item_selected.emit(1)
-		_status("Download retained: " + source + ". Set origins, then Retry last source to review/import.")
-		import_dialog.popup_centered(Vector2i(760, 550))
-
-func _new_download_job() -> RefCounted:
-	return DOWNLOAD_JOB.new()
-
-func _setup_overture() -> void:
-	overture_dialog = ConfirmationDialog.new()
-	overture_dialog.title = "Overture · source area review"
-	overture_dialog.ok_button_text = "Review selected area"
-	overture_scroll = ScrollContainer.new()
-	overture_scroll.custom_minimum_size = Vector2(700, 460)
-	overture_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	overture_dialog.add_child(overture_scroll)
-	var fields := VBoxContainer.new()
-	fields.custom_minimum_size.x = 700
-	fields.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	overture_scroll.add_child(fields)
-	overture_limits = _label(fields, "")
-	overture_theme = OptionButton.new()
-	overture_theme.add_item("Buildings / optional vertical parts")
-	overture_theme.add_item("Transportation · ground roads + connectors")
-	overture_theme.add_item("Land cover · high-detail forest vegetation")
-	fields.add_child(overture_theme)
-	overture_theme.item_selected.connect(func(index):
-		overture_parts.disabled = index != 0
-		overture_ground.editable = index == 1 or (index == 0 and overture_parts.button_pressed)
-		_overture_changed()
-	)
-	overture_release = LineEdit.new()
-	overture_release.placeholder_text = "Dated release, e.g. 2026-08-19.0 (never latest)"
-	fields.add_child(overture_release)
-	var grid := GridContainer.new()
-	grid.columns = 4
-	fields.add_child(grid)
-	for item in [["West longitude",-180,180], ["South latitude",-80,84], ["East longitude",-180,180], ["North latitude",-80,84]]:
-		overture_bbox.append(_import_number(grid, item[0], item[1], item[2], 0, 0.000001))
-	overture_parts = CheckBox.new()
-	overture_parts.text = "Include vertical building parts (complete families, 256 features / 8192 points)"
-	fields.add_child(overture_parts)
-	overture_ground = _import_number(grid, "Chosen ground / road plane (m)", -9000, 9000, 0, 0.01)
-	overture_ground.editable = false
-	overture_parts.toggled.connect(func(enabled):
-		overture_ground.editable = overture_theme.selected == 1 or (overture_theme.selected == 0 and enabled)
-		_overture_changed()
-	)
-	overture_ground.value_changed.connect(func(_value): _overture_changed())
-	overture_area = preload("./area_selector.gd").new()
-	fields.add_child(overture_area)
-	overture_area.bounds_selected.connect(func(bounds: Array):
-		for i in range(4): overture_bbox[i].value = bounds[i]
-	)
-	var actions := HBoxContainer.new()
-	fields.add_child(actions)
-	_button(actions, "Fit coordinates", func(): overture_area.toggle_fit())
-	_button(actions, "Area at import origin", func():
-		var origin_bounds := [import_origin_lon.value, import_origin_lat.value, minf(180,import_origin_lon.value+0.001), minf(84,import_origin_lat.value+0.001)]
-		for i in range(4): overture_bbox[i].value = origin_bounds[i]
-		overture_area.toggle_fit()
-	)
-	overture_area_status = _label(fields, "")
-	for field in overture_bbox: field.value_changed.connect(func(_value): _overture_changed())
-	overture_release.text_changed.connect(func(_value): _overture_changed())
-	overture_notice = _label(fields, "")
-	for child in fields.get_children():
-		if child is Label: child.custom_minimum_size.x = 700
-	overture_dialog.confirmed.connect(_review_overture)
-	overture_review = ConfirmationDialog.new()
-	overture_review.title = "Confirm Overture area and source"
-	overture_review.ok_button_text = "Download reviewed area"
-	overture_review.confirmed.connect(_download_overture)
-	overture_review.canceled.connect(func():
-		overture_reviewed.clear()
-		_open_overture()
-	)
-	add_child(overture_review)
-	overture_dialog.canceled.connect(func():
-		if acquisition_mode in ["overture", "overture-transportation", "overture-land-cover"] and import_job != null: import_job.cancel()
-	)
-	add_child(overture_dialog)
-	_overture_changed()
-
-func _open_overture() -> void:
-	if busy: return
-	import_dialog.hide()
-	overture_dialog.popup_centered(Vector2i(760, 560))
-
-func _overture_plan() -> Dictionary:
-	var bounds: Array = []
-	for field in overture_bbox: bounds.append(field.value)
-	var query := {"provider":"Overture", "release":overture_release.text.strip_edges(), "bbox":bounds, "theme":"buildings", "type":"building", "license":IMPORT_LAYER.OVERTURE_LICENSE}
-	if overture_theme.selected == 1:
-		query.merge({"theme":"transportation", "type":"segment", "profile":"ground-graph-v1", "ground_m":overture_ground.value, "license":IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE}, true)
-	elif overture_theme.selected == 2:
-		query.merge({"theme":"base", "type":"land_cover", "profile":"forest-high-detail-v1", "license":IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE}, true)
-	elif overture_parts.button_pressed:
-		query.include_parts = true
-		query.ground_m = overture_ground.value
-	return query
-
-func _download_overture() -> void:
-	if busy: return
-	if overture_reviewed.is_empty() or overture_reviewed != _overture_plan() or _overture_error() != "":
-		_status("Area changed or has not been reviewed. Review the current selection first.")
-		return
-	overture_requested = overture_reviewed.duplicate(true)
-	overture_request_revision = overture_revision
-	overture_reviewed.clear()
-	var folder := ProjectSettings.globalize_path("user://import-sources")
-	var error := DirAccess.make_dir_recursive_absolute(folder)
-	if error != OK:
-		_status("Cannot create source folder: " + error_string(error))
-		return
-	var destination := folder.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + (".overture-land-cover.json" if overture_theme.selected == 2 else ".overture-roads.json" if overture_theme.selected == 1 else ".overture.json"))
-	_begin_acquisition({"mode":"overture-land-cover" if overture_theme.selected == 2 else "overture-transportation" if overture_theme.selected == 1 else "overture", "provider":"Overture", "plan":overture_requested.duplicate(true), "destination":destination})
-
-func _overture_error() -> String:
-	var query := _overture_plan()
-	var b: Array = query.bbox
-	var pattern := RegEx.new()
-	pattern.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}\\.[0-9]+$")
-	if pattern.search(query.release) == null: return "Enter an explicit dated release (YYYY-MM-DD.N)."
-	var date: PackedStringArray = query.release.substr(0,10).split("-")
-	var year := int(date[0])
-	var month := int(date[1])
-	var day := int(date[2])
-	var days := [31,29 if year%4 == 0 and (year%100 != 0 or year%400 == 0) else 28,31,30,31,30,31,31,30,31,30,31]
-	if month < 1 or month > 12 or day < 1 or day > days[month-1]: return "Release date is not a calendar date."
-	if b[0] >= b[2] or b[1] >= b[3]: return "Choose west < east and south < north; no dateline crossing."
-	if b[2]-b[0] > 0.02 or b[3]-b[1] > 0.02: return "Area exceeds 0.02 degrees per side. Select a smaller area."
-	return ""
-
-func _overture_changed() -> void:
-	var roads := overture_theme.selected == 1
-	overture_limits.text = "overturemaps 1.0.2 · dated release / area ≤ 0.02° per side.\nTransfer/count unknown; snapshot ≤32 MiB / %s.\nReader memory/network bytes can exceed snapshot size; deadline 120s.\nProgress is captured snapshot bytes, not network completion." % ("1024 features / 8192 points / 2048 split roads" if roads else "256 features / 8192 points" if overture_parts.button_pressed else "20,000 buildings")
-	overture_notice.text = ("ODbL · OpenStreetMap contributors / TomTom / Overture Maps Foundation.\nComplete ground graph inside area; exact connector IDs join roads.\nNo structures/restrictions/conditional rules; chosen plane is estimated.\nComplete width/surface intervals; missing width → 8m, paved/unknown → asphalt." if roads else "ODbL · OpenStreetMap contributors / Overture Maps Foundation.\nWhole multipart/courtyard footprints (recipe 5 for courtyards).\nVertical parts: explicit heights, complete parents inside the area.\nChosen ground is not sampled terrain; underground parts reject.") + "\nhttps://docs.overturemaps.org/attribution/\nCompleted sources stay; cancel removes only this partial; retry starts fresh."
-	if overture_theme.selected == 2:
-		overture_limits.text = "Dated release / area ≤0.02° · 256 source features / 8192 points / 32 MiB snapshot.\nTransfer/count and reader memory unknown; captured-byte progress; deadline 120s."
-		overture_notice.text = _land_cover_notice()
-	overture_revision += 1
-	overture_reviewed.clear()
-	overture_review.hide()
-	overture_area.set_bounds(_overture_plan().bbox)
-	var error := _overture_error()
-	overture_dialog.get_ok_button().disabled = error != ""
-	overture_area_status.text = error if error != "" else ("Whole forest polygons and holes retained; no crop. Origins chosen on import." if overture_theme.selected == 2 else "Complete ground graph must be inside area; missing connectors reject. Origins chosen on import." if overture_theme.selected == 1 else "Valid query envelope · crossing buildings stay whole; origin is chosen separately on import.")
-
-func _review_overture() -> void:
-	if busy: return
-	var error := _overture_error()
-	if error != "":
-		_status(error)
-		_open_overture()
-		return
-	import_dialog.hide()
-	overture_dialog.hide()
-	overture_reviewed = _overture_plan().duplicate(true)
-	var b: Array = overture_reviewed.bbox
-	overture_review.dialog_text = "Release: %s · buildings only\nW %.6f / S %.6f / E %.6f / N %.6f\n\nQuery envelope, not a crop. All returned footprint parts stay whole.\nTransfer/count unknown; captured snapshot ≤32 MiB / 20,000 features.\nNetwork bytes and reader memory may exceed that cap. Deadline 120s.\nODbL · OpenStreetMap contributors / Overture Maps Foundation.\n\nDownload preserves a new source; it does not adopt or change the map.\nNext: set explicit geographic/local origins, import, review and adopt.\nCancel stops this request; completed sources remain; retry starts fresh." % [overture_reviewed.release,b[0],b[1],b[2],b[3]]
-	if overture_theme.selected == 1:
-		overture_review.dialog_text = "Release: %s · transportation segment + connector\nW %.6f / S %.6f / E %.6f / N %.6f\nChosen road plane: %.2f m (estimate, not terrain sampled).\n\nComplete ground graph only: all vertices strictly inside area.\n1024 source features / 8192 positions / 2048 split roads; snapshot ≤32 MiB.\nBoth readers finish before publication; transfer/count unknown.\nReader/network memory may exceed snapshot cap; deadline 120s.\n\nExact connector IDs connect; interior connectors split roads.\nUniform width/surface only. Missing width estimates 8m; paved estimates asphalt.\nStructures, restrictions, rail/water and incomplete graphs reject whole input.\nODbL · OpenStreetMap contributors / TomTom / Overture Maps Foundation.\n\nDownload preserves a new source; next set origins, import, review and adopt.\nCancel stops this request; complete sources remain; retry starts fresh." % [overture_reviewed.release,b[0],b[1],b[2],b[3],overture_ground.value]
-	elif overture_theme.selected == 2:
-		overture_review.dialog_text = "Release: %s · base/land_cover\nW %.6f / S %.6f / E %.6f / N %.6f\n256 source features / 8192 points / 32 MiB snapshot; deadline 120s.\nTransfer/count and reader memory unknown; progress counts captured bytes.\n\n%s\n\nNext: set origins, import, review and adopt as a new layer." % [overture_reviewed.release,b[0],b[1],b[2],b[3],_land_cover_notice(false)]
-	elif overture_parts.button_pressed:
-		overture_review.dialog_text += "\n\nIncludes building + building_part. Common ground altitude: %.2f m.\n256 total source features / 8192 points; explicit height + min_height.\nParents must be wholly inside area and exactly covered by parts.\nParent outlines are retained as sources; only parts become solids." % overture_ground.value
-	overture_review.popup_centered(Vector2i(740,480))
-
-func _land_cover_notice(full_attribution: bool = true) -> String:
-	var notice := IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if full_attribution else "ODbL · ESA WorldCover CC BY 4.0 · full notice in area review and snapshot."
-	return "Forest only · min_zoom=8 / max_zoom=15. Other land classes and lower detail\nare retained in source/provenance and excluded, never inferred as trees.\nWhole polygons/holes/islands; no clipping. Unknown profiles reject.\nWorldCover 10m raster classification is not measured tree positions/accuracy.\n8m spacing / 750‰ density and generated trees are estimates; review alignment.\n" + notice + "\nCompleted sources remain; cancel removes owned partial; retry starts fresh."
+func _finish_dem(result: Dictionary) -> void:
+	var mode := dem_mode
+	dem_mode = ""
+	dem_panel.finish(mode, result)

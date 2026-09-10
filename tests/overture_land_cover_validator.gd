@@ -1,12 +1,7 @@
 extends SceneTree
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
-class FixtureJob extends "res://scripts/download_job.gd":
-	func _spawn(python: String, arguments: PackedStringArray) -> Dictionary:
-		arguments.insert(2, ProjectSettings.globalize_path("res://tests/overture_land_cover_fixture.py"))
-		return OS.execute_with_pipe(python, arguments, false)
-class FixtureUI extends "res://scripts/editor_main.gd":
-	func _new_download_job() -> RefCounted: return FixtureJob.new()
+const UI := preload("res://scripts/editor_main.gd")
 var failures: Array[String] = []
 var checks := 0
 func check(ok: bool, message: String) -> void:
@@ -20,41 +15,18 @@ func wait_job(ui: Control) -> void:
 	while ui.busy and Time.get_ticks_msec() < deadline: await process_frame
 	check(not ui.busy, "Overture worker terminates: " + ui.status_label.text)
 func run() -> void:
-	var ui := FixtureUI.new()
+	var ui := UI.new()
 	root.add_child(ui)
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
-	ui.overture_release.text = "2026-08-19.0"
-	ui.overture_theme.select(2)
-	ui.overture_theme.item_selected.emit(2)
-	ui.overture_ground.value = 0.2
-	var bounds := [9,55,9.001,55.001]
-	for i in range(4): ui.overture_bbox[i].value=bounds[i]
-	ui._open_overture()
-	if DisplayServer.get_name() != "headless":
-		root.size=Vector2i(1024,720)
-		ui.overture_dialog.popup_centered(Vector2i(760,560))
-		await process_frame
-		check(ui.overture_dialog.size.x <= 1024 and ui.overture_dialog.size.y <= 720, "area wizard fits minimum window")
-		check(ui.overture_scroll.get_v_scroll_bar().max_value > ui.overture_scroll.size.y, "long source guidance remains scrollable")
-		check(ui.overture_dialog.get_ok_button().get_global_rect().end.y <= 720,"review action remains inside window")
-		var capture := OS.get_environment("MAPEDITOR_CAPTURE_PATH")
-		if capture != "":
-			await RenderingServer.frame_post_draw
-			check(root.get_texture().get_image().save_png(capture)==OK,"area screenshot")
-	ui.overture_dialog.hide()
 	check(ui.store.apply_command("Choose vegetation recipe",[{"field":"recipe_version","before":1,"after":3}])=="","explicit recipe 3 for native vegetation generation")
 	var before: Dictionary=ui.store.document.duplicate(true)
-	ui.overture_dialog.confirmed.emit()
-	await process_frame
-	check(ui.overture_review.size.x<=1024 and ui.overture_review.size.y<=720,"confirmation fits minimum window with attribution guidance")
-	ui.overture_review.hide()
-	ui.overture_review.confirmed.emit()
-	await wait_job(ui)
-	var source: String=ui.last_import_source
-	check(FileAccess.file_exists(source), "Overture snapshot retained: " + ui.status_label.text)
-	check(ui.store.document==before and ui.pending_import==null,"download does not mutate document")
-	check(ui.import_source_format.selected==5 and ui.import_license.text==LAYER.OVERTURE_LAND_COVER_LICENSE,"explicit geoforest zonesic source/attribution")
+	var source := ProjectSettings.globalize_path("user://overture_land_cover_validator.gd.json")
+	var output: Array = []
+	check(OS.execute(ui.import_python.text, PackedStringArray(["-B", ProjectSettings.globalize_path("res://tests/overture_land_cover_fixture.py"), "--snapshot", source]), output, true) == 0, "local synthetic snapshot")
+	ui.import_source_format.select(5)
+	ui.import_source_format.item_selected.emit(5)
+	check(ui.import_license.text == LAYER.OVERTURE_LAND_COVER_LICENSE, "explicit local source attribution")
 	if not FileAccess.file_exists(source): quit(1); return
 	var original:=FileAccess.get_sha256(source)
 	ui.import_origin_lon.value=9
@@ -70,8 +42,6 @@ func run() -> void:
 	check(ui.import_summary.text.contains("2026-08-19.0") and ui.import_summary.text.contains("synthetic fixture") and ui.import_summary.text.contains("WorldCover"),"release/source/estimate review")
 	check(raw.patches.size()==3 and raw.patches[0].after.exclusions.size()==1,"forest parts and hole preserved")
 	check(raw.coordinates.overture_land_cover.feature_sources[1].disposition=="other-subtype" and raw.coordinates.overture_land_cover.feature_sources[2].disposition=="lower-detail","excluded classes and duplicate detail explicitly reviewed")
-	check(ui.overture_parts.disabled and not ui.overture_ground.editable,"building-only controls disabled for land cover")
-	check(ui.overture_notice.text.contains("750") and ui.overture_notice.text.contains("CC-BY-4.0"),"source review retains estimated density and WorldCover notice")
 	for field in ["license","adapter","profile","bbox","release","sources","missing","kind","spacing","density","unmapped","subtype","zoom","disposition","excluded","point_budget","estimates","holes","count"]:
 		var bad:=raw.duplicate(true)
 		var meta:Dictionary=bad.coordinates.overture_land_cover
@@ -179,51 +149,26 @@ func run() -> void:
 	ui._adopt_import()
 	check(ui.store.document.zones.size()==3,"stale review rejected")
 	ui.last_import_source=source
-	ui._review_overture()
-	ui.overture_review.hide()
-	ui._download_overture()
-	ui.overture_bbox[2].value=9.002
-	ui.overture_bbox[2].value=9.001
-	await wait_job(ui)
-	check(ui.last_import_source==source,"changed then restored area rejects completed selection")
-	ui.overture_bbox[2].value=9.001
-	ui.overture_release.text="2026-08-19.1"
-	ui._review_overture()
-	ui.overture_review.hide()
-	ui._download_overture()
-	var owned:RefCounted=ui.import_job
-	var deadline:=Time.get_ticks_msec()+5000
-	while ui.busy and not FileAccess.file_exists(owned.directory.path_join("download.part")) and Time.get_ticks_msec()<deadline:await process_frame
-	check(ui.busy and FileAccess.file_exists(owned.directory.path_join("download.part")),"partial exists before cancellation")
-	ui._cancel_operation()
-	await wait_job(ui)
-	check(not DirAccess.dir_exists_absolute(owned.directory) and FileAccess.get_sha256(source)==original,"cancel cleans only request partial")
-	ui._review_overture()
-	ui.overture_review.hide()
-	ui._download_overture()
-	owned=ui.import_job
+	# Surviving local helper lifetime: deadline, stale response, retry and owner close.
+	ui._start_import(source,LAYER.OVERTURE_LAND_COVER_LICENSE)
+	var owned: RefCounted = ui.import_job
 	owned.poll(owned.deadline_ms)
 	await wait_job(ui)
-	check(owned.result.error.message.contains("timed out"),"deadline terminates helper")
-	ui.overture_release.text="2026-08-19.0"
-	ui._review_overture()
-	ui.overture_review.hide()
-	ui._download_overture()
-	ui.generation+=1
+	check(owned.result.error.message.contains("timed out"),"deadline terminates local helper")
+	ui._start_import(source,LAYER.OVERTURE_LAND_COVER_LICENSE)
+	ui.generation += 1
 	await wait_job(ui)
-	check(ui.last_import_source==source,"stale document rejects remote selection")
-	ui._review_overture()
-	ui.overture_review.hide()
-	ui._download_overture()
+	check(ui.pending_import == null,"stale document rejects local candidate")
+	ui._start_import(source,LAYER.OVERTURE_LAND_COVER_LICENSE)
 	await wait_job(ui)
-	check(ui.last_import_source!=source,"fresh retry creates separate snapshot")
-	ui._review_overture()
-	ui.overture_review.hide()
-	ui._download_overture()
+	check(ui.pending_import != null,"fresh local retry succeeds")
+	ui._discard_import()
+	ui._start_import(source,LAYER.OVERTURE_LAND_COVER_LICENSE)
 	owned=ui.import_job
 	ui.store.dirty=false
 	ui.queue_free()
 	await process_frame
-	check(owned.pid==-1 and not DirAccess.dir_exists_absolute(owned.directory),"owner close stops child")
+	check(owned.pid==-1 and not DirAccess.dir_exists_absolute(owned.directory),"owner close stops local child")
+	check(FileAccess.get_sha256(source)==original,"original snapshot retained after lifetime checks")
 	print("overture_land_cover_validator: %s (%d checks)" % ["PASS" if failures.is_empty() else str(failures),checks])
 	quit(0 if failures.is_empty() else 1)

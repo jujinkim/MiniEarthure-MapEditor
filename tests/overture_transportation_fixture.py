@@ -2,7 +2,6 @@
 import json
 from pathlib import Path
 import sys
-import time
 
 
 def snapshot():
@@ -49,18 +48,5 @@ def off_vertex_snapshot():
 
 
 if __name__ == "__main__":
-    if sys.argv[1] == "--snapshot":
-        Path(sys.argv[2]).write_text(json.dumps(snapshot()))
-        sys.exit(0)
-    entry = sys.argv.pop(1)
-    sys.path.insert(0,str(Path(entry).parent))
-    import overture_transportation as adapter
-    original = adapter.acquire
-    def features(query):
-        value = off_vertex_snapshot()
-        for f in value["features"]:
-            yield f
-            if query["release"] == "2026-08-19.1": time.sleep(30)
-    def acquire(query,partial,destination,progress):
-        return original(query,partial,destination,progress,features)
-    adapter.area.main(acquire)
+    value = off_vertex_snapshot()
+    Path(sys.argv[2]).write_text(json.dumps(value))

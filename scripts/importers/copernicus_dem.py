@@ -8,8 +8,6 @@ from pathlib import Path
 import struct
 import sys
 import time
-import urllib.request
-from urllib.error import HTTPError
 import zlib
 from import_layer import number, strict_json
 from projection import Coordinates
@@ -26,10 +24,8 @@ def integer(value, name, low, high):
 
 
 def grid(options, mosaic=False):
-    if not isinstance(options, dict) or set(options) != {"coordinates", "cell", "cell_size_cm", "map_min_cm", "spacing_cm", "vertical_zero_m", "source", "allow_download", "fallback90"}:
+    if not isinstance(options, dict) or set(options) != {"coordinates", "cell", "cell_size_cm", "map_min_cm", "spacing_cm", "vertical_zero_m", "source"}:
         raise ValueError("Invalid DEM options")
-    if type(options["allow_download"]) is not bool or type(options["fallback90"]) is not bool:
-        raise ValueError("Explicit download/fallback choice required")
     if not isinstance(options["source"], str) or len(options["source"]) > 4096:
         raise ValueError("Invalid local COG path")
     coordinates = Coordinates(options["coordinates"])
@@ -59,35 +55,23 @@ def grid(options, mosaic=False):
     return coordinates, side, points, [west, south], zero
 
 
-def tile_url(tile, resolution):
+def tile_filename(tile, resolution=30):
     lon, lat = tile
     name = f"Copernicus_DSM_COG_{'10' if resolution == 30 else '30'}_{'N' if lat >= 0 else 'S'}{abs(lat):02d}_00_{'E' if lon >= 0 else 'W'}{abs(lon):03d}_00_DEM"
-    return f"https://copernicus-dem-{resolution}m.s3.amazonaws.com/{name}/{name}.tif"
+    return name + ".tif"
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args, **kwargs): raise ValueError("Unexpected DEM redirect; no redirected download")
-
-
-def open_remote(url, method, headers=None):
-    request = urllib.request.Request(url, method=method, headers={"Accept-Encoding":"identity", **(headers or {})})
-    return urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect()).open(request, timeout=15)
-
-
-def headers(response, url):
-    if response.status != 200 or response.geturl() != url or response.headers.get("Content-Encoding", "identity") != "identity":
-        raise ValueError("Expected unchanged complete DEM HTTP 200")
-    sizes = response.headers.get_all("Content-Length", [])
-    if len(sizes) != 1 or not sizes[0].isascii() or not sizes[0].isdigit() or len(sizes[0]) > 10 or response.headers.get("Transfer-Encoding"):
-        raise ValueError("DEM needs an unambiguous known size")
-    size = int(sizes[0])
-    etag = response.headers.get("ETag", "")
-    if not 0 < size <= MAX_SOURCE or not 2 <= len(etag) <= 256 or not etag.startswith('"') or not etag.endswith('"') or any(ord(c) < 32 for c in etag):
-        raise ValueError("DEM needs a strong ETag and 1..64 MiB source size")
-    return {"url":url, "bytes":size, "etag":etag}
+def local_source(value, *, folder=False):
+    path = Path(value)
+    if not path.is_absolute(): raise ValueError("Select an absolute local COG path")
+    # Validate before GDAL sees input; URI/VSI/virtual sources cannot trigger reads.
+    if not (path.is_dir() if folder else path.is_file()):
+        raise ValueError("Select an existing local COG folder" if folder else "Select an existing local COG file")
+    return path
 
 
 def identity(path):
+    path = local_source(path)
     digest, count = hashlib.sha256(), 0
     with path.open("rb") as stream:
         while chunk := stream.read(65536):
@@ -98,25 +82,13 @@ def identity(path):
     return {"bytes":count, "sha256":digest.hexdigest()}
 
 
-def plan(options, opener=open_remote):
-    if "cell_count" in options: return mosaic_plan(options, opener)
+def plan(options):
+    if "cell_count" in options: return mosaic_plan(options)
     coordinates, side, points, tile, _ = grid(options)
     resolution, fallback = 30, False
-    if options["source"]:
-        source = Path(options["source"])
-        if not source.is_absolute() or not source.is_file(): raise ValueError("Select a local Copernicus COG file")
-        # A local file is an explicit user-declared 2021 GLO-30 COG, not authenticated provenance.
-        source_info = dict(identity(source), path=str(source))
-    else:
-        if not options["allow_download"]: raise ValueError("Select a local COG or explicitly allow downloading")
-        url = tile_url(tile, 30)
-        try:
-            with opener(url, "HEAD") as response: source_info = headers(response, url)
-        except HTTPError as exc:
-            if exc.code != 404 or not options["fallback90"]: raise ValueError(f"GLO-30 HTTP {exc.code}; no source selected") from exc
-            resolution, fallback = 90, True
-            url = tile_url(tile, 90)
-            with opener(url, "HEAD") as response: source_info = headers(response, url)
+    source = local_source(options["source"])
+    # Explicit user-declared 2021 GLO-30 COG; provenance is not authenticated.
+    source_info = dict(identity(source), path=str(source))
     return dict(adapter="copernicus-dem-v1", release="2021", resolution_m=resolution, fallback90=fallback,
                 license=LICENSE_URL, notice=NOTICE.format(resolution=resolution), vertical_crs="EPSG:3855 / EGM2008 metres",
                 surface="DSM including buildings and vegetation; not bare-earth DTM", projection=coordinates.metadata,
@@ -124,17 +96,13 @@ def plan(options, opener=open_remote):
                 side=side, options=options, source=source_info, checked_at=int(time.time()))
 
 
-def capture(review, partial, destination, progress, opener=open_remote):
+def capture(review, partial, destination, progress):
     source = review["source"]
     expected = source["bytes"]
     digest, count = hashlib.sha256(), 0
-    if "path" in source:
-        stream = Path(source["path"]).open("rb")
-    else:
-        if source["url"] != tile_url(review["tile"], review["resolution_m"]): raise ValueError("Changed DEM URL")
-        stream = opener(source["url"], "GET", {"If-Match": source["etag"]})
+    if set(source) != {"path", "bytes", "sha256"}: raise ValueError("Expected reviewed local DEM source")
+    stream = local_source(source["path"]).open("rb")
     with stream:
-        if "url" in source and headers(stream, source["url"]) != source: raise ValueError("DEM changed after review")
         progress(0, expected)
         with partial.open("xb") as output:
             while chunk := stream.read(min(65536, expected+1-count)):
@@ -160,9 +128,20 @@ def raster_dependencies():
     return rasterio, np
 
 
+def sampling_options(review):
+    # Previously captured receipts retain these historical choices as provenance.
+    # Pure local sampling may read them; new plan/execute requests still reject them.
+    options = dict(review["options"])
+    for key in ("allow_download", "fallback90"):
+        if key in options:
+            if type(options.pop(key)) is not bool: raise ValueError("Invalid legacy DEM choice")
+    return options
+
+
 def sample(path, review, progress):
+    path = local_source(path)
     rasterio, np = raster_dependencies()
-    _, side, points, tile, zero = grid(review["options"])
+    _, side, points, tile, zero = grid(sampling_options(review))
     from rasterio.windows import Window
     # Only local captured GTiff; no VRT/sidecars/network, no overview/downsampling inference.
     with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", GDAL_PAM_ENABLED="NO", GDAL_CACHEMAX=16*1024*1024), rasterio.open(path, driver="GTiff") as dataset:
@@ -204,24 +183,24 @@ def sample(path, review, progress):
                          source_window=[left,top,width,height], source_pixel_degrees=[t.a,-t.e], rasterio=rasterio.__version__, gdal=rasterio.__gdal_version__)
 
 
-def execute(request, scratch, progress, opener=open_remote):
+def execute(request, scratch, progress):
     if request["mode"] == "dem-plan":
         progress("acquire",0,0)
-        result = plan(request["options"], opener)
+        result = plan(request["options"])
         progress("sample",0,0)
         return result
     review = request["plan"]
-    if review.get("adapter") == "copernicus-dem-v2": return execute_mosaic(request, scratch, progress, opener)
+    if review.get("adapter") == "copernicus-dem-v2": return execute_mosaic(request, scratch, progress)
     if not 0 <= time.time()-review["checked_at"] <= 600: raise ValueError("DEM review expired")
-    # Recompute all derived contract fields. Remote HEAD is conditional only at capture.
-    current = plan(review["options"], opener)
+    # Recompute all derived contract fields. Local source identity is rechecked before capture.
+    current = plan(review["options"])
     if {k:v for k,v in current.items() if k != "checked_at"} != {k:v for k,v in review.items() if k != "checked_at"}:
         raise ValueError("DEM options/source changed; review again")
     current["checked_at"] = review["checked_at"]
     review = current  # JSON consumers may serialize integral values as floats.
-    raster_dependencies()  # actionable failure before any download
+    raster_dependencies()  # actionable failure before any local copy
     destination = Path(request["destination"])
-    source = capture(review, scratch/"download.part", destination, lambda c,t:progress("acquire",c,t), opener)
+    source = capture(review, scratch/"source.tif.part", destination, lambda c,t:progress("acquire",c,t))
     receipt = dict(review, source=source)
     with Path(str(destination)+".json").open("x") as stream: json.dump(receipt,stream,sort_keys=True)
     total = review["side"]**2
@@ -235,7 +214,6 @@ def execute(request, scratch, progress, opener=open_remote):
         os.fsync(stream.fileno())
     os.link(part,png_path)
     return dict(review=receipt, raster=metadata, png_path=str(png_path), png_sha256=hashlib.sha256(png).hexdigest(), png_bytes=len(png))
-
 
 
 MAX_MOSAIC_SAMPLES = 1025 * 1025
@@ -269,26 +247,14 @@ def mosaic_grid(options):
     return coordinates, side, cells, points, tiles, zero
 
 
-def mosaic_plan(options, opener=open_remote):
+def mosaic_plan(options):
     coordinates, side, cells, groups, tiles, zero = mosaic_grid(options)
     sources = []
     for tile in tiles:
         resolution, fallback = 30, False
-        if options["source"]:
-            folder = Path(options["source"])
-            if not folder.is_absolute() or not folder.is_dir(): raise ValueError("Mosaic local source must be a folder of named 2021 GLO-30 COGs")
-            path = folder / tile_url(tile,30).split("/")[-1]
-            source = dict(identity(path), path=str(path))
-        else:
-            if not options["allow_download"]: raise ValueError("Select a local COG folder or explicitly allow downloading")
-            url = tile_url(tile,30)
-            try:
-                with opener(url,"HEAD") as response: source = headers(response,url)
-            except HTTPError as exc:
-                if exc.code != 404 or not options["fallback90"]: raise ValueError(f"GLO-30 HTTP {exc.code}; no source selected") from exc
-                resolution, fallback = 90, True
-                url = tile_url(tile,90)
-                with opener(url,"HEAD") as response: source = headers(response,url)
+        folder = local_source(options["source"], folder=True)
+        path = folder / tile_filename(tile)
+        source = dict(identity(local_source(path)), path=str(path))
         sources.append(dict(tile=tile,resolution_m=resolution,fallback90=fallback,source=source,notice=NOTICE.format(resolution=resolution)))
     if sum(s["source"]["bytes"] for s in sources) > MAX_SOURCE:
         raise ValueError("Combined DEM sources exceed 64 MiB")
@@ -302,13 +268,14 @@ def mosaic_plan(options, opener=open_remote):
 def mosaic_heights(paths, review, progress):
     from contextlib import ExitStack
     from rasterio.windows import Window
+    paths = [local_source(path) for path in paths]
     rasterio, np = raster_dependencies()
-    _, side, cells, groups, tiles, zero = mosaic_grid(review["options"])
+    _, side, cells, groups, tiles, zero = mosaic_grid(sampling_options(review))
     with ExitStack() as stack:
         stack.enter_context(rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", GDAL_PAM_ENABLED="NO", GDAL_CACHEMAX=16*1024*1024))
         datasets = {}
         for path, item in zip(paths,review["sources"]):
-            ds = stack.enter_context(rasterio.open(path,driver="GTiff"))
+            ds = stack.enter_context(rasterio.open(local_source(path),driver="GTiff"))
             t = ds.transform
             h = 3600 if item["resolution_m"] == 30 else 1200
             tile = item["tile"]
@@ -378,10 +345,10 @@ def mosaic_heights(paths, review, progress):
             source_windows=windows,rasterio=rasterio.__version__,gdal=rasterio.__gdal_version__)
 
 
-def execute_mosaic(request,scratch,progress,opener=open_remote):
+def execute_mosaic(request,scratch,progress):
     review=request["plan"]
     if not 0<=time.time()-review["checked_at"]<=600: raise ValueError("DEM review expired")
-    current=mosaic_plan(review["options"],opener)
+    current=mosaic_plan(review["options"])
     if {k:v for k,v in current.items() if k!="checked_at"}!={k:v for k,v in review.items() if k!="checked_at"}: raise ValueError("DEM options/source changed; review again")
     current["checked_at"]=review["checked_at"]
     review=current
@@ -390,8 +357,8 @@ def execute_mosaic(request,scratch,progress,opener=open_remote):
     paths=[];captured=[];done=0;total=sum(s["source"]["bytes"] for s in review["sources"])
     for index,item in enumerate(review["sources"]):
         path=Path(str(destination)+f".source-{index}.tif")
-        part=scratch/"download.part"
-        source=capture(item,part,path,lambda c,t:progress("acquire",done+c,total),opener)
+        part=scratch/"source.tif.part"
+        source=capture(item,part,path,lambda c,t:progress("acquire",done+c,total))
         part.unlink() # only this owned partial, completed hard link remains
         captured.append(dict(item,source=source));paths.append(path);done+=source["bytes"]
         with Path(str(path)+".json").open("x") as stream: json.dump(dict(review=review,source=captured[-1]),stream,sort_keys=True)

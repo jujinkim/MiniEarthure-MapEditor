@@ -115,10 +115,19 @@ func crash_case(phase: String) -> void:
 	check(store.save_project(base) == "", phase + " initial save")
 	var original := FileAccess.get_sha256(base.path_join("document.json"))
 	var output: Array = []
-	var args := PackedStringArray(["--headless", "--path", ProjectSettings.globalize_path("res://"), "--script", "res://tests/document_crash_writer.gd", "--", base, phase])
+	# Godot consumes --path/--main-pack and can leave res:// without a disk root.
+	var project := OS.get_environment("MAPEDITOR_TEST_PROJECT")
+	if project == "": project = ProjectSettings.globalize_path("res://")
+	var args := PackedStringArray(["--headless", "--path", project])
+	var pack := OS.get_environment("MAPEDITOR_TEST_RESOURCE_PACK")
+	if pack != "": args.append_array(["--main-pack", pack])
+	# Test scripts are excluded from the pack; the child must inherit packed product code.
+	args.append_array(["--script", project.path_join("tests/document_crash_writer.gd"), "--", base, phase])
 	var exit_code := OS.execute(OS.get_executable_path(), args, output, true)
 	check(exit_code != 0 and exit_code not in [2,3,4,5], phase + " child killed at save boundary, exit=" + str(exit_code))
 	check(not str(output).contains("SCRIPT ERROR:"), phase + " child has no script failure")
+	var marker := base.path_join("crash-phase.txt")
+	check(FileAccess.file_exists(marker) and FileAccess.get_file_as_string(marker) == phase, phase + " child reached exact crash boundary: " + str(output))
 	var reopened := STORE.new()
 	check(reopened.open_project(base) == "", phase + " primary opens after process death")
 	check(reopened.document.seed == (777 if phase == "after_primary" else 42), phase + " primary is complete old or complete new document")

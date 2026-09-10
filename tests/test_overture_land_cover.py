@@ -60,32 +60,5 @@ class LandCoverTests(unittest.TestCase):
             with patch.object(module,key,limit),self.assertRaises(ValueError):self.layer(snapshot())
         with patch("polygon_geometry.MAX_TOPOLOGY_CHECKS",1),self.assertRaisesRegex(ValueError,"topology budget"):self.layer(snapshot())
         with patch("import_layer.MAX_OUTPUT",100),self.assertRaises(ValueError):self.layer(snapshot())
-    def test_arrow_reader_snapshot_and_atomic_preservation(self):
-        import pyarrow as pa
-        from shapely.geometry import shape
-        import overturemaps.core as core
-        obj=snapshot();rows=[]
-        for f in obj["features"]:rows.append(dict(f["properties"],geometry=shape(f["geometry"]).wkb))
-        table=pa.Table.from_pylist(rows)
-        reader=pa.RecordBatchReader.from_batches(table.schema,table.to_batches())
-        query=a.plan(obj["release"],obj["bbox"])
-        with tempfile.TemporaryDirectory() as directory,patch.object(core,"record_batch_reader",return_value=reader) as factory:
-            root=Path(directory);part=root/"part";target=root/"source";events=[]
-            result=a.acquire(query,part,target,lambda *v:events.append(v))
-            original=target.read_bytes()
-            self.assertEqual(result["actual_bytes"],len(original));self.layer(json.loads(original))
-            self.assertEqual(factory.call_args.args,("land_cover",))
-            self.assertEqual(factory.call_args.kwargs["release"],query["release"])
-            self.assertEqual(factory.call_args.kwargs["bbox"],query["bbox"])
-            part.unlink()
-            with self.assertRaises(FileExistsError):a.acquire(query,part,target,lambda *v:None,lambda q:obj["features"])
-            self.assertEqual(target.read_bytes(),original);part.unlink()
-            def interrupted(q):
-                yield obj["features"][0]
-                raise OSError("provider failed")
-            with self.assertRaises(OSError):a.acquire(query,part,root/"new",lambda *v:None,interrupted)
-            self.assertFalse((root/"new").exists());part.unlink()
-            with patch.object(a,"MAX_FEATURES",1),self.assertRaises(ValueError):a.acquire(query,part,root/"new",lambda *v:None,lambda q:obj["features"])
-            self.assertFalse((root/"new").exists())
 
 if __name__=="__main__":unittest.main()

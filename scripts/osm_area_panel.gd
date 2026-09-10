@@ -8,10 +8,6 @@ var fields: Array[SpinBox] = []
 var area: Control
 var status: Label
 var revision := 0
-var regions: Array = []
-var search: LineEdit
-var choices: ItemList
-var summary: Label
 
 func setup(owner_ui: Control) -> void:
 	ui = owner_ui
@@ -28,7 +24,7 @@ func setup(owner_ui: Control) -> void:
 	streaming = CheckBox.new()
 	streaming.text = "PBF streaming · local source up to 2 GiB (requires crop)"
 	layout.add_child(streaming)
-	ui._label(layout, "Streaming: source bytes + 2 GiB index + 64 MiB free disk; 15-minute deadline.\nThree byte-counted passes; complete candidate ways/relations before crop.\nOther local inputs and Geofabrik downloads stay at 32 MiB.")
+	ui._label(layout, "Streaming: source bytes + 2 GiB index + 64 MiB free disk; 15-minute deadline.\nThree byte-counted passes; complete candidate ways/relations before crop.\nOther vector inputs stay at 32 MiB.")
 	var grid := GridContainer.new()
 	grid.columns = 4
 	layout.add_child(grid)
@@ -82,34 +78,3 @@ func open() -> void:
 	if ui.busy: return
 	ui.import_dialog.hide()
 	dialog.popup_centered(Vector2i(750,540))
-
-func setup_catalog(layout: Control) -> void:
-	ui._button(layout,"Load official region list (network)",func(): ui._begin_acquisition({"mode":"catalog"}))
-	search = LineEdit.new()
-	search.placeholder_text = "Search region name, ID or parent"
-	layout.add_child(search)
-	search.text_changed.connect(func(_v): filter_regions())
-	choices = ItemList.new()
-	choices.custom_minimum_size = Vector2(680,100)
-	layout.add_child(choices)
-	choices.item_selected.connect(func(index: int):
-		ui.download_url.text = str(choices.get_item_metadata(index))
-		ui.download_url.text_changed.emit(ui.download_url.text)
-	)
-	summary = ui._label(layout,"Load the catalog or paste a public URL. Size/coverage is not inferred from the list.")
-	for child in layout.get_children():
-		if child is Label: child.custom_minimum_size.x = 680
-
-func load_catalog(data: Dictionary) -> void:
-	regions = data.regions
-	summary.text = "%d regions · official catalog; select a row, then Check region and size." % regions.size()
-	filter_regions()
-
-func filter_regions() -> void:
-	choices.clear()
-	var query := search.text.strip_edges().to_lower()
-	for region: Dictionary in regions:
-		var label := "%s · %s · %s" % [region.name,region.id,region.parent]
-		if query != "" and not label.to_lower().contains(query): continue
-		choices.add_item(label)
-		choices.set_item_metadata(choices.item_count-1,region.url)

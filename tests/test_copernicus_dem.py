@@ -1,5 +1,4 @@
 import copy
-from email.message import Message
 import hashlib
 import io
 import json
@@ -9,7 +8,6 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-from urllib.error import HTTPError
 import zlib
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts/importers"))
 import copernicus_dem as dem
@@ -17,17 +15,7 @@ from dem_fixture import create
 
 
 def options(source=""):
-    return dict(coordinates=dict(mode="wgs84-utm",origin=[9.5,55.5],local_origin_m=[0,0]),cell=[0,0],cell_size_cm=51200,map_min_cm=[0,0],spacing_cm=3200,vertical_zero_m=0,source=str(source),allow_download=False,fallback90=False)
-
-
-class Response(io.BytesIO):
-    def __init__(self, url, body=b"abc", size=None, etag='"fixture"', status=200):
-        super().__init__(body)
-        self.url, self.status = url,status
-        self.headers = Message()
-        self.headers["Content-Length"] = str(len(body) if size is None else size)
-        self.headers["ETag"] = etag
-    def geturl(self): return self.url
+    return dict(coordinates=dict(mode="wgs84-utm",origin=[9.5,55.5],local_origin_m=[0,0]),cell=[0,0],cell_size_cm=51200,map_min_cm=[0,0],spacing_cm=3200,vertical_zero_m=0,source=str(source))
 
 
 class DemTests(unittest.TestCase):
@@ -53,30 +41,6 @@ class DemTests(unittest.TestCase):
         bad=copy.deepcopy(o);bad["coordinates"]["local_origin_m"]=[-20001,0]
         with self.assertRaises(ValueError): dem.grid(bad)
 
-    def test_no_implicit_network_and_404_only_fallback(self):
-        with self.assertRaisesRegex(ValueError,"explicitly allow"): dem.plan(options())
-        calls=[]
-        def opener(url,method,headers=None):
-            calls.append((url,method))
-            if "30m" in url: raise HTTPError(url,404,"absent",{},None)
-            return Response(url)
-        o=dict(options(),allow_download=True,fallback90=True)
-        p=dem.plan(o,opener)
-        self.assertEqual(p["resolution_m"],90);self.assertTrue(p["fallback90"])
-        self.assertEqual([c[1] for c in calls],["HEAD","HEAD"])
-        for code in [403,429,500]:
-            with self.assertRaises(ValueError),patch.object(dem,"open_remote"):
-                dem.plan(o,lambda *a: (_ for _ in ()).throw(HTTPError(a[0],code,"failure",{},None)))
-        self.assertIn("_30_S01_00_W001_00_DEM",dem.tile_url([-1,-1],90))
-
-    def test_http_framing_and_size_guards(self):
-        url=dem.tile_url([9,55],30)
-        for response in [Response(url,size=dem.MAX_SOURCE+1),Response(url,etag='W/"weak"'),Response(url,status=206),Response(url,size=0)]:
-            with self.assertRaises(ValueError): dem.headers(response,url)
-        r=Response(url);r.headers["Content-Length"]="3"
-        with self.assertRaises(ValueError): dem.headers(r,url)
-        r=Response(url);r.headers["Transfer-Encoding"]="chunked"
-        with self.assertRaises(ValueError): dem.headers(r,url)
 
     def test_full_resolution_bilinear_axes_vertical_png(self):
         p=dem.plan(options(self.source))
@@ -120,21 +84,37 @@ class DemTests(unittest.TestCase):
             self.assertFalse((d/"missing.tif").exists())
             self.assertEqual(dem.identity(self.source),original)
 
-    def test_conditional_remote_capture_truncation_and_cancellation(self):
-        url=dem.tile_url([9,55],30)
-        p=dem.plan(dict(options(),allow_download=True),lambda u,m:Response(u))
+
+    def test_local_capture_cancellation_and_size_guard(self):
+        review = dem.plan(options(self.source))
+        original = dem.identity(self.source)
         with tempfile.TemporaryDirectory() as folder:
-            d=Path(folder)
-            def opened(u,m,h):
-                self.assertEqual((u,m,h),(url,"GET",{"If-Match":'"fixture"'}));return Response(u)
-            dem.capture(p,d/"part",d/"complete.tif",lambda *a:None,opened)
-            for i,body in enumerate([b"a",b"abcd"]):
-                with self.assertRaises(ValueError): dem.capture(p,d/f"part{i}",d/f"absent{i}",lambda *a:None,lambda u,m,h:Response(u,body,size=3))
-                self.assertFalse((d/f"absent{i}").exists())
-            def cancel(c,t):
+            d = Path(folder)
+            def cancel(c, t):
                 if c: raise RuntimeError("cancel")
-            with self.assertRaises(RuntimeError): dem.capture(p,d/"cancelpart",d/"cancelled",cancel,opened)
-            self.assertFalse((d/"cancelled").exists());self.assertEqual((d/"complete.tif").read_bytes(),b"abc")
+            with self.assertRaisesRegex(RuntimeError, "cancel"):
+                dem.capture(review, d/"part", d/"absent", cancel)
+            self.assertFalse((d/"absent").exists())
+            self.assertEqual(dem.identity(self.source), original)
+            with patch.object(dem, "MAX_SOURCE", original["bytes"]-1), self.assertRaisesRegex(ValueError, "64 MiB"):
+                dem.plan(options(self.source))
+
+    def test_captured_glo90_sampling_and_missing_dependency(self):
+        # Existing offline sampling of a previously captured 90m tile remains usable.
+        with tempfile.TemporaryDirectory() as folder:
+            d = Path(folder)
+            source = d/"captured90.tif"
+            create(source, resolution=90)
+            review = dem.plan(options(source))
+            review.update(resolution_m=90, fallback90=True)
+            review["options"].update(source="", allow_download=True, fallback90=True)
+            original_review = copy.deepcopy(review)
+            png, _ = dem.sample(source, review, lambda *a: None)
+            self.assertTrue(png.startswith(b"\x89PNG"))
+            self.assertEqual(review, original_review)
+            with patch.object(dem, "raster_dependencies", side_effect=ValueError("install requirements-import.txt")), self.assertRaisesRegex(ValueError, "install requirements"):
+                dem.execute(dict(mode="dem", plan=dem.plan(options(source)), destination=str(d/"absent")), d, lambda *a: None)
+            self.assertFalse((d/"absent").exists())
 
     def test_execute_provenance_stale_dependencies_failure_preservation(self):
         p=dem.plan(options(self.source))
@@ -155,25 +135,6 @@ class DemTests(unittest.TestCase):
             self.assertTrue((d/"capture.tif").exists());self.assertTrue((d/"capture.tif.json").exists())
             self.assertFalse((d/"capture.tif.png").exists())
 
-    def test_glo90_remote_decode_and_missing_dependency(self):
-        with tempfile.TemporaryDirectory() as folder:
-            d=Path(folder);source=d/"synthetic90.tif"
-            create(source,resolution=90)
-            raw=source.read_bytes();methods=[]
-            def opener(url,method,headers=None):
-                methods.append(method)
-                if "30m" in url: raise HTTPError(url,404,"missing",{},None)
-                return Response(url,raw)
-            p=dem.plan(dict(options(),allow_download=True,fallback90=True),opener)
-            with patch.object(dem,"raster_dependencies",side_effect=ValueError("install requirements-import.txt")),self.assertRaisesRegex(ValueError,"install requirements"):
-                dem.execute(dict(mode="dem",plan=p,destination=str(d/"not-downloaded")),d,lambda *a:None,opener)
-            self.assertNotIn("GET",methods)
-            result=dem.execute(dict(mode="dem",plan=p,destination=str(d/"captured")),d,lambda *a:None,opener)
-            self.assertEqual(result["review"]["resolution_m"],90)
-            self.assertTrue(result["review"]["fallback90"])
-            self.assertEqual(result["review"]["source"]["sha256"],hashlib.sha256(raw).hexdigest())
-            self.assertTrue(Path(result["png_path"]).exists())
-
 
 class MosaicTests(unittest.TestCase):
     @classmethod
@@ -181,7 +142,7 @@ class MosaicTests(unittest.TestCase):
         cls.folder=tempfile.TemporaryDirectory()
         cls.sources=Path(cls.folder.name)
         for tile in [(9,55),(10,55),(9,54),(10,54)]:
-            create(cls.sources/dem.tile_url(tile,30).split("/")[-1],tile=tile)
+            create(cls.sources/dem.tile_filename(tile),tile=tile)
     @classmethod
     def tearDownClass(cls): cls.folder.cleanup()
     def opts(self):
@@ -212,7 +173,7 @@ class MosaicTests(unittest.TestCase):
             o=dict(self.opts(),cell_count=counts,cell_size_cm=102400,spacing_cm=200)
             with self.assertRaises(ValueError): dem.plan(o)
         with tempfile.TemporaryDirectory() as folder:
-            with self.assertRaises(FileNotFoundError): dem.plan(dict(self.opts(),source=folder))
+            with self.assertRaises(ValueError): dem.plan(dict(self.opts(),source=folder))
             p=dem.plan(self.opts());p["sources"][0]["source"]["sha256"]="0"*64
             with self.assertRaisesRegex(ValueError,"changed"):
                 dem.execute(dict(mode="dem",plan=p,destination=folder+"/capture"),Path(folder),lambda *a:None)
@@ -227,30 +188,31 @@ class MosaicTests(unittest.TestCase):
                 dem.execute(dict(mode="dem",plan=p,destination=str(d/"capture")),d,cancel)
             self.assertTrue((d/"capture.source-0.tif").exists())
             self.assertFalse(list(d.glob("*.png")))
-    def test_mixed_glo90_fallback_and_nodata(self):
-        import numpy as np
+
+    def test_local_mixed_resolution_sampling_and_nodata(self):
         with tempfile.TemporaryDirectory() as folder:
-            d=Path(folder);raws={}
-            for tile in [(9,55),(10,55),(9,54),(10,54)]:
-                resolution=90 if tile==(10,55) else 30
-                path=d/(str(tile)+".tif");create(path,resolution=resolution,tile=tile)
-                raws[dem.tile_url(tile,resolution)]=path.read_bytes()
-            def opener(url,method,headers=None):
-                if url not in raws: raise HTTPError(url,404,"absent",{},None)
-                return Response(url,raws[url])
-            o=dict(self.opts(),source="",allow_download=True,fallback90=True)
-            o["coordinates"]["origin"]=[9.99999,55.00001]
-            p=dem.plan(o,opener)
-            self.assertEqual(sum(s["fallback90"] for s in p["sources"]),1)
-            r=dem.execute(dict(mode="dem",plan=p,destination=str(d/"captured")),d,lambda *a:None,opener)
-            self.assertEqual(len(r["outputs"]),4)
-            paths=[Path(s["source"]["captured_path"]) for s in r["review"]["sources"]]
-            heights,meta=dem.mosaic_heights(paths,p,lambda *a:None)
-            for group,points in zip(heights,dem.mosaic_grid(o)[3]):
-                for actual,(lon,lat) in zip(group.flat,points): self.assertLessEqual(abs(actual-round((100+(lon-9)*100+(lat-55)*200)*100)),1)
-            create(paths[0],tile=tuple(p["sources"][0]["tile"]),nodata=True)
+            d = Path(folder)
+            o = self.opts()
+            o["coordinates"]["origin"] = [9.99999,55.00001]
+            review = dem.plan(o)
+            paths = []
+            for item in review["sources"]:
+                tile = tuple(item["tile"])
+                resolution = 90 if tile == (10,55) else 30
+                path = d/dem.tile_filename(tile, resolution)
+                create(path, tile=tile, resolution=resolution)
+                item.update(resolution_m=resolution, fallback90=resolution==90)
+                paths.append(path)
+            review["options"] = dict(o, source="", allow_download=True, fallback90=True)
+            original_review = copy.deepcopy(review)
+            heights, _ = dem.mosaic_heights(paths, review, lambda *a: None)
+            self.assertEqual(review, original_review)
+            for group, points in zip(heights, dem.mosaic_grid(o)[3]):
+                for actual, (lon,lat) in zip(group.flat,points):
+                    self.assertLessEqual(abs(actual-round((100+(lon-9)*100+(lat-55)*200)*100)),1)
+            create(paths[0], tile=tuple(review["sources"][0]["tile"]), nodata=True)
             with self.assertRaisesRegex(ValueError,"Missing/non-finite"):
-                dem.mosaic_heights(paths,p,lambda *a:None)
+                dem.mosaic_heights(paths, review, lambda *a: None)
 
     def test_missing_support_rejects_after_capture(self):
         p=dem.plan(self.opts())

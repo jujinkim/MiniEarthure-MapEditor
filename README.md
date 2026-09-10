@@ -96,14 +96,14 @@ owner shutdown and a parent-EOF watchdog stop helpers.
 
 Explicit **PBF streaming** in the OSM crop dialog supports local sources up to
 2 GiB using bounded disk indexing and complete candidate references before crop;
-the ordinary import and Geofabrik download limits remain 32 MiB. See the
+the ordinary vector/snapshot import limit remains 32 MiB. See the
 [streaming limits and verification](docs/IMPORTS.md#osm-pbf-selected-area-streaming--2026-09-10).
 OSM needs optional osmium
-4.3.1 and imports supported simple ways; incomplete/structural/area-relation
-geometry rejects rather than flattening. Terrain authoring also supports staged
-PNG16 review and explicit active-tile adoption. OSM downloads, general OSM
-geometry remains outside that profile. Overture building-area snapshots and Copernicus
-2021 DEM (one source tile/one local cell, explicit EGM2008 zero and bilinear
+4.3.1 and imports supported ways, multipolygons and explicit structures;
+incomplete or unsupported geometry rejects as a whole. Terrain authoring also supports staged
+PNG16 review and explicit active-tile adoption. Sources must be obtained separately;
+the Editor has no provider catalog, remote query or download function. Existing local
+Overture snapshots and Copernicus 2021 COG files/folders (explicit EGM2008 zero and bilinear
 sampling) are available through the import dialog; see the scoped contracts and
 remaining multi-theme/multi-cell limits in [IMPORTS](docs/IMPORTS.md).
 
