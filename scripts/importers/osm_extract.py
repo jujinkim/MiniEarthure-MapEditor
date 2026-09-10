@@ -336,7 +336,11 @@ def finish(layer, counts):
     layer.warning("Selected ways and explicit multipolygons are imported; POIs, other ways/relations and other tags are omitted. No routing/access/oneway semantics.")
     layer.warning("Ground elevation/base, missing width/height/surface, vegetation and materials are estimates; building levels/roof tags are not interpreted.")
     if counts.get("explicit_height_roads"):
-        layer.warning("Explicit OSM node ele metres use EGM96 sea level as map Y=0; no vertical offset/datum conversion or terrain alignment. Verify against your map before adoption.")
+        vertical = layer.coordinates.get("vertical")
+        if vertical is None:
+            layer.warning("Explicit OSM node ele metres use EGM96 sea level as map Y=0; no vertical offset/datum conversion or terrain alignment. Verify against your map before adoption.")
+        else:
+            layer.warning(f"Explicit OSM EGM96 heights → {vertical['target_crs']} minus {vertical['vertical_zero_m']} m at local zero; {vertical['method']}. Convert original vertices before crop, then linearly grade target heights. No terrain fitting. Local authored/estimated heights and physical clearance are unchanged; source and correction accuracy are separate.")
         layer.warning("Explicit-height roads join only shared OSM node IDs (including split interior junctions); original source structure ends require explicit ground approaches before crop. Layer is ordering only, never height. Bridges add no invented supports or under-deck clearance; tunnel ceiling uses maxheight:physical, not legal maxheight.")
         layer.warning("Only bridge=yes/tunnel=yes with complete node elevations supported. Road grades interpolate between supplied nodes; tunnel cross-section is rectangular and physical clearance is constant (shape estimate). Access/oneway/vehicle limits remain omitted.")
         if counts.get("tunnel_segments"): layer.estimate("rectangular_tunnel_cross_section")

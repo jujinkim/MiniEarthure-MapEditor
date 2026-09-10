@@ -100,6 +100,8 @@ const DEM_JOB := preload("./dem_job.gd")
 var osm_crop_button: Button
 var osm_panel: RefCounted
 var osm_import_revision := -1
+var vertical_panel: RefCounted
+var vertical_import_revision := -1
 var dem_mode := ""
 
 const IMPORT_RECOVERY := preload("./import_recovery_panel.gd")
@@ -402,6 +404,9 @@ func _build_ui() -> void:
 	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)", "Overture building area snapshot (.overture.json)", "Overture transportation snapshot (.overture-roads.json)", "Overture land cover snapshot (.overture-land-cover.json)"]: import_source_format.add_item(format_title)
 	import_fields.add_child(import_source_format)
 	osm_crop_button = _button(import_fields, "OSM crop area…", func(): osm_panel.open())
+	vertical_panel = preload("./vertical_panel.gd").new()
+	vertical_panel.setup(self)
+	_button(import_fields, "OSM height reference…", func(): vertical_panel.open())
 	_button(import_fields, "Import Copernicus DEM…", func(): dem_panel.open())
 	import_fields.add_child(import_license)
 	import_accuracy = LineEdit.new()
@@ -1030,6 +1035,13 @@ func _start_import(source: String, license_name: String) -> void:
 	import_coordinates_request = {"mode":"local-metres"} if import_coordinate_mode.selected == 0 else {"mode":"wgs84-utm", "origin":[import_origin_lon.value,import_origin_lat.value], "local_origin_m":[import_origin_x.value,import_origin_y.value]}
 	var input_format: String = ["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"][import_source_format.selected]
 	osm_import_revision = osm_panel.revision
+	vertical_import_revision = vertical_panel.revision
+	if input_format in ["osm", "pbf"]:
+		var vertical: Dictionary = vertical_panel.capture()
+		if vertical.has("error"):
+			_status("E_IMPORT: " + vertical.error)
+			return
+		import_coordinates_request.vertical = vertical
 	if osm_panel.streaming.button_pressed:
 		if input_format != "pbf" or osm_panel.error() != "":
 			_status("PBF streaming requires PBF input and an enabled valid crop area.")
@@ -1120,6 +1132,9 @@ func _process(_delta: float) -> void:
 		_status("Client launched (PID %d). Close Client to end the test. Snapshot: %s" % [last_drive_result.data.pid, result.data.path] if last_drive_result.ok else store.reason(last_drive_result))
 		return
 func _finish_import(result: Dictionary) -> void:
+	if vertical_import_revision != vertical_panel.revision:
+		_status("Height reference changed during import; retry. Original source retained.")
+		return
 	if osm_import_revision != osm_panel.revision:
 		_status("OSM crop selection changed during import; retry. Original source retained.")
 		return

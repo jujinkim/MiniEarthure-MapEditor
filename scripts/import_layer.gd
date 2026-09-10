@@ -54,6 +54,8 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if source is not Dictionary or not _text(source.get("name")) or not _text(source.get("license")) or not _text(source.get("accuracy")) or not _hex(source.get("sha256"), 64) or not _count(source.get("bytes"), 2 * 1024 * 1024 * 1024): return "Invalid import source metadata."
 	var coordinate_error := _coordinates(raw.get("coordinates"), requested)
 	if coordinate_error != "": return coordinate_error
+	var vertical_error: String = preload("./import_vertical.gd").validate(raw, requested)
+	if vertical_error != "": return vertical_error
 	if raw.adapter == "osm-extract-v1" and (source.license != OSM_LICENSE or raw.coordinates.mode != "wgs84-utm"): return "OSM requires geographic coordinates and ODbL attribution."
 	var streaming: Variant = raw.coordinates.get("osm_stream")
 	if streaming != null or requested.has("osm_stream"):
@@ -160,6 +162,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 			if patch.after.get("base_cm") != dimensions.base_cm or patch.after.get("height_cm") != dimensions.height_cm: return "Overture vertical dimensions changed."
 		ids[patch.id] = true
 		if patch.field == "nodes": nodes[patch.id] = true
+		if patch.field == "nodes" and patch.id.contains("-osm-node-") and raw.coordinates.has("vertical") and raw.coordinates.vertical.explicit_points == 0: return "Explicit OSM nodes require nonzero vertical source counts."
 		if patch.field == "roads" and patch.after.get("kind") in ["bridge", "tunnel"]: structure_count += 1
 	if crop is Dictionary and crop.get("policy") in ["geometry-intersection-v2", "geometry-intersection-v3"] and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
 	for patch in raw.patches:
@@ -224,6 +227,14 @@ func patches(store: RefCounted) -> Array:
 
 func validate_for(store: RefCounted) -> String:
 	if value.is_empty(): return "No import candidate."
+	if value.adapter == "osm-extract-v1":
+		var explicit := false
+		for patch: Dictionary in value.patches:
+			if patch.field == "nodes" and patch.id.contains("-osm-node-"): explicit = true; break
+		if explicit:
+			var frame: Dictionary = value.coordinates.get("vertical", {"target_crs":"EPSG:5773 / EGM96 metres", "vertical_zero_m":0})
+			var frame_error: String = preload("./import_vertical.gd").frame_error(store.document, frame, value.coordinates)
+			if frame_error != "": return frame_error
 	if value.adapter == "overture-land-cover-v1" and store.document.recipe_version < 3: return "Land cover vegetation requires explicit recipe 3 or newer."
 	if value.adapter == "overture-buildings-v1" and value.coordinates.overture.get("include_parts", false) and store.document.recipe_version < 3: return "Vertical building parts require explicit recipe 3 or newer."
 	var candidate: Dictionary = store.document.duplicate(true)
@@ -237,4 +248,9 @@ func adopt(store: RefCounted) -> String:
 	return failure if failure != "" else store.apply_command("Adopt import " + str(value.source.name), patches(store))
 
 func summary() -> String:
-	return "%s · %d bytes\nLicense: %s · source accuracy: %s\n%d features / %d records · local extent (cm): %s\nProjection: %s\nEstimated fields (counts): %s\nWarnings: %d (showing %d)\n%s\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged." % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.feature_count, value.patches.size(), str(value.extent_cm), JSON.stringify(value.coordinates), JSON.stringify(value.estimates), value.warning_count, value.warnings.size(), "\n".join(value.warnings)]
+	var coordinates: Dictionary = value.coordinates.duplicate(true)
+	var vertical := ""
+	if coordinates.has("vertical"):
+		vertical = preload("./import_vertical.gd").summary(coordinates.vertical) + "\n"
+		coordinates.erase("vertical")
+	return vertical + "%s · %d bytes\nLicense: %s · source accuracy: %s\n%d features / %d records · local extent (cm): %s\nProjection: %s\nEstimated fields (counts): %s\nWarnings: %d (showing %d)\n%s\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged." % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.feature_count, value.patches.size(), str(value.extent_cm), JSON.stringify(coordinates), JSON.stringify(value.estimates), value.warning_count, value.warnings.size(), "\n".join(value.warnings)]

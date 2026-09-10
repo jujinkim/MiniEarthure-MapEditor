@@ -156,7 +156,10 @@ def main():
     parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"], default="geojson")
     parser.add_argument("--osm-bbox", nargs=4, type=float)
     parser.add_argument("--osm-stream", action="store_true")
+    parser.add_argument("--vertical-request", type=Path)
     args = parser.parse_args()
+    if args.vertical_request is not None and args.input_format not in ("osm", "pbf"):
+        raise ValueError("vertical conversion is only supported for explicit OSM heights")
     if args.osm_bbox is not None and args.input_format not in ("osm", "pbf"):
         raise ValueError("OSM bbox is only valid for OSM PBF/XML")
     if args.osm_stream and (args.input_format != "pbf" or args.osm_bbox is None):
@@ -183,6 +186,7 @@ def main():
     overture_metadata = None
     osm_stream = None
     captured_source = None
+    vertical = None
     if args.input_format == "geojson":
         value = strict_json(raw)
     elif args.input_format == "overture-transportation":
@@ -212,6 +216,10 @@ def main():
             captured_source = Source(args.source_name or args.source.name, osm_stream["source_sha256"], osm_stream["source_bytes"], args.license, args.accuracy)
         else:
             value, osm_counts = parse(raw, args.input_format)
+        from vertical import Vertical, read_options
+        vertical = Vertical(read_options(args.vertical_request) if args.vertical_request is not None else
+            dict(target="EGM96", zero_m=0, grid=None))
+        value = vertical.apply(value)
         if args.osm_bbox is not None:
             from osm_area import crop
             value, osm_crop = crop(value, args.osm_bbox)
@@ -232,6 +240,7 @@ def main():
             progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options, osm_graph=osm_counts is not None, captured_source=captured_source)
     if osm_counts is not None:
         from osm_extract import finish
+        result.coordinates["vertical"] = vertical.metadata
         result = finish(result, osm_counts)
         if osm_stream is not None:
             result.coordinates["osm_stream"] = osm_stream
@@ -243,7 +252,7 @@ def main():
                 result.warnings.insert(0, "Partial bridge/tunnel crop: boundary-section ends are open truncated cross-sections, not surveyed entrances or ground ramps. Width/deck/ceiling/walls use the existing native corridor and may extend beyond the centreline bbox. Original retained ground junctions still need nonzero approaches. Review source-way/range/endpoints in crop provenance; no outside continuation or datum alignment is inferred.")
                 result.warning_count += 1
             elif "vertical" in osm_crop:
-                result.warnings.insert(0, "OSM ground crop interpolates supplied EGM96 node heights at WGS84 segment cuts; source heights are references, ground still follows map terrain. Original node IDs stay connected; new boundary cuts are separate endpoints. Complete bridge/tunnel spans and nonzero ground approaches are required; no terrain or datum alignment is inferred.")
+                result.warnings.insert(0, "OSM ground crop interpolates reviewed target-datum heights at WGS84 segment cuts; source heights are references, ground still follows map terrain. Original node IDs stay connected; new boundary cuts are separate endpoints. Complete bridge/tunnel spans and nonzero ground approaches are required; no extra terrain fitting is inferred.")
                 result.warning_count += 1
             crop_summary = "OSM derived geometry crop: " + json.dumps(osm_crop, sort_keys=True) if osm_crop["policy"] != "geometry-intersection-v3" else "OSM partial structure crop counts: " + json.dumps({k:v for k,v in osm_crop["vertical"].items() if k != "structures"}, sort_keys=True) + "; full source mapping is recorded in projection provenance."
             result.warnings.insert(0, crop_summary)

@@ -69,6 +69,8 @@ def main():
             scripts += ['editor_ux_validator', 'editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator', 'import_layer_validator', 'import_job_validator', 'import_scratch_validator', 'import_recovery_validator', 'projection_validator', 'heightmap_import_validator', 'osm_import_validator', 'osm_structures_validator', 'osm_multipolygon_validator', 'local_only_validator', 'overture_validator', 'area_selection_validator', 'osm_area_validator', 'osm_stream_validator', 'overture_geometry_validator', 'overture_vertical_validator', 'overture_transportation_validator', 'overture_land_cover_validator', 'dem_validator', 'dem_mosaic_validator']
         if args.script:
             scripts = args.script
+        elif args.full:
+            scripts.append('vertical_validator')
         pack_args = []
         if args.resource_pack:
             shutil.copy2(root / 'export_presets.cfg', project / 'export_presets.cfg')

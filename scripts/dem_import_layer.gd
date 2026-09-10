@@ -4,6 +4,11 @@ const NOTICE := "produced using Copernicus WorldDEM-%d © DLR e.V. 2010-2014 and
 
 func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String) -> String:
 	discard()
+	if reviewed.get("options") is not Dictionary: return "Missing DEM options."
+	var options: Dictionary = reviewed.options
+	if options.get("coordinates") is not Dictionary or not TYPES._finite(options.get("vertical_zero_m"), -10000, 10000): return "Invalid DEM height reference."
+	var frame_error: String = preload("./import_vertical.gd").frame_error(terrain.store.document, {"target_crs":"EPSG:3855 / EGM2008 metres", "vertical_zero_m":options.get("vertical_zero_m")}, options.get("coordinates", {}))
+	if frame_error != "": return frame_error
 	if reviewed.get("adapter") == "copernicus-dem-v2": return _stage_mosaic(terrain,result,reviewed,destination)
 	if result.get("review") is not Dictionary or result.get("raster") is not Dictionary: return "Invalid DEM result."
 	var receipt: Dictionary = result.review
@@ -25,7 +30,6 @@ func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, de
 	if result.get("png_path") != destination + ".png" or not TYPES._hex(result.get("png_sha256"),64) or not TYPES._count(result.get("png_bytes"),PNG.MAX_BYTES): return "Invalid DEM PNG identity."
 	var payload := FILES.read(result.png_path,PNG.MAX_BYTES)
 	if payload.has("error") or payload.bytes.size() != int(result.png_bytes) or FILES.digest(payload.bytes) != result.png_sha256: return "Derived DEM PNG changed."
-	var options: Dictionary = reviewed.options
 	if raster.get("vertical_zero_m") != options.vertical_zero_m or raster.get("resampling") != "bilinear at full-resolution COG sample centres; local rows +northing" or raster.get("source_accuracy_cm") != null or not TYPES._finite(raster.get("offset_cm"),-1000000,1000000) or not TYPES._finite(raster.get("step_cm"),1,100): return "Invalid DEM sampling contract."
 	if float(raster.offset_cm) != floor(float(raster.offset_cm)) or not TYPES._count(raster.step_cm,100): return "DEM height offset/step must be integer cm."
 	var doc: Dictionary = terrain.store.document

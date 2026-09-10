@@ -70,6 +70,10 @@ func run() -> void:
 	check(panel.candidate==null and state()==before and FileAccess.file_exists(first_destination),"discard preserves completed COG and project")
 	# Reuse immutable capture for boundary checks; no repeated acquisition required.
 	var layer := DEM.new()
+	for malformed in [null, [], "invalid"]:
+		var malformed_review: Dictionary = reviewed.duplicate(true)
+		malformed_review.options.coordinates = malformed
+		check(layer.stage_dem(ui.canvas.author.terrain,result,malformed_review,first_destination)!="" and state()==before,"malformed DEM frame rejects without script error")
 	var bad := result.duplicate(true)
 	bad.review.vertical_crs = "ellipsoidal"
 	check(layer.stage_dem(ui.canvas.author.terrain,bad,reviewed,first_destination)!="" and state()==before,"forged vertical/source contract rejected")

@@ -167,7 +167,8 @@ assertion of survey/ground-distance accuracy. Source accuracy stays independent.
 This initial bounded profile accepts latitude -80..84, one standard strip and
 hemisphere, and points no farther than 20 km from the origin. Norway/Svalbard
 special-zone selection, cross-zone/equator/antimeridian maps, arbitrary CRS,
-vertical datum conversion and raster reprojection are not claimed. Multipart and
+general vertical datum conversion and raster reprojection are not claimed. The
+explicit OSM height-reference extension below supports a bounded local difference grid. Multipart and
 vegetation-hole support follows the bounded extension below.
 Out-of-profile data rejects the entire import; choose/split the source area explicitly.
 Native MapKit still checks all geometry and map bounds before adoption. Existing
@@ -743,8 +744,9 @@ and `tunnel=yes` roads with **`ele` on every referenced node**, and explicit-hei
 ground approaches. This is a bounded source profile, not general OSM terrain
 reconstruction. Node `ele` accepts signed decimal metres, optional ` m`, within
 ±10,000 m. Heights retain the OSM EGM96 sea-level reference: **map Y=0 means
-EGM96 zero**, without offset or datum conversion. Review this against the existing
-map before adoption; Copernicus EGM2008 is a different datum and is not converted.
+EGM96 zero** by default. The [height-reference extension](#local-height-reference-and-correction-grids--2026-09-10)
+adds an explicit local zero and EGM96 → EGM2008 conversion. Active imported DEM/OSM
+datum, zero and projection origins must agree; existing data is never shifted.
 Missing elevations are rejected, never interpolated from neighboring node tags.
 The generated road linearly grades between fully supplied vertices.
 
@@ -786,7 +788,7 @@ Run `python -B -m unittest discover -s tests -p 'test_osm*.py' -v` with optional
 requirements, and `scripts/check_documents.py --script osm_structures_validator
 --resource-pack --log-dir /new/structures` with the documented Godot/Python arguments.
 The full runner now includes the new validator. Real regional accuracy, datum
-alignment, chained structure approaches, other source
+accuracy, chained structure approaches, other source
 profiles and target-platform acceptance remain separate work.
 
 
@@ -1466,3 +1468,116 @@ behavior, representative geodetic accuracy/driving/performance and final integra
 acceptance remain unverified. Vertical datum alignment, other unsupported source
 semantics and larger areas remain implementation work. No direct provider downloads
 or automatic original/project/package edits were introduced.
+
+
+## Local height reference and correction grids — 2026-09-10
+
+**Import vector → OSM height reference…** controls explicit `ele` heights in local
+OSM XML/PBF, including streaming/cropped structures. Choose EGM96 and the target
+datum height at local zero (default 0 m), or choose EGM2008, that same zero, and an
+existing local height-difference JSON grid. For an existing Copernicus DEM, match
+its EGM2008 local-zero height and WGS84/local x/y origins exactly.
+
+The supported operation is `local_m = H_EGM96 + delta_m(lon,lat) - zero_m`.
+EGM96 mode uses delta=0 and forbids a grid. EGM2008 mode requires a complete local
+correction surface; there is no constant guessed offset, downloaded grid, optional
+fallback or terrain fitting. Missing/alternate OSM node datums remain rejected.
+Relative tunnel clearance, building dimensions and authored/estimated local heights
+are unchanged. This does not certify unreferenced hand-authored data or remove the
+Copernicus DSM's buildings/vegetation.
+
+Prepare the grid externally from licensed local datum material. It contains the
+**height difference H(EGM2008) − H(EGM96)** in metres; when evaluated from compatible
+geoid undulations at the same reference position, this is N(EGM96) − N(EGM2008).
+Source model versions, preparation method, compatible reference/tide conventions,
+and approximation/accuracy limits belong in `source` and `accuracy`; `unknown` is
+allowed but never interpreted as zero error. This profile does not read native
+GTX/GeoTIFF geoid models, infer their conventions or certify the supplied material.
+No official model is bundled. A synthetic format example (not survey data):
+
+```json
+{
+  "format": "miniearthure-height-delta-v1",
+  "source": "Synthetic example only; replace with licensed prepared material",
+  "license": "CC0 synthetic example",
+  "accuracy": "unknown; not survey data",
+  "horizontal_crs": "EPSG:4326",
+  "source_crs": "EPSG:5773 / EGM96 metres",
+  "target_crs": "EPSG:3855 / EGM2008 metres",
+  "quantity": "H_EGM2008-minus-H_EGM96",
+  "bbox": [9.5, 55.5, 9.504, 55.504],
+  "columns": 2,
+  "rows": 2,
+  "values_m": [1, 3, 5, 11]
+}
+```
+
+`bbox` is west/south/east/north. Samples include both edges at evenly spaced
+longitude/latitude positions: each row runs west→east, rows run south→north.
+Bilinear interpolation uses all four samples, including at the boundary. The
+example centre is +5 m. Coverage must include **all complete explicit source road
+vertices and original ground approaches before crop**, not only the selected box.
+Conversion precedes clipping; cuts interpolate converted endpoint heights using
+the original segment ratio, and projection rounds once to integer centimetres.
+A spatially varying correction is sampled at source vertices; the importer does
+not densify the road or claim continuous geodetic accuracy along each segment.
+
+Bounds: UTF-8 JSON ≤64 KiB; exactly the displayed fields, no duplicate keys;
+2..33 rows/columns; ≤1 degree per side; longitude ±180, latitude -80..84; all
+samples finite within ±200 m. Nodata, incomplete rows, inverted bounds,
+extrapolation, unsupported CRS/sign, unknown fields or missing source/license/
+accuracy descriptions reject the whole candidate. Descriptions are nonblank,
+control-free, ≤512 characters. Zero is in whole centimetres within ±10000 m;
+converted local heights must also fit ±10000 m. Existing source/point/output,
+process/deadline and native geometry budgets still apply. Nondefault conversion
+with no explicit heights rejects rather than silently doing nothing.
+
+At start the Editor reads the chosen grid into a bounded immutable request. Review
+shows target/zero, order, source vertex/road counts, actual delta range, complete
+source/license/accuracy text and grid SHA-256/byte count. `coordinates.vertical`
+(`osm-vertical-v1`) retains the **exact UTF-8 source string** and hash, including
+whitespace, in project/package attribution. The hash identifies supplied bytes,
+not authenticity or accuracy. Later external edits do not alter the reviewed
+snapshot; retry rereads it. The worker's private copy is cleaned only under the
+existing owned-job rules. Original OSM/grid/DEM files and previous packages remain.
+
+The consumer checks metadata against the captured settings. Before either vector
+or DEM adoption, active explicit OSM nodes and active DEM descriptors must share
+the target datum, local zero and horizontal origins. Legacy explicit OSM notices
+mean EGM96 zero. Only still-active records constrain the frame; retained notices
+of deleted vectors/replaced terrain do not. Equal PNG paths alone are insufficient:
+cell, spacing, height offset/step and source accuracy also identify active terrain.
+This is a consistency guard for retained import provenance, not a global surveyed
+CRS contract for arbitrary authored maps. Existing unreferenced objects remain
+local. Resolve conflicts explicitly in a separate project or by removing/replacing
+conflicting content; this operation never migrates the existing map in place.
+
+Selection changes cancel the owned helper and invalidate review even if restored.
+Missing files, failed transforms, stale responses, count/hash/selection mismatch
+and native errors never partially adopt data. Adoption is one Undo command;
+Redo/save/package/reopen preserve the snapshot. The existing MapKit contract
+remains: ground roads follow terrain and mixed structure aprons must agree within
+1 cm. Datum conversion cannot fix mismatched physical measurements. No MapKit
+ABI/recipe or Runtime/Client/Host changes are involved.
+
+CLI: pass `--vertical-request /absolute/local/request.json` to `geojson.py` with
+OSM/PBF input. The request has `target` (`EGM96` or `EGM2008`), `zero_m` and `grid`
+(the exact JSON source string, or null for EGM96). Omission retains EGM96 zero.
+Other input formats reject this option. The request itself is bounded at 128 KiB.
+The Editor requires an absolute local grid path and never fetches its content.
+
+Verification: `test_vertical.py`, `test_osm*.py`, `test_copernicus_dem.py`,
+`test_projection.py`; `vertical_validator` exercises actual synthetic DEM + OSM
+worker/review/native generation, both import directions, incorrect frames,
+snapshot identity, cancel/restored selection, streaming crop, Undo/Redo and package
+retention. Run with `scripts/check_documents.py --script vertical_validator
+--resource-pack` and the documented Python/Godot arguments. Real model/regional
+accuracy and Windows/Linux installations remain separate acceptance gates.
+Native geoid-file ingestion, other datums/epochs, height reconstruction and chained
+structure approaches remain unimplemented, not merely unverified.
+
+References checked 2026-09-10: [OSM ele reference](https://wiki.openstreetmap.org/wiki/Key:ele),
+[PROJ's additive vertical-shift formula](https://proj.org/en/stable/operations/transformations/vgridshift.html),
+[Copernicus DSM description](https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM).
+These establish source conventions; this JSON profile and its limits are Editor
+contracts, not an official PROJ grid format or a certified transformation.
