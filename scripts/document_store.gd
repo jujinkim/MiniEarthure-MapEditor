@@ -23,6 +23,8 @@ var _disk_digest := ""
 var _recovery_id := ""
 var _autosaved_signature := ""
 var _gesture: Dictionary = {}
+# Monotonic even when undo/redo or a gesture restores the same document.
+var command_epoch := 0
 
 func new_document() -> void:
 	bridge = ClassDB.instantiate("MapKitBridge")
@@ -62,6 +64,7 @@ func open_project(path: String) -> String:
 	return ""
 
 func _reset_session() -> void:
+	command_epoch += 1
 	undo_stack.clear()
 	redo_stack.clear()
 	history_bytes = 0
@@ -158,13 +161,21 @@ func apply_command(label: String, patches: Array) -> String:
 	return _commit_command(label, patches)
 
 func _commit_command(label: String, patches: Array, binary_mementos: Dictionary = {}) -> String:
+	var prepared := _prepare_command(label, patches, binary_mementos)
+	if prepared.has("error"): return prepared.error
+	_install_command(prepared)
+	return ""
+
+# Pure with respect to this store. Owned import workers use the same canonical
+# mementos/budget as synchronous authoring; no live bridge/history is transferred.
+func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary = {}) -> Dictionary:
 	var candidate := document.duplicate(true)
 	var failure := _apply(candidate, patches, false)
 	if failure != "":
-		return failure
+		return {"error": failure}
 	var validation := _validate(candidate)
 	if not validation.ok:
-		return reason(validation)
+		return {"error": reason(validation)}
 	candidate = validation.data.document
 	# Keep canonical first-before/final-after for touched records only. Native
 	# normalization adds defaults and sorts records; undo must match that result.
@@ -182,23 +193,33 @@ func _commit_command(label: String, patches: Array, binary_mementos: Dictionary 
 		if _json_copy(before) != _json_copy(after):
 			mementos.append({"field": field, "id": id, "before": before, "after": after})
 	if mementos.is_empty():
-		return ""
+		return {"noop": true}
 	var command: Dictionary = _json_copy({"label": label, "patches": mementos})
-	var bytes := JSON.stringify(command).to_utf8_buffer().size()
+	var command_json := JSON.stringify(command)
+	var bytes := command_json.to_utf8_buffer().size()
 	for blob: PackedByteArray in binary_mementos.values(): bytes += blob.size()
 	if bytes > HISTORY_BYTES:
-		return "Command exceeds the 16 MiB undo budget; split this operation."
+		return {"error": "Command exceeds the 16 MiB undo budget; split this operation."}
 	command.bytes = bytes
 	if not binary_mementos.is_empty(): command.binary_mementos = binary_mementos.duplicate()
+	return {"candidate": candidate, "command": command, "canonical": str(validation.data.canonical),
+		"command_json": command_json, "signature": _signature(candidate)}
+
+# Internal trusted preparation result only; never accepts adapter output directly.
+# The native job checks its one-shot ownership, epoch and immutable request first.
+func _install_command(prepared: Dictionary) -> String:
+	if prepared.get("noop", false): return ""
+	var command: Dictionary = prepared.command
+	var candidate: Dictionary = prepared.candidate
 	for discarded: Dictionary in redo_stack:
 		history_bytes -= int(discarded.bytes)
 	redo_stack.clear()
 	undo_stack.append(command)
-	history_bytes += bytes
+	history_bytes += int(command.bytes)
 	while undo_stack.size() > HISTORY_COMMANDS or history_bytes > HISTORY_BYTES:
 		history_bytes -= int(undo_stack.pop_front().bytes)
 	document = candidate
-	_after_edit()
+	_after_edit(prepared.signature)
 	return ""
 
 func undo() -> String:
@@ -242,6 +263,7 @@ func has_gesture() -> bool:
 func begin_gesture(label: String) -> String:
 	if has_gesture():
 		return "A gesture is already active."
+	command_epoch += 1
 	_gesture = {"label": label, "signature": _signature(document), "patches": []}
 	return ""
 
@@ -280,11 +302,13 @@ func commit_gesture() -> String:
 	return failure
 
 func cancel_gesture() -> void:
+	if not _gesture.is_empty(): command_epoch += 1
 	_gesture.clear()
 
-func _after_edit() -> void:
+func _after_edit(prepared_signature: String = "") -> void:
+	command_epoch += 1
 	document.provenance.last_edited = Time.get_datetime_string_from_system(true) + "Z"
-	dirty = _signature(document) != _saved_signature
+	dirty = (prepared_signature if prepared_signature != "" else _signature(document)) != _saved_signature
 	changed.emit()
 
 func save_project(path: String) -> String:
@@ -306,6 +330,7 @@ func save_project(path: String) -> String:
 	else:
 		failure = files.write(destination, str(validation.data.canonical), expected)
 	if failure == "":
+		command_epoch += 1
 		document = validation.data.document
 		if project_path != absolute: _autosaved_signature = ""
 		project_path = absolute

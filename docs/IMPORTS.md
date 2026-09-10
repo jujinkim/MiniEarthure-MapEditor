@@ -1995,9 +1995,10 @@ request identity, document generation and document/layer/project signatures gate
 completion. Late, duplicate and invalidated results cannot reopen review or adopt.
 
 The parent commits successful adoption as one Undo command after revalidation.
-`DocumentStore._commit_command()` still canonicalizes/validates the final document
-synchronously; ImportLayer decoding, request/attribution/command serialization
-and filesystem cleanup also retain synchronous work. This unit does not promise
+At this delivery, `DocumentStore._commit_command()` still canonicalized the final
+document synchronously. The final-command extension below supersedes that limit
+for vector/DEM wizard adoption; decoding, request signatures and cleanup retain
+synchronous work. This unit does not promise
 fully interruptible final commit or fixed UI latency/RSS. DEM/heightmap raster
 staging and binary mementos are covered for the DEM wizard by the following
 extension; standalone PNG authoring remains synchronous.
@@ -2039,7 +2040,9 @@ bound original, captured, PNG and existing-project groups to 64 MiB each; these
 counts are not a process-memory guarantee. A child request is at most 24 MiB,
 events and terminal JSON at most 4 KiB, total IPC 1 MiB, and the native deadline
 120 seconds. A separate hash/size-bound 24 MiB binary transfer envelope contains
-only candidate metadata, patches, new blob paths and the bounded binary mementos;
+candidate metadata, new blob paths and bounded binary mementos; the following
+final-command extension also transfers canonical document/history text within the
+same envelope limit;
 object deserialization is disabled. Neither source bytes nor PNG arrays go over IPC.
 
 The child builds one complete mosaic candidate, preserving outside-neighbor seam
@@ -2058,11 +2061,11 @@ confirmed exit. Unknown files, links and unconfirmed termination are preserved;
 interrupted jobs remain discoverable through the existing `native` ownership marker.
 No cleanup adopts, resumes or deletes completed source captures.
 
-Still synchronous: request/selection and review formatting, bounded result decoding,
-immutable final file installation, cleanup and `DocumentStore._commit_command()`
-canonical validation/history mutation. Fully interruptible final commands and
-fixed UI latency/RSS are not claimed. Final command preparation/validation is the
-next separate implementation unit; Windows/Linux installed-build, representative
+The following final-command extension supersedes synchronous canonical command
+preparation for this wizard. Request/selection/review formatting, bounded result
+decoding, immutable final installation, cleanup and final history mutation remain
+synchronous. Fixed UI latency/RSS and interruptibility of that final mutation are
+not claimed; Windows/Linux installed-build, representative
 accuracy/driving/performance and final integration acceptance remain open.
 
 Run the public isolated runner with Godot 4.7.2, the unchanged MapKit native binding
@@ -2080,3 +2083,68 @@ ownership, stale UI selections, exact binary mementos and atomic Undo/Redo.
 `import_scratch_validator` and `import_recovery_validator` cover shared supervisor
 regressions. Add `--rendered` instead of `--resource-pack` for native display and
 source-project child launch. Only synthetic fixtures are used.
+
+
+## Asynchronous final import commands — 2026-09-10
+
+Vector and local DEM wizard reviews/adoptions now prepare their complete canonical
+command in the existing fresh owned Godot child. A `prepare` stage covers final
+native document validation, canonical first-before/final-after mementos, complete
+attribution serialization, exact shared Undo charging and the content signature
+used for dirty/savepoint tracking. Source/project inputs are checked again after
+command preparation **and transfer serialization/write**. The child never changes
+the live document, either history stack, loaded bridge or the saved project.
+
+`DocumentStore._prepare_command()` and `_install_command()` separate preparation
+from publication. Synchronous authoring still uses both through `_commit_command()`;
+`authoring_files.apply()` can capture a prepared command while validating the whole
+DEM candidate. No public package/ImportLayer format, MapKit ABI/recipe, native
+library or game contract changes. These transfer methods are internal to the owned
+worker; they do not make arbitrary adapter-supplied canonical documents trusted.
+
+The private hash/size-bound binary envelope carries canonical document JSON,
+canonical command JSON, savepoint signature and exact new/previous binary mementos
+(plus DEM review metadata and new blob paths). It retains the existing 24 MiB
+limit, disables object restoration and rejects malformed text/transfer shapes.
+The receiver measures actual UTF-8 command bytes plus binary data against 16 MiB;
+it does not trust a claimed byte charge. Existing 200-command/shared Undo+Redo,
+64 MiB candidate, 16-cell, native/source limits, 4 KiB event/result, 1 MiB IPC and
+120-second job deadline remain. Native manifest limits can reject large attribution
+before Undo limits are reached; none of these limits is an RSS or latency promise.
+
+Publication requires confirmed success/exit, preparation completion, the original
+store instance, unchanged project/document/layer/selection and a monotonic command
+epoch. Successful edits, history travel, replacement/recovery, save and even a
+begun/cancelled gesture invalidate the epoch. Restoring the same visible document
+cannot make an old command current. The owner consumes its result **before** the
+changed signal, preventing duplicate or reentrant publication; cancellation also
+invalidates a completed result awaiting commit. Cancel/deadline/EOF/owner-close,
+partial launch, stale IPC and exclusive scratch retirement retain their existing
+contracts. Unknown files and original/captured sources remain preserved.
+
+For DEM, immutable content-addressed PNG installation precedes one complete history
+mutation; file conflicts preserve the document/history. Exact old/new binary
+mementos remain charged and Undo/Redo still refuses changed/missing referenced files.
+Prepared dirty tracking agrees with save, Undo and reopen. Final publication does
+not call native validation, rebuild attribution IDs or serialize the history
+command again. It still verifies snapshot signatures, decodes bounded transfer data,
+installs files and runs ordinary changed-signal/UI work synchronously. There is no
+transaction across arbitrary external filesystem writers, and no fixed final-frame
+or fully interruptible final-installation guarantee.
+
+The focused `import_command_validator` uses a deterministic test-only barrier around
+the real product worker's preparation stage to exercise cancel, deadline, EOF and
+source mutation. It checks epochs, wrong store, cancellation after completion,
+reentrant commit, malformed/hash-corrupt transfers, budgets and savepoint/reopen.
+`dem_native_validator` adds preparation-stage cancel/deadline and guarded final
+binary installation. Existing vector/structural, DEM/mosaic, history/recovery,
+authoring safety and lifecycle regressions remain applicable. Run:
+
+```sh
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/python --script import_command_validator --script dem_native_validator --script import_native_validator --script import_vector_native_validator --resource-pack --log-dir /new/command-checks
+```
+
+Standalone PNG authoring review/adoption remains synchronous and is the next
+separate implementation unit. Installed Windows/Linux, representative local-region
+accuracy/driving/latency/RSS and final integration/clean-clone acceptance remain
+open. This is scoped implementation, not whole I02/I03/I04 completion or cutover.

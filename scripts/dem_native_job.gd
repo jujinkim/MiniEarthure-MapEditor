@@ -1,6 +1,5 @@
 extends "./import_native_job.gd"
 ## Raster validation uses the same kill/reap/IPC contract as vector validation.
-const BUNDLE_LIMIT := 24 * 1024 * 1024
 var request := {}
 var bundle := {}
 var source_total := -1
@@ -17,6 +16,8 @@ func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destin
 	selection_signature = selection
 	project_source = store.project_path
 	document_signature = JSON.stringify(store.document).sha256_text()
+	document_epoch = store.command_epoch
+	_store_id = store.get_instance_id()
 	var outputs: Variant = data.get("outputs", [data])
 	if reviewed.get("adapter") not in ["copernicus-dem-v1", "copernicus-dem-v2"] or outputs is not Array or outputs.is_empty() or outputs.size() > 16: return "Invalid DEM output count."
 	for output: Variant in outputs:
@@ -42,7 +43,7 @@ func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destin
 	return _start_request(bytes)
 
 func matches(store: RefCounted, selection: String) -> bool:
-	return selection == selection_signature and store.project_path == project_source and not store.has_gesture() and JSON.stringify(store.document).sha256_text() == document_signature
+	return store.get_instance_id() == _store_id and store.command_epoch == document_epoch and selection == selection_signature and store.project_path == project_source and not store.has_gesture() and JSON.stringify(store.document).sha256_text() == document_signature
 
 func _source_bytes() -> int: return source_total
 
@@ -51,54 +52,47 @@ func _event(line: PackedByteArray) -> void:
 	if not cancelled and progress.get("stage") == "source": source_total = int(progress.total)
 	if not cancelled and progress.get("stage") == "generate" and progress.total != expected_cells: _fail("Incomplete DEM cell validation.")
 
-func _finish_result() -> void:
-	super._finish_result()
-	if not result.get("ok", false) or not result.data.get("ok", false): return
-	var output: Dictionary = result.data
-	var read := PAYLOADS.read(directory.path_join("bundle.bin"), BUNDLE_LIMIT)
-	if read.has("error") or not LAYER._count(output.get("bundle_bytes"), BUNDLE_LIMIT) or read.bytes.size() != int(output.bundle_bytes) or PAYLOADS.digest(read.bytes) != output.get("bundle_sha256"):
-		result = {"ok":false, "error":{"message":"DEM candidate transfer changed or exceeded its budget."}}
+func _decode_command(output: Dictionary) -> void:
+	var decoded := COMMAND.read_bundle(directory, output)
+	var failure := str(decoded.get("error", ""))
+	if failure == "" and (decoded.get("value") is not Dictionary or decoded.get("blob_paths") is not Array or decoded.value.get("layer_id") != request.layer_id): failure = "Invalid DEM candidate transfer."
+	if failure == "":
+		_prepared = COMMAND.decode(decoded.get("prepared"))
+		failure = str(_prepared.get("error", ""))
+	if failure == "":
+		decoded.patches = _prepared.command.patches
+		decoded.retained = _prepared.command.get("binary_mementos", {})
+		for path: Variant in decoded.blob_paths:
+			if path is not String or not decoded.retained.has(path) or path != "editor/" + PAYLOADS.digest(decoded.retained[path]) + ".png":
+				failure = "Invalid immutable DEM payload."
+				break
+	if failure == "":
+		for patch: Variant in decoded.patches:
+			if patch.get("field") not in ["heightmaps", "attributions"] or patch.get("after") is not Dictionary or (patch.get("before") != null and patch.before is not Dictionary):
+				failure = "Invalid DEM command transfer."
+				break
+			if patch.field == "heightmaps" and (patch.after.get("path") not in decoded.blob_paths or (patch.before != null and not decoded.retained.has(patch.before.get("path")))):
+				failure = "Missing DEM binary memento."
+				break
+	if failure != "":
+		result = {"ok":false, "error":{"code":"E_IMPORT_NATIVE", "message":failure}}
+		_prepared = {}
 		return
-	var decoded: Variant = bytes_to_var(read.bytes)
-	if decoded is not Dictionary or decoded.get("value") is not Dictionary or decoded.get("patches") is not Array or decoded.get("retained") is not Dictionary or decoded.get("blob_paths") is not Array or decoded.value.get("layer_id") != request.layer_id:
-		result = {"ok":false, "error":{"message":"Invalid DEM candidate transfer."}}
-		return
-	var size := JSON.stringify({"label":"Adopt DEM terrain", "patches":decoded.patches}).to_utf8_buffer().size()
-	for path: Variant in decoded.retained:
-		if path is not String or not SNAPSHOT.safe_relative(path) or decoded.retained[path] is not PackedByteArray:
-			result = {"ok":false, "error":{"message":"Invalid DEM binary memento."}}
-			return
-		size += decoded.retained[path].size()
-	if size > 16 * 1024 * 1024:
-		result = {"ok":false, "error":{"message":"DEM transfer exceeds the 16 MiB Undo budget."}}
-		return
-	for path: Variant in decoded.blob_paths:
-		if path is not String or not decoded.retained.has(path) or path != "editor/" + PAYLOADS.digest(decoded.retained[path]) + ".png":
-			result = {"ok":false, "error":{"message":"Invalid immutable DEM payload."}}
-			return
-	for patch: Variant in decoded.patches:
-		if patch is not Dictionary or patch.get("field") not in ["heightmaps", "attributions"] or patch.get("id") is not String or patch.get("after") is not Dictionary or (patch.get("before") != null and patch.before is not Dictionary):
-			result = {"ok":false, "error":{"message":"Invalid DEM command transfer."}}
-			return
-		if patch.field == "heightmaps":
-			if patch.after.get("path") not in decoded.blob_paths or (patch.before != null and not decoded.retained.has(patch.before.get("path"))):
-				result = {"ok":false, "error":{"message":"Missing DEM binary memento."}}
-				return
+	decoded.erase("prepared")
 	bundle = decoded
 
 func commit(store: RefCounted) -> String:
-	if not adopting or not done or not exited or cancelled or bundle.is_empty() or not matches(store, selection_signature): return "Stale or incomplete DEM adoption."
-	# Only the final immutable installation and canonical Undo command remain on
-	# the UI thread. PNG decoding, file snapshot and native generation ran in child.
+	if _consumed or not adopting or not done or not exited or cancelled or _prepared.is_empty() or bundle.is_empty() or not matches(store, selection_signature): return "Stale or incomplete DEM adoption."
+	# Only immutable installation remains synchronous. Canonical validation, full
+	# attribution and memento serialization/charging completed in the owned child.
+	_consumed = true
 	for path: String in bundle.blob_paths:
 		var failure := PAYLOADS.write_new(store.project_path.path_join(path), bundle.retained[path])
-		if failure != "": return failure
-	var failure: String = store._commit_command("Adopt DEM terrain", bundle.patches, bundle.retained)
-	bundle.clear()
-	return failure
-
-func cleanup() -> void:
-	if _owns_directory and (not _child_started or exited):
-		var root := DirAccess.open(directory)
-		if root != null and not root.is_link("bundle.bin") and FileAccess.file_exists(directory.path_join("bundle.bin")): DirAccess.remove_absolute(directory.path_join("bundle.bin"))
-	super.cleanup()
+		if failure != "":
+			_prepared = {}
+			bundle = {}
+			return failure
+	var prepared := _prepared
+	_prepared = {}
+	bundle = {}
+	return store._install_command(prepared)

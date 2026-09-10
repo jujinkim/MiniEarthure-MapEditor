@@ -82,6 +82,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 	if failure == "" and request.get("expected_payloads", "") not in ["", fingerprint]: failure = "DEM source or project payload changed since review."
 	var layer := preload("./dem_import_layer.gd").new()
 	var retained := {}
+	var prepared := {}
 	if failure == "":
 		progress.call("validate", 0, 1)
 		var store := preload("./document_store.gd").new()
@@ -90,14 +91,12 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 		var terrain := preload("./terrain_tools.gd").new()
 		terrain.store = store
 		failure = layer.stage_dem(terrain, request.data, request.reviewed, request.destination,
-			{"layer_id":request.layer_id, "scratch":directory.path_join("candidate"), "hashes":{}, "retained":retained, "progress":progress})
-	if failure == "": failure = check_files(captured.files, "recheck", progress)
+			{"layer_id":request.layer_id, "scratch":directory.path_join("candidate"), "hashes":{}, "retained":retained, "prepared":prepared, "command_label":"Adopt DEM terrain", "progress":progress})
 	if failure == "":
-		var bundle := var_to_bytes({"value":layer.value, "patches":layer._patches, "retained":retained, "blob_paths":layer._blobs.keys()})
-		if bundle.size() > 24 * 1024 * 1024: failure = "DEM transfer exceeds 24 MiB."
-		else:
-			failure = FILES.write_new(directory.path_join("bundle.bin"), bundle)
-			if failure == "": output.merge({"payloads":fingerprint, "bundle_bytes":bundle.size(), "bundle_sha256":FILES.digest(bundle)})
+		var command := preload("./import_command.gd")
+		failure = command.write_bundle(directory, {"value":layer.value, "prepared":command.encode(prepared), "blob_paths":layer._blobs.keys()}, output)
+		if failure == "": output.payloads = fingerprint
+	if failure == "": failure = check_files(captured.files, "recheck", progress)
 	layer.discard()
 	output.ok = failure == ""
 	if failure != "": output.error = {"code":"E_IMPORT_NATIVE", "message":failure.left(2000)}

@@ -6,9 +6,10 @@ const PNG := preload("res://scripts/terrain_png.gd")
 class StopNative extends JOB:
 	var reached := false
 	var expire := false
+	var target_phase := 1
 	func _event(line: PackedByteArray) -> void:
 		super._event(line)
-		if phase == 1 and not reached:
+		if phase == target_phase and not reached:
 			reached = true
 			if expire: deadline_ms = 0
 			else: cancel()
@@ -78,8 +79,9 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	raster_result=data.duplicate(true);source_plan=reviewed.duplicate(true);capture=destination
 	var panel: ConfirmationDialog=ui.dem_panel
 	var bridge_before: String=ui.store.bridge.document_json()
-	for expire in [false,true]:
-		var stopped:=StopNative.new();stopped.expire=expire
+	for scenario in [[1,false],[1,true],[5,false],[5,true]]:
+		var expire: bool = scenario[1]
+		var stopped:=StopNative.new();stopped.expire=expire;stopped.target_phase=scenario[0]
 		check(start(stopped)=="","start real raster validation cancel/deadline")
 		await await_native(stopped)
 		check(stopped.reached and stopped.cancelled and not accepted(stopped),"native admission yields cancellation")
@@ -93,6 +95,18 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	check(initial.bundle.blob_paths.size()<=4 and initial.bundle.patches.size()==5,"four cells plus provenance and immutable blobs transferred")
 	check(not DirAccess.dir_exists_absolute(initial.directory),"bundle read before owned scratch retired")
 	var previous: Dictionary={"layer_id":initial.bundle.value.layer_id,"payloads":initial.result.data.payloads}
+	var guarded := preload("res://tests/command_guard_store.gd").new()
+	guarded.document = ui.store.document.duplicate(true); guarded.project_path = ui.store.project_path
+	var guarded_job := JOB.new()
+	check(guarded_job.start_dem(guarded,raster_result,source_plan,capture,true,"test",token(),previous)=="","start guarded DEM command")
+	await await_native(guarded_job)
+	check(accepted(guarded_job),"DEM canonical command prepared in child")
+	if accepted(guarded_job):
+		guarded.forbid_preparation = true
+		check(guarded_job.commit(guarded)=="" and guarded.forbidden_calls==0,"DEM final commit avoids native/command/provenance serialization")
+		guarded.forbid_preparation = false
+		check(guarded.undo_stack.size()==1 and guarded.undo()=="" and guarded.redo()=="","prepared DEM binary command supports single Undo/Redo")
+	check(state()==before,"independent DEM history never changes live UI")
 	# Every source category is rechecked, including the final mosaic output.
 	for path: String in [source_plan.sources[3].source.path,capture+".source-3.tif",raster_result.outputs[3].png_path]:
 		var bytes: PackedByteArray=FILES.read(path).bytes

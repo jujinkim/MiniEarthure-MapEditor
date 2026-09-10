@@ -1117,8 +1117,8 @@ func _process(_delta: float) -> void:
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	if import_job != null:
 		if import_job is DEM_NATIVE_JOB:
-			if generation != worker_generation or import_job.selection_signature != dem_panel.native_selection(): import_job.cancel()
-		elif import_job is IMPORT_NATIVE_JOB and (generation != worker_generation or import_job.selection_signature != _import_selection_signature()): import_job.cancel()
+			if generation != worker_generation or import_job.document_epoch != store.command_epoch or import_job.selection_signature != dem_panel.native_selection(): import_job.cancel()
+		elif import_job is IMPORT_NATIVE_JOB and (generation != worker_generation or import_job.document_epoch != store.command_epoch or import_job.selection_signature != _import_selection_signature()): import_job.cancel()
 		import_job.poll()
 		var progress: Dictionary = import_job.progress
 		if not progress.is_empty():
@@ -1236,9 +1236,9 @@ func _finish_native_import(job: RefCounted, result: Dictionary) -> void:
 		_status("E_IMPORT_NATIVE: Missing validation snapshot identity.")
 		return
 	if job.adopting:
-		# A fresh process just validated this exact document, layer and payload
-		# snapshot. Commit only on the main thread; never repeat cell generation here.
-		var failure: String = store.apply_command("Adopt import " + str(job.layer.value.source.name), job.layer.patches(store))
+		# The owned child prepared the canonical document and exact Undo command.
+		# Commit once against its unchanged document/history epoch.
+		var failure: String = job.commit(store)
 		_status(failure if failure != "" else "Imported new layer. Undo removes only this adoption.")
 	else:
 		job.layer.native_payload_digest = checked.payloads

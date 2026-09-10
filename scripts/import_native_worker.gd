@@ -56,6 +56,7 @@ func run() -> void:
 	var read := PAYLOADS.read(directory.path_join("request.json"), JOB.REQUEST_LIMIT)
 	var failure := str(read.get("error", ""))
 	var hashes := {}
+	var prepared := {}
 	var request: Variant
 	if failure == "":
 		if PAYLOADS.digest(read.bytes) != args[2]: failure = "Native validation input changed."
@@ -75,6 +76,17 @@ func run() -> void:
 		failure = layer.load_value(request.layer, str(request.layer.get("layer_id", "")))
 		if failure == "":
 			failure = layer.validate_for(store, {"scratch":directory.path_join("candidate"), "hashes":hashes, "expected_payloads":request.get("expected_payloads", ""), "progress":progress})
+		if failure == "":
+			progress("prepare", 0, 1)
+			prepared = store._prepare_command("Adopt import " + str(layer.value.source.name), layer.patches(store))
+			failure = str(prepared.get("error", ""))
+			if prepared.get("noop", false): failure = "Import command has no changes."
+			if failure == "": progress("prepare", 1, 1)
+	var output := {"ok":false, "request":identity}
+	if failure == "":
+		output.payloads = JSON.stringify(hashes).sha256_text()
+		failure = JOB.COMMAND.write_bundle(directory, {"prepared":JOB.COMMAND.encode(prepared)}, output)
+	# Recheck after command/envelope serialization and disk output as well.
 	if failure == "": failure = source_error(request, "recheck")
 	# A large source rehash can take time. Recheck project payloads after it as
 	# well, so a terrain edit during that interval cannot publish stale geometry.
@@ -83,8 +95,7 @@ func run() -> void:
 			if FileAccess.get_sha256(request.project.path_join(path)) != hashes[path]:
 				failure = "Project payload changed before native validation completion."
 				break
-	var output := {"ok":failure == "", "request":identity}
-	if failure == "": output.payloads = JSON.stringify(hashes).sha256_text()
+	output.ok = failure == ""
 	if failure != "": output.error = {"code":"E_IMPORT_NATIVE", "message":failure.left(2000)}
 	finish(output)
 

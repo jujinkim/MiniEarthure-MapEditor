@@ -1,5 +1,6 @@
 extends "./import_job.gd"
 ## One killable Godot child owns native candidate state; never the live bridge.
+const COMMAND := preload("./import_command.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
 const REQUEST_LIMIT := 24 * 1024 * 1024
@@ -16,6 +17,11 @@ var startup_seen := false
 var generated_all := false
 var source_rechecked := false
 var structural := false
+var command_prepared := false
+var document_epoch := -1
+var _store_id := 0
+var _prepared := {}
+var _consumed := false
 
 func start_validation(store: RefCounted, candidate: RefCounted, adopt: bool, selection: String, source: String, token: String) -> String:
 	if _attempted or cancelled: return "Native import jobs are single use."
@@ -30,6 +36,8 @@ func start_validation(store: RefCounted, candidate: RefCounted, adopt: bool, sel
 	selection_signature = selection
 	project_source = store.project_path
 	document_signature = JSON.stringify(store.document).sha256_text()
+	document_epoch = store.command_epoch
+	_store_id = store.get_instance_id()
 	layer_signature = JSON.stringify(candidate.value).sha256_text()
 	for field in ["assets", "heightmaps"]:
 		for record: Dictionary in store.document.get(field, []):
@@ -52,7 +60,7 @@ func _start_request(bytes: PackedByteArray) -> String:
 	output_path = directory.path_join("layer.json")
 	timeout_seconds = 120
 	deadline_ms = Time.get_ticks_msec() + timeout_seconds * 1000
-	stages = ["source", "validate", "snapshot", "open", "generate", "recheck", "complete"]
+	stages = ["source", "validate", "snapshot", "open", "generate", "prepare", "recheck", "complete"]
 	progress = {"stage":"starting native validation", "completed":0, "total":1, "unit":"steps"}
 	var arguments := PackedStringArray(["--headless", "--no-header", "--log-file", directory.path_join("native.log")])
 	var resource_path := ProjectSettings.globalize_path("res://")
@@ -70,7 +78,7 @@ func _start_request(bytes: PackedByteArray) -> String:
 	return ""
 
 func matches(store: RefCounted, selection: String) -> bool:
-	return selection == selection_signature and store.project_path == project_source and not store.has_gesture() and JSON.stringify(store.document).sha256_text() == document_signature and JSON.stringify(layer.value).sha256_text() == layer_signature
+	return store.get_instance_id() == _store_id and store.command_epoch == document_epoch and selection == selection_signature and store.project_path == project_source and not store.has_gesture() and JSON.stringify(store.document).sha256_text() == document_signature and JSON.stringify(layer.value).sha256_text() == layer_signature
 
 func _event(line: PackedByteArray) -> void:
 	if line.size() > LINE_LIMIT:
@@ -106,6 +114,7 @@ func _event(line: PackedByteArray) -> void:
 	# Nonstructural imports validate/open the snapshot without generating cells.
 	# A zero-cell event cannot stand in for required structural surface checks.
 	if raw.stage == "generate": generated_all = (raw.total > 0 if structural else raw.total == 0) and raw.completed == raw.total
+	if raw.stage == "prepare": command_prepared = raw.total == 1 and raw.completed == 1
 	if raw.stage == "recheck": source_rechecked = raw.total == _source_bytes() and raw.completed == raw.total
 	if terminal_event:
 		if not LAYER._hex(raw.get("sha256"), 64) or raw.completed != raw.total or raw.total <= 0:
@@ -128,13 +137,39 @@ func _finish_result() -> void:
 	if not done or not result.get("ok", false): return
 	var data: Variant = result.get("data")
 	var valid: bool = data is Dictionary and data.get("request") == identity and data.get("ok") is bool
-	if valid and data.ok: valid = generated_all and source_rechecked and LAYER._hex(data.get("payloads"), 64)
+	if valid and data.ok: valid = generated_all and command_prepared and source_rechecked and LAYER._hex(data.get("payloads"), 64)
 	elif valid: valid = data.get("error") is Dictionary and data.error.get("code") == "E_IMPORT_NATIVE" and data.error.get("message") is String and data.error.message.length() <= 2000
 	if not valid: result = {"ok":false, "error":{"code":"E_IMPORT_NATIVE", "message":"Invalid or incomplete native validation result."}}
+
+	if result.get("ok", false) and data.ok: _decode_command(data)
+
+func _decode_command(output: Dictionary) -> void:
+	var bundle := COMMAND.read_bundle(directory, output)
+	_prepared = COMMAND.decode(bundle.get("prepared")) if not bundle.has("error") else bundle
+	if _prepared.has("error"):
+		result = {"ok":false, "error":{"code":"E_IMPORT_NATIVE", "message":_prepared.error}}
+		_prepared = {}
+
+func cancel() -> void:
+	if done and not _consumed:
+		cancelled = true
+		_consumed = true
+		_prepared = {}
+		return
+	super.cancel()
+
+func commit(store: RefCounted) -> String:
+	if _consumed or not adopting or not done or not exited or cancelled or _prepared.is_empty() or not matches(store, selection_signature): return "Stale or incomplete import command."
+	# Consume before emitting changed: callbacks cannot replay this job.
+	_consumed = true
+	var prepared := _prepared
+	_prepared = {}
+	return store._install_command(prepared)
 
 func cleanup() -> void:
 	if not _owns_directory or (_child_started and not exited): return
 	var root := DirAccess.open(directory)
+	if root != null and not root.is_link("bundle.bin") and FileAccess.file_exists(directory.path_join("bundle.bin")): DirAccess.remove_absolute(directory.path_join("bundle.bin"))
 	if root != null and not root.is_link("native.log") and FileAccess.file_exists(directory.path_join("native.log")): DirAccess.remove_absolute(directory.path_join("native.log"))
 	if root == null or root.is_link("candidate"):
 		super.cleanup()

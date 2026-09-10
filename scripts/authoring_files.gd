@@ -126,6 +126,13 @@ static func apply(store: RefCounted, label: String, patches: Array, blobs: Dicti
 	failure = validate(store, candidate, blobs, cells, context)
 	if failure != "": return failure
 	if context.has("retained"): context.retained.merge(retained, true)
+	if context.has("prepared"):
+		_progress(context, "prepare", 0, 1)
+		var prepared: Dictionary = store._prepare_command(str(context.get("command_label", label)), patches, retained)
+		if prepared.has("error"): return prepared.error
+		if prepared.get("noop", false): return "Import command has no changes."
+		context.prepared.merge(prepared, true)
+		_progress(context, "prepare", 1, 1)
 	if validate_only: return ""
 	for path: String in blobs:
 		# Only content-addressed new payloads may be installed, never original paths.
