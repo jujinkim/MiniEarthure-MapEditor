@@ -14,6 +14,51 @@ from projection import Coordinates
 from polygon_geometry import Budget, group_rings
 
 
+MAX_COLLECTION_DEPTH = 16
+MAX_COLLECTION_NODES = 40000
+MAX_COLLECTION_LEAVES = 20000
+
+
+def collection_features(features):
+    """Preserve a bounded source tree while reusing the existing leaf adapters."""
+    output, sources, leaves = [], [], []
+    visited = 0
+    def visit(geometry, properties, depth):
+        nonlocal visited
+        visited += 1
+        if depth > MAX_COLLECTION_DEPTH or visited > MAX_COLLECTION_NODES:
+            raise ValueError("GeometryCollection nesting/node budget exceeded")
+        if not isinstance(geometry, dict) or "crs" in geometry:
+            raise ValueError("GeometryCollection requires geometry objects without legacy CRS")
+        kind = geometry.get("type")
+        if kind == "GeometryCollection":
+            children = geometry.get("geometries")
+            if not isinstance(children, list) or not children or "coordinates" in geometry:
+                raise ValueError("GeometryCollection requires a nonempty geometries array, without coordinates")
+            # Admission precedes allocation and recursion into the children.
+            if visited + len(children) > MAX_COLLECTION_NODES:
+                raise ValueError("GeometryCollection node budget exceeded")
+            return [visit(child, properties, depth+1) for child in children]
+        if kind not in ("LineString", "MultiLineString", "Polygon", "MultiPolygon"):
+            raise ValueError("GeometryCollection contains unsupported geometry; no partial import")
+        if len(output) >= MAX_COLLECTION_LEAVES:
+            raise ValueError("GeometryCollection leaf budget exceeded")
+        index = len(output)
+        output.append(dict(type="Feature", properties=properties, geometry=geometry))
+        leaves.append(dict(feature=index, geometry=kind))
+        return index
+    for index, feature in enumerate(features):
+        if not isinstance(feature, dict) or feature.get("type") != "Feature" or "crs" in feature:
+            raise ValueError("GeometryCollection requires Features without legacy CRS")
+        properties = feature.get("properties")
+        if properties is None: properties = {}
+        if not isinstance(properties, dict): raise ValueError("expected properties object")
+        if any(key in properties for key in ("osm_node_refs", "elevations_m", "road_kind", "clearance_m")):
+            raise ValueError("GeometryCollection does not support structural/OSM graph metadata")
+        sources.append(dict(feature=index, tree=visit(feature.get("geometry"), properties, 0)))
+    return output, dict(profile="feature-leaves-v1", sources=sources, leaves=leaves)
+
+
 def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False, captured_source=None):
     if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or "crs" in value:
         raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
@@ -24,6 +69,12 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     features = value.get("features")
     if not isinstance(features, list) or not 1 <= len(features) <= 20_000:
         raise ValueError("expected 1..20000 features")
+    collections = any(isinstance(f, dict) and isinstance(f.get("geometry"), dict) and
+                      f["geometry"].get("type") == "GeometryCollection" for f in features)
+    if collections:
+        if osm_graph: raise ValueError("GeometryCollection does not support the OSM graph conversion path")
+        features, metadata = collection_features(features)
+        layer.coordinates["geojson_collections"] = metadata
     layer.feature_count = len(features)
 
     def point(raw):
@@ -43,7 +94,8 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
         kind, coordinates = geometry.get("type"), geometry.get("coordinates")
         if not isinstance(coordinates, list):
             raise ValueError("expected coordinate array")
-        identity = f"import-{layer.layer_id}-{index}"
+        identity = f"import-{layer.layer_id}-{index}" + ("-collection" if collections else "")
+        first_record, first_point = len(layer.patches), layer.point_count
 
         def scalar(key, default, minimum=-100_000, maximum=100_000):
             if key not in properties:
@@ -67,8 +119,8 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     raise ValueError("road requires an array of at least two positions")
                 road_id = identity if kind == "LineString" else f"{identity}-part-{part}"
                 if osm_graph and "osm_loop_range" in properties: road_id += "-loop"
-                if "osm_node_refs" in properties and not osm_graph:
-                    raise ValueError("OSM graph metadata requires the OSM conversion path; no silent flattening")
+                if not osm_graph and any(key in properties for key in ("osm_node_refs", "elevations_m", "road_kind", "clearance_m")):
+                    raise ValueError("Structural/OSM graph metadata requires the OSM conversion path; no silent flattening")
                 explicit = osm_graph and "elevations_m" in properties
                 connected = osm_graph and "osm_node_refs" in properties
                 elevations = properties.get("elevations_m") if explicit else [scalar("elevation_m", 0.2)] * len(line)
@@ -142,8 +194,13 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     if "usage" not in properties: layer.estimate("usage")
         else:
             raise ValueError(f"unsupported geometry {kind}; no features imported")
+        if collections:
+            metadata["leaves"][index].update(record_ids=[p["id"] for p in layer.patches[first_record:]],
+                                              point_count=layer.point_count-first_point)
         if progress and (index % 100 == 0 or index + 1 == len(features)):
             progress(index + 1, len(features))
+    if collections:
+        layer.warning("GeoJSON GeometryCollection leaves preserve source tree order and parent feature properties. Lines remain disconnected; polygons use existing building/vegetation profiles. Every source tree and exact output mapping is retained. Unsupported or empty leaves reject the whole candidate.")
     if osm_graph and value.get("osm_ground_loops"):
         retained = []
         for index, feature in enumerate(features):

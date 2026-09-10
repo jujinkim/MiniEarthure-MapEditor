@@ -181,6 +181,8 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if crop is Dictionary and crop.get("policy") in ["geometry-intersection-v2", "geometry-intersection-v3", "geometry-intersection-v4"] and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
 	for patch in raw.patches:
 		if patch.field == "roads" and (not nodes.has(patch.after.get("from")) or not nodes.has(patch.after.get("to"))): return "Imported roads must reference their own layer nodes."
+	var collection_error: String = preload("./import_collections.gd").validate(raw, get_script())
+	if collection_error != "": return collection_error
 	var multiline_error: String = preload("./import_multilines.gd").validate(raw, get_script())
 	if multiline_error != "": return multiline_error
 	var loop_error: String = preload("./import_osm_loops.gd").validate(raw, get_script())
@@ -223,6 +225,7 @@ static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 	var seen := {}
 	var sections := {}
 	var feature_sources := {}
+	var loop_ids := _loop_feature_ids(raw)
 	var total_arms := 0
 	var source_id := RegEx.new()
 	source_id.compile("^[1-9][0-9]{0,18}$")
@@ -277,7 +280,8 @@ static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 				source_key += ":" + arm.end
 				if not expected.has(source_key): return "Unknown retained structural arm."
 			if source_ways.has(source_key): return "Duplicate retained source arm."
-			var id := prefix + str(int(arm.feature))
+			var base_id := prefix + str(int(arm.feature))
+			var id: String = loop_ids.get(base_id, base_id)
 			if mapped.has(id): return "Duplicate continuation arm."
 			if feature_sources.has(id) and feature_sources[id] != arm.source_way: return "Conflicting structural feature source."
 			feature_sources[id] = arm.source_way
@@ -306,10 +310,20 @@ static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 	elif not sections.is_empty(): return "Connection sections require crop version 4."
 	return ""
 
+static func _loop_feature_ids(raw: Dictionary) -> Dictionary:
+	# Loop provenance is independently checked by import_osm_loops. Reuse the
+	# same feature mapping for continuation and partial-structure validation.
+	var ids := {}
+	for patch: Dictionary in raw.patches:
+		if patch.field == "roads" and patch.id.ends_with("-loop"):
+			ids[patch.id.trim_suffix("-loop")] = patch.id
+	return ids
+
 static func _structure_crop(raw: Dictionary, prefix: String) -> String:
 	var crop: Dictionary = raw.coordinates.osm_crop
 	var v: Dictionary = crop.vertical
 	var v4: bool = crop.policy == "geometry-intersection-v4"
+	var loop_ids := _loop_feature_ids(raw)
 	var connection_sections := {}
 	if v4:
 		for ref: String in v.connection_sections: connection_sections[ref] = true
@@ -336,7 +350,8 @@ static func _structure_crop(raw: Dictionary, prefix: String) -> String:
 		if continuation_ways.has(int(entry.feature)) and continuation_ways[int(entry.feature)] != entry.source_way: return "Crop/continuation source way mismatch."
 		var span: Variant = entry.get("source_range")
 		if span is not Array or span.size() != 2 or not _finite(span[0],0,200000) or not _finite(span[1],0,200000) or span[0] >= span[1]: return "Invalid structural source interval."
-		var id := prefix + str(int(entry.feature))
+		var base_id := prefix + str(int(entry.feature))
+		var id: String = loop_ids.get(base_id, base_id)
 		if not roads.has(id) or mapped.has(id) or roads[id].get("kind") not in ["bridge", "tunnel"]: return "Unmapped/duplicate cropped structure."
 		mapped[id] = true
 		if entry.get("partial") is not bool or (ways.has(entry.source_way) and ways[entry.source_way] != entry.partial): return "Inconsistent partial source-way mapping."
@@ -394,7 +409,7 @@ func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 	if not result.ok: return store.reason(result)
 	if value.adapter == "osm-extract-v1":
 		if not value.coordinates.get("osm_ground_loops", {}).get("retained", []).is_empty():
-			if candidate.recipe_version < 2: return "OSM closed ground roads require explicit recipe 2 or newer for connected surfaces."
+			if candidate.recipe_version < 2: return "OSM closed roads require explicit recipe 2 or newer for connected surfaces."
 			return _validate_structure_cells(store, result.data.document, context)
 		for patch: Dictionary in value.patches:
 			if patch.field == "roads" and patch.after.kind in ["bridge", "tunnel"]:
@@ -443,7 +458,7 @@ func summary() -> String:
 	if value.is_empty(): return "No import candidate."
 	var text := preload("./import_review_text.gd")
 	var coordinates := {}
-	for key in ["mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
+	for key in ["mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
 		if value.coordinates.has(key): coordinates[key] = value.coordinates[key]
 	var estimates := ""
 	var count := 0

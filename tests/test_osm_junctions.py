@@ -144,10 +144,10 @@ class Junctions(unittest.TestCase):
         from collections import Counter
         roads = [dict(properties=dict(road_kind="bridge",osm_way_id=i+1,osm_node_refs=refs))
                  for i,refs in enumerate([[1,2],[2,3],[3,1]])]
-        roads.append(dict(properties=dict(road_kind="ground",osm_node_refs=[1,10])))
+        roads.append(dict(properties=dict(road_kind="ground",osm_node_refs=[1,10],elevations_m=[0,0])))
         uses = Counter(ref for f in roads for ref in f["properties"]["osm_node_refs"])
         with self.assertRaisesRegex(ValueError,"two distinct"): osm.structure_connections(roads,uses)
-        roads.append(dict(properties=dict(road_kind="ground",osm_node_refs=[2,11])))
+        roads.append(dict(properties=dict(road_kind="ground",osm_node_refs=[2,11],elevations_m=[0,0])))
         uses.update([2,11])
         self.assertEqual(len(osm.structure_connections(roads,uses)),1)
 

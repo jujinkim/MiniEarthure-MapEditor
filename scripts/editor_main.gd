@@ -87,7 +87,9 @@ var import_summary: TextEdit
 var import_review_generation := 0
 var import_review_controls: Array = []
 const IMPORT_JOB := preload("./import_job.gd")
+const TERRAIN_NATIVE_JOB := preload("./terrain_native_job.gd")
 const HEIGHTMAP_NATIVE_JOB := preload("./heightmap_native_job.gd")
+const ASSET_NATIVE_JOB := preload("./asset_native_job.gd")
 const DEM_NATIVE_JOB := preload("./dem_native_job.gd")
 const IMPORT_NATIVE_JOB := preload("./import_native_job.gd")
 var import_job: RefCounted
@@ -217,6 +219,7 @@ func _build_ui() -> void:
 	canvas.custom_minimum_size = Vector2(300, 280)
 	canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	canvas.status.connect(_status)
+	canvas.terrain_requested.connect(_start_terrain)
 	canvas.selection_changed.connect(_selection)
 	left_dock = VBoxContainer.new()
 	var left := left_dock
@@ -1112,12 +1115,49 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 		_status(error_string(err))
 	else: _status("Preparing test drive…")
 
+func _terrain_selection() -> String:
+	return JSON.stringify([canvas.interaction_revision, canvas.authoring_revision, canvas.tool, canvas.author.options, canvas.layer_state]).sha256_text()
+
+func _start_terrain(request: Dictionary) -> void:
+	if busy:
+		_status("Finish the running operation before painting terrain.")
+		return
+	if not canvas.available({"field":"heightmaps", "record":{"id":"terrain"}}, true):
+		_status("Show and unlock terrain before painting.")
+		return
+	var job := TERRAIN_NATIVE_JOB.new()
+	job.editor_generation = generation
+	var failure := job.start_terrain(store, request, _terrain_selection(), Crypto.new().generate_random_bytes(16).hex_encode())
+	if failure != "":
+		_status(failure)
+		return
+	import_job = job
+	worker_generation = generation
+	busy = true
+	import_progress.visible = true
+	_status("Preparing terrain stroke · 120s deadline · Cancel preserves the map.")
+
+func _finish_terrain(job: RefCounted, result: Dictionary) -> void:
+	if job.editor_generation != generation or not job.matches(store, _terrain_selection()):
+		_status("Terrain stroke cancelled or stale; nothing was changed.")
+		return
+	if not result.get("ok", false) or not result.get("data", {}).get("ok", false):
+		_status(store.reason(result.get("data", result)))
+		return
+	var failure: String = job.commit(store)
+	_status(failure if failure != "" else "Terrain stroke applied. Undo: Ctrl/Cmd+Z")
+
 func _process(_delta: float) -> void:
 	cancel_button.disabled = not busy and pending_import == null
 	cancel_button.tooltip_text = "Cancel the running operation; keep prior preview and original files." if busy else "No running operation."
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	if import_job != null:
-		if import_job is HEIGHTMAP_NATIVE_JOB:
+		if import_job is TERRAIN_NATIVE_JOB:
+			if generation != worker_generation or not import_job.matches(store, _terrain_selection()): import_job.cancel()
+		elif import_job is ASSET_NATIVE_JOB:
+			if generation != worker_generation or import_job.document_epoch != store.command_epoch or import_job.selection_signature != author_panel.asset_selection(): import_job.cancel()
+			author_panel.asset_progress(import_job.progress)
+		elif import_job is HEIGHTMAP_NATIVE_JOB:
 			if generation != worker_generation or import_job.document_epoch != store.command_epoch or import_job.selection_signature != author_panel.heightmap_selection(): import_job.cancel()
 			author_panel.heightmap_progress(import_job.progress)
 		elif import_job is DEM_NATIVE_JOB:
@@ -1127,14 +1167,16 @@ func _process(_delta: float) -> void:
 		var progress: Dictionary = import_job.progress
 		if not progress.is_empty():
 			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
-			validation_label.text = "%s %s · %d / %d %s" % ["DEM" if dem_mode.begins_with("dem") else "Import", progress.stage, progress.completed, progress.total, progress.unit]
+			validation_label.text = "%s %s · %d / %d %s" % ["Terrain" if import_job is TERRAIN_NATIVE_JOB else "DEM" if dem_mode.begins_with("dem") else "Import", progress.stage, progress.completed, progress.total, progress.unit]
 		if import_job.done:
 			var completed: RefCounted = import_job
 			var result: Dictionary = import_job.result
 			import_job = null
 			busy = false
 			import_progress.visible = false
-			if completed is HEIGHTMAP_NATIVE_JOB: author_panel.finish_heightmap(completed, result)
+			if completed is TERRAIN_NATIVE_JOB: _finish_terrain(completed, result)
+			elif completed is ASSET_NATIVE_JOB: author_panel.finish_asset(completed, result)
+			elif completed is HEIGHTMAP_NATIVE_JOB: author_panel.finish_heightmap(completed, result)
 			elif completed is DEM_NATIVE_JOB: dem_panel.finish_native(completed, result)
 			elif completed is IMPORT_NATIVE_JOB: _finish_native_import(completed, result)
 			elif dem_mode != "": _finish_dem(result)

@@ -61,6 +61,9 @@ func stroke(start: Vector2, end: Vector2) -> void:
 	root.push_input(event)
 	await process_frame
 	await pointer(point(end), false)
+	var deadline := Time.get_ticks_msec() + 20000
+	while ui.import_job != null and Time.get_ticks_msec() < deadline: await process_frame
+	check(ui.import_job == null and not ui.busy, "terrain job finishes: " + ui.status_label.text)
 
 func shape(tool: String, vertices: Array) -> void:
 	ui._set_tool(tool)
@@ -302,6 +305,9 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	await click(apply.get_global_rect().get_center() + Vector2(ui.author_panel.position))
+	var asset_deadline := Time.get_ticks_msec() + 20000
+	while ui.busy and Time.get_ticks_msec() < asset_deadline: await process_frame
+	check(not ui.busy, "asynchronous asset job finishes: " + ui.author_panel.feedback.text)
 	check(ui.store.document.assets.size() == 2, "real authoring panel Apply imports an asset: " + ui.author_panel.feedback.text)
 	before = state()
 	controls.boxes.text = "[invalid"

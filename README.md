@@ -81,6 +81,16 @@ an additional headless, bounded native launch. It does not require private sourc
 The implementation includes terrain brush/PNG16, bridge/tunnel editing, asset/proxy
 authoring, affected-cell preview, bounded attachment and file-copy/export tools.
 E01's 2D type/import view layers never remove source records from preview or export.
+Local import accepts authored/WGS84 GeoJSON lines, polygon/courtyard geometry and
+bounded nested GeometryCollections, plus local OSM PBF/XML, Overture snapshots
+and Copernicus COG/PNG raster profiles. OSM loops support direct bridge/tunnel
+connections and closed structures with explicit metric heights and ground anchors.
+Review retains the original source tree/graph and exact output mappings; adoption
+is one Undo command. Sources and existing packages remain untouched.
+
+The [local input contracts and remaining support audit](docs/IMPORTS.md) distinguish
+implemented profiles from generic points/structures, additional source semantics,
+geoid-model preparation and raster/large-area work that needs further contracts.
 Full platform, representative-map performance and installed-Client authoring acceptance
 remain open; this is not the completed transition plan.
 

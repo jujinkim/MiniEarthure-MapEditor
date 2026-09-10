@@ -95,6 +95,12 @@ class MultiLineTests(unittest.TestCase):
                 convert(value, "bad", "MIT")
         with self.assertRaisesRegex(ValueError, "structural/OSM"):
             convert(fixture(), "bad", "MIT", osm_graph=True)
+        for key in ["osm_node_refs", "elevations_m", "road_kind", "clearance_m"]:
+            value = fixture()
+            value["features"][0]["geometry"] = dict(type="LineString", coordinates=[[0,0],[10,0]])
+            value["features"][0]["properties"][key] = None
+            with self.assertRaisesRegex(ValueError, "no silent flattening"):
+                convert(value, "bad", "MIT")
 
     def test_existing_aggregate_budgets_include_all_parts(self):
         # Record admission occurs before any projection or part allocation.

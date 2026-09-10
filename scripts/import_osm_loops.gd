@@ -14,13 +14,21 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 		if patch.field == "roads" and patch.id.ends_with("-loop"): roads[patch.id] = patch.after
 		if patch.field == "nodes": nodes[patch.id] = patch.after
 	if meta == null: return "Missing OSM loop provenance." if not roads.is_empty() else ""
-	if raw.adapter != "osm-extract-v1" or meta is not Dictionary or meta.size() != 3 or meta.get("profile") != "source-node-segments-v1" or meta.get("sources") is not Array or meta.sources.is_empty() or meta.sources.size() > 20000 or meta.get("retained") is not Array or meta.retained.size() != roads.size(): return "Invalid OSM loop profile."
+	if raw.adapter != "osm-extract-v1" or meta is not Dictionary or meta.size() != 3 or meta.get("profile") not in ["source-node-segments-v1", "source-node-segments-v2"] or meta.get("sources") is not Array or meta.sources.is_empty() or meta.sources.size() > 20000 or meta.get("retained") is not Array or meta.retained.size() != roads.size(): return "Invalid OSM loop profile."
+	var structural: bool = meta.profile == "source-node-segments-v2"
+	var structural_sources := 0
 	var sources := {}
 	var loop_nodes := {}
 	var reference_count := 0
 	var previous_way := ""
 	for entry in meta.sources:
-		if entry is not Dictionary or entry.size() != 3 or not source_ref(entry.get("way")) or entry.get("closed") is not bool or entry.get("refs") is not Array or entry.refs.size() < (4 if entry.closed else 2): return "Invalid OSM loop source."
+		if entry is not Dictionary or entry.size() != (5 if structural else 3) or not source_ref(entry.get("way")) or entry.get("closed") is not bool or entry.get("refs") is not Array or entry.refs.size() < (4 if entry.closed else 2): return "Invalid OSM loop source."
+		if structural:
+			if entry.get("kind") not in ["ground", "bridge", "tunnel"] or not entry.has("clearance_cm"): return "Invalid OSM loop source kind."
+			if entry.kind == "tunnel":
+				if not boundary._count(entry.clearance_cm, 5000) or entry.clearance_cm < 200: return "Invalid OSM loop tunnel clearance."
+			elif entry.clearance_cm != null: return "Unexpected OSM loop clearance."
+			structural_sources += int(entry.kind != "ground")
 		if previous_way != "" and (entry.way.length() < previous_way.length() or (entry.way.length() == previous_way.length() and entry.way <= previous_way)): return "Invalid OSM loop source order."
 		previous_way = entry.way
 		reference_count += entry.refs.size()
@@ -35,6 +43,7 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 			unique[ref] = true
 			if entry.closed: loop_nodes[ref] = true
 		sources[entry.way] = entry
+	if structural and structural_sources == 0: return "Missing OSM loop structural source."
 	if loop_nodes.is_empty(): return "Missing closed OSM source way."
 	for entry: Dictionary in meta.sources:
 		var incident := false
@@ -62,7 +71,8 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 		var refs: Variant = entry.get("refs")
 		var road: Dictionary = roads[entry.road_id]
 		var count := int(ceilf(span[1])-floorf(span[0]))+1
-		if refs is not Array or refs.size() != count or road.get("kind") != "ground" or road.get("clearance_cm") != null or road.get("points") is not Array or road.points.size() != count: return "Invalid OSM loop ground geometry."
+		if refs is not Array or refs.size() != count or road.get("kind") != source.get("kind", "ground") or road.get("clearance_cm") != source.get("clearance_cm") or road.get("points") is not Array or road.points.size() != count: return "Invalid OSM loop geometry/profile."
+		if road.kind != "ground" and not entry.explicit_height: return "OSM structural loop requires explicit heights."
 		total_points += count
 		if total_points > raw.point_count: return "OSM loop point budget exceeded."
 		for i in range(count):

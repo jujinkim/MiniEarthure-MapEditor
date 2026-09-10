@@ -196,6 +196,7 @@ func run() -> void:
 	check(ui.pending_import == null and ui.store.document == before,"native collapse rejects whole graph: " + ui.status_label.text)
 	check(FileAccess.get_sha256(base+".memap") == package_hash and FileAccess.get_file_as_bytes(path).size() > 0,"baseline package/source retained")
 	check(not DirAccess.dir_exists_absolute("user://authoring-candidates") or DirAccess.get_directories_at("user://authoring-candidates").is_empty(),"native loop scratch retired")
+	await structural_loops(ui)
 	ui.store.dirty = false
 	ui.queue_free()
 	await process_frame
@@ -229,3 +230,80 @@ func covers(triangles: Array, at: Vector2, height: float) -> bool:
 		var u := (b-at).cross(c-at)/area;var w := (c-at).cross(a-at)/area;var q := 1-u-w
 		if minf(u,minf(w,q)) >= -0.00001 and absf(u*v[0][1]+w*v[1][1]+q*v[2][1]-height) <= 1: return true
 	return false
+
+func structural_loops(ui: Control) -> void:
+	for mode: String in ["direct_bridge", "direct_tunnel", "closed_bridge", "closed_tunnel", "closed_join_bridge"]:
+		var path := ProjectSettings.globalize_path("user://" + mode + ".pbf")
+		var out: Array = []
+		check(OS.execute(ui.import_python.text, PackedStringArray(["-B", ProjectSettings.globalize_path("res://tests/osm_loops_fixture.py"),path,mode]),out,true) == 0,"synthetic " + mode)
+		var original := FileAccess.get_sha256(path)
+		var before: Dictionary = ui.store.document.duplicate(true)
+		ui._start_import(path,LAYER.OSM_LICENSE)
+		await wait_import(ui)
+		check(ui.pending_import != null,"native structural loop review " + mode + ": " + ui.status_label.text)
+		if ui.pending_import == null: continue
+		var raw: Dictionary = ui.pending_import.value.duplicate(true)
+		check(raw.coordinates.osm_ground_loops.profile == "source-node-segments-v2","structural source-kind profile " + mode)
+		if mode == "closed_bridge":
+			var job := CancelGeneration.new()
+			check(job.start_validation(ui.store,ui.pending_import,false,"structural-loop-test",path,Crypto.new().generate_random_bytes(16).hex_encode()) == "","start owned structural loop cancellation")
+			var deadline := Time.get_ticks_msec()+15000
+			while not job.done and Time.get_ticks_msec()<deadline:
+				job.poll()
+				await process_frame
+			check(job.reached and job.done and job.exited and not job.result.ok,"structural loop generation cancellation reaps child")
+			check(ui.store.document == before and not DirAccess.dir_exists_absolute(job.directory),"structural loop cancellation retains document and removes owned scratch")
+			if not job.done: job.shutdown()
+		for field: String in ["kind", "clearance_cm", "explicit_height"]:
+			var bad := raw.duplicate(true)
+			var meta: Dictionary = bad.coordinates.osm_ground_loops
+			if field == "explicit_height":
+				for source: Dictionary in meta.sources:
+					if source.kind != "ground":
+						for retained: Dictionary in meta.retained:
+							if retained.source_way == source.way: retained.explicit_height = false
+			else:
+				for source: Dictionary in meta.sources:
+					if source.kind != "ground": source[field] = "ground" if field == "kind" else 123
+			check(LAYER.new().load_value(bad,raw.layer_id) != "","forged structural loop " + mode + ": " + field)
+		ui._adopt_import()
+		await wait_import(ui)
+		check(ui.store.document.roads.size() == raw.feature_count,"atomic structural loop adoption " + mode + ": " + ui.status_label.text)
+		if ui.store.document.roads.size() == raw.feature_count:
+			var base := ProjectSettings.globalize_path("user://project-" + mode)
+			check(ui.store.save_project(base) == "","save " + mode)
+			check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"export " + mode)
+			check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"open " + mode)
+			var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+			check(generated.ok,"actual structural loop generation " + mode)
+			var structural_floor := false
+			var tunnel_ceiling := false
+			if generated.ok:
+				for triangle: Dictionary in generated.data.chunk.triangles:
+					if not triangle.object_id.ends_with("-loop"): continue
+					for point: Array in triangle.vertices:
+						structural_floor = structural_floor or (triangle.spawnable and absf(point[1]) >= 500)
+						tunnel_ceiling = tunnel_ceiling or (not triangle.spawnable and point[1] < 0)
+			check(structural_floor,"native structural height retained " + mode)
+			if mode.ends_with("tunnel"): check(tunnel_ceiling,"native loop tunnel ceiling " + mode)
+			check(ui.store.undo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(before),"atomic structural loop Undo " + mode)
+			check(ui.store.redo() == "","structural loop Redo " + mode)
+			check(ui.store.undo() == "","restore pre-loop document " + mode)
+		check(FileAccess.get_sha256(path) == original,"structural loop original preserved " + mode)
+		# Partial structural loops exercise crop-to-output IDs and retained ground
+		# approach checks, with the full source validated before clipping.
+		if mode.begins_with("closed"):
+			ui.osm_panel.enabled.button_pressed = true
+			ui.osm_panel.streaming.button_pressed = true
+			for i in range(4): ui.osm_panel.fields[i].value = [9,55,9+100.0/64000,55+100.0/111000][i]
+			ui._start_import(path,LAYER.OSM_LICENSE)
+			await wait_import(ui)
+			check(ui.pending_import != null,"native cropped structural loop " + mode + ": " + ui.status_label.text)
+			if ui.pending_import != null:
+				check(ui.pending_import.value.coordinates.osm_crop.policy == "geometry-intersection-v3","partial structural loop provenance " + mode)
+				ui._adopt_import()
+				await wait_import(ui)
+				check(ui.store.document.roads.size() == 4,"partial structural loop atomic adoption " + mode + ": " + ui.status_label.text)
+				check(ui.store.undo() == "","partial structural loop Undo " + mode)
+			ui.osm_panel.enabled.button_pressed = false
+			ui.osm_panel.streaming.button_pressed = false

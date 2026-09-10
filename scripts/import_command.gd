@@ -10,7 +10,7 @@ static func encode(prepared: Dictionary) -> Dictionary:
 	return {"version":1, "canonical":prepared.canonical, "command_json":prepared.command_json,
 		"signature":prepared.signature, "retained":prepared.command.get("binary_mementos", {})}
 
-static func decode(value: Variant) -> Dictionary:
+static func decode(value: Variant, allow_assets: bool = false) -> Dictionary:
 	if value is not Dictionary or value.get("version") != 1 or value.get("canonical") is not String or value.get("command_json") is not String or value.get("retained") is not Dictionary or not TYPES._hex(value.get("signature"), 64):
 		return {"error":"Invalid prepared import command transfer."}
 	# Charge the actual text and bytes, never a size asserted by the result.
@@ -36,8 +36,9 @@ static func decode(value: Variant) -> Dictionary:
 		if candidate.get(field) is not Array: return {"error":"Missing prepared document records."}
 		for record: Variant in candidate[field]:
 			if record is not Dictionary: return {"error":"Invalid prepared document record."}
+	var fields := ["assets", "attributions"] if allow_assets else ["nodes", "roads", "buildings", "zones", "heightmaps", "attributions"]
 	for patch: Variant in command.patches:
-		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]) or patch.field not in ["nodes", "roads", "buildings", "zones", "heightmaps", "attributions"] or patch.id is not String or patch.id.is_empty() or patch.after is not Dictionary or (patch.before != null and patch.before is not Dictionary):
+		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]) or patch.field not in fields or patch.id is not String or patch.id.is_empty() or patch.after is not Dictionary or (patch.before != null and patch.before is not Dictionary):
 			return {"error":"Invalid prepared command memento."}
 	command.bytes = size
 	if not value.retained.is_empty(): command.binary_mementos = value.retained

@@ -116,7 +116,6 @@ class Loops(unittest.TestCase):
             "cross":lambda r:r.find("way/nd[@ref='2']").set("ref","3"),
             "area":lambda r:ET.SubElement(r.find("way"),"tag",k="area",v="yes"),
             "missing":lambda r:r.remove(r.find("node[@id='2']")),
-            "structural":lambda r:ET.SubElement(r.find("way"),"tag",k="bridge",v="yes"),
             "approach":lambda r:ET.SubElement(r.find("way[@id='3']"),"tag",k="bridge",v="yes"),
         }
         for name,action in changes.items():
@@ -128,6 +127,80 @@ class Loops(unittest.TestCase):
         refs=root.find("way").findall("nd")
         for n,ref in zip(refs,[1,3,2,4,1]):n.set("ref",str(ref))
         with self.assertRaisesRegex(ValueError,"self-intersects"):osm.parse(ET.tostring(root),"osm")
+
+    def test_direct_and_closed_structures_retain_profiles_connections_and_streaming(self):
+        for mode in ("direct_bridge", "direct_tunnel", "closed_bridge", "closed_tunnel"):
+            with self.subTest(mode=mode):
+                raw = xml(mode).encode()
+                value, counts = osm.parse(raw, "osm")
+                layer = self.layer(value, counts)
+                meta = layer.coordinates["osm_ground_loops"]
+                self.assertEqual(meta["profile"], "source-node-segments-v2")
+                self.assertEqual(counts["closed_structural_ways"], int(mode.startswith("closed")))
+                structural = [f for f in value["features"] if f["properties"].get("road_kind") != "ground"]
+                self.assertEqual(len(structural), 8 if mode.startswith("closed") else 1)
+                self.assertTrue(all(f["properties"]["road_kind"] == mode.split("_")[1] for f in structural))
+                roads = [p["after"] for p in layer.patches if p["field"] == "roads"]
+                self.assertTrue(all(r["from"] != r["to"] for r in roads))
+                for source in meta["sources"]:
+                    self.assertEqual(source["clearance_cm"], 450 if source["kind"] == "tunnel" else None)
+                with tempfile.TemporaryDirectory() as d:
+                    source = Path(d)/"original.pbf"; captured = pbf(source, raw.decode())
+                    # The selection intersects the ring only. Full structures and
+                    # their outside endpoint approach must still be collected.
+                    streamed, _, _ = stream.extract(source, BOX, d)
+                    self.assertEqual(crop(streamed, BOX)[0], crop(value, BOX)[0])
+                    streamed_vertical = crop(streamed, BOX)[1]["vertical"]
+                    snapshot_vertical = crop(value, BOX)[1]["vertical"]
+                    # Unrelated out-of-area explicit roads are not selected.
+                    self.assertEqual(streamed_vertical.pop("outside_explicit_features") + 1,
+                                     snapshot_vertical.pop("outside_explicit_features"))
+                    self.assertEqual(streamed_vertical, snapshot_vertical)
+                    self.assertEqual(source.read_bytes(), captured)
+                    self.assertTrue(all(not (Path(d)/n).exists() for n in stream.OWNED_FILES))
+
+    def test_closed_structural_junction_has_two_loop_arms_and_one_peer(self):
+        value, counts = osm.parse(xml("closed_join_bridge").encode(), "osm")
+        self.assertEqual(counts["structure_continuations"], 1)
+        join = value["osm_connections"][0]
+        self.assertEqual(join["ref"], "2")
+        self.assertEqual(join["source_ways"], ["1", "5"])
+        self.assertEqual([(a["source_way"], a["end"]) for a in join["source_arms"]],
+                         [("1", "from"), ("1", "to"), ("5", "from")])
+        layer = self.layer(value, counts)
+        self.assertEqual(len(layer.coordinates["osm_connections"]["joins"][0]["retained"]), 3)
+        root = ET.fromstring(xml("closed_join_bridge"))
+        # Repeat the source's closing vertex only once when counting incidence.
+        for way in root.findall("way"):
+            refs = way.findall("nd")
+            for ref in refs: way.remove(ref)
+            for ref in reversed(refs): way.append(ref)
+        reversed_value, _ = osm.parse(ET.tostring(root), "osm")
+        self.assertEqual(reversed_value["osm_connections"][0]["source_ways"], ["1", "5"])
+        root = ET.fromstring(xml("closed_join_bridge"))
+        way = root.find("way[@id='1']")
+        refs = way.findall("nd")
+        for ref in refs: way.remove(ref)
+        for ref in [2,13,3,14,4,15,1,12,2]: ET.SubElement(way,"nd",ref=str(ref))
+        rotated, _ = osm.parse(ET.tostring(root), "osm")
+        self.assertEqual(rotated["osm_connections"], value["osm_connections"])
+
+
+    def test_closed_structures_require_two_distinct_explicit_ground_anchors(self):
+        for mode in ("closed_bridge", "closed_tunnel"):
+            root = ET.fromstring(xml(mode))
+            root.remove(root.find("way[@id='3']"))
+            with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, "two distinct"):
+                osm.parse(ET.tostring(root), "osm")
+            # Source-height omissions reject before a crop could hide them.
+            root = ET.fromstring(xml(mode))
+            root.find("node[@id='2']").remove(root.find("node[@id='2']/tag"))
+            with self.assertRaisesRegex(ValueError, "every road node"):
+                osm.parse(ET.tostring(root), "osm")
+        root = ET.fromstring(xml("direct_bridge"))
+        root.remove(root.find("way[@id='5']"))
+        with self.assertRaisesRegex(ValueError, "ground connections"):
+            osm.parse(ET.tostring(root), "osm")
 
     def test_source_topology_split_output_and_native_arm_budgets(self):
         import polygon_geometry as geometry

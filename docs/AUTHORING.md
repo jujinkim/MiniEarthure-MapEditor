@@ -63,7 +63,17 @@ tiles) and coordinate/offset labels. Thumbnails are presentation, never height d
 
 The Terrain tab provides raise, lower, flatten and smooth, brush radius, per-stroke
 amount, flatten target and grid spacing. Left-drag followed by release is one
-operation. The whole polyline determines linear radial falloff, so event frequency
+operation. Release now snapshots the stroke and launches a disposable owned Godot
+child for PNG decoding/encoding, native candidate validation, road-cell generation
+and history preparation. The main window shows progress and its Cancel control
+remains available. Cancel, Escape, focus loss, a changed tool/layer/brush option,
+a new gesture, document/project change or closing the Editor invalidates pending
+work. Restoring an option/tool/layer does not revive an invalidated result. A valid
+result installs immutable files and publishes one command; a failed or empty stroke
+preserves the map and history. The synchronous `TerrainTools.finish()` script API
+remains available. [Implementation and verification](TERRAIN_ASYNC_VALIDATION.md).
+
+The whole polyline determines linear radial falloff, so event frequency
 does not repeatedly raise the same point or leave gaps between pointer samples.
 Every touched cell evaluates the same world samples; shared edges/corners agree.
 Smooth reads the original four neighboring samples rather than in-place updates.
@@ -102,6 +112,17 @@ and provenance validation run before publication. A failed import/proxy/material
 edit preserves both document and history. Select the new asset in Drawing before
 using Place; close/reopen settings to refresh a library after adding records.
 
+Apply now prepares the asset in an owned Godot child with progress and Cancel in
+the authoring dialog. This includes original/project-file hashes, static asset
+decoding, detached native validation, complete attribution and binary Undo command
+preparation. Changing/restoring controls, switching the selected asset, closing
+authoring, changing the document or starting another gesture invalidates the
+result. An unchanged source is required through preparation; no file is installed
+until the successful result passes the current document/selection guard.
+Metadata/proxy edits without a new source use the same path and retain the old
+file. Synchronous `AuthoringTools.asset()` remains available to script callers.
+See [asset execution and checks](ASSET_ASYNC_VALIDATION.md).
+
 ## Atomic payloads, history and limits
 
 Original PNG/GLB/WebP files are never overwritten. Editor writes content-addressed
@@ -109,8 +130,9 @@ Original PNG/GLB/WebP files are never overwritten. Editor writes content-address
 bytes before reuse, and validates a detached temporary project through the native
 reader before publishing a document command. Candidate payload copies are capped
 at 64 MiB; only this operation's random scratch directory is removed. Validation
-for standalone PNG review/adoption now runs in a cancellable owned Godot child;
-brush/asset operations and synchronous script APIs keep their existing execution.
+for standalone PNG review/adoption, canvas brush preparation and asset/proxy
+authoring runs in a cancellable owned Godot child. Synchronous script APIs remain
+available.
 Request/selection signatures, transfer decoding and final file/history installation
 remain synchronous. Large-map latency/RSS calibration is a separate acceptance gate.
 
@@ -143,7 +165,9 @@ rtk proxy env MAPEDITOR_CAPTURE_PATH=/new/path/authoring.png python3 scripts/che
 
 The standalone runner copies only public Editor/MapKit sources and the matching
 native library, verifies isolated user data and retains source/native hashes and
-strict diagnostics. `authoring_validator` covers actual viewport creation,
+strict diagnostics. `terrain_native_validator` covers child cancellation during
+raster/native/command work, late or corrupt results, source mutation, scratch
+ownership and binary Undo/Redo. `authoring_validator` covers actual viewport creation,
 brush PNG/native generation, file/history/recovery/export, graph structures,
 custom proxies/materials and the shared preview. `authoring_safety_validator`
 covers budgets, stale/cancelled operations, immutable-file conflicts, layer locks

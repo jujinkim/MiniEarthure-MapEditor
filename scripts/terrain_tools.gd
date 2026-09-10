@@ -52,7 +52,7 @@ func descriptor(cell: Vector2i) -> Dictionary:
 		if int(record.cell.x) == cell.x and int(record.cell.y) == cell.y: return record
 	return {}
 
-func _load(cell: Vector2i, side: int) -> Dictionary:
+func _load(cell: Vector2i, side: int, expected: Dictionary = {}) -> Dictionary:
 	var record := descriptor(cell)
 	if record.is_empty():
 		var heights := PackedInt64Array()
@@ -61,12 +61,27 @@ func _load(cell: Vector2i, side: int) -> Dictionary:
 		return {"heights": heights}
 	var source := FILES.read(store.project_path.path_join(record.path), PNG.MAX_BYTES)
 	if source.has("error"): return source
+	if expected.has(record.path) and FILES.digest(source.bytes) != expected[record.path]: return {"error":"Terrain payload changed during brush preparation."}
 	return PNG.decode(source.bytes, side, int(record.offset_cm), int(record.step_cm))
 
-func _plan() -> Dictionary:
+func take_stroke() -> Dictionary:
+	if not active: return {"error":"No active terrain stroke."}
+	if store._signature(store.document) != signature or not store.has_gesture():
+		cancel()
+		return {"error":"Terrain stroke is stale; nothing was changed."}
+	var points: Array = []
+	for point in stroke: points.append([roundi(point.x), roundi(point.y)])
+	var request := {"stroke":points, "options":settings.duplicate(true)}
+	cancel()
+	return request
+
+func region() -> Dictionary:
 	var doc: Dictionary = store.document
 	var cell_size := int(doc.cell_size_cm)
 	var spacing := int(settings.spacing_cm)
+	if spacing < 200 or cell_size % spacing != 0: return {"error":"Invalid terrain grid spacing."}
+	for record: Dictionary in doc.heightmaps:
+		if int(record.spacing_cm) != spacing: return {"error":"Terrain spacing must match the existing grid."}
 	var side := cell_size / spacing + 1
 	var radius := float(settings.radius_cm)
 	if radius < spacing or radius > cell_size * 2: return {"error": "Brush radius must be at least one sample and at most two cells."}
@@ -81,15 +96,28 @@ func _plan() -> Dictionary:
 	var tiles := (last.x - first.x + 1) * (last.y - first.y + 1)
 	if first.x > last.x or first.y > last.y: return {"error": "Brush is outside map bounds."}
 	if tiles > MAX_TILES or tiles * side * side > MAX_SAMPLES or tiles * side * side * stroke.size() > 8000000: return {"error": "Brush exceeds the 16 tile / one million sample operation budget; use a smaller stroke."}
+	var cells: Array = []
+	for cy in range(first.y, last.y + 1):
+		for cx in range(first.x, last.x + 1): cells.append(Vector2i(cx, cy))
+	return {"cells":cells, "count":count, "side":side, "origin":origin}
+
+func _plan(context: Dictionary = {}) -> Dictionary:
+	var extent := region()
+	if extent.has("error"): return extent
+	var doc: Dictionary = store.document
+	var cell_size := int(doc.cell_size_cm)
+	var spacing := int(settings.spacing_cm)
+	var side := int(extent.side)
+	var radius := float(settings.radius_cm)
+	var origin: Vector2 = extent.origin
+	var count: Vector2i = extent.count
 	var patches: Array = []
 	var blobs := {}
 	var loaded := {}
-	for cy in range(first.y, last.y + 1):
-		for cx in range(first.x, last.x + 1):
-			var cell := Vector2i(cx, cy)
-			var source := _load(cell, side)
-			if source.has("error"): return source
-			loaded[cell] = source.heights
+	for cell: Vector2i in extent.cells:
+		var source := _load(cell, side, context.get("expected", {}))
+		if source.has("error"): return source
+		loaded[cell] = source.heights
 	for cell: Vector2i in loaded:
 		var heights: PackedInt64Array = loaded[cell].duplicate()
 		var changed := false

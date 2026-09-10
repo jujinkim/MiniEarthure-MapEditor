@@ -145,7 +145,7 @@ func edit_road(before: Dictionary, points: Array, widths: Array, surfaces: Array
 		if update != road: patches.append(EDIT.patch("roads", road, update))
 	return apply("Edit road structure and graph", patches, true)
 
-func asset(record: Dictionary, source_path: String = "") -> String:
+func asset(record: Dictionary, source_path: String = "", validate_only: bool = false, context: Dictionary = {}) -> String:
 	var before: Variant = store._get_value(store.document, "assets", str(record.id))
 	var blobs := {}
 	if source_path != "":
@@ -153,8 +153,13 @@ func asset(record: Dictionary, source_path: String = "") -> String:
 		if source.has("error"): return source.error
 		var extension := source_path.get_extension().to_lower()
 		if extension not in ["glb", "png", "webp"]: return "Choose a static GLB, PNG or WebP."
+		if context.get("expected_source", "") != "" and FILES.digest(source.bytes) != context.expected_source: return "Asset source changed while preparing candidate."
 		record.path = "editor/" + FILES.digest(source.bytes) + "." + extension
 		blobs[record.path] = source.bytes
+		if context.has("register_output"):
+			var failure: String = context.register_output.call(record.path)
+			if failure != "": return failure
 	elif before != null: record.path = before.path
 	else: return "Choose an asset source file."
-	return FILES.apply(store, "Author asset and proxy", [{"field": "assets", "id": str(record.id), "before": before, "after": record}], blobs)
+	if context.has("blob_paths"): context.blob_paths.append_array(blobs.keys())
+	return FILES.apply(store, "Author asset and proxy", [{"field": "assets", "id": str(record.id), "before": before, "after": record}], blobs, [], validate_only, context)

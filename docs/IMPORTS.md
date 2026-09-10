@@ -17,8 +17,8 @@ at the end of this document. Select the format explicitly in **Import vector**.
 The [PBF streaming extension](#osm-pbf-selected-area-streaming--2026-09-10)
 adds an explicit local-source profile beyond 32 MiB; earlier whole-source limits
 still apply when streaming is disabled.
-`geojson-v2`: explicit local-metre or WGS84 LineString, MultiLineString, Polygon and
-MultiPolygon input. [Multipart roads](#local-geojson-multipart-roads--2026-09-10)
+`geojson-v2`: explicit local-metre or WGS84 LineString, MultiLineString, Polygon,
+MultiPolygon and bounded GeometryCollection input (see the collection extension below). [Multipart roads](#local-geojson-multipart-roads--2026-09-10)
 retain independent parts and explicit source mapping.
 Forest/orchard polygon holes become existing zone exclusions; recipe-5 building holes
 are supported by the courtyard extension below, which supersedes earlier rejection.
@@ -2281,8 +2281,8 @@ installed builds, real-region accuracy, driving and performance are still open.
 
 | Source family | Current capability and independent remaining work |
 | --- | --- |
-| GeoJSON | Multipart lines now join existing LineString and polygon/courtyard support. Arbitrary geometry collections, point semantics and structural profiles remain unsupported. |
-| OSM | Explicit structures, connected junctions, partial crop and local height supplements are delivered. The closed ground-road extension below now supplies source-node segmentation, ground approaches and crop/stream completeness. Direct structural mouths on loops, closed structural ways and other unsupported semantics remain separate. |
+| GeoJSON | Multipart lines, polygon/courtyard and bounded nested GeometryCollection input are supported. Point semantics and direct structural/connectivity profiles still need their own source contract. |
+| OSM | Explicit structures, connected junctions, partial crop, local height supplements and source-node loops are delivered. The structural-loop extension below adds direct structural mouths and closed bridge/tunnel ways. Unsupported tags and missing metric heights still reject the whole source. |
 | Overture | Building parts/courtyards, ground transportation intervals/connectors and land-cover forests are delivered. Bridge/tunnel heights, other flags/classes and larger selected areas remain unsupported. |
 | DEM/PNG | Local COG mosaics and staged full-cell PNGs are delivered. General geoid file preparation, broader raster profiles and larger selections remain separate from this line-geometry adapter. |
 
@@ -2314,8 +2314,9 @@ existing road/node contract. No native, recipe, package or ABI change is require
   Split those approaches at shared graph nodes, including interior nodes. Only
   source ID equality creates connections; coincident unshared nodes remain separate.
   Ordinary unconnected ground ways retain their earlier independent-endpoint profile.
-  Direct bridge/tunnel incidence on the loop and closed structural ways remain
-  rejected; handling their mouths/clearance is a separate vertical graph unit.
+  Direct bridge/tunnel incidence and closed structural ways are additionally
+  supported by the structural-loop extension below, under its explicit heights,
+  ground-anchor and native mouth/clearance conditions.
 - Ground input without `ele` retains the existing estimated 0.2 m authored profile;
   **recipe 2 ground surfaces follow terrain**, not that estimate. No EGM96 datum is
   invented for these nodes. Explicit elevations must still cover the entire way;
@@ -2372,5 +2373,121 @@ Use `--rendered` and an existing `MAPEDITOR_LOOPS_CAPTURE_DIR` for native displa
 review/details captures. Mac PCK/display checks do not replace installed Windows/
 Linux, actual driving/region accuracy, latency/RSS or final integration acceptance.
 Whole I02/I03/I04 and cutover remain open; remote source acquisition is excluded.
-Next waiting work is the separate I03 terrain-brush candidate validation/cancellation
-unit (`terrain_tools.finish/_plan`, canvas stroke lifetime and `authoring_files.apply`).
+The independent I03 authoring work is documented in AUTHORING.md.
+
+
+## Structural OSM loops and direct structural incidence — 2026-09-10
+
+The former closed-structure/direct-mouth refusals are replaced for simple closed
+`bridge=yes` / `tunnel=yes` ways and bridge/tunnel ways directly incident to a
+closed ground way. Complete original node elevations, explicit source identity,
+and at least two distinct ground anchor nodes per structural component are
+required before any crop. Missing heights may use the existing snapshot-bound
+local supplement; they are never inferred from a layer number or a nearby road.
+
+Every closed source vertex becomes a separate open road segment, including the
+closing edge. Repeated closing references count once for source-way incidence and
+twice for directed arms. Structural peers at any loop vertex retain both loop
+arms and their own directed arms in the existing junction-v2 provenance. Ground
+loops without incident structures retain their original v1 output unchanged.
+
+`coordinates.osm_ground_loops.profile=source-node-segments-v2` extends the existing
+historical field name. Every source entry additionally records `kind` and
+`clearance_cm`; retained roads keep their exact source intervals/IDs and explicit
+height flags. The consumer checks these fields against each output road and
+requires explicit structural heights. Continuation and partial-crop validation
+resolve the same `-loop` road IDs. PBF's existing bounded structural closure
+already traverses closed structural ways and collects all incident approaches;
+its structural count includes those ways without double-counting them as ground
+loops. No network access, MapKit ABI, recipe, package format or budget change.
+
+Native generation of all affected corridors (recipe 2+, at most 16 cells) remains
+a mandatory review/adoption gate. The adapter does not repair tight corners,
+overlapping mouths, nonlevel terrain approaches or conflicting tunnel clearances.
+The new fixtures include broad closed bridge/tunnel bends, direct structural
+incidence, a three-arm structural peer, partial crops and explicit level approach
+segments. Synthetic sharp mouths and graded ground mouths were refused by the
+existing native rules; those rules were preserved when preparing valid fixtures.
+
+`test_osm_loops.py` additionally covers source/PBF parity, reversed and rotated
+closing-node incidence, exact profiles, full closure before crop, anchor/height
+refusal and source preservation. `osm_loops_validator` additionally covers actual
+structural floors and tunnel ceilings, full and cropped native review/adoption,
+owned generation cancellation, forged metadata, package/save and atomic Undo/Redo.
+The previous loop/structure/continuation/junction/supplement/native safety tests
+remain in the affected verification set.
+
+## Nested GeoJSON GeometryCollection — 2026-09-10
+
+A local-metres or explicit WGS84 FeatureCollection may contain nested
+GeometryCollections whose nonempty leaves are LineString, MultiLineString,
+Polygon or MultiPolygon. Source feature order, nested child order and all existing
+leaf geometry rules are preserved. The original Feature's properties apply to all
+its leaves: lines use existing ground-road properties; polygons use the existing
+building or forest/orchard interpretation. No child-level property inheritance,
+node welding, structural height interpretation, source rewrite or partial import
+is introduced. One invalid/empty/unsupported leaf rejects the entire candidate.
+
+The source tree is admitted before coordinate projection: at most 16 collection
+levels, 40,000 visited geometry nodes and 20,000 normalized leaves. Existing source,
+point, record, topology, result and history limits still apply to the combined
+candidate. These are admission bounds, not whole-process RSS or latency promises.
+
+For a source containing any collection, `feature_count` counts normalized leaves.
+`coordinates.geojson_collections`, profile `feature-leaves-v1`, retains the original
+feature count through its ordered `sources` array. Each entry's `tree` preserves
+nested arrays and references the exact normalized leaf indices. Ordered `leaves`
+entries retain geometry type, exact output record IDs and point counts. All records
+use the `-collection` namespace suffix; multipart leaves additionally retain their
+existing `-part-N` mapping. Documents without a GeometryCollection retain existing
+IDs and counts. Source bytes/hash/license/accuracy always refer to the entire
+original file, and reimport allocates a new layer namespace.
+
+The Editor independently verifies complete source-tree order/coverage/depth,
+record namespaces/ownership/order/types, leaf-to-record and actual point counts,
+independent ground endpoints and multipart geometry before native validation.
+Missing/forged metadata rejects. The bounded review summary and exact detail
+browser expose this mapping, and the existing attribution notice preserves it
+through one-command adoption, Undo/Redo, save/reopen, recovery and package export.
+Ordinary LineString now also rejects reserved `road_kind`, `elevations_m` and
+`clearance_m` metadata outside the OSM path, rather than silently flattening an
+attempted structural input. The existing multipart refusal remains.
+
+Reproduce collection checks with synthetic inputs:
+
+    python3 -B -m unittest discover -s tests -p test_collections.py -v
+    python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/import-python --script multilines_validator --script import_layer_validator --resource-pack --log-dir /new/collection-checks
+
+`multilines_validator` includes nested mixed road/building collections, exact
+source-tree browsing, metadata rejection, native/package geometry, cancellation,
+source mutation, all-or-nothing adoption and preservation of earlier layers.
+Scoped Mac validation for these two extensions: the full Python suite passed
+165 tests; standalone compiled PCK checks passed OSM loops (251), structures (196),
+continuations (85), junctions (242), height supplements (68), native import (117),
+multipart/collections (104) and the common import-layer validator. The final
+multipart/collection validator also passed 104 checks on the native display.
+Its observed source tree was `[0.0, [1.0, 2.0]]` with three normalized leaves:
+Godot's JSON numeric representation is checked by exact numeric leaf comparisons
+rather than nested Array Variant-type equality. The source-tree product validator
+continues to reject fractional, repeated, missing or reordered indices.
+
+These checks do not establish installed Windows/Linux UI, representative source
+accuracy, real driving or performance acceptance.
+
+### Local input implementation audit after these extensions
+
+These remaining items are distinct source/representation work, not passed
+verification gates and not aliases for the implemented bounded profiles.
+
+| Remaining input | Exact missing contract or representation |
+| --- | --- |
+| GeoJSON Point / MultiPoint | ImportLayer has nodes, roads, buildings and zones but no generic POI record. A point alone does not specify a road endpoint, spawn, building footprint, vegetation area or custom-asset placement; choosing one needs an explicit product/source profile. A collection containing points rejects as a whole. |
+| Direct structural GeoJSON | The current authored profile has one uniform ground height and independent endpoints. General structures require per-vertex metric heights, datum/zero, clearance and explicit graph IDs/ground anchors. The OSM-only reserved fields cannot be used as a generic GeoJSON contract. |
+| OSM tags beyond the supported metric profile | Non-yes bridge/tunnel types, area highways, incline/covered/location/level and missing metric heights remain refused. A layer index or bridge flag does not provide a grade, terrain approach, tunnel ceiling or datum. Explicit node heights/local supplements work; automatic height reconstruction is not implemented. |
+| Overture structural transportation and other flags/classes | The local ground-graph profile accepts 2D source coordinates, explicit connectors, level 0 and its documented classes/is_link flag. Bridges/tunnels need a source-ID-bound metric height/datum/clearance supplement and consistent connector profiles. Other physical/scoped flags need explicit normalization rules; no height is inferred from z-order. |
+| General geoid file preparation | The existing converter consumes the declared bounded EGM96-to-EGM2008 delta-grid JSON. Reading official geoid model formats, verifying their grid registration/units/datum and preparing that difference surface from two source models are not implemented. External prepared grids with complete original-vertex coverage remain supported. |
+| General raster / larger selections | Current raster profiles are bounded local Copernicus COG mosaics and staged full-cell PNGs. Arbitrary raster CRS, nodata policies, warp/resampling and large-area partition/adoption need explicit contracts. Simply raising the 32 MiB snapshot, 20,000 feature, 200,000 point, 16-cell generation or 16 MiB Undo limits would bypass existing admission guarantees. Large PBF scanning already has its separate 2 GiB disk-index profile; it does not remove selected-payload/native budgets. |
+
+Remote provider acquisition remains excluded by the user's local-files-only
+transition. User datasets, PBF/DEM files and generated package artifacts are never
+removed or rewritten by this audit or by the new adapters.

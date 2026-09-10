@@ -99,19 +99,23 @@ def road_vertical(tags, references, node_tags):
     return result
 
 
+def closed_road(properties):
+    return properties.get("osm_closed_ground") or properties.get("osm_closed_structure")
+
+
 def structure_connections(roads, source_uses):
     """Prove explicit source incidence before crop, then let native test geometry.
 
     Interior source vertices contribute two directed arms. A star links each
     junction in linear space; dense input never allocates a peer cross-product.
     """
-    ground = {ref for f in roads if f["properties"]["road_kind"] == "ground"
+    ground = {ref for f in roads if f["properties"]["road_kind"] == "ground" and "elevations_m" in f["properties"]
               for ref in f["properties"]["osm_node_refs"]}
     structures = {f["properties"]["osm_way_id"]: f["properties"] for f in roads
                   if f["properties"]["road_kind"] != "ground"}
     incident = {}
     for way, p in structures.items():
-        for index, ref in enumerate(p["osm_node_refs"]):
+        for index, ref in enumerate(p["osm_node_refs"][:-1] if closed_road(p) else p["osm_node_refs"]):
             incident.setdefault(ref, []).append((way, index))
     links, joins = {way: [] for way in structures}, []
     total_arms = 0
@@ -122,7 +126,7 @@ def structure_connections(roads, source_uses):
         arms = []
         for way, index in uses:
             p = structures[way]
-            for end, present in (("to", index > 0), ("from", index < len(p["osm_node_refs"])-1)):
+            for end, present in (("to", index > 0 or closed_road(p)), ("from", index < len(p["osm_node_refs"])-1)):
                 if present:
                     if len(arms) >= 32:
                         raise ValueError("OSM structural junction exceeds 32 native arms")
@@ -170,7 +174,7 @@ def split_vertical_roads(features, source_uses=None, connections=None):
     uses = Counter(ref for f in roads for ref in set(f["properties"]["osm_node_refs"]))
     for f in roads:
         refs = f["properties"]["osm_node_refs"]
-        unique = refs[:-1] if f["properties"].get("osm_closed_ground") else refs
+        unique = refs[:-1] if closed_road(f["properties"]) else refs
         if len(set(unique)) != len(unique):
             raise ValueError("OSM explicit road repeats nodes; prepare unambiguous segments")
     joins = structure_connections(roads, uses if source_uses is None else source_uses)
@@ -189,7 +193,7 @@ def split_vertical_roads(features, source_uses=None, connections=None):
             output.append(feature)
             continue
         refs = p["osm_node_refs"]
-        cuts = [0] + [i for i in range(1, len(refs)-1) if p.get("osm_closed_ground") or uses[refs[i]] > 1] + [len(refs)-1]
+        cuts = [0] + [i for i in range(1, len(refs)-1) if closed_road(p) or uses[refs[i]] > 1] + [len(refs)-1]
         for a,b in zip(cuts,cuts[1:]):
             if len(output) >= MAX_FEATURES:
                 raise ValueError("OSM split feature budget exceeded")
@@ -385,10 +389,8 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             if references[0] == references[-1]:
                 if len(references) < 4 or len(set(references[:-1])) != len(references)-1:
                     raise ValueError(f"OSM way {identity}: closed road requires at least three distinct nodes without repeated interiors")
-                if properties.get("road_kind", "ground") != "ground":
-                    raise ValueError("OSM closed structural ways remain unsupported")
                 group_rings([points], [], topology)  # Simple ring; never repair a crossing or backtrack.
-                properties["osm_closed_ground"] = True
+                properties["osm_closed_ground" if properties.get("road_kind", "ground") == "ground" else "osm_closed_structure"] = True
             if "osm_node_refs" in properties: properties["osm_way_id"] = identity
             if "width" in tags: properties["width_m"] = metres(tags, "width")
             if "surface" in tags: properties["surface"] = tags["surface"]
@@ -406,7 +408,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         # ordinary unconnected ground roads below to preserve their old contract.
         if kind == "road": properties["osm_source_way"] = identity
         features.append(dict(type="Feature", properties=properties, geometry=geometry))
-    loop_refs = {ref for f in features if f["properties"].get("osm_closed_ground")
+    loop_refs = {ref for f in features if closed_road(f["properties"])
                  for ref in all_ways[f["properties"]["osm_source_way"]][0]}
     loop_sources = []
     for f in features:
@@ -415,15 +417,14 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         if identity is None: continue
         refs = all_ways[identity][0]
         if not loop_refs.intersection(refs): continue
-        if p.get("road_kind", "ground") != "ground":
-            raise ValueError("OSM closed ground loop requires ground incident highways; direct structural mouths are unsupported")
         if any(nodes[a] == nodes[b] for a,b in zip(refs, refs[1:])):
             raise ValueError("OSM loop graph has a zero-length source segment")
-        p.update(osm_node_refs=refs, osm_way_id=identity, road_kind="ground", osm_loop_range=[0,len(refs)-1])
-        loop_sources.append(dict(way=str(identity), refs=list(map(str,refs)), closed=p.get("osm_closed_ground",False)))
+        p.update(osm_node_refs=refs, osm_way_id=identity, road_kind=p.get("road_kind", "ground"), osm_loop_range=[0,len(refs)-1])
+        loop_sources.append(dict(way=str(identity), refs=list(map(str,refs)), closed=bool(closed_road(p)),
+            kind=p["road_kind"], clearance_cm=round(p["clearance_m"]*100) if p["road_kind"] == "tunnel" else None))
     connections = []
     features = split_vertical_roads(features,
-        Counter(ref for _, kind, refs, _ in ways if kind == "road" for ref in refs), connections)
+        Counter(ref for _, kind, refs, _ in ways if kind == "road" for ref in set(refs)), connections)
     counts["explicit_height_roads"] = sum("elevations_m" in f["properties"] for f in features)
     counts["bridge_segments"] = sum(f["properties"].get("road_kind") == "bridge" for f in features)
     counts["tunnel_segments"] = sum(f["properties"].get("road_kind") == "tunnel" for f in features)
@@ -435,8 +436,18 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     counts["structure_continuations"] = len(connections)
     collection = dict(type="FeatureCollection", features=features)
     if connections: collection["osm_connections"] = connections
-    if loop_sources: collection["osm_ground_loops"] = dict(profile="source-node-segments-v1", sources=loop_sources)
-    counts["closed_ground_ways"] = sum(s["closed"] for s in loop_sources)
+    if loop_sources:
+        structural = any(s["kind"] != "ground" for s in loop_sources)
+        counts["closed_ground_ways"] = sum(s["closed"] and s["kind"] == "ground" for s in loop_sources)
+        if structural:
+            counts["closed_structural_ways"] = sum(s["closed"] and s["kind"] != "ground" for s in loop_sources)
+        else:
+            # Existing ground-only output remains byte-for-byte compatible.
+            for entry in loop_sources:
+                del entry["kind"], entry["clearance_cm"]
+        collection["osm_ground_loops"] = dict(profile="source-node-segments-v2" if structural else "source-node-segments-v1", sources=loop_sources)
+    else:
+        counts["closed_ground_ways"] = 0
     return collection, counts
 
 
@@ -448,7 +459,9 @@ def finish(layer, counts):
     layer.warning("OSM input counts: " + ", ".join(f"{key}={value}" for key, value in counts.items()))
     layer.warning("Selected ways and explicit multipolygons are imported; POIs, other ways/relations and other tags are omitted. No routing/access/oneway semantics.")
     layer.warning("Ground elevation/base, missing width/height/surface, vegetation and materials are estimates; building levels/roof tags are not interpreted.")
-    if counts.get("closed_ground_ways"):
+    if "closed_structural_ways" in counts:
+        layer.warning("Closed roads and their incident ways split by original source node IDs. Structural loops and direct bridge/tunnel connections require complete explicit heights and two distinct ground anchors; no inferred ramps. Source kind/clearance and crop cuts remain reviewable. Recipe 2+ and at most 16 native validation cells required.")
+    elif counts.get("closed_ground_ways"):
         layer.warning("Closed ground roads split at every original node; incident ground approaches join by source node ID only. Crop cuts stay separate. No routing/access/oneway or roundabout priority semantics. Recipe 2+ and at most 16 native validation cells required.")
     if counts.get("explicit_height_roads"):
         vertical = layer.coordinates.get("vertical")

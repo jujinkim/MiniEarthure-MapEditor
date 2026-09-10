@@ -1,5 +1,10 @@
 extends AcceptDialog
 const HEIGHTMAP_JOB := preload("./heightmap_native_job.gd")
+const ASSET_JOB := preload("./asset_native_job.gd")
+var asset_revision := 0
+var asset_identity := ""
+var asset_request := {}
+var asset_cancel: Button
 const HEIGHTMAP_LAYER := preload("./heightmap_import_layer.gd")
 var heightmap_candidate: RefCounted
 var heightmap_review: ConfirmationDialog
@@ -44,6 +49,11 @@ func _ready() -> void:
 	heightmap_cancel.visible = false
 	heightmap_cancel.pressed.connect(_discard_heightmap)
 	column.add_child(heightmap_cancel)
+	asset_cancel = Button.new()
+	asset_cancel.text = "Cancel asset validation"
+	asset_cancel.visible = false
+	asset_cancel.pressed.connect(_discard_asset)
+	column.add_child(asset_cancel)
 	source_picker = FileDialog.new()
 	source_picker.access = FileDialog.ACCESS_FILESYSTEM
 	source_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
@@ -60,11 +70,67 @@ func _ready() -> void:
 	heightmap_review.confirmed.connect(_adopt_heightmap)
 	heightmap_review.canceled.connect(_discard_heightmap)
 	editor.store.changed.connect(_invalidate_heightmap)
+	editor.store.changed.connect(_invalidate_asset)
 	visibility_changed.connect(func():
 		if not visible:
 			heightmap_review.hide()
 			_discard_heightmap()
+			_discard_asset()
 	)
+
+func _invalidate_asset() -> void:
+	asset_revision += 1
+	_discard_asset()
+
+func _discard_asset() -> void:
+	if editor != null and editor.import_job is ASSET_JOB: editor.import_job.cancel()
+	asset_identity = ""
+	asset_request.clear()
+
+func asset_selection() -> String:
+	var controls := {}
+	for key: String in asset_fields:
+		var control: Control = asset_fields[key]
+		if control is SpinBox: controls[key] = control.value
+		elif control is ColorPickerButton: controls[key] = control.color.to_html()
+		elif control is CheckButton: controls[key] = control.button_pressed
+		else: controls[key] = control.text
+	return JSON.stringify([asset_revision, asset_request, asset_before, controls, editor.canvas.layer_state]).sha256_text()
+
+func _start_asset(record: Dictionary, source: String) -> void:
+	if editor.busy or not fresh(): return
+	_discard_asset()
+	asset_request = {"record":record.duplicate(true), "source":source}
+	var job := ASSET_JOB.new()
+	job.editor_generation = editor.generation
+	var failure := job.start_asset(editor.store, record, source, asset_selection(), Crypto.new().generate_random_bytes(16).hex_encode())
+	if failure != "":
+		_discard_asset()
+		report(failure)
+		return
+	asset_identity = job.identity
+	editor.import_job = job
+	editor.worker_generation = editor.generation
+	editor.busy = true
+	editor.import_progress.visible = true
+	asset_cancel.visible = true
+	feedback.text = "Checking asset and preparing Undo · 120s deadline · Cancel preserves the map."
+
+func asset_progress(progress: Dictionary) -> void:
+	if not progress.is_empty(): feedback.text = "Asset %s · %d / %d %s · 120s deadline" % [progress.stage, progress.completed, progress.total, progress.unit]
+
+func finish_asset(job: RefCounted, result: Dictionary) -> void:
+	asset_cancel.visible = false
+	if asset_identity != job.identity or editor.generation != job.editor_generation or not job.done or not job.exited or not job.matches(editor.store, asset_selection()):
+		_discard_asset()
+		report("Asset validation cancelled or stale; apply again.")
+		return
+	asset_identity = ""
+	var failure := "Incomplete asset validation."
+	if result.get("ok", false) and result.get("data", {}).get("ok", false) and not job.bundle.is_empty(): failure = job.commit(editor.store)
+	elif not result.get("ok", false) or not result.get("data", {}).get("ok", false): failure = editor.store.reason(result.get("data", result))
+	_discard_asset()
+	report(failure)
 
 func _invalidate_heightmap() -> void:
 	heightmap_revision += 1
@@ -81,6 +147,7 @@ func _discard_heightmap() -> void:
 
 func _exit_tree() -> void:
 	_discard_heightmap()
+	_discard_asset()
 
 func heightmap_selection() -> String:
 	var controls := {}
@@ -160,7 +227,9 @@ func _adopt_heightmap() -> void:
 func open() -> void:
 	if editor.busy: return
 	if not editor.layers.state_changed.is_connected(_invalidate_heightmap): editor.layers.state_changed.connect(_invalidate_heightmap)
+	if not editor.layers.state_changed.is_connected(_invalidate_asset): editor.layers.state_changed.connect(_invalidate_asset)
 	_discard_heightmap()
+	_discard_asset()
 	heightmap_controls.clear()
 	editor.canvas.cancel_interaction()
 	author = editor.canvas.author
@@ -271,12 +340,18 @@ func _setup() -> void:
 func opt_number(box: Node, title: String, key: String, minimum: float, maximum: float, metres: bool = true) -> void:
 	var scale := 100.0 if metres else 1.0
 	var control := number(box, title, float(author.options[key]) / scale, minimum, maximum, 0.01 if metres else 1)
-	control.value_changed.connect(func(value): author.options[key] = roundi(value * scale))
+	control.value_changed.connect(func(value):
+		author.options[key] = roundi(value * scale)
+		editor.canvas.authoring_revision += 1
+	)
 	fields[key] = control
 
 func opt_choice(box: Node, title: String, key: String, values: Array) -> void:
 	var control := choice(box, title, values, str(author.options[key]))
-	control.item_selected.connect(func(index): author.options[key] = values[index])
+	control.item_selected.connect(func(index):
+		author.options[key] = values[index]
+		editor.canvas.authoring_revision += 1
+	)
 	fields[key] = control
 
 func _drawing() -> void:
@@ -367,6 +442,7 @@ func _assets() -> void:
 	_asset_form(form)
 
 func _asset_form(box: Node) -> void:
+	_invalidate_asset()
 	for child in box.get_children():
 		box.remove_child(child)
 		child.queue_free()
@@ -412,7 +488,14 @@ func _asset_form(box: Node) -> void:
 	double_sided.button_pressed = material.double_sided
 	box.add_child(double_sided)
 	var texture := text(box, "Texture asset ID (optional)", str(material.get("albedo_texture", "")))
-	asset_fields = {"id": id, "path": path, "source": source, "license": license, "notice": notice, "boxes": boxes, "convexes": convexes}
+	asset_fields = {"id": id, "path": path, "source": source, "license": license, "notice": notice, "boxes": boxes, "convexes": convexes,
+		"width":width, "height":height, "depth":depth, "material_on":material_on, "color":color, "metallic":metallic, "roughness":roughness, "double_sided":double_sided, "texture":texture}
+	for control: Control in asset_fields.values():
+		if control is SpinBox: control.value_changed.connect(func(_value): _invalidate_asset())
+		elif control is ColorPickerButton: control.color_changed.connect(func(_value): _invalidate_asset())
+		elif control is CheckButton: control.toggled.connect(func(_value): _invalidate_asset())
+		elif control is LineEdit: control.text_changed.connect(func(_value): _invalidate_asset())
+		elif control is TextEdit: control.text_changed.connect(_invalidate_asset)
 	button(box, "Apply asset and proxies", func():
 		if not fresh(): return
 		var collision: Variant = input_json(boxes.text)
@@ -425,7 +508,7 @@ func _asset_form(box: Node) -> void:
 		if material_on.button_pressed:
 			record.material = {"albedo_rgba": [color.color.r8, color.color.g8, color.color.b8, color.color.a8], "metallic_per_mille": int(metallic.value), "roughness_per_mille": int(roughness.value), "double_sided": double_sided.button_pressed}
 			if texture.text != "": record.material.albedo_texture = texture.text
-		report(author.asset(record, path.text))
+		_start_asset(record, path.text)
 	)
 
 func _selected() -> void:

@@ -174,8 +174,95 @@ func run() -> void:
 	await wait_import(ui)
 	check(ui.store.document.roads.size() == 5 and ui.store.undo_stack.size() == undo_count + 1, "geographic parts adopt together")
 	check(FileAccess.get_sha256(path) == geographic_hash, "geographic source remains unchanged")
+	await collections(ui)
 	ui.store.dirty = false
 	ui.queue_free()
 	await process_frame
 	print("multilines_validator: %s (%d checks)" % ["PASS" if failures.is_empty() else str(failures), checks])
 	quit(0 if failures.is_empty() else 1)
+
+func collections(ui: Control) -> void:
+	ui.import_coordinate_mode.select(0)
+	var path := ProjectSettings.globalize_path("user://collection.geojson")
+	var geo := {"type":"FeatureCollection", "features":[{"type":"Feature", "properties":{"width_m":6,"height_m":8}, "geometry":{"type":"GeometryCollection", "geometries":[
+		{"type":"LineString","coordinates":[[300,300],[340,300]]},
+		{"type":"GeometryCollection","geometries":[
+			{"type":"MultiLineString","coordinates":[[[300,340],[340,340]],[[300,360],[340,360]]]},
+			{"type":"Polygon","coordinates":[[[400,400],[420,400],[420,420],[400,420],[400,400]]]}]}]}}]}
+	write(path,geo)
+	var source_hash := FileAccess.get_sha256(path)
+	var before: Dictionary = ui.store.document.duplicate(true)
+	var undo_count: int = ui.store.undo_stack.size()
+	ui._start_import(path,"MIT")
+	await wait_import(ui)
+	check(ui.pending_import != null,"GeometryCollection native review: " + ui.status_label.text)
+	if ui.pending_import == null: return
+	var raw: Dictionary = ui.pending_import.value.duplicate(true)
+	print("GeometryCollection reviewed hierarchy: ", var_to_str(raw.coordinates.geojson_collections.sources[0].tree), "; normalized leaves: ", raw.feature_count)
+	check(raw.feature_count == 3 and collection_tree_matches(raw.coordinates.geojson_collections.sources[0].tree),"source collection tree and normalized leaf count: " + str(raw.coordinates.geojson_collections.sources[0].tree))
+	check(ui.store.document == before and ui.store.undo_stack.size() == undo_count,"collection review preserves accepted document/history")
+	check(ui.import_summary.text.contains("geojson_collections") and ui.import_summary.text.contains("source tree"),"collection policy and mapping shown in review")
+	ui._open_import_details()
+	for key in ["coordinates","geojson_collections","sources",0,"tree"]:
+		var index: int = ui.import_details.page_keys.find(key)
+		check(index >= 0,"collection exact detail " + str(key))
+		if index >= 0: ui.import_details.descend(index)
+	check(collection_tree_matches(ui.import_details.current),"complete source hierarchy is accessible: " + str(ui.import_details.current))
+	await pointer(ui.import_details.get_ok_button())
+	for mode: String in ["missing","profile","tree","empty","record","type","count","actual-points"]:
+		var bad := raw.duplicate(true)
+		var meta: Dictionary = bad.coordinates.geojson_collections
+		match mode:
+			"missing": bad.coordinates.erase("geojson_collections")
+			"profile": meta.profile = "guessed"
+			"tree": meta.sources[0].tree = [0,[0,2]]
+			"empty": meta.sources[0].tree = []
+			"record": meta.leaves[0].record_ids.pop_back()
+			"type": meta.leaves[0].geometry = "Polygon"
+			"count": meta.leaves[0].point_count = true
+			"actual-points": meta.leaves[0].point_count += 1; bad.point_count += 1
+		check(LAYER.new().load_value(bad,raw.layer_id) != "","forged collection mapping " + mode)
+	await pointer(ui.import_review.get_ok_button())
+	await wait_import(ui)
+	check(ui.store.document.roads.size() == before.roads.size()+3 and ui.store.document.buildings.size() == before.buildings.size()+1,"whole collection atomic adoption: " + ui.status_label.text)
+	check(ui.store.undo_stack.size() == undo_count+1,"collection is one Undo command")
+	var adopted: Dictionary = ui.store.document.duplicate(true)
+	check(ui.store.undo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(before),"collection Undo preserves earlier layers")
+	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"collection Redo restores geometry and exact tree")
+	var base := ProjectSettings.globalize_path("user://collection-project")
+	check(ui.store.save_project(base) == "","save collection project")
+	var reopened := STORE.new()
+	check(reopened.open_project(base) == "" and reopened.document == ui.store.document,"reopen exact collection metadata")
+	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"export collection package")
+	check(JSON.parse_string(reopened.bridge.open_package(base+".memap")).ok,"open collection package")
+	var generated: Dictionary = JSON.parse_string(reopened.bridge.generate_chunk(0,0))
+	check(generated.ok,"generate collection roads/building")
+	var found := false
+	if generated.ok:
+		for triangle: Dictionary in generated.data.chunk.triangles:
+			found = found or triangle.object_id.contains("-collection")
+	check(found,"actual generated collection geometry")
+	check(FileAccess.get_sha256(path) == source_hash,"original collection unchanged")
+	adopted = ui.store.document.duplicate(true)
+	ui._start_import(path,"MIT")
+	ui._cancel_operation()
+	await wait_import(ui)
+	check(ui.pending_import == null and ui.store.document == adopted,"cancel collection without adopting")
+	ui._start_import(path,"MIT")
+	await wait_import(ui)
+	check(ui.pending_import != null,"fresh collection review")
+	var file := FileAccess.open(path,FileAccess.READ_WRITE)
+	file.seek_end(); file.store_8(32); file.close()
+	ui._adopt_import()
+	await wait_import(ui)
+	check(ui.pending_import == null and ui.store.document == adopted,"changed collection source rejects adoption")
+	geo.features[0].geometry.geometries.append({"type":"Point","coordinates":[1,2]})
+	write(path,geo)
+	ui._start_import(path,"MIT")
+	await wait_import(ui)
+	check(ui.pending_import == null and ui.store.document == adopted,"unsupported late collection leaf rejects all geometry")
+
+func collection_tree_matches(value: Variant) -> bool:
+	# The JSON parser produces floating values; nested Array equality compares
+	# their Variant types even when each numeric leaf denotes the same index.
+	return value is Array and value.size() == 2 and float(value[0]) == 0.0 and value[1] is Array and value[1].size() == 2 and float(value[1][0]) == 1.0 and float(value[1][1]) == 2.0

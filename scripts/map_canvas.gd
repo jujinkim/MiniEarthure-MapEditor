@@ -1,6 +1,9 @@
 extends Control
 signal selection_changed(ids: Array)
 signal status(text: String)
+signal terrain_requested(request: Dictionary)
+var interaction_revision := 0
+var authoring_revision := 0
 const AUTHOR := preload("./authoring_tools.gd")
 var author := AUTHOR.new()
 var brush_cursor := Vector2.ZERO
@@ -268,7 +271,12 @@ func _gui_input(event: InputEvent) -> void:
 					elif event.double_click: finish_shape()
 			else:
 				if author.terrain.active:
-					_report(author.terrain.finish())
+					var request: Dictionary = author.terrain.take_stroke()
+					cancel_interaction(false)
+					if request.has("error"): _report(request.error)
+					else: terrain_requested.emit(request)
+					accept_event()
+					return
 				elif marquee:
 					var rect := Rect2(drag_start, marquee_end - drag_start).abs()
 					var keys: Array = selected.duplicate() if marquee_additive else []
@@ -365,6 +373,7 @@ func _execute(operation: String, delta: Vector2 = Vector2.ZERO) -> String:
 	return failure
 
 func cancel_interaction(clear_draft: bool = true) -> void:
+	interaction_revision += 1
 	author.terrain.cancel()
 	dragging = false
 	marquee = false
