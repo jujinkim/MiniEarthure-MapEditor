@@ -76,6 +76,7 @@ def main():
             scripts.append('osm_connections_validator')
             scripts.append('osm_junctions_validator')
             scripts.append('import_native_validator')
+            scripts.append('import_vector_native_validator')
         pack_args = []
         if args.resource_pack:
             shutil.copy2(root / 'export_presets.cfg', project / 'export_presets.cfg')

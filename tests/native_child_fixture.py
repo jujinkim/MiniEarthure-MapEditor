@@ -26,6 +26,20 @@ elif mode == "over-cells":
     event("snapshot")
     event("open", 1, 1, "steps")
     event("generate", 0, 17, "cells")
+elif mode in ("zero-cells-success", "unexpected-cells"):
+    event()
+    event("validate", 1, 1, "steps")
+    event("snapshot")
+    event("open", 1, 1, "steps")
+    count = 0 if mode == "zero-cells-success" else 1
+    event("generate", count, count, "cells")
+    source_bytes = json.loads((Path(directory) / "request.json").read_text())["layer"]["source"]["bytes"]
+    event("recheck", source_bytes, source_bytes)
+    output = json.dumps(dict(ok=True, request=token, payloads="0" * 64)).encode()
+    (Path(directory) / "layer.json").write_bytes(output)
+    event("complete", len(output), len(output), sha256=hashlib.sha256(output).hexdigest())
+    sys.stdin.read(1)
+    sys.exit(0)
 elif mode == "flood":
     print("x" * 20000, flush=True)
 elif mode == "partial":

@@ -53,6 +53,7 @@ func run() -> void:
 	ui._start_import(path,LAYER.OVERTURE_LICENSE)
 	await wait_work()
 	ui._adopt_import()
+	await wait_work()
 	check(ui.store.document.buildings.size() == 2, "atomic two-part adoption")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(adopted.buildings[0].base_cm == 200 and adopted.buildings[0].height_cm == 400 and adopted.buildings[1].base_cm == 1000 and adopted.buildings[1].height_cm == 300, "exact bottom/thickness and vertical gap")
@@ -101,6 +102,7 @@ func run() -> void:
 	check(ui.pending_import != null, "fresh retry")
 	check(ui.store.redo() == "", "document revision changes during review")
 	ui._adopt_import()
+	await wait_work()
 	check(ui.store.document.buildings.size() == 2, "stale review never duplicates family")
 	check(FileAccess.get_sha256(path) == source_hash and FileAccess.get_sha256(package) == package_hash, "source/prior package retained")
 	ui.store.dirty = false

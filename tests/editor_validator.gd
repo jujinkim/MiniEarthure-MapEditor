@@ -11,6 +11,11 @@ func check(condition: bool, message: String) -> void:
 func _initialize() -> void:
 	_run.call_deferred()
 
+func wait_import(ui: Control) -> void:
+	var deadline := Time.get_ticks_msec() + 15000
+	while ui.busy and Time.get_ticks_msec() < deadline: await process_frame
+	check(not ui.busy, "import/adoption retires: " + ui.status_label.text)
+
 func _run() -> void:
 	check(ClassDB.class_exists("MapKitBridge"), "MapKitBridge must load without private game repositories")
 	var store := STORE.new()
@@ -79,12 +84,10 @@ func _run() -> void:
 	source_file.store_string(JSON.stringify({"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"height_m": 8}, "geometry": {"type": "Polygon", "coordinates": [[[100, 100], [120, 100], [120, 120], [100, 120], [100, 100]]]}}]}))
 	source_file.close()
 	ui._start_worker("import", import_path, "MIT")
-	for _i in range(300):
-		await create_timer(0.01).timeout
-		if not ui.busy:
-			break
+	await wait_import(ui)
 	check(not ui.busy and ui.pending_import != null and ui.store.document.buildings.size() == 1, "child-process GeoJSON prepares without mutation")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.buildings.size() == 2, "explicit import adoption")
 	check(ui.store.document.attributions.size() == 1, "import retains source license")
 	ui.store.undo()

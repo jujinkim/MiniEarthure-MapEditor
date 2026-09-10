@@ -78,8 +78,10 @@ func run() -> void:
 	ui._start_import(source,LAYER.OVERTURE_TRANSPORTATION_LICENSE)
 	await wait_job(ui)
 	ui._adopt_import()
+	await wait_job(ui)
 	check(ui.store.document.roads.size()==3,"native atomic graph adoption")
 	ui._adopt_import()
+	await wait_job(ui)
 	check(ui.store.document.roads.size()==3,"one-shot candidate")
 	var roads: Array = ui.store.document.roads
 	check(roads[0].to==roads[1].from and roads[0].to==roads[2].from,"internal connector forms native T junction")
@@ -109,6 +111,7 @@ func run() -> void:
 	await wait_job(ui)
 	check(ui.pending_import!=null and ui.pending_import.value.layer_id!=raw.layer_id,"source update is fresh graph layer: " + ui.status_label.text)
 	ui._adopt_import()
+	await wait_job(ui)
 	check(ui.store.document.roads.size()==6,"update retains old graph")
 	check(ui.store.undo()=="" and ui.store.document.roads.size()==3,"undo updated layer")
 	check(ui.store.redo()=="" and ui.store.document.roads.size()==6,"redo updated layer")
@@ -130,6 +133,7 @@ func run() -> void:
 	await wait_job(ui)
 	check(ui.store.undo()=="","change document during review")
 	ui._adopt_import()
+	await wait_job(ui)
 	check(ui.store.document.roads.size()==3,"stale review rejected")
 	ui.last_import_source=source
 	# Surviving local helper lifetime: deadline, stale response, retry and owner close.

@@ -69,7 +69,6 @@ func run() -> void:
 		store.project_path = request.project
 		var layer := LAYER.new()
 		failure = layer.load_value(request.layer, str(request.layer.get("layer_id", "")))
-		if failure == "" and not layer.has_structures(): failure = "Native validation requires structures."
 		if failure == "":
 			failure = layer.validate_for(store, {"scratch":directory.path_join("candidate"), "hashes":hashes, "expected_payloads":request.get("expected_payloads", ""), "progress":progress})
 	if failure == "": failure = source_error(request, "recheck")

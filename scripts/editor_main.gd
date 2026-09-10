@@ -90,6 +90,7 @@ const IMPORT_JOB := preload("./import_job.gd")
 const IMPORT_NATIVE_JOB := preload("./import_native_job.gd")
 var import_job: RefCounted
 var import_selection_signature := ""
+var import_controls_revision := 0
 var native_request_identity := ""
 var import_python: LineEdit
 var last_import_source := ""
@@ -481,9 +482,9 @@ func _build_ui() -> void:
 	# Nest under the review so closing detail returns to its modal owner.
 	import_review.add_child(import_details)
 	for control in [import_source_format, import_coordinate_mode]:
-		control.item_selected.connect(func(_index): _discard_import())
+		control.item_selected.connect(func(_index): _import_controls_changed())
 	for control in [import_origin_lon, import_origin_lat, import_origin_x, import_origin_y]:
-		control.value_changed.connect(func(_value): _discard_import())
+		control.value_changed.connect(func(_value): _import_controls_changed())
 	osm_panel = preload("./osm_area_panel.gd").new()
 	osm_panel.setup(self)
 	dem_panel = DEM_PANEL.new()
@@ -1176,17 +1177,18 @@ func _finish_import(result: Dictionary) -> void:
 		return
 	var layer := IMPORT_LAYER.new()
 	var failure := layer.load_value(result.data, import_identity, import_coordinates_request)
-	if failure == "" and layer.has_structures():
-		_start_native_import(layer, false)
-		return
-	if failure == "": failure = layer.validate_for(store)
 	if failure != "":
 		_status("E_IMPORT: " + failure)
 		return
-	_review_import(layer)
+	_start_native_import(layer, false)
+
+func _import_controls_changed() -> void:
+	import_controls_revision += 1
+	if import_job != null: import_job.cancel()
+	_discard_import()
 
 func _import_selection_signature() -> String:
-	return JSON.stringify([import_source_format.selected, import_coordinate_mode.selected,
+	return JSON.stringify([import_controls_revision, import_source_format.selected, import_coordinate_mode.selected,
 		import_origin_lon.value, import_origin_lat.value, import_origin_x.value, import_origin_y.value,
 		osm_panel.revision, vertical_panel.revision, import_coordinates_request, import_identity, last_import_source])
 
@@ -1206,7 +1208,7 @@ func _start_native_import(layer: RefCounted, adopting: bool) -> void:
 	busy = true
 	import_progress.visible = true
 	import_progress.value = 0
-	_status("Checking structural surfaces before %s · 120s deadline · Cancel retains the current map." % ("adoption" if adopting else "review"))
+	_status("Checking %s before %s · 120s deadline · Cancel retains the current map." % ["structural surfaces" if layer.has_structures() else "import candidate", "adoption" if adopting else "review"])
 
 func _finish_native_import(job: RefCounted, result: Dictionary) -> void:
 	if native_request_identity != job.identity or generation != job.editor_generation or not job.done or not job.exited or not job.matches(store, _import_selection_signature()):
@@ -1255,7 +1257,7 @@ func _import_review_current() -> bool:
 	return pending_import != null and generation == import_review_generation and import_review_controls == _review_controls()
 
 func _review_controls() -> Array:
-	return [import_source_format.selected, import_coordinate_mode.selected,
+	return [import_controls_revision, import_source_format.selected, import_coordinate_mode.selected,
 		import_origin_lon.value, import_origin_lat.value, import_origin_x.value, import_origin_y.value,
 		osm_panel.revision, vertical_panel.revision, import_identity, last_import_source]
 
@@ -1280,11 +1282,7 @@ func _adopt_import() -> void:
 		return
 	var candidate: RefCounted = pending_import
 	_discard_import()
-	if candidate.has_structures():
-		_start_native_import(candidate, true)
-		return
-	var failure: String = candidate.adopt(store)
-	_status(failure if failure != "" else "Imported new layer. Undo removes only this adoption.")
+	_start_native_import(candidate, true)
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is not InputEventKey or not event.pressed or event.echo: return

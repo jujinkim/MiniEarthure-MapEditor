@@ -1958,3 +1958,55 @@ preservation and minimum-window pointer navigation. Add `--resource-pack` for
 compiled resources and `--rendered` for the native display. Existing Overture
 validators now inspect per-feature attribution through the detail UI, while
 summary checks retain release, recipe, plane and source limitation requirements.
+
+
+## Asynchronous nonstructural vector validation — 2026-09-10
+
+All vector candidates now use a fresh owned Godot child before review and another
+before adoption: local/projected GeoJSON, ground-only OSM (including bbox/PBF
+streaming), and supported Overture buildings, transportation and land cover.
+This replaces the UI's synchronous nonstructural `validate_for()`/`adopt()`
+preflight. The synchronous ImportLayer API remains available to other callers.
+MapKit generation contracts and source profiles are unchanged.
+
+The child validates the complete candidate document, snapshots referenced assets
+and heightmaps, opens that disposable native project and rechecks source/payload
+hashes before returning a bounded receipt. Unsaved vector documents without file
+references are supported. Missing, changed or over-budget referenced payloads
+reject the entire candidate. Review binds the payload fingerprint; adoption
+requires it and independently revalidates the current document, layer, source
+and identical payload snapshot. The accepted document/history and loaded bridge
+remain in the parent. No source, saved project or previous package is rewritten.
+
+Nonstructural candidates generate **zero cells**. Their completed zero-cell
+stage means document/payload validation only; it is not surface-generation
+acceptance. Structural candidates still require a positive completed generation
+count within the existing 16-cell bound. Zero-cell structural success and any
+nonstructural generation request are rejected by the supervisor. The 24 MiB
+request, 64 MiB payload, 4 KiB event/result, 1 MiB IPC and 120-second deadline
+remain; source, native work/output and 16 MiB Undo limits are not raised.
+
+Cancel, deadline, parent-pipe EOF, failed/partial launch, crash and Editor close
+retire the child before known owned scratch is removed. Unknown files and
+unconfirmed termination remain preserved. Source format, coordinate mode and
+origin edits now increment a selection revision and cancel active imports,
+including changes restored in the same frame. Existing crop/vertical revisions,
+request identity, document generation and document/layer/project signatures gate
+completion. Late, duplicate and invalidated results cannot reopen review or adopt.
+
+The parent commits successful adoption as one Undo command after revalidation.
+`DocumentStore._commit_command()` still canonicalizes/validates the final document
+synchronously; ImportLayer decoding, request/attribution/command serialization
+and filesystem cleanup also retain synchronous work. This unit does not promise
+fully interruptible final commit or fixed UI latency/RSS. DEM/heightmap raster
+staging, binary mementos and adoption are a separate remaining implementation unit.
+
+Run `scripts/check_documents.py --script import_vector_native_validator --script
+import_native_validator --script import_layer_validator --resource-pack` with
+Godot 4.7.2 and the public import Python. The two native validators share lifecycle
+faults while checking distinct zero/positive-cell contracts, file-backed terrain,
+source/payload mutation, Undo/Redo, loaded bridge and prior-package preservation.
+Adapter validators await the new asynchronous adoption before checking geometry,
+attribution and saved packages. Add `--rendered` for native display/source launch.
+Installed Windows/Linux, real-region driving/accuracy/latency/RSS and final
+integration remain separate gates; this is not whole I02/I03/I04 or cutover.

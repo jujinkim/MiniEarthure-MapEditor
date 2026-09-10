@@ -61,6 +61,7 @@ func run() -> void:
 	ui._start_worker("import", path, "MIT")
 	await wait_import(ui)
 	await click_adopt(ui)
+	await wait_import(ui)
 	check(ui.store.document.buildings.size() == 1 and ui.store.undo_stack.size() == 1, "single atomic adoption")
 	if ui.store.document.buildings.is_empty():
 		ui.store.dirty = false
@@ -76,6 +77,7 @@ func run() -> void:
 	await wait_import(ui)
 	check(ui.pending_import != null and ui.pending_import.value.layer_id != id, "repeat imports receive fresh identity")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.buildings.size() == 2 and ui.store.document.attributions.size() == 2, "repeat creates second layer")
 	check(ui.store.document.buildings.has(first), "old layer unchanged")
 	check(ui.store.undo() == "" and ui.store.document.buildings == [first], "undo only new layer")
@@ -85,6 +87,7 @@ func run() -> void:
 	await wait_import(ui)
 	ui.store.new_document()
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.buildings.is_empty() and ui.pending_import == null, "document replacement invalidates review")
 	ui._start_worker("import", path, "MIT")
 	ui._cancel_operation()

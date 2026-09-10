@@ -64,6 +64,7 @@ func run() -> void:
 		else: bad.coordinates.target_crs = "EPSG:32633"
 		check(LAYER.new().load_value(bad,raw.layer_id,ui.import_coordinates_request) != "", "wrong projection request rejected")
 	ui._adopt_import()
+	await wait_import(ui)
 	var footprint: Array = ui.store.document.buildings[0].footprint
 	check(JSON.stringify(footprint) == JSON.stringify(JSON.parse_string('[[51200,51200],[52479,51200],[52479,53426],[51200,53426]]')), "axis/centimetre fixture")
 	var base := ProjectSettings.globalize_path("user://project")
@@ -90,6 +91,7 @@ func run() -> void:
 	await wait_import(ui)
 	check(ui.pending_import != null and ui.pending_import.value.source.sha256 != original, "updated source produces new candidate")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.buildings.size() == 2, "updated source adds separate layer")
 	var heights: Array = []
 	for building: Dictionary in ui.store.document.buildings: heights.append(int(building.height_cm))

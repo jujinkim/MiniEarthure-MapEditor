@@ -386,6 +386,10 @@ func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 			if patch.field == "roads" and patch.after.kind in ["bridge", "tunnel"]:
 				if candidate.recipe_version < 2: return "OSM bridges/tunnels require explicit recipe 2 or newer for connected surfaces."
 				return _validate_structure_cells(store, result.data.document, context)
+	# The UI child also binds nonstructural reviews to immutable file payloads.
+	# Keep synchronous API callers and structural generation requirements intact.
+	if context.has("scratch"):
+		return preload("./authoring_files.gd").validate(store, result.data.document, {}, [], context)
 	return ""
 
 func _validate_structure_cells(store: RefCounted, candidate: Dictionary, context: Dictionary = {}) -> String:

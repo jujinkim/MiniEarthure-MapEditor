@@ -74,13 +74,16 @@ func run() -> void:
 	check(ui.store.document == before and ui.pending_import == null, "discard preserves document")
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	await wait_import(ui)
+	if multipolygon():
+		check(ui.import_summary.text.contains("assembled_relations=2") and ui.import_summary.text.contains("inner_rings=1"), "relation assembly counts reviewed")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.buildings.size() == building_count and ui.store.document.roads.size() == 1 and ui.store.document.zones.size() == zone_count, "native adoption of PBF building/road/forest")
 	if multipolygon():
 		check(ui.store.document.zones[1].exclusions.size() == 1 and ui.store.document.zones[2].exclusions.is_empty(), "forest hole and independent island preserved")
-		check(ui.import_summary.text.contains("assembled_relations=2") and ui.import_summary.text.contains("inner_rings=1"), "relation assembly counts reviewed")
 	check(ui.store.document.attributions[0].license == LAYER.OSM_LICENSE, "ODbL notice in document")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.buildings.size() == building_count, "one-shot adoption")
 	var base := ProjectSettings.globalize_path("user://" + test_name + "-project")
 	check(ui.store.save_project(base) == "", "save OSM project")
@@ -113,6 +116,7 @@ func run() -> void:
 	await wait_import(ui)
 	check(ui.pending_import != null and ui.pending_import.value.layer_id != raw.layer_id and ui.pending_import.value.source.sha256 != original, "updated source gets fresh layer/hash")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.buildings.size() == 2 * building_count, "updated source retains old geometry")
 	check(ui.store.undo() == "" and ui.store.document.buildings.size() == building_count, "undo updated OSM layer")
 	check(ui.store.redo() == "" and ui.store.document.buildings.size() == 2 * building_count, "redo updated OSM layer")
@@ -126,6 +130,7 @@ func run() -> void:
 	await wait_import(ui)
 	check(ui.store.undo() == "", "document change while review pending")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.buildings.size() == building_count, "stale review cannot adopt")
 	ui.import_origin_lon.value = -90
 	before = ui.store.document.duplicate(true)

@@ -6,9 +6,10 @@ const FILES := preload("res://scripts/authoring_files.gd")
 class CancelDuringGeneration extends JOB:
 	var reached := false
 	var expire := false
+	var target_phase := 4
 	func _event(line: PackedByteArray) -> void:
 		super._event(line)
-		if phase == 4 and not reached:
+		if phase == target_phase and not reached:
 			reached = true
 			if expire: deadline_ms = 0
 			else: cancel()
@@ -34,6 +35,9 @@ var source := ""
 var layer: RefCounted
 var checks := 0
 var failures: Array[String] = []
+func structural_case() -> bool: return true
+func test_name() -> String: return "import_native_validator"
+func extra_faults(_before: String) -> void: pass
 func _initialize() -> void: run.call_deferred()
 func check(ok: bool, message: String) -> void:
 	checks += 1
@@ -72,10 +76,11 @@ func run() -> void:
 	check(ui is Control,"default product entry routes to Editor UI")
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
-	ui.import_source_format.select(1); ui.import_source_format.item_selected.emit(1)
+	if structural_case():
+		ui.import_source_format.select(1); ui.import_source_format.item_selected.emit(1)
 	ui.import_origin_lon.value = 9; ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512; ui.import_origin_y.value = 512
-	check(ui.store.apply_command("Recipe 2",[{"field":"recipe_version","before":1,"after":2}]) == "", "explicit connected recipe")
+	if structural_case(): check(ui.store.apply_command("Recipe 2",[{"field":"recipe_version","before":1,"after":2}]) == "", "explicit connected recipe")
 	var project := ProjectSettings.globalize_path("user://native-project")
 	check(ui.store.save_project(project) == "", "save baseline")
 	var heights := PackedInt64Array(); heights.resize(17*17); heights.fill(0)
@@ -90,23 +95,28 @@ func run() -> void:
 	var bridge_before: String = ui.store.bridge.document_json()
 	var package_hash := FileAccess.get_sha256(package)
 	var before := state()
-	source = ProjectSettings.globalize_path("user://chains.pbf")
-	var output: Array = []
-	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),source,"12","chains"]),output,true) == 0,"synthetic chain fixture")
+	if structural_case():
+		source = ProjectSettings.globalize_path("user://chains.pbf")
+		var output: Array = []
+		check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),source,"12","chains"]),output,true) == 0,"synthetic chain fixture")
+	else:
+		source = ProjectSettings.globalize_path("user://building.geojson")
+		write(source,JSON.stringify({"type":"FeatureCollection","features":[{"type":"Feature","properties":{"height_m":12},"geometry":{"type":"Polygon","coordinates":[[[520,520],[530,520],[530,530],[520,530],[520,520]]]}}]}).to_utf8_buffer())
 	var original: PackedByteArray = FILES.read(source).bytes
-	ui._start_import(source,LAYER.OSM_LICENSE)
+	ui._start_import(source,LAYER.OSM_LICENSE if structural_case() else "MIT")
 	await wait_ui()
 	check(ui.pending_import != null,"asynchronous native review: " + ui.status_label.text)
 	if ui.pending_import == null: await finish(); return
 	layer = ui.pending_import
 	check(LAYER._hex(layer.native_payload_digest,64),"review binds file-backed snapshot")
 	check(state() == before and ui.store.bridge.document_json() == bridge_before,"review preserves document/history/live package bridge")
-	# Each real child is cancelled in its generation phase. No timeout sleeps.
+	# Cancel real children at the native stage admission; no timeout sleeps.
 	for expire in [false,true]:
 		var job := CancelDuringGeneration.new(); job.expire = expire
+		job.target_phase = 4 if structural_case() else 1
 		check(start(job) == "","start real native cancellation/deadline")
 		await wait_job(job)
-		check(job.reached and job.exited and not job.result.ok,"actual native generation is stopped and reaped")
+		check(job.reached and job.exited and not job.result.ok,"actual native validation is stopped and reaped")
 		check(job.failure.contains("timed out") if expire else job.failure == "","deadline/cancel reason")
 		check(not DirAccess.dir_exists_absolute(job.directory),"partial snapshot removed only after native exit")
 		check(state() == before and ui.store.bridge.document_json() == bridge_before,"cancel/deadline retains loaded bridge/history")
@@ -114,7 +124,8 @@ func run() -> void:
 	var retry := JOB.new()
 	check(start(retry) == "","fresh native retry")
 	await wait_job(retry)
-	check(retry.result.ok and retry.result.data.ok,"fresh child validates full cells")
+	check(retry.result.ok and retry.result.data.ok and retry.generated_all,"fresh child completes required document/cell validation")
+	check(retry.structural == structural_case(),"generation admission matches immutable candidate kind")
 	check(not DirAccess.dir_exists_absolute(retry.directory),"successful snapshot/result/log retired")
 	# Changes to selected source and referenced payload after review must be refused.
 	write(source,original + PackedByteArray([0]))
@@ -145,6 +156,13 @@ func run() -> void:
 	ui.import_origin_x.value -= 1
 	ui.pending_import = layer; ui.import_review_generation = ui.generation
 	ui._adopt_import()
+	check(not ui.busy and ui.pending_import == null and state() == before,"restored origin cannot reuse invalidated review")
+	ui._start_import(source,LAYER.OSM_LICENSE if structural_case() else "MIT")
+	await wait_ui()
+	check(ui.pending_import != null,"fresh review after changed/restored controls")
+	if ui.pending_import == null: await finish(); return
+	layer = ui.pending_import
+	ui._adopt_import()
 	var late: RefCounted = ui.import_job
 	ui._cancel_operation(); await wait_ui()
 	check(state() == before and ui.pending_import == null,"UI cancel during native adoption preserves state")
@@ -155,12 +173,15 @@ func run() -> void:
 	ui._finish_native_import(late,{"ok":true,"data":{"ok":true,"request":late.identity,"payloads":layer.native_payload_digest}})
 	check(state() == before and ui.pending_import == null,"old request cannot publish into a new validation")
 	await wait_ui()
-	check(ui.store.document.roads.size() == 10,"fresh validated adoption is one atomic command")
-	check(ui.store.undo() == "" and ui.store.document.roads.is_empty(),"one Undo removes all imported roads")
-	check(ui.store.redo() == "" and ui.store.document.roads.size() == 10,"Redo restores exact graph")
+	var field := "roads" if structural_case() else "buildings"
+	var count := 10 if structural_case() else 1
+	check(ui.store.document[field].size() == count,"fresh validated adoption is one atomic command")
+	check(ui.store.undo() == "" and ui.store.document[field].is_empty(),"one Undo removes all imported records")
+	check(ui.store.redo() == "" and ui.store.document[field].size() == count,"Redo restores exact records")
 	check(ui.store.undo() == "","restore baseline for lifecycle faults")
 	before = state()
 	await lifecycle_faults(before)
+	await extra_faults(before)
 	check(FileAccess.get_sha256(package) == package_hash and FILES.read(source).bytes == original and FILES.read(payload).bytes == original_payload,"all original source/payload/prior-package bytes preserved")
 	# Close the actual UI while its native child is alive.
 	ui._start_native_import(layer,false)
@@ -184,7 +205,7 @@ func lifecycle_faults(before: String) -> void:
 	check(start(rejected,occupied) != "","existing native job directory is never claimed")
 	rejected.shutdown()
 	check(FileAccess.get_file_as_string(directory.path_join("candidate/document.json")) == "unrelated","unclaimed candidate preserved")
-	for mode in ["wrong-request","regress","over-cells","flood","partial","crash","wrong-result","premature-success","invalid-error","diagnostic"]:
+	for mode in ["wrong-request","regress","over-cells","flood","partial","crash","wrong-result","premature-success","invalid-error","diagnostic", "zero-cells-success" if structural_case() else "unexpected-cells"]:
 		var bad := FaultNative.new(); bad.mode = mode
 		check(start(bad) == "","start native IPC fault " + mode)
 		await wait_job(bad)
@@ -221,5 +242,5 @@ func finish() -> void:
 	if ui != null:
 		ui.store.dirty = false; ui.queue_free(); await process_frame
 	if is_instance_valid(entry): entry.queue_free(); await process_frame
-	print("import_native_validator: %s (%d checks)" % ["PASS" if failures.is_empty() else str(failures),checks])
+	print("%s: %s (%d checks)" % [test_name(),"PASS" if failures.is_empty() else str(failures),checks])
 	quit(0 if failures.is_empty() else 1)

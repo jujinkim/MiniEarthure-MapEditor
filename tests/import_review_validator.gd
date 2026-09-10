@@ -122,11 +122,18 @@ func run() -> void:
 	check(JSON.stringify(stress.value).sha256_text() == fingerprint, "browsing never mutates or truncates complete provenance")
 	check(JSON.stringify([ui.store.document, ui.store.undo_stack, ui.store.redo_stack]) == before, "stress review preserves document/history")
 	ui._review_import(actual); ui._open_import_details()
+	check(ui.pending_import == null and not browser.visible, "restored controls cannot revive an old request through detail entry")
+	ui._start_worker("import", source, "CC0 synthetic fixture"); await wait_job()
+	var reviewed: RefCounted = ui.pending_import
+	check(reviewed != null, "fresh request revalidates after restored controls")
+	if reviewed == null: await finish(); return
+	ui._open_import_details()
 	await process_frame
 	await pointer(browser.get_ok_button())
-	check(not browser.visible and ui.import_review.visible and ui.pending_import == actual and browser.current == null, "pointer Back releases detail references and retains review")
+	check(not browser.visible and ui.import_review.visible and ui.pending_import == reviewed and browser.current == null, "pointer Back releases detail references and retains review")
 	ui._adopt_import(); await wait_job()
 	check(ui.store.document.buildings.size() == 1 and ui.store.undo_stack.size() == 1, "actual candidate adopts once after detail review")
+	if ui.store.document.buildings.is_empty(): await finish(); return
 	check(ui.store.document.attributions[0].notice.contains(actual.value.source.sha256), "complete attribution remains in atomic command")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo() == "" and ui.store.document.buildings.is_empty(), "Undo preserves prior map")
@@ -136,7 +143,7 @@ func run() -> void:
 	var pack := ProjectSettings.globalize_path("user://review.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project, pack)).ok, "reviewed provenance exports in native package")
 	var pack_hash := FileAccess.get_sha256(pack)
-	ui._review_import(actual); ui._open_import_details()
+	ui._review_import(reviewed); ui._open_import_details()
 	ui.store.new_document(); await process_frame
 	check(not browser.visible and ui.pending_import == null and browser.current == null, "document replacement invalidates open details")
 	ui._start_worker("import", source, "CC0 synthetic fixture"); ui._cancel_operation(); await wait_job()

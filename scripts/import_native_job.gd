@@ -15,11 +15,14 @@ var owned_payloads: Array[String] = []
 var startup_seen := false
 var generated_all := false
 var source_rechecked := false
+var structural := false
 
 func start_validation(store: RefCounted, candidate: RefCounted, adopt: bool, selection: String, source: String, token: String) -> String:
 	if _attempted or cancelled: return "Native import jobs are single use."
 	_attempted = true
-	if not LAYER._hex(token, 32) or not candidate.has_structures(): return "Invalid structural validation request."
+	if not LAYER._hex(token, 32) or candidate.value.is_empty(): return "Invalid vector validation request."
+	if adopt and not LAYER._hex(candidate.native_payload_digest, 64): return "Missing reviewed payload identity; import again."
+	structural = candidate.has_structures()
 	identity = token
 	import_kind = "native"
 	layer = candidate
@@ -86,7 +89,7 @@ func _event(line: PackedByteArray) -> void:
 		return
 	var index := stages.find(raw.get("stage"))
 	var terminal_event := index == stages.size() - 1
-	var limit := RESULT_LIMIT if terminal_event else 16 if raw.get("stage") == "generate" else PAYLOADS.MAX_PAYLOAD_BYTES if raw.get("stage") == "snapshot" else 2 * 1024 * 1024 * 1024 if raw.get("stage") in ["source", "recheck"] else 1
+	var limit := RESULT_LIMIT if terminal_event else (16 if structural else 0) if raw.get("stage") == "generate" else PAYLOADS.MAX_PAYLOAD_BYTES if raw.get("stage") == "snapshot" else 2 * 1024 * 1024 * 1024 if raw.get("stage") in ["source", "recheck"] else 1
 	var unit := "cells" if raw.get("stage") == "generate" else "bytes" if raw.get("stage") in ["source", "snapshot", "recheck", "complete"] else "steps"
 	if index < 0 or index < phase or (not terminal_event and index > phase + 1) or raw.get("unit") != unit or not LAYER._count(raw.get("completed"), limit) or not LAYER._count(raw.get("total"), limit) or raw.completed > raw.total:
 		_fail("Invalid native validation progress budget/stage.")
@@ -97,7 +100,9 @@ func _event(line: PackedByteArray) -> void:
 	sequence += 1
 	phase = index
 	progress = raw
-	if raw.stage == "generate": generated_all = raw.total > 0 and raw.completed == raw.total
+	# Nonstructural imports validate/open the snapshot without generating cells.
+	# A zero-cell event cannot stand in for required structural surface checks.
+	if raw.stage == "generate": generated_all = (raw.total > 0 if structural else raw.total == 0) and raw.completed == raw.total
 	if raw.stage == "recheck": source_rechecked = raw.total == int(layer.value.source.bytes) and raw.completed == raw.total
 	if terminal_event:
 		if not LAYER._hex(raw.get("sha256"), 64) or raw.completed != raw.total or raw.total <= 0:

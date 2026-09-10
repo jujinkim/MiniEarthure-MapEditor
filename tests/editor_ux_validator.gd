@@ -157,6 +157,7 @@ func run() -> void:
 	ui._start_import(source, "MIT")
 	await finish()
 	await click(ui.import_review.get_ok_button())
+	await finish()
 	check(ui.store.document.buildings.size() == 1 and ui.store.undo_stack.size() == 1, "Adopt is one Undo command")
 	await click(button(ui, "Undo"))
 	check(ui.store.document.buildings.is_empty() and FileAccess.get_sha256(source) == source_hash, "Undo adoption preserves source")

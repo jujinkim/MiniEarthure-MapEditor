@@ -56,6 +56,7 @@ func run() -> void:
 	ui._start_import(path,LAYER.OVERTURE_LICENSE)
 	await wait_work()
 	ui._adopt_import()
+	await wait_work()
 	check(ui.store.document.buildings.size() == 3, "adopt complete footprint")
 	var b: Dictionary = ui.store.document.buildings[0].duplicate(true)
 	var center := Vector2.ZERO
