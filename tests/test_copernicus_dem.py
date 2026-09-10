@@ -19,6 +19,17 @@ def options(source=""):
 
 
 class DemTests(unittest.TestCase):
+    def test_osm_units_preserve_geographic_samples_and_scale_heights_once(self):
+        raw = options(self.source)
+        scaled = dict(raw, cell_size_cm=6400, spacing_cm=400, osm_denominator=8)
+        self.assertEqual(dem.grid(raw)[2], dem.grid(scaled)[2])
+        _, original = dem.sample(self.source, dem.plan(raw), lambda *a: None)
+        _, compact = dem.sample(self.source, dem.plan(scaled), lambda *a: None)
+        self.assertEqual(original['source_window'], compact['source_window'])
+        self.assertLessEqual(abs(original['offset_cm']/8-compact['offset_cm']), 1)
+        for value in [0, 2, True, '8']:
+            with self.assertRaises(ValueError): dem.grid(dict(scaled, osm_denominator=value))
+
     @classmethod
     def setUpClass(cls):
         cls.folder = tempfile.TemporaryDirectory()

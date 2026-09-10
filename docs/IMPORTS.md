@@ -1,5 +1,23 @@
 # Import boundary and adoption
 
+## Current units — 2026-09-11
+
+Custom projects use actual metres. Only OSM adoption divides source coordinates,
+widths, heights, clearances and vegetation spacing by **8**, once. Raw staged
+source, original PBF/hash, receipts and provenance remain in source units. Undo,
+redo, save/reopen and export operate on the already adopted coordinates.
+The attribution records `osm-import-1to8-v1` and denominator8. Generic GeoJSON,
+Overture and directly authored PNGs keep their supplied units.
+
+Copernicus DEM linked to an adopted OSM layer automatically uses denominator8:
+map sample positions are multiplied by8 for the geographic lookup, then elevations
+relative to the source vertical zero are divided by8. Raw source footprints and
+license receipts remain unchanged. A standalone/custom DEM uses denominator1.
+Source numeric examples in the historical adapter contracts below describe the
+unmodified import layer, before adoption. Built-in vegetation shapes use the
+standard custom-map metre dimensions; OSM does not supply individual tree heights.
+
+
 **Local files only (2026-09-10).** Obtain source files separately, then select them
 in the Editor. Direct Geofabrik catalog/probe/download, Overture remote readers
 and Copernicus availability/download controls and helper entry points are removed.

@@ -140,7 +140,7 @@ def summarize(doc, payloads, extra):
         for a,b in zip(r["points"],r["points"][1:]):
             planar+=math.hypot(b[0]-a[0],b[2]-a[2])/100
             spatial+=math.dist(a,b)/100
-    return dict(profile=PROFILE,map_id=doc["map_id"],bounds_cm=doc["bounds"],world_scale=0.125,
+    return dict(profile=PROFILE,map_id=doc["map_id"],bounds_cm=doc["bounds"],world_scale=1.0,
                 cell_size_cm=doc["cell_size_cm"],cell_count=math.ceil(doc["bounds"]["max"][0]/doc["cell_size_cm"])**2,
                 counts={f:len(doc[f]) for f in FIELDS},authored_object_count=sum(len(doc[f]) for f in FIELDS),
                 road_centerline_planar_m=round(planar,6),road_centerline_spatial_m=round(spatial,6),

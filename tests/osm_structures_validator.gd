@@ -48,7 +48,7 @@ func run() -> void:
 		check(roads[1].kind == "bridge" and roads[4].kind == "tunnel", "structure kinds survive native adoption")
 		check(roads[0].to == roads[1].from and roads[1].to == roads[2].from,"bridge approaches share graph endpoints")
 		check(roads[3].to == roads[4].from and roads[4].to == roads[5].from,"tunnel approaches share graph endpoints")
-		check(roads[1].points[2][1] == 600 and roads[4].points[2][1] == -600 and roads[4].clearance_cm == 450,"explicit grades and physical clearance survive")
+		check(roads[1].points[2][1] == 75 and roads[4].points[2][1] == -75 and roads[4].clearance_cm == 56,"explicit grades and physical clearance survive")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo() == "" and ui.store.document.roads.is_empty(),"one-command undo removes whole structure graph")
 	# History updates last_edited; crossing a wall-clock second is not a graph
@@ -61,7 +61,7 @@ func run() -> void:
 	check(JSON.parse_string(ui.store.bridge.export_project(base,package)).ok,"build structure package")
 	var package_hash := FileAccess.get_sha256(package)
 	check(JSON.parse_string(ui.store.bridge.open_package(package)).ok,"open structured package")
-	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 	check(generated.ok,"generate bridge/tunnel geometry: " + str(generated.get("error", "")))
 	if generated.ok:
 		var bridge_floor := false
@@ -70,9 +70,9 @@ func run() -> void:
 		for triangle: Dictionary in generated.data.chunk.triangles:
 			# Native triangle vertices must retain both vertical surfaces and roof.
 			for point: Array in triangle.vertices:
-				bridge_floor = bridge_floor or point[1] == 600
-				tunnel_floor = tunnel_floor or point[1] == -600
-				tunnel_roof = tunnel_roof or point[1] == -150
+				bridge_floor = bridge_floor or point[1] == 75
+				tunnel_floor = tunnel_floor or point[1] == -75
+				tunnel_roof = tunnel_roof or point[1] == -19
 		check(bridge_floor and tunnel_floor and tunnel_roof,"generated elevated deck, depressed floor and physical ceiling")
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	ui._cancel_operation()
@@ -132,21 +132,21 @@ func check_ground_crop(ui: Control, path: String) -> void:
 	if ui.store.document.roads.size() != 6: return
 	var roads: Array = ui.store.document.roads
 	check(roads[0].from.contains("crop-") and roads[0].to == roads[1].from and roads[1].to == roads[2].from,"synthetic outer boundary preserves original bridge joins")
-	check(roads[3].to == roads[4].from and roads[4].to == roads[5].from and roads[4].clearance_cm == 450,"tunnel connections and clearance survive approach crop")
+	check(roads[3].to == roads[4].from and roads[4].to == roads[5].from and roads[4].clearance_cm == 56,"tunnel connections and clearance survive approach crop")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	var base := ProjectSettings.globalize_path("user://ground-crop-project")
 	check(ui.store.save_project(base) == "","save cropped structure source")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"build cropped structure package")
 	check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"open cropped structure package")
-	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 	check(generated.ok,"generate cropped structure geometry: " + str(generated.get("error","")))
 	if generated.ok:
 		var deck := false
 		var roof := false
 		for triangle: Dictionary in generated.data.chunk.triangles:
 			for point: Array in triangle.vertices:
-				deck = deck or point[1] == 600
-				roof = roof or point[1] == -150
+				deck = deck or point[1] == 75
+				roof = roof or point[1] == -19
 		check(deck and roof,"cropped package retains elevated deck and physical tunnel roof")
 	# Save updates provenance, so freeze the accepted state after that operation.
 	adopted = ui.store.document.duplicate(true)
@@ -223,7 +223,7 @@ func check_structure_crop(ui: Control, path: String) -> void:
 	check(ui.store.document.roads.size() == 2,"only retained structural sections adopted")
 	if ui.store.document.roads.size() != 2: return
 	var roads: Array = ui.store.document.roads.duplicate(true)
-	check(roads[0].kind == "bridge" and roads[1].kind == "tunnel" and roads[1].clearance_cm == 450,"partial kinds and physical clearance preserved")
+	check(roads[0].kind == "bridge" and roads[1].kind == "tunnel" and roads[1].clearance_cm == 56,"partial kinds and physical clearance preserved")
 	check(ui.store.document.nodes.size() == 4,"independent degree-one section ends, no invented ground/ramp nodes")
 	for road: Dictionary in roads:
 		check(road.from.contains("crop-") and road.to.contains("crop-"),"two cut endpoints retain distinct identities")
@@ -232,7 +232,7 @@ func check_structure_crop(ui: Control, path: String) -> void:
 	check(JSON.stringify(ui.store.document.attributions).contains("explicit-structure-crop-v1"),"source mapping preserved in document attribution")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"build partial structure package")
 	check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"reopen partial structure package")
-	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 	check(generated.ok,"native generates cropped deck/floor/walls/roof: " + str(generated.get("error","")))
 	if generated.ok:
 		for road: Dictionary in roads:
@@ -252,10 +252,10 @@ func check_structure_crop(ui: Control, path: String) -> void:
 						var endpoint: Array = road.points[0 if i == 0 else -1]
 						if absi(int(point[0])-int(endpoint[0])) <= 1:
 							floor_ends[i] = floor_ends[i] or (triangle.spawnable and point[1] == endpoint[1])
-							roof_ends[i] = roof_ends[i] or (not triangle.spawnable and point[1] == endpoint[1]+450)
+							roof_ends[i] = roof_ends[i] or (not triangle.spawnable and point[1] == endpoint[1]+56)
 			check(floors > 0 and floor_ends.all(func(x): return x),"native floor reaches both interpolated cut elevations: " + road.kind)
 			if road.kind == "tunnel": check(shell > 0 and roof_ends.all(func(x): return x),"physical ceiling reaches both cut ends; shell is not spawnable")
-		var again: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+		var again: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 		check(again == generated,"partial structure native generation deterministic")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	ui._start_import(path,LAYER.OSM_LICENSE)
@@ -300,5 +300,5 @@ func check_structure_crop(ui: Control, path: String) -> void:
 		check(ui.store.save_project(joined_base) == "","save one-sided sections")
 		check(JSON.parse_string(ui.store.bridge.export_project(joined_base,joined_base+".memap")).ok,"native exports cropped structures with original ground joins")
 		check(JSON.parse_string(ui.store.bridge.open_package(joined_base+".memap")).ok,"open one-sided section package")
-		var joined: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+		var joined: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 		check(joined.ok,"native ground apron and cut end generate together: " + str(joined.get("error","")))

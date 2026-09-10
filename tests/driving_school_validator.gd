@@ -39,15 +39,19 @@ func run() -> void:
 		var probe: Dictionary = JSON.parse_string(bridge.surface_probe(p[0],p[2],location.surface_id))
 		check(probe.ok,"advertised spawn "+str(location.id)+": "+str(probe))
 		check(absf(probe.data.position_cm[1]-p[1])<=1,"exact spawn height "+str(location.id))
-	# Connected slope anchors, deck middle, cell seams and parking support.
-	for probe: Array in [[80000,235000,"license-hill",0],[80000,242000,"license-hill",200],
-		[80000,250000,"license-hill",0],[90000,258500,"license-t-parking-bay",0],
-		[102400,390000,"two-km-straight",0],[204800,390000,"two-km-straight",0],
-		[387000,350000,"kart-freeway-climb",1000],[554000,424000,"kart-freeway-descent",1000],
-		[386000,516000,"kart-finger-bridge-in",400],[386000,542000,"kart-finger-bridge-out",400]]:
-		var result: Dictionary = JSON.parse_string(bridge.surface_probe(probe[0],probe[1],probe[2]))
-		check(result.ok,"course support "+str(probe)+": "+str(result))
-		check(absf(result.data.position_cm[1]-probe[3])<=1,"course support height "+str(probe))
+	# Probe every interior segment of the relocated grades and widened roads.
+	for road: Dictionary in store.document.roads:
+		if road.id not in ["license-hill","license-t-parking-bay","two-km-straight","kart-freeway-climb","kart-freeway-descent","kart-finger-bridge-in","kart-finger-bridge-out"]: continue
+		for i in range(road.points.size()-1):
+			var a: Array = road.points[i]
+			var b: Array = road.points[i+1]
+			# The short parking spur starts inside the wider approach's apron.
+			var fraction := 0.8 if road.id=="license-t-parking-bay" else 0.5
+			var x := roundi(lerpf(a[0],b[0],fraction))
+			var y := roundi(lerpf(a[2],b[2],fraction))
+			var result: Dictionary = JSON.parse_string(bridge.surface_probe(x,y,road.id))
+			check(result.ok,"course support "+road.id+": "+str(result))
+			check(absf(result.data.position_cm[1]-(a[1]+b[1])/2.0)<=2,"course support height "+road.id)
 	check(FileAccess.get_sha256(source.path_join("document.json"))==before,"original project retained")
 	var report := FileAccess.open(OS.get_environment("MAPEDITOR_SCHOOL_REPORT"),FileAccess.WRITE)
 	check(report!=null,"report path")

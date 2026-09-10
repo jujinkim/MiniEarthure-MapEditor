@@ -97,7 +97,7 @@ func run() -> void:
 	check(JSON.parse_string(ui.store.bridge.export_project(base,output)).ok, "package OSM document")
 	var before_package := FileAccess.get_sha256(output)
 	check(JSON.parse_string(ui.store.bridge.open_package(output)).ok, "open OSM package")
-	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 	check(generated.ok, "native shared geometry generation")
 	if multipolygon() and generated.ok:
 		var excluded := PackedVector2Array()

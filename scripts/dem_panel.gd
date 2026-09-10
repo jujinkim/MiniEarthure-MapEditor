@@ -95,6 +95,8 @@ func options() -> Dictionary:
 	var result := {"coordinates":{"mode":"wgs84-utm","origin":[fields.Longitude.value,fields.Latitude.value],"local_origin_m":[fields["Local origin x (m)"].value,fields["Local origin y (m)"].value]},"cell":[fields["Cell x"].value,fields["Cell y"].value],"cell_size_cm":editor.store.document.cell_size_cm,"map_min_cm":editor.store.document.bounds.min.duplicate(),"spacing_cm":fields["Spacing (cm)"].value,"vertical_zero_m":fields["EGM2008 at local zero (m)"].value,"source":source.text.strip_edges()}
 
 	if mosaic.button_pressed: result["cell_count"] = [fields["Cell columns"].value,fields["Cell rows"].value]
+	var denominator := preload("./import_units.gd").dem_denominator(editor.store.document)
+	if denominator != 1: result["osm_denominator"] = denominator
 	return result
 
 func open() -> void:

@@ -1,18 +1,18 @@
 {
-  "profile": "physics-test-v2",
-  "map_id": "physics-test-v2",
+  "profile": "physics-test-v1",
+  "map_id": "physics-test-v1",
   "bounds_cm": {
     "min": [
       0,
       0
     ],
     "max": [
-      12800,
-      12800
+      102400,
+      102400
     ]
   },
-  "world_scale": 1.0,
-  "cell_size_cm": 12800,
+  "world_scale": 0.125,
+  "cell_size_cm": 102400,
   "cell_count": 1,
   "counts": {
     "nodes": 0,
@@ -28,35 +28,35 @@
   "road_centerline_planar_m": 0.0,
   "road_centerline_spatial_m": 0.0,
   "terrain": {
-    "spacing_cm": 400,
+    "spacing_cm": 3200,
     "source_accuracy_cm": null,
     "description": "Single 33x33 PNG16 heightfield, flat ground and two compact smooth hills",
     "hills": [
       {
         "center_m": [
-          88,
-          80
+          704,
+          640
         ],
-        "radius_m": 24,
-        "height_m": 2
+        "radius_m": 192,
+        "height_m": 16
       },
       {
         "center_m": [
-          40,
-          96
+          320,
+          768
         ],
-        "radius_m": 16,
-        "height_m": 1
+        "radius_m": 128,
+        "height_m": 8
       }
     ]
   },
   "source_files": {
-    "document.json": "8d0060199613fe330066f50546f3c26f88606d26249c6b9386ef51f2fa6b994e",
-    "terrain/hills.png": "1b985ca3847a3bcf6fe6940b9d2467c94c0ec91242c000883e81a05faececf64"
+    "document.json": "fef187fb54a05a417f2257cac4f92092ada71f37937324075302769fb23114ec",
+    "terrain/hills.png": "eade99d6d356ebdb658b5bcecefc042e930b95f2ff44a4ab211fbfbd663083cf"
   },
   "attributions": [
     {
-      "source": "physics-test-v2",
+      "source": "physics-test-v1",
       "license": "MIT",
       "notice": "Original synthetic terrain for vehicle tuning; no external data or assets."
     }
@@ -66,9 +66,9 @@
       "id": "start",
       "title": "Flat ground",
       "position_cm": [
-        6400,
+        51200,
         0,
-        3200
+        25600
       ],
       "surface_id": "terrain",
       "heading_degrees": 0
@@ -77,9 +77,9 @@
       "id": "hill",
       "title": "Gentle hill approach",
       "position_cm": [
-        8800,
-        34,
-        6400
+        70400,
+        274,
+        51200
       ],
       "surface_id": "terrain",
       "heading_degrees": 0
@@ -87,8 +87,8 @@
   ],
   "routes": [],
   "start": {
-    "x_cm": 6400,
-    "y_cm": 3200,
+    "x_cm": 51200,
+    "y_cm": 25600,
     "surface_id": "terrain",
     "heading_degrees": 0
   },

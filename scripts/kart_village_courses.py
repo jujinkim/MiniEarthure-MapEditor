@@ -1,7 +1,7 @@
 """Hand-authored Village course studies; original geometry, no extracted assets.
 
 Reference topology: KartRider Freeway and The Glove original minimaps.
-Dimensions/grades are adapted to the driving school's 1:8 world scale.
+Dimensions/grades are adapted to the compact town authoring profile; runtime uses actual metres.
 """
 import math
 
@@ -254,28 +254,5 @@ def build_courses(t):
 
 def atlas(t, kind):
     """Detailed, reproducible plan from the authored road/wall coordinates."""
-    prefixes=("kart-freeway-",) if kind=="freeway" else ("kart-finger-","kart-thumb-")
-    x,y,w,h=(3450,3130,2250,1510) if kind=="freeway" else (3450,4760,2250,1100)
-    title="VILLAGE FREEWAY" if kind=="freeway" else "VILLAGE FINGER"
-    parts=[f'<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="{round(h/w*1500)}" viewBox="0 0 {w} {h}">',
-        f'<g transform="translate({-x} {-y})">',
-        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="#dde5d5"/>',
-        f'<text x="{x+40}" y="{y+78}" font-family="sans-serif" font-size="54" font-weight="bold" fill="#173c36">{title}</text>']
-    for r in t.doc["roads"]:
-        if not r["id"].startswith(prefixes) or r["id"] in ("kart-freeway-access","kart-finger-access"): continue
-        for i,(a,b) in enumerate(zip(r["points"],r["points"][1:])):
-            color="#dba449" if max(a[1],b[1])>0 else "#536b70"
-            parts.append(f'<path d="M {a[0]/100} {a[2]/100} L {b[0]/100} {b[2]/100}" fill="none" stroke="{color}" stroke-width="{r["widths_cm"][i]/100}" stroke-linecap="round"/>')
-    for b in t.doc["buildings"]:
-        if not b["id"].startswith(prefixes): continue
-        pts=" ".join(f"{p[0]/100},{p[1]/100}" for p in b["footprint"])
-        color="#b66f47" if "-cylinder-" in b["id"] else "#8b9593"
-        parts.append(f'<polygon points="{pts}" fill="{color}" stroke="#4b5554" stroke-width="1"/>')
-    labels=([(4150,3270,"20 m HIGHWAY / 650 m"),(3940,3550,"UP"),(5400,4210,"DOWN"),(3760,4525,"LAST Z CORNERS")]
-            if kind=="freeway" else [(4880,5630,"7 U-TURNS / 2 SHORTCUTS"),(3460,5385,"THUMB"),(3900,5330,"CLOCK PASSAGE")])
-    for lx,ly,label in labels: parts.append(f'<text x="{lx}" y="{ly}" font-family="sans-serif" font-size="28" fill="#173c36">{label}</text>')
-    sx,sy=(3750,4050) if kind=="freeway" else (4300,5540)
-    parts.extend([f'<circle cx="{sx}" cy="{sy}" r="14" fill="#eecc45" stroke="#173c36" stroke-width="4"/>',
-        f'<text x="{sx+26}" y="{sy+10}" font-family="sans-serif" font-size="30" fill="#173c36">START</text>',
-        f'<text x="{x+40}" y="{y+h-35}" font-family="sans-serif" font-size="25" fill="#49615a">Layout study · adapted dimensions · orange = elevated deck · rust = solid cylinder wall</text></g></svg>'])
-    return "\n".join(parts)+"\n"
+    from compact_town import atlas as compact_atlas
+    return compact_atlas(t, kind)

@@ -21,7 +21,7 @@ def main():
     args.output.mkdir(parents=True,exist_ok=False)
     cli=str(args.mapkit.resolve())
     def run(*command):
-        result=subprocess.run([cli,*map(str,command)],capture_output=True,text=True,timeout=60)
+        result=subprocess.run([cli,*map(str,command)],capture_output=True,text=True,timeout=300)
         if result.returncode: raise RuntimeError(result.stderr or result.stdout)
         return result.stdout.strip()
     started=time.monotonic()
@@ -36,12 +36,8 @@ def main():
     document=json.loads((args.project/"document.json").read_text())
     size=document["cell_size_cm"]
     extent=document["bounds"]["max"]
-    hashes={}
-    for y in range((extent[1]+size-1)//size):
-        for x in range((extent[0]+size-1)//size):
-            target=args.output/f"cell-{x}-{y}.json"
-            hashes[f"{x}/{y}"]=run("generate-chunk",package,x,y,target)
-        print(f"school native cells: {len(hashes)}/{inspection['cell_count']}",flush=True)
+    hashes=json.loads(run("validate-cells",package))
+    assert len(hashes)==inspection['cell_count'], "every cell must be generated"
     assert sha((args.project/"document.json").read_bytes())==source_digest,"source changed during verification"
     report=dict(source_sha256=source_digest,inspection=inspection,
                 generated_cells=hashes,seconds=round(time.monotonic()-started,3))

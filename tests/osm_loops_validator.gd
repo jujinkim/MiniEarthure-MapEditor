@@ -63,7 +63,7 @@ func run() -> void:
 	check(ui.store.save_project(base) == "","save baseline")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"export baseline")
 	check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"load baseline bridge")
-	var baseline_chunk: String = ui.store.bridge.generate_chunk(1,1)
+	var baseline_chunk: String = ui.store.bridge.generate_chunk(0,0)
 	var package_hash := FileAccess.get_sha256(base+".memap")
 	var before: Dictionary = ui.store.document.duplicate(true)
 	var undo_count: int = ui.store.undo_stack.size()
@@ -80,7 +80,7 @@ func run() -> void:
 	check(raw.feature_count == 8 and raw.coordinates.osm_ground_loops.retained.size() == 7,"loop and incident approach mapping")
 	check(raw.coordinates.vertical.explicit_points == 0,"estimated heights are not explicit vertical data")
 	check(ui.import_summary.text.contains("No source height datum was applied") and not ui.import_summary.text.contains("EPSG:5773"),"review does not present estimated ground as converted EGM96 heights")
-	check(ui.store.document == before and ui.store.undo_stack.size() == undo_count and ui.store.bridge.generate_chunk(1,1) == baseline_chunk,"review preserves map/history/loaded bridge")
+	check(ui.store.document == before and ui.store.undo_stack.size() == undo_count and ui.store.bridge.generate_chunk(0,0) == baseline_chunk,"review preserves map/history/loaded bridge")
 	check(ui.import_summary.text.contains("osm_ground_loops") and ui.import_summary.text.contains("No routing/access/oneway") and ui.import_summary.text.contains(source_hash),"review explains source connectivity and omitted routing")
 	for expire in [false,true]:
 		var job := CancelGeneration.new()
@@ -131,7 +131,7 @@ func run() -> void:
 	await pointer(ui.import_review.get_ok_button())
 	await wait_import(ui)
 	check(ui.store.document.roads.size() == 8 and ui.store.undo_stack.size() == undo_count+1,"single atomic loop graph adoption: " + ui.status_label.text)
-	check(ui.store.bridge.generate_chunk(1,1) == baseline_chunk,"adoption preserves loaded bridge")
+	check(ui.store.bridge.generate_chunk(0,0) == baseline_chunk,"adoption preserves loaded bridge")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(before),"one Undo removes loop and approaches")
 	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"one Redo restores graph and source metadata")
@@ -212,7 +212,9 @@ func verify_surface(store: RefCounted, raw: Dictionary) -> void:
 			if generated.ok: triangles.append_array(generated.data.chunk.triangles)
 	for patch: Dictionary in raw.patches:
 		if patch.field != "roads" or not patch.id.ends_with("-loop"): continue
-		var p: Array = patch.after.points
+		var p: Array = patch.after.points.duplicate(true)
+		for point: Array in p:
+			for axis in range(3): point[axis] = roundi(float(point[axis])/8.0)
 		for end in [0,p.size()-1]:
 			var next: int = 1 if end == 0 else end-1
 			for fraction in [0.025,0.1,0.3,0.5]:
@@ -274,7 +276,7 @@ func structural_loops(ui: Control) -> void:
 			check(ui.store.save_project(base) == "","save " + mode)
 			check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"export " + mode)
 			check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"open " + mode)
-			var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+			var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 			check(generated.ok,"actual structural loop generation " + mode)
 			var structural_floor := false
 			var tunnel_ceiling := false
@@ -282,7 +284,7 @@ func structural_loops(ui: Control) -> void:
 				for triangle: Dictionary in generated.data.chunk.triangles:
 					if not triangle.object_id.ends_with("-loop"): continue
 					for point: Array in triangle.vertices:
-						structural_floor = structural_floor or (triangle.spawnable and absf(point[1]) >= 500)
+						structural_floor = structural_floor or (triangle.spawnable and absf(point[1]) >= 62)
 						tunnel_ceiling = tunnel_ceiling or (not triangle.spawnable and point[1] < 0)
 			check(structural_floor,"native structural height retained " + mode)
 			if mode.ends_with("tunnel"): check(tunnel_ceiling,"native loop tunnel ceiling " + mode)

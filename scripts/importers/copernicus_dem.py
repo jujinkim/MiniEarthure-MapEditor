@@ -24,10 +24,12 @@ def integer(value, name, low, high):
 
 
 def grid(options, mosaic=False):
-    if not isinstance(options, dict) or set(options) != {"coordinates", "cell", "cell_size_cm", "map_min_cm", "spacing_cm", "vertical_zero_m", "source"}:
+    if not isinstance(options, dict) or set(options) - {"osm_denominator"} != {"coordinates", "cell", "cell_size_cm", "map_min_cm", "spacing_cm", "vertical_zero_m", "source"}:
         raise ValueError("Invalid DEM options")
     if not isinstance(options["source"], str) or len(options["source"]) > 4096:
         raise ValueError("Invalid local COG path")
+    denominator = options.get("osm_denominator", 1)
+    if type(denominator) not in (int, float) or denominator not in (1, 8): raise ValueError("Invalid OSM import units")
     coordinates = Coordinates(options["coordinates"])
     if coordinates.mode != "wgs84-utm": raise ValueError("DEM requires explicit WGS84/local origins")
     size = integer(options["cell_size_cm"], "cell size", 200, 102400)
@@ -44,7 +46,7 @@ def grid(options, mosaic=False):
     for row in range(side):
         for col in range(side):
             local = [(options["map_min_cm"][i] + options["cell"][i] * size + (col if i == 0 else row) * spacing) / 100 for i in range(2)]
-            dx, dy = [local[i] - coordinates.local[i] for i in range(2)]
+            dx, dy = [local[i] * denominator - coordinates.local[i] for i in range(2)]
             if math.hypot(dx, dy) > 20000: raise ValueError("DEM exceeds 20 km projection radius")
             lon, lat = coordinates.transformer.transform(coordinates.origin_xy[0]+dx, coordinates.origin_xy[1]+dy, direction=TransformDirection.INVERSE, errcheck=True)
             coordinates.point([lon, lat])  # same strip/hemisphere guard as vectors
@@ -168,7 +170,7 @@ def sample(path, review, progress):
         if any(not np.isfinite(v).all() for v in samples) or any((m == 0).any() for m in [mask[rr,cc],mask[rr,cc+1],mask[rr+1,cc],mask[rr+1,cc+1]]): raise ValueError("Missing/non-finite DEM support; no ocean/land zero filling")
         values = sum(v.astype(np.float64)*weight for v,weight in zip(samples,[(1-dx)*(1-dy),dx*(1-dy),(1-dx)*dy,dx*dy]))
         if (values < -1000).any() or (values > 10000).any(): raise ValueError("DEM elevation outside supported physical range")
-        heights = np.rint((values-zero)*100).astype(np.int64)
+        heights = np.rint((values-zero)*100 / review["options"].get("osm_denominator", 1)).astype(np.int64)
         low, high = int(heights.min()), int(heights.max())
         step = max(1, math.ceil((high-low)/65535))
         if abs(low) > 1000000 or step > 100 or high > 1000000: raise ValueError("Local height/PNG16 range exceeded; choose explicit vertical origin")
@@ -334,7 +336,7 @@ def mosaic_heights(paths, review, progress):
             xy=flat[selected]
             values[selected]=interpolate(tile,(xy[:,0]-tile[0])*ds.width,(tile[1]+1-xy[:,1])*ds.height)
         if not np.isfinite(values).all() or (values < -1000).any() or (values > 10000).any(): raise ValueError("DEM elevation outside supported physical range")
-        heights=np.rint((values-zero)*100).astype(np.int64).reshape(len(cells),side,side)
+        heights=np.rint((values-zero)*100 / review["options"].get("osm_denominator", 1)).astype(np.int64).reshape(len(cells),side,side)
         low,high=int(heights.min()),int(heights.max())
         step=max(1,math.ceil((high-low)/65535))
         if abs(low)>1000000 or high>1000000 or step>100: raise ValueError("Local height/PNG16 range exceeded")

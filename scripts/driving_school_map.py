@@ -14,7 +14,7 @@ import zlib
 
 from reference_maps import canonical, empty, rectangle, road, sha, summarize
 
-PROFILE = "driving-school-town-v2"
+PROFILE = "driving-school-town-v3"
 SIZE_M = 6144
 TERRAIN_GRID_M = 128
 FACES = [(0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6),
@@ -55,10 +55,12 @@ def box(center, size):
 def glb(solids):
     """Small static flat-shaded meshes, in glTF metres, with embedded materials."""
     binary, views, accessors, primitives, materials = bytearray(), [], [], [], []
-    for vertices, color in solids:
+    for solid in solids:
+        vertices, color = solid[:2]
         vertices = [(x, h, -y) for x, h, y in vertices]
         positions, normals = [], []
-        for face in oriented_faces(vertices):
+        faces = oriented_faces(vertices) if len(solid) == 2 else [(a,c,b) for a,b,c in solid[2]]
+        for face in faces:
             a, b, c = [vertices[i] for i in face]
             u, v = [[p[i]-a[i] for i in range(3)] for p in (b,c)]
             n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]]
@@ -287,38 +289,15 @@ def build():
     school(t)
     straights_and_hairpins(t)
     kart(t)
+    from compact_town import compact
+    compact(t)
     return t
 
 
 def atlas(t):
     """An overview drawn from the exact authoring coordinates, not a mockup."""
-    lines=['<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1500" viewBox="0 0 6600 7040">',
-           '<rect width="6600" height="7040" fill="#132720"/>',
-           '<g transform="translate(220 590)"><rect width="6144" height="6144" rx="20" fill="#819779"/>']
-    for z in t.doc["zones"]:
-        pts=" ".join(f"{p[0]/100},{p[1]/100}" for p in z["polygon"])
-        lines.append(f'<polygon points="{pts}" fill="#496e52"/>')
-    for b in t.doc["buildings"]:
-        if b["id"].startswith("kart-pier") or "-rail-" in b["id"]: continue
-        pts=" ".join(f"{p[0]/100},{p[1]/100}" for p in b["footprint"])
-        color={"commercial":"#c4d4d9","residential":"#e4bc98","public":"#eed99a","industrial":"#a9b7bd"}[b["usage"]]
-        lines.append(f'<polygon points="{pts}" fill="{color}" stroke="#334c42" stroke-width="3"/>')
-    for r in sorted(t.doc["roads"],key=lambda r:r["kind"]!="ground"):
-        pts=" ".join(f"{p[0]/100},{p[2]/100}" for p in r["points"])
-        width=r["widths_cm"][0]/100
-        color="#f1c553" if r["id"].startswith("kart") else "#35413f"
-        lines.append(f'<polyline points="{pts}" fill="none" stroke="#c6c8b0" stroke-width="{width+5}" stroke-linejoin="round"/>')
-        lines.append(f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="{width}" stroke-linejoin="round"/>')
-    for x,y,number,label in [(1300,420,"01","SCHOOL VILLAGE"),(4160,180,"02","CITY / 100 BLOCKS"),
-            (760,1950,"03","DRIVING SCHOOL"),(1950,2240,"04","TECHNICAL"),(1200,3830,"05","2 KM STRAIGHT"),
-            (1050,5530,"06","SIX HAIRPINS"),(3960,3180,"07","VILLAGE FREEWAY"),(4160,4770,"08","VILLAGE FINGER")]:
-        lines.append(f'<text x="{x}" y="{y}" fill="#172d25" font-family="sans-serif" font-size="66" font-weight="bold">{number} {html.escape(label)}</text>')
-    lines+=['<circle cx="800" cy="2250" r="24" fill="#ffcc4c" stroke="#132720" stroke-width="8"/>',
-            '<text x="850" y="2265" font-family="sans-serif" font-size="48" fill="#172d25">START</text></g>',
-            '<text x="230" y="200" fill="#f4efe0" font-family="sans-serif" font-size="140" font-weight="bold">DRIVING SCHOOL TOWN</text>',
-            '<text x="235" y="350" fill="#b9caba" font-family="sans-serif" font-size="66">6.144 × 6.144 km · connected districts · original MIT geometry</text>',
-            '<text x="230" y="6940" fill="#b9caba" font-family="sans-serif" font-size="52">Source metres · 1:8 in-game scale · north shown at top · road widths drawn to scale</text></svg>']
-    return "\n".join(lines)+"\n"
+    from compact_town import atlas as compact_atlas
+    return compact_atlas(t)
 
 
 def create(destination):
@@ -326,22 +305,23 @@ def create(destination):
     destination.mkdir(parents=True,exist_ok=False)
     t=build()
     report=summarize(t.doc,t.payloads,dict(routes=t.routes,locations=t.locations,
-        start=dict(x_cm=80000,y_cm=225000,surface_id="license-start",heading_degrees=0),
+        start=dict(x_cm=2500,y_cm=7031,surface_id="license-start",heading_degrees=0),
         limitations=["Fictional Korean-style practice layout, not an official examination replica or scoring system.",
                      "Static city; traffic AI, race rules and vehicle selection belong to the consuming application.",
                      "KartRider Village layout studies: adapted dimensions and original models; not extracted game assets.",
                      "Geometry verification is separate from human driving feel and platform performance acceptance."]))
     from kart_village_courses import REFERENCES
     report["references"] = REFERENCES
+    report["world_scale"] = 1.0
     report["profile"]=PROFILE
     report["landmarks"]=dict(city_blocks=100,
         city_buildings=sum(b["id"].startswith("city-block-") for b in t.doc["buildings"]),
         village_homes=sum(b["id"].startswith("village-home-") for b in t.doc["buildings"]),
         guardrail_sections=sum("-rail-" in b["id"] for b in t.doc["buildings"]),
-        hairpin_turns=6,straight_m=2000,kart_highway_height_m=20, finger_u_turns=7,
+        hairpin_turns=6,straight_m=62.5,kart_highway_height_m=0.625, finger_u_turns=7,
         cylinder_walls=sum("-cylinder-" in b["id"] for b in t.doc["buildings"]))
-    report["terrain"]=dict(description="exact synthetic flat PNG16, 128m grid; 2m training hill, 20m freeway, two 4m finger bridges",
-                           spacing_cm=TERRAIN_GRID_M*100,source_accuracy_cm=None)
+    report["terrain"]=dict(description="exact synthetic flat PNG16, 4m grid; compact practice hill, elevated freeway and two vehicle-clearance bridges",
+                           spacing_cm=400,source_accuracy_cm=None)
     from kart_village_courses import atlas as course_atlas
     files={"document.json":canonical(t.doc), **t.payloads,
            "driving.json":(json.dumps(report,ensure_ascii=False,indent=2)+"\n").encode(),

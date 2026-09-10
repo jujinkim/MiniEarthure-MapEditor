@@ -1,47 +1,46 @@
 {
-  "profile": "driving-school-town-v3",
-  "map_id": "driving-school-town-v3",
+  "profile": "driving-school-town-v2",
+  "map_id": "driving-school-town-v2",
   "bounds_cm": {
     "min": [
       0,
       0
     ],
     "max": [
-      19200,
-      19200
+      614400,
+      614400
     ]
   },
-  "world_scale": 1.0,
-  "cell_size_cm": 1600,
+  "world_scale": 0.125,
+  "cell_size_cm": 51200,
   "cell_count": 144,
   "counts": {
     "nodes": 304,
     "roads": 459,
-    "buildings": 786,
+    "buildings": 617,
     "zones": 37,
-    "assets": 3,
-    "placements": 1247,
+    "assets": 2,
+    "placements": 21,
     "repetitions": 0,
     "heightmaps": 144
   },
-  "authored_object_count": 2980,
-  "road_centerline_planar_m": 5141.858186,
-  "road_centerline_spatial_m": 5141.963249,
+  "authored_object_count": 1584,
+  "road_centerline_planar_m": 162137.825076,
+  "road_centerline_spatial_m": 162139.662585,
   "terrain": {
-    "description": "exact synthetic flat PNG16, 4m grid; compact practice hill, elevated freeway and two vehicle-clearance bridges",
-    "spacing_cm": 400,
+    "description": "exact synthetic flat PNG16, 128m grid; 2m training hill, 20m freeway, two 4m finger bridges",
+    "spacing_cm": 12800,
     "source_accuracy_cm": null
   },
   "source_files": {
-    "document.json": "5b8d809e898413ee4a36ddeb21c6eff99459908243bd265cd563e99e01f304eb",
-    "assets/compact-tree.glb": "63113d88fa4c2ee572cf46dc87c5b9fbf50b60a309052a8e2332fafebd6d1127",
-    "assets/distance-marker.glb": "9b1c4cacc92a369483e19dfea4a7454426d1c9f4ce6a5ac964a00a1a92befebc",
-    "assets/school-pylon.glb": "085355d57d16d3cda45cc534104eb34ec5815ff5b0d58deaaa2374ff43951a3e",
+    "document.json": "57e2a32fed919f418bfb1c4bb7ea16f47ea4440fc2f6227f84b48a7d64265843",
+    "assets/distance-marker.glb": "b92836d1d552f23fb52b11bc405cc70b0ad79ac0bf23ddb98fd51cac53c7c6d1",
+    "assets/school-pylon.glb": "639cb2a1c08eaec5379389ce03d7b06b31f933082384b9daa1573e0ed868cc67",
     "terrain/flat.png": "7f2194a0699162298f38abd241b1d61e5e1bd3a14a39341708604a3cdef675c7"
   },
   "attributions": [
     {
-      "source": "driving-school-town-v3",
+      "source": "driving-school-town-v2",
       "license": "MIT",
       "notice": "Original driving school, city and static models. Kart circuits study the topology of KartRider Village Freeway and The Glove; dimensions are adapted. No extracted assets or surveyed exam layout."
     }
@@ -109,7 +108,7 @@
     },
     {
       "id": "straight",
-      "title": "62.5m 가속 / 제동",
+      "title": "2km 가속 / 제동",
       "roads": [
         "two-km-straight",
         "straight-return"
@@ -221,186 +220,186 @@
       "id": "boulevard",
       "title": "중앙 대로",
       "position_cm": [
-        9375,
+        300000,
         0,
-        5068
+        155000
       ],
       "surface_id": "central-spine-03",
-      "heading_degrees": -0.0,
+      "heading_degrees": 0,
       "purpose": "장거리 자유 주행과 도시/스쿨 연결"
     },
     {
       "id": "city",
       "title": "신도시 / 100개 블록",
       "position_cm": [
-        13750,
+        440000,
         0,
-        5018
+        155000
       ],
       "surface_id": "city-ns-05-05",
-      "heading_degrees": -0.0,
-      "purpose": "68.75 × 68.75m 도시, 큰 교차로와 고층 건물"
+      "heading_degrees": 0,
+      "purpose": "2.2 × 2.2km 도시, 큰 교차로와 고층 건물"
     },
     {
       "id": "village",
       "title": "드라이빙 스쿨 마을",
       "position_cm": [
-        5625,
+        180000,
         0,
-        3643
+        115000
       ],
       "surface_id": "village-ns-04-02",
-      "heading_degrees": -0.0,
+      "heading_degrees": 0,
       "purpose": "주택가·골목·공원·생활 도로"
     },
     {
       "id": "start",
       "title": "출발 / 기능시험장",
       "position_cm": [
-        2500,
+        80000,
         0,
-        7031
+        225000
       ],
       "surface_id": "license-start",
-      "heading_degrees": -0.0,
+      "heading_degrees": 0,
       "purpose": "기본 진행 방향 +Y: 경사로 정지 → 주차 → 직각 → S자"
     },
     {
       "id": "technical",
       "title": "급코너와 시케인",
       "position_cm": [
-        5312,
+        170000,
         0,
-        7549
+        240000
       ],
       "surface_id": "technical-corners",
-      "heading_degrees": -180.0,
+      "heading_degrees": 0,
       "purpose": "90도 급회전과 연속 방향 전환"
     },
     {
       "id": "s-curves",
       "title": "연속 S자",
       "position_cm": [
-        5815,
+        180000,
         0,
-        9608
+        305000
       ],
       "surface_id": "double-s",
-      "heading_degrees": -64.502,
-      "purpose": "14.69m, 두 번의 S자와 별도 복귀로"
+      "heading_degrees": 0,
+      "purpose": "470m, 두 번의 S자와 별도 복귀로"
     },
     {
       "id": "skidpad",
       "title": "원선회 패드",
       "position_cm": [
-        6600,
+        208000,
         0,
-        10066
+        332000
       ],
       "surface_id": "skidpad",
-      "heading_degrees": -145.62,
-      "purpose": "반경 5.31m / 폭 5m"
+      "heading_degrees": 180,
+      "purpose": "반경 170m / 폭 20m"
     },
     {
       "id": "straight",
-      "title": "62.5m 가속 직선",
+      "title": "2km 가속 직선",
       "position_cm": [
-        2205,
+        65000,
         0,
-        12188
+        390000
       ],
       "surface_id": "two-km-straight",
-      "heading_degrees": -90.0,
+      "heading_degrees": -90,
       "purpose": "가속·최고속·제동, 4개 셀 경계"
     },
     {
       "id": "hairpins",
       "title": "6연속 180° 헤어핀",
       "position_cm": [
-        2730,
+        85000,
         0,
-        13438
+        430000
       ],
       "surface_id": "hairpin-straight-0",
-      "heading_degrees": -90.0,
-      "purpose": "반경 2.81m, 폭 3m, 연속 감속과 탈출 가속"
+      "heading_degrees": -90,
+      "purpose": "반경 90m, 폭 12m, 연속 감속과 탈출 가속"
     },
     {
       "id": "kart-entry",
       "title": "고가의 질주 / 출발",
       "position_cm": [
-        11845,
+        375000,
         0,
-        12431
+        403000
       ],
       "surface_id": "kart-freeway-start",
-      "heading_degrees": -149.37,
+      "heading_degrees": 180,
       "purpose": "원형 광장 → 진입 램프 → 고가 직선 → 헤어핀 → 내리막 → Z자"
     },
     {
       "id": "kart-highway",
       "title": "고가의 질주 / 고가 직선",
       "position_cm": [
-        13635,
-        62,
-        10208
+        420000,
+        2000,
+        333000
       ],
       "surface_id": "kart-freeway-highway-straight",
-      "heading_degrees": -76.675,
-      "purpose": "높이 0.625m, 길이 20.31m의 고가 직선"
+      "heading_degrees": -90,
+      "purpose": "높이 20m, 길이 650m의 고가 직선"
     },
     {
       "id": "kart-downhill",
       "title": "고가의 질주 / 내리막",
       "position_cm": [
-        17434,
-        41,
-        13228
+        554000,
+        1000,
+        424000
       ],
       "surface_id": "kart-freeway-descent",
-      "heading_degrees": -10.337,
+      "heading_degrees": 0,
       "purpose": "6.25% 내리막 뒤 감속과 Z자"
     },
     {
       "id": "kart-finger",
       "title": "손가락 / 출발",
       "position_cm": [
-        13438,
+        430000,
         0,
-        17712
+        554000
       ],
       "surface_id": "kart-finger-start-a",
-      "heading_degrees": -90.0,
+      "heading_degrees": -90,
       "purpose": "길이가 다른 네 손가락, 7연속 U턴, 두 지름길"
     },
     {
       "id": "kart-finger-hairpin",
       "title": "손가락 / 원통형 안쪽 벽",
       "position_cm": [
-        17005,
+        541500,
         0,
-        17500
+        549500
       ],
       "surface_id": "kart-finger-tip-1",
-      "heading_degrees": -172.147,
-      "purpose": "확장한 U턴과 원통형 안쪽 벽"
+      "heading_degrees": 180,
+      "purpose": "반경 45m U턴 / 34.7m 원통형 충돌 벽"
     },
     {
       "id": "kart-finger-clock",
       "title": "손가락 / 시계탑",
       "position_cm": [
-        12062,
+        386000,
         0,
-        16512
+        529000
       ],
       "surface_id": "kart-finger-clock-tower",
-      "heading_degrees": -0.0,
-      "purpose": "교량 → 폭 2.5m 시계탑 통로 → 교량"
+      "heading_degrees": 0,
+      "purpose": "교량 → 폭 10m 시계탑 통로 → 교량"
     }
   ],
   "start": {
-    "x_cm": 2500,
-    "y_cm": 7031,
+    "x_cm": 80000,
+    "y_cm": 225000,
     "surface_id": "license-start",
     "heading_degrees": 0
   },
@@ -424,10 +423,10 @@
     "city_blocks": 100,
     "city_buildings": 372,
     "village_homes": 88,
-    "guardrail_sections": 302,
+    "guardrail_sections": 133,
     "hairpin_turns": 6,
-    "straight_m": 62.5,
-    "kart_highway_height_m": 0.625,
+    "straight_m": 2000,
+    "kart_highway_height_m": 20,
     "finger_u_turns": 7,
     "cylinder_walls": 10
   }

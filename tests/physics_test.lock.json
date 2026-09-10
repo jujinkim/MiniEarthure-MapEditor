@@ -1,18 +1,17 @@
 {
-  "source_sha256": "fef187fb54a05a417f2257cac4f92092ada71f37937324075302769fb23114ec",
+  "source_sha256": "8d0060199613fe330066f50546f3c26f88606d26249c6b9386ef51f2fa6b994e",
   "inspection": {
-    "base_data_bytes": 1943,
+    "base_data_bytes": 1916,
     "cell_count": 1,
-    "expanded_bytes": 1943,
-    "package_bytes": 1541,
-    "package_sha256": "3b2e750d7f03217ab7e4bb797da8e07a87bd986854d9a7c7749a1186881773e7",
-    "retained_memory_bytes": 1110214,
+    "expanded_bytes": 1916,
+    "package_bytes": 1519,
+    "package_sha256": "1c4c75409273f53838f1bc949718155f14a13c6c27d54598beb4e522d2ecb12f",
+    "retained_memory_bytes": 5304240,
     "user_asset_bytes": 0,
-    "validation_peak_bytes": 269728432,
-    "world_content_hash": "adb4d42c0a9a2910742cfaf28bb22080c8f8dafbca5fcc183a7ce1b572e8e595"
+    "validation_peak_bytes": 273921742,
+    "world_content_hash": "3880d377b43575695541965c5efd47a41b72aee8107c2e43ca3b16a128ee7f7c"
   },
   "generated_cells": {
-    "0/0": "c3f2d1c4e040f435141079f54e7194c12ac1356bc8de1fdee73b8806c97963e4"
-  },
-  "seconds": 0.109
+    "0/0": "ca27a47b9ff6166d7083a5866beb9e6ff2b091486a43e3c5454b1a6b57692c07"
+  }
 }

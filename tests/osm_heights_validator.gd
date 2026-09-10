@@ -108,7 +108,7 @@ func run() -> void:
 	check(ui.store.document.roads.size()==6,"atomic supplemental graph adoption using captured bytes")
 	write(height_path,heights)
 	if ui.store.document.roads.size()!=6:await finish();return
-	check(ui.store.document.roads[1].points[2][1]==600 and ui.store.document.roads[4].points[2][1]==-600 and ui.store.document.roads[4].clearance_cm==450,"missing and original heights use H96+delta-zero; physical clearance preserved")
+	check(ui.store.document.roads[1].points[2][1]==75 and ui.store.document.roads[4].points[2][1]==-75 and ui.store.document.roads[4].clearance_cm==56,"missing and original heights use H96+delta-zero; physical clearance preserved")
 	var adopted: Dictionary=ui.store.document.duplicate(true)
 	check(ui.store.document.attributions.back().notice.contains(hashes["heights.json"]),"exact supplemental provenance saved in attribution")
 	check(ui.store.undo()=="" and ui.store.document.roads.is_empty(),"single Undo removes supplemental layer")
@@ -116,13 +116,13 @@ func run() -> void:
 	check(ui.store.save_project(project)=="","save supplemental project")
 	var pack := directory.path_join("supplemented.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,pack)).ok and JSON.parse_string(ui.store.bridge.open_package(pack)).ok,"export/reopen supplemented package")
-	var generated: Dictionary=JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+	var generated: Dictionary=JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 	check(generated.ok,"actual supplemented native terrain/deck/tunnel: "+str(generated.get("error")))
 	if generated.ok:
 		var found := {}
 		for triangle: Dictionary in generated.data.chunk.triangles:
 			for point: Array in triangle.vertices:found[int(point[1])]=true
-		check(found.has(600) and found.has(-600) and found.has(-150),"generated deck/floor/ceiling elevations")
+		check(found.has(75) and found.has(-75) and found.has(-19),"generated deck/floor/ceiling elevations")
 	var reopened := preload("res://scripts/document_store.gd").new()
 	check(reopened.open_project(project)=="" and reopened.document.attributions==adopted.attributions,"reopen keeps exact supplement source bytes")
 	before=state();bridge_before=ui.store.bridge.document_json()

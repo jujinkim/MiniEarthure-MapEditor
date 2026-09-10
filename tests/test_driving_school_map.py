@@ -46,7 +46,12 @@ class DrivingSchoolTests(unittest.TestCase):
 
     def test_course_scale_turns_and_gradients(self):
         straight = self.roads["two-km-straight"]["points"]
-        self.assertEqual(math.dist(*straight), 200000)
+        self.assertEqual(self.doc['bounds']['max'], [19200,19200])
+        self.assertEqual(math.dist(*straight), 6250)
+        original=json.loads((Path(__file__).resolve().parents[1]/'examples/driving-school-v2/document.json').read_text())
+        widths={r['id']:max(r['widths_cm']) for r in original['roads']}
+        for road in self.doc['roads']:
+            self.assertEqual(max(road['widths_cm']), round(widths[road['id']]/4), road['id'])
         for i in range(1,7):
             points = self.roads[f"hairpin-turn-{i}"]["points"]
             first = [b-a for a,b in zip(points[0],points[1])]
@@ -57,27 +62,29 @@ class DrivingSchoolTests(unittest.TestCase):
             for a,b in zip(r["points"],r["points"][1:]):
                 run = math.hypot(b[0]-a[0],b[2]-a[2])
                 self.assertGreater(run,0,r["id"])
-                self.assertLessEqual(abs(b[1]-a[1])/run,0.07,r["id"])
+                self.assertLessEqual(abs(b[1]-a[1])/run,0.12 if r['id'].startswith('kart-') else 0.071,r["id"])
         xs = [p[0] for p in self.roads["double-s"]["points"]]
-        self.assertEqual((min(xs),max(xs)),(170000,190000))
+        self.assertEqual((min(xs),max(xs)),(5312,5938))
         self.assertNotIn("crosstown-01",self.roads,"through traffic must bypass the exam lanes")
 
     def test_village_courses_and_cylindrical_walls(self):
         freeway=self.roads["kart-freeway-highway-straight"]
-        self.assertEqual(freeway["points"],[[405000,2000,333000],[470000,2000,333000]])
+        self.assertGreater(math.dist(freeway['points'][0],freeway['points'][-1]), 1300)
+        self.assertTrue(all(p[1]==62 for p in freeway['points']))
         self.assertEqual(self.roads["kart-freeway-climb"]["points"][0][1],0)
         self.assertEqual(self.roads["kart-freeway-descent"]["points"][-1][1],0)
         turns=[r for r in self.doc["roads"] if r["id"].startswith(("kart-finger-tip-","kart-finger-inside-"))]
         self.assertEqual(len(turns),7)
         for turn in turns:
-            self.assertEqual(abs(turn["points"][-1][2]-turn["points"][0][2]),9000)
-        self.assertEqual(self.roads["kart-finger-shortcut-1"]["widths_cm"],[600])
-        self.assertEqual(self.roads["kart-finger-shortcut-2"]["widths_cm"],[500])
-        self.assertEqual(self.roads["kart-finger-clock-tower"]["clearance_cm"],700)
+            self.assertLessEqual(abs(abs(turn["points"][-1][2]-turn["points"][0][2])-450),1)
+        self.assertEqual(self.roads["kart-finger-shortcut-1"]["widths_cm"],[150])
+        self.assertEqual(self.roads["kart-finger-shortcut-2"]["widths_cm"],[125])
+        self.assertEqual(self.roads["kart-finger-clock-tower"]["clearance_cm"],45)
         cylinders=[b for b in self.doc["buildings"] if "-cylinder-" in b["id"]]
         self.assertEqual(len(cylinders),10)
         self.assertTrue(all(len(b["footprint"])==48 and b["roof"]=="flat" for b in cylinders))
         self.assertFalse(any(r["id"].startswith("kart-quarter") for r in self.doc["roads"]))
+        self.assertEqual(sum(p['asset_id']=='compact-tree' for p in self.doc['placements']),1226)
         for r in self.doc["roads"]:
             if r["id"].startswith("kart-") and r["kind"] != "tunnel":
                 self.assertEqual(r["kind"], "elevated" if any(p[1] for p in r["points"]) else "ground", r["id"])

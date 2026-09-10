@@ -2,7 +2,7 @@
 """Author a tiny MIT terrain-only vehicle tuning map in a NEW directory.
 
 MapKit owns packing, generation and collision. Coordinates are authored metres;
-the consuming game's 1:8 presentation makes this a 128 m square test area.
+one authored metre is one game metre in this 128 m square test area.
 """
 import argparse
 import json
@@ -12,10 +12,10 @@ import zlib
 
 from reference_maps import canonical, empty, summarize
 
-PROFILE = "physics-test-v1"
-SIZE_M = 1024
-SPACING_M = 32
-HILLS = [(704, 640, 192, 16), (320, 768, 128, 8)]
+PROFILE = "physics-test-v2"
+SIZE_M = 128
+SPACING_M = 4
+HILLS = [(88, 80, 24, 2), (40, 96, 16, 1)]
 
 
 def height_cm(x, y):
@@ -47,15 +47,16 @@ def create(destination):
     doc["heightmaps"] = [dict(cell=dict(x=0, y=0), path="terrain/hills.png",
                               spacing_cm=SPACING_M * 100, offset_cm=0, step_cm=1, source_accuracy_cm=None)]
     payloads = {"terrain/hills.png": terrain_png()}
-    locations = [dict(id="start", title="Flat ground", position_cm=[51200, 0, 25600],
+    locations = [dict(id="start", title="Flat ground", position_cm=[6400, 0, 3200],
                       surface_id="terrain", heading_degrees=0),
-                 dict(id="hill", title="Gentle hill approach", position_cm=[70400, height_cm(704, 512), 51200],
+                 dict(id="hill", title="Gentle hill approach", position_cm=[8800, height_cm(88, 64), 6400],
                       surface_id="terrain", heading_degrees=0)]
     report = summarize(doc, payloads, dict(locations=locations, routes=[],
-        start=dict(x_cm=51200, y_cm=25600, surface_id="terrain", heading_degrees=0),
+        start=dict(x_cm=6400, y_cm=3200, surface_id="terrain", heading_degrees=0),
         limitations=["Terrain material only; no paved friction comparison or scenery.",
                      "Finite test area; existing runtime boundary recovery remains active."]))
     report["profile"] = PROFILE
+    report["world_scale"] = 1.0
     report["terrain"] = dict(spacing_cm=SPACING_M * 100, source_accuracy_cm=None,
         description="Single 33x33 PNG16 heightfield, flat ground and two compact smooth hills",
         hills=[dict(center_m=[x, y], radius_m=r, height_m=h) for x, y, r, h in HILLS])

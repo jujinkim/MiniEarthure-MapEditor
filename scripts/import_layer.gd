@@ -377,6 +377,9 @@ func patches(store: RefCounted) -> Array:
 	var result: Array = value.patches.duplicate(true)
 	var metadata := value.duplicate(true)
 	metadata.erase("patches")
+	if value.adapter == "osm-extract-v1":
+		result = preload("./import_units.gd").osm_patches(value.patches)
+		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1"}
 	var attribution := {"source": value.source.name + "#" + value.layer_id, "license": value.source.license, "notice": JSON.stringify(metadata)}
 	result.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
 	return result
@@ -427,7 +430,7 @@ func _validate_structure_cells(store: RefCounted, candidate: Dictionary, context
 	# Bound before cell enumeration; existing authoring payload/native budgets apply.
 	var roads: Array = []
 	var margin := 0
-	for patch: Dictionary in value.patches:
+	for patch: Dictionary in patches(store):
 		if patch.field != "roads": continue
 		roads.append(patch.after)
 		for width in patch.after.widths_cm: margin = maxi(margin, int(width))
@@ -470,6 +473,7 @@ func summary() -> String:
 	for index in range(mini(50, value.warnings.size())): warnings += value.warnings[index] + "\n"
 	var result := "%s · %d bytes\nLicense: %s · source accuracy: %s\nSHA-256: %s\n%d features / %d records · local extent (cm): %s\n" % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.source.sha256, value.feature_count, value.patches.size(), str(value.extent_cm)]
 	result += _review_prefix + "\nProjection / processing summary:\n" + text.metadata(coordinates)
+	if value.adapter == "osm-extract-v1": result += "\nOSM adoption: source lengths, widths and heights ÷ 8, rounded to authored centimetres. One authored metre = one game metre. Source provenance above is retained.\n"
 	result += "\nEstimated fields (counts; showing %d of %d):\n%sWarnings: %d (showing %d of %d retained):\n%s" % [count, value.estimates.size(), estimates, value.warning_count, mini(50, value.warnings.size()), value.warnings.size(), warnings]
 	result = result.substr(0, text.MAX_SUMMARY_CHARS - 320)
 	return result + "\nSummary is limited. Browse exact details for every retained field, mapping, warning and captured source JSON. Adapter warning samples may omit source warnings.\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged."
