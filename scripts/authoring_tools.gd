@@ -2,6 +2,7 @@ extends RefCounted
 const EDIT := preload("./workbench_edit.gd")
 const FILES := preload("./authoring_files.gd")
 const TERRAIN := preload("./terrain_tools.gd")
+const CYLINDER := preload("./cylinder_wall.gd")
 var store: RefCounted
 var canvas: Control
 var terrain := TERRAIN.new()
@@ -9,6 +10,7 @@ var options := {
 	"start_cm": 20, "end_cm": 20, "start_level": 0, "end_level": 0,
 	"kind": "ground", "width_cm": 800, "surface": "asphalt", "clearance_cm": 400, "sidewalk_cm": 0,
 	"height_cm": 1200, "base_cm": 0, "usage": "residential", "material": "concrete", "roof": "flat",
+	"wall_radius_cm": 1200, "wall_height_cm": 250,
 	"spacing_cm": 800, "density_per_mille": 750, "asset_id": "builtin:tree", "quarter_turns": 0,
 	"mode": "raise", "radius_cm": 6400, "amount_cm": 100, "target_cm": 0, "grid_cm": 3200,
 }
@@ -37,13 +39,13 @@ func _points(draft: Array[Vector2]) -> Array:
 	return result
 
 func draw(tool: String, draft: Array[Vector2]) -> String:
-	var fields := {"Road": "roads", "Building": "buildings", "Forest": "zones", "Orchard": "zones", "Place": "placements", "Repeat": "repetitions", "Entrance": "buildings", "Exclusion": "zones"}
+	var fields := {"Road": "roads", "Building": "buildings", "Cylinder wall": "buildings", "Forest": "zones", "Orchard": "zones", "Place": "placements", "Repeat": "repetitions", "Entrance": "buildings", "Exclusion": "zones"}
 	var field: String = fields.get(tool, "")
 	if field == "": return "Choose an authoring tool."
 	if not canvas.available({"field": field, "record": {"id": "draft"}}, true): return "Show and unlock the target layer."
-	var count := 1 if tool == "Place" else (2 if tool in ["Road", "Repeat"] else 3)
+	var count := 1 if tool in ["Place", "Cylinder wall"] else (2 if tool in ["Road", "Repeat"] else 3)
 	if draft.size() < count: return "Add at least %d points; right-click finishes." % count
-	var id := tool.to_lower() + "-" + Crypto.new().generate_random_bytes(6).hex_encode()
+	var id := tool.to_lower().replace(" ", "-") + "-" + Crypto.new().generate_random_bytes(6).hex_encode()
 	var patches: Array = []
 	var polygon: Array = []
 	for point in draft: polygon.append([roundi(point.x), roundi(point.y)])
@@ -70,6 +72,10 @@ func draw(tool: String, draft: Array[Vector2]) -> String:
 			widths.append(int(options.width_cm))
 			surfaces.append(str(options.surface))
 		record.merge({"from": nodes[0], "to": nodes[1], "points": points, "widths_cm": widths, "surfaces": surfaces, "kind": options.kind, "clearance_cm": int(options.clearance_cm) if options.kind in ["tunnel", "underpass"] else null, "sidewalk_cm": int(options.sidewalk_cm) if int(options.sidewalk_cm) > 0 else null})
+	elif tool == "Cylinder wall":
+		if int(store.document.recipe_version) < 3: return "Cylinder walls require recipe 3 or later."
+		if int(options.wall_radius_cm) < 25 or int(options.wall_radius_cm) > 50000: return "Wall radius must be 0.25–500 m."
+		record = CYLINDER.create(id, draft[0], int(options.wall_radius_cm), int(options.base_cm), int(options.wall_height_cm), options.material)
 	elif tool == "Building": record.merge({"footprint": polygon, "base_cm": int(options.base_cm), "height_cm": int(options.height_cm), "usage": options.usage, "material": options.material, "roof": options.roof})
 	elif tool in ["Forest", "Orchard"]: record.merge({"polygon": polygon, "kind": tool.to_lower(), "spacing_cm": int(options.spacing_cm), "density_per_mille": int(options.density_per_mille), "exclusions": []})
 	elif tool == "Place": record.merge({"asset_id": options.asset_id, "position": [polygon[0][0], int(options.base_cm), polygon[0][1]], "quarter_turns": int(options.quarter_turns)})

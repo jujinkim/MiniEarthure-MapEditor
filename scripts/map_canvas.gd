@@ -145,6 +145,8 @@ func _draw() -> void:
 		var center := screen([brush_cursor.x, brush_cursor.y])
 		draw_arc(center, float(author.options.radius_cm) * _scale(), 0, TAU, 48, Color("ffe14c"), 2)
 		for point in author.terrain.stroke: draw_circle(screen([point.x, point.y]), 3, Color("ffe14c"))
+	elif tool == "Cylinder wall":
+		draw_arc(screen([brush_cursor.x, brush_cursor.y]), float(author.options.wall_radius_cm) * _scale(), 0, TAU, AUTHOR.CYLINDER.SEGMENTS, Color("ffe14c"), 2)
 	var transformed := {}
 	if dragging and drag_offset != Vector2.ZERO:
 		for item: Dictionary in EDIT.plan(doc, selected, "move", drag_offset).patches:
@@ -267,7 +269,7 @@ func _gui_input(event: InputEvent) -> void:
 						if failure != "": status.emit(failure)
 				else:
 					draft.append(_snap_vertex(p))
-					if tool == "Place": finish_shape()
+					if tool in ["Place", "Cylinder wall"]: finish_shape()
 					elif event.double_click: finish_shape()
 			else:
 				if author.terrain.active:

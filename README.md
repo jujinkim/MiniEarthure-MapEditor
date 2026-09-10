@@ -55,6 +55,12 @@ See [preview, Save As and export contracts](docs/PREVIEW_EXPORT.md).
 
 ## Test drive in installed Client
 
+For a ready-made large map, open [Driving School Town](docs/DRIVING_SCHOOL.md):
+a 6.144km square connected school, city, village, 2km straight, S curves,
+six hairpins and two kart courses studying Village Freeway and The Glove, with
+round collision walls and a Cylinder wall authoring tool. Both an editable project
+and a ready-to-drive `.memap` are included.
+
 Choose **Test Drive**, select an installed MiniEarthure Client executable, local
 x/y in metres and a terrain/road surface, then **Save, Package and Launch**.
 An unsaved map first asks for its project directory. The action saves the current

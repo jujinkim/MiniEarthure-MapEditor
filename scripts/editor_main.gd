@@ -238,7 +238,7 @@ func _build_ui() -> void:
 	var tools := HFlowContainer.new()
 	tool_controls.add_child(tools)
 	var group := ButtonGroup.new()
-	for name in ["Select", "Road", "Building", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
+	for name in ["Select", "Road", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
 		var tool_button := _button(tools, name, _set_tool.bind(name))
 		tool_button.toggle_mode = true
 		tool_button.button_group = group
@@ -824,6 +824,7 @@ func _tool_help(name: String) -> String:
 		"Select":"V · Click to select; Shift toggles. Drag empty space to box-select. Edit in Properties, then Apply.",
 		"Road":"R · Click at least two points; right-click to finish. Set width, surface and structure in Authoring settings.",
 		"Building":"B · Click at least three corners; right-click to finish. Select the building to edit height and material.",
+		"Cylinder wall":"Click the centre to place a solid round wall. Set radius and height in Authoring settings; select it to resize.",
 		"Forest":"G · Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
 		"Orchard":"O · Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
 		"Terrain":"Drag to paint terrain. Choose brush, radius and strength in Authoring settings; release commits one Undo step.",

@@ -194,3 +194,20 @@ active-cell replacement, source notices and review cancellation semantics.
 
 The offline [G01 driving test map](DRIVING_TEST_MAP.md) provides a fixed small
 project with connected grades, structures, surface transitions and bumps.
+
+
+## Cylinder walls
+
+Choose **Cylinder wall** and click its centre. **Authoring settings → Drawing**
+sets the radius (0.25–500 m), wall height, base and material. The cursor previews
+its footprint. Select a wall and use **Selected → Apply cylinder wall** to change
+its centre, radius, base or height. Move, rotate, mirror, duplicate, undo/redo,
+save/reopen and package export use the ordinary document operations.
+
+This authoring shape emits a 48-sided solid, flat-roof MapKit building prism
+(recipe 3+). The integer polygon is authoritative for both rendering and solid
+collision; no custom assets or new package/runtime version are needed. An edited
+irregular polygon remains editable as ordinary geometry instead of being silently
+rounded. Locked layers, invalid bounds and road/obstacle overlaps reject atomically.
+See [Driving School Town](DRIVING_SCHOOL.md) for two ready-to-drive kart courses
+using these round inside-corner walls.

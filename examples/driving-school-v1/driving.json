@@ -1,0 +1,334 @@
+{
+  "profile": "driving-school-town-v1",
+  "map_id": "driving-school-town-v1",
+  "bounds_cm": {
+    "min": [
+      0,
+      0
+    ],
+    "max": [
+      614400,
+      614400
+    ]
+  },
+  "world_scale": 0.125,
+  "cell_size_cm": 51200,
+  "cell_count": 144,
+  "counts": {
+    "nodes": 253,
+    "roads": 404,
+    "buildings": 674,
+    "zones": 38,
+    "assets": 2,
+    "placements": 21,
+    "repetitions": 0,
+    "heightmaps": 144
+  },
+  "authored_object_count": 1536,
+  "road_centerline_planar_m": 151577.19831,
+  "road_centerline_spatial_m": 151577.658087,
+  "terrain": {
+    "description": "exact synthetic flat PNG16, 128m grid; 2m training hill and 8–20m kart decks",
+    "spacing_cm": 12800,
+    "source_accuracy_cm": null
+  },
+  "source_files": {
+    "document.json": "14972924df0fc2430cf720cc027b2dd60f95483ddfc12aaa215ef32ed82b4491",
+    "assets/distance-marker.glb": "05d122e8614a6bdb319782d1b7d3408c9e7a439871a9a3574cf15ef98247f366",
+    "assets/school-pylon.glb": "6510992efb6ca1f56264d20144d02daae95c779ee0917831ff7c69937b97c1c4",
+    "terrain/flat.png": "7f2194a0699162298f38abd241b1d61e5e1bd3a14a39341708604a3cdef675c7"
+  },
+  "attributions": [
+    {
+      "source": "driving-school-town-v1",
+      "license": "MIT",
+      "notice": "Original fictional driving school, city and static models. No surveyed exam layout or external datasets."
+    }
+  ],
+  "routes": [
+    {
+      "id": "school-perimeter",
+      "title": "스쿨 외곽",
+      "roads": [
+        "school-loop-00",
+        "school-loop-01",
+        "school-loop-02",
+        "school-loop-03",
+        "school-loop-04",
+        "school-loop-05",
+        "school-loop-06",
+        "school-loop-07",
+        "school-loop-08",
+        "school-loop-09",
+        "school-loop-10"
+      ],
+      "closed": true
+    },
+    {
+      "id": "license",
+      "title": "한국식 기능시험 연습 코스",
+      "roads": [
+        "license-start",
+        "license-hill",
+        "license-stop-00",
+        "license-stop-01",
+        "license-stop-02",
+        "license-right-angle",
+        "license-s",
+        "license-exit",
+        "license-acceleration",
+        "license-return"
+      ],
+      "closed": true
+    },
+    {
+      "id": "technical",
+      "title": "급코너 / 더블 시케인",
+      "roads": [
+        "technical-corners"
+      ],
+      "closed": true
+    },
+    {
+      "id": "slalom",
+      "title": "더블 S자",
+      "roads": [
+        "double-s",
+        "double-s-return"
+      ],
+      "closed": true
+    },
+    {
+      "id": "skidpad",
+      "title": "원선회",
+      "roads": [
+        "skidpad"
+      ],
+      "closed": true
+    },
+    {
+      "id": "straight",
+      "title": "2km 가속 / 제동",
+      "roads": [
+        "two-km-straight",
+        "straight-return"
+      ],
+      "closed": true
+    },
+    {
+      "id": "hairpins",
+      "title": "6연속 헤어핀",
+      "roads": [
+        "hairpin-entry",
+        "hairpin-straight-0",
+        "hairpin-turn-1",
+        "hairpin-straight-1",
+        "hairpin-turn-2",
+        "hairpin-straight-2",
+        "hairpin-turn-3",
+        "hairpin-straight-3",
+        "hairpin-turn-4",
+        "hairpin-straight-4",
+        "hairpin-turn-5",
+        "hairpin-straight-5",
+        "hairpin-turn-6",
+        "hairpin-straight-6",
+        "hairpin-return"
+      ],
+      "closed": true
+    },
+    {
+      "id": "sky-kart",
+      "title": "고가 8자 카트 서킷",
+      "roads": [
+        "kart-quarter-0",
+        "kart-quarter-1",
+        "kart-quarter-2",
+        "kart-quarter-3"
+      ],
+      "closed": true
+    }
+  ],
+  "locations": [
+    {
+      "id": "boulevard",
+      "title": "중앙 대로",
+      "position_cm": [
+        300000,
+        0,
+        155000
+      ],
+      "surface_id": "central-spine-03",
+      "heading_degrees": 0,
+      "purpose": "장거리 자유 주행과 도시/스쿨 연결"
+    },
+    {
+      "id": "city",
+      "title": "신도시 / 100개 블록",
+      "position_cm": [
+        440000,
+        0,
+        155000
+      ],
+      "surface_id": "city-ns-05-05",
+      "heading_degrees": 0,
+      "purpose": "2.2 × 2.2km 도시, 큰 교차로와 고층 건물"
+    },
+    {
+      "id": "village",
+      "title": "드라이빙 스쿨 마을",
+      "position_cm": [
+        180000,
+        0,
+        115000
+      ],
+      "surface_id": "village-ns-04-02",
+      "heading_degrees": 0,
+      "purpose": "주택가·골목·공원·생활 도로"
+    },
+    {
+      "id": "start",
+      "title": "출발 / 기능시험장",
+      "position_cm": [
+        80000,
+        0,
+        225000
+      ],
+      "surface_id": "license-start",
+      "heading_degrees": 0,
+      "purpose": "기본 진행 방향 +Y: 경사로 정지 → 주차 → 직각 → S자"
+    },
+    {
+      "id": "technical",
+      "title": "급코너와 시케인",
+      "position_cm": [
+        170000,
+        0,
+        240000
+      ],
+      "surface_id": "technical-corners",
+      "heading_degrees": 0,
+      "purpose": "90도 급회전과 연속 방향 전환"
+    },
+    {
+      "id": "s-curves",
+      "title": "연속 S자",
+      "position_cm": [
+        180000,
+        0,
+        305000
+      ],
+      "surface_id": "double-s",
+      "heading_degrees": 0,
+      "purpose": "470m, 두 번의 S자와 별도 복귀로"
+    },
+    {
+      "id": "skidpad",
+      "title": "원선회 패드",
+      "position_cm": [
+        208000,
+        0,
+        332000
+      ],
+      "surface_id": "skidpad",
+      "heading_degrees": 180,
+      "purpose": "반경 170m / 폭 20m"
+    },
+    {
+      "id": "straight",
+      "title": "2km 가속 직선",
+      "position_cm": [
+        65000,
+        0,
+        390000
+      ],
+      "surface_id": "two-km-straight",
+      "heading_degrees": -90,
+      "purpose": "가속·최고속·제동, 4개 셀 경계"
+    },
+    {
+      "id": "hairpins",
+      "title": "6연속 180° 헤어핀",
+      "position_cm": [
+        85000,
+        0,
+        430000
+      ],
+      "surface_id": "hairpin-straight-0",
+      "heading_degrees": -90,
+      "purpose": "반경 90m, 폭 12m, 연속 감속과 탈출 가속"
+    },
+    {
+      "id": "kart-entry",
+      "title": "고가 카트 진입 램프",
+      "position_cm": [
+        312000,
+        0,
+        430000
+      ],
+      "surface_id": "kart-ramp",
+      "heading_degrees": -90,
+      "purpose": "지상에서 14m 데크까지 연결된 3.7% 램프"
+    },
+    {
+      "id": "kart-lower",
+      "title": "고가 카트 / 아래층",
+      "position_cm": [
+        445000,
+        800,
+        430000
+      ],
+      "surface_id": "kart-quarter-0",
+      "heading_degrees": -38,
+      "purpose": "8m 데크, 상부 교차로까지 12m 높이 차"
+    },
+    {
+      "id": "kart-upper",
+      "title": "고가 카트 / 위층",
+      "position_cm": [
+        445000,
+        2000,
+        430000
+      ],
+      "surface_id": "kart-quarter-2",
+      "heading_degrees": 38,
+      "purpose": "20m 데크, S자와 높이 변화"
+    },
+    {
+      "id": "kart-west",
+      "title": "고가 카트 / 램프 합류",
+      "position_cm": [
+        360000,
+        1400,
+        430000
+      ],
+      "surface_id": "kart-quarter-3",
+      "heading_degrees": 180,
+      "purpose": "합류 후 북쪽(+Y 반대)으로 진행"
+    }
+  ],
+  "start": {
+    "x_cm": 80000,
+    "y_cm": 225000,
+    "surface_id": "license-start",
+    "heading_degrees": 0
+  },
+  "limitations": [
+    "Fictional Korean-style practice layout, not an official examination replica or scoring system.",
+    "Static city; traffic AI, race rules and vehicle selection belong to the consuming application.",
+    "Kart guardrails open at the over/under crossing and ramp mouth; the current map profile forbids props above another road corridor.",
+    "Geometry verification is separate from human driving feel and platform performance acceptance."
+  ],
+  "landmarks": {
+    "city_blocks": 100,
+    "city_buildings": 372,
+    "village_homes": 88,
+    "guardrail_sections": 188,
+    "hairpin_turns": 6,
+    "straight_m": 2000,
+    "kart_crossing_heights_m": [
+      8,
+      20
+    ]
+  }
+}

@@ -372,6 +372,9 @@ func _drawing() -> void:
 	opt_choice(box, "Building use", "usage", ["residential", "commercial", "industrial", "public"])
 	opt_choice(box, "Building material", "material", ["concrete", "brick", "wood"])
 	opt_choice(box, "Roof", "roof", ["flat", "gable"])
+	hint(box, "Cylinder wall: choose the tool and click its centre. A solid round barrier uses the same visible and collision outline. Base and material are shared with the settings above.")
+	opt_number(box, "Cylinder wall radius (m)", "wall_radius_cm", 0.25, 500)
+	opt_number(box, "Cylinder wall height (m)", "wall_height_cm", 0.01, 1000)
 	opt_number(box, "Planting / repetition spacing (m)", "spacing_cm", 2, 1000)
 	opt_number(box, "Planting density (per mille)", "density_per_mille", 0, 1000, false)
 	var assets: Array = ["builtin:tree", "builtin:fence", "builtin:streetlight"]
@@ -549,6 +552,22 @@ func _selected() -> void:
 			report(author.edit_road(record, vertices, ws, ss, structure, int(clearance.value) if structure in ["tunnel", "underpass"] else null, int(sidewalk.value) if sidewalk.value > 0 else null, [int(levels[0].value), int(levels[1].value)]))
 		)
 	else:
+		var cylinder: Dictionary = author.CYLINDER.dimensions(record) if entry.field == "buildings" else {}
+		if not cylinder.is_empty():
+			hint(box, "Cylinder wall · solid collision · 48 sides")
+			var cx := number(box, "Centre X (m)", cylinder.center.x / 100.0, -100000, 100000, 0.01)
+			var cy := number(box, "Centre Y (m)", cylinder.center.y / 100.0, -100000, 100000, 0.01)
+			var radius := number(box, "Wall radius (m)", cylinder.radius_cm / 100.0, 0.25, 500, 0.01)
+			var base := number(box, "Base (m)", record.base_cm / 100.0, -10000, 10000, 0.01)
+			var height := number(box, "Wall height (m)", record.height_cm / 100.0, 0.01, 1000, 0.01)
+			button(box, "Apply cylinder wall", func():
+				if not fresh(): return
+				var after := record.duplicate(true)
+				after.footprint = author.CYLINDER.footprint(Vector2(roundi(cx.value * 100), roundi(cy.value * 100)), roundi(radius.value * 100), cylinder.phase)
+				after.base_cm = roundi(base.value * 100)
+				after.height_cm = roundi(height.value * 100)
+				report(author.apply("Edit cylinder wall", [{"field": "buildings", "id": record.id, "before": record, "after": after}]))
+			)
 		hint(box, "Edit exact footprint/path/entrance/exclusion vertices below; coordinates are integer centimetres. Use Drawing settings and the canvas to create new shapes. Native validation rejects overlaps, malformed rings and invalid proxies.")
 		var geometry := json_edit(box, "Object record (stable ID preserved)", record)
 		geometry.custom_minimum_size.y = 320
