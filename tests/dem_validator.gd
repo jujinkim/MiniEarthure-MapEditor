@@ -97,6 +97,7 @@ func run() -> void:
 	if panel.candidate != null:
 		check(panel.candidate.value.previous==first,"review previous active terrain")
 		panel.review.confirmed.emit()
+		await wait_job()
 	check(ui.store.document.attributions.size()==2 and ui.store.document.heightmaps.size()==1,"UI explicit reimport keeps both notices and one active tile")
 	check(ui.store.undo()=="" and ui.store.document.heightmaps[0]==first,"reimport Undo selects original")
 	check(ui.store.redo()=="" and FileAccess.get_sha256(output)==package_sha and FileAccess.get_sha256(first_destination)==source_sha,"redo preserves original package/capture")

@@ -25,7 +25,7 @@ func discard() -> void:
 func _changed() -> void:
 	_stale = true
 
-func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offset: int, step: int, accuracy: int, attribution: Dictionary, validate_candidate: bool = true) -> String:
+func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offset: int, step: int, accuracy: int, attribution: Dictionary, validate_candidate: bool = true, layer_id: String = "") -> String:
 	discard()
 	var store: RefCounted = terrain.store
 	if store.has_gesture() or store.project_path.is_empty(): return "Save the project and finish the active gesture before staging."
@@ -47,7 +47,7 @@ func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offs
 	var sha := FILES.digest(source.bytes)
 	var before: Dictionary = terrain.descriptor(cell).duplicate(true)
 	var record := {"cell":{"x":cell.x,"y":cell.y},"path":"editor/" + sha + ".png","spacing_cm":spacing,"offset_cm":offset,"step_cm":step,"source_accuracy_cm":accuracy if accuracy > 0 else null}
-	value = {"import_version":1,"adapter":"heightmap-local-v1","layer_id":Crypto.new().generate_random_bytes(16).hex_encode(),"source":{"name":attribution.source,"license":attribution.license,"notice":attribution.get("notice", ""),"sha256":sha,"bytes":source.bytes.size()},"heightmap":record.duplicate(true),"previous":null if before.is_empty() else before.duplicate(true),"sample_side":side,"height_range_cm":[low,high],"axes":"PNG columns +local x, rows +local y","resampled":false}
+	value = {"import_version":1,"adapter":"heightmap-local-v1","layer_id":layer_id if layer_id != "" else Crypto.new().generate_random_bytes(16).hex_encode(),"source":{"name":attribution.source,"license":attribution.license,"notice":attribution.get("notice", ""),"sha256":sha,"bytes":source.bytes.size()},"heightmap":record.duplicate(true),"previous":null if before.is_empty() else before.duplicate(true),"sample_side":side,"height_range_cm":[low,high],"axes":"PNG columns +local x, rows +local y","resampled":false}
 	var notice := {"source":str(attribution.source) + "#" + value.layer_id,"license":attribution.license,"notice":JSON.stringify(value)}
 	_patches = [{"field":"heightmaps","id":store.record_id("heightmaps",record),"before":null if before.is_empty() else before,"after":record},{"field":"attributions","id":store.record_id("attributions",notice),"before":null,"after":notice}]
 	_blobs = {record.path:source.bytes}

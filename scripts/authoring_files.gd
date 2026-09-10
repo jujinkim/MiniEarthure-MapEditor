@@ -45,6 +45,10 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 				var path := str(record.path)
 				if counted.has(path): continue
 				counted[path] = true
+				if blobs.has(path):
+					total += blobs[path].size()
+					if total > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
+					continue
 				var file := FileAccess.open(store.project_path.path_join(path), FileAccess.READ)
 				if file == null: return "Cannot read candidate payload."
 				total += file.get_length()
@@ -60,7 +64,7 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 			size += source.bytes.size()
 			if size > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
 			payloads[path] = source.bytes
-			if context.has("hashes"):
+			if context.has("hashes") and not blobs.has(path):
 				context.hashes[path] = digest(source.bytes)
 				if FileAccess.get_sha256(store.project_path.path_join(path)) != context.hashes[path]: return "Source changed during native candidate snapshot."
 			_progress(context, "snapshot", size, total)
@@ -102,7 +106,7 @@ static func remove_scratch(path: String) -> void:
 	for child in dir.get_directories(): remove_scratch(path.path_join(child))
 	DirAccess.remove_absolute(path)
 
-static func apply(store: RefCounted, label: String, patches: Array, blobs: Dictionary, cells: Array = [], validate_only: bool = false) -> String:
+static func apply(store: RefCounted, label: String, patches: Array, blobs: Dictionary, cells: Array = [], validate_only: bool = false, context: Dictionary = {}) -> String:
 	if store.has_gesture(): return "Finish or cancel the active gesture first."
 	if store.project_path.is_empty(): return "Save a project directory before editing file-backed terrain or assets."
 	var candidate: Dictionary = store.document.duplicate(true)
@@ -119,8 +123,9 @@ static func apply(store: RefCounted, label: String, patches: Array, blobs: Dicti
 	var bytes := JSON.stringify({"label": label, "patches": patches}).to_utf8_buffer().size()
 	for value: PackedByteArray in retained.values(): bytes += value.size()
 	if bytes > store.HISTORY_BYTES: return "Command exceeds the shared 16 MiB binary/text undo budget."
-	failure = validate(store, candidate, blobs, cells)
+	failure = validate(store, candidate, blobs, cells, context)
 	if failure != "": return failure
+	if context.has("retained"): context.retained.merge(retained, true)
 	if validate_only: return ""
 	for path: String in blobs:
 		# Only content-addressed new payloads may be installed, never original paths.

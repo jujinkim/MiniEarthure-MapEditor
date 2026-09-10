@@ -4,12 +4,19 @@ const STORE := preload("res://scripts/document_store.gd")
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
+func test_name() -> String: return "dem_mosaic_validator"
+func native_checks(_result: Dictionary, _reviewed: Dictionary, _destination: String, _before: String) -> void: pass
+func start_closing_work(panel: ConfirmationDialog) -> void: panel.prepare()
 func _initialize() -> void: run.call_deferred()
 func check(ok: bool, message: String) -> void:
 	checks += 1
 	if not ok:
 		failures.append(message)
 		push_error(message)
+func same_content(left: Dictionary, right: Dictionary) -> bool:
+	var expected:=right.duplicate(true)
+	expected.provenance.last_edited=left.provenance.last_edited
+	return left==expected
 func state() -> String: return JSON.stringify([ui.store.document,ui.store.undo_stack,ui.store.redo_stack,ui.store.history_bytes,ui.store.dirty])
 func wait_job() -> void:
 	var deadline := Time.get_ticks_msec()+30000
@@ -63,6 +70,11 @@ func run() -> void:
 	if DisplayServer.get_name()!="headless" and OS.get_environment("MAPEDITOR_CAPTURE_PATH")!="":
 		await RenderingServer.frame_post_draw
 		check(root.get_texture().get_image().save_png(OS.get_environment("MAPEDITOR_CAPTURE_PATH")+".mosaic.png")==OK,"capture mosaic review")
+	await native_checks(result,reviewed,destination,before)
+	if not failures.is_empty():
+		ui.store.dirty=false;ui.queue_free();await process_frame
+		print(test_name()+": ",failures,"; checks=",checks);quit(1);return
+	before=state()
 	panel.discard()
 	var layer := DEM.new()
 	var bad := result.duplicate(true)
@@ -82,14 +94,14 @@ func run() -> void:
 	check(layer.adopt(ui.canvas.author.terrain)!="","mosaic one-shot adoption")
 	var first: Dictionary=ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.heightmaps.is_empty() and ui.store.document.attributions.is_empty(),"single Undo removes entire mosaic")
-	check(ui.store.redo()=="" and ui.store.document==first,"single Redo restores entire mosaic")
+	check(ui.store.redo()=="" and same_content(ui.store.document,first),"single Redo restores entire mosaic")
 	check(ui.store.save_project(project)=="","save mosaic")
 	var package := ProjectSettings.globalize_path("user://mosaic.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,package)).ok,"native mosaic export")
 	var sha := FileAccess.get_sha256(package)
 	check(layer.stage_dem(ui.canvas.author.terrain,result,reviewed,destination)=="","same-source reimport stage")
 	check(layer.value.previous.size()==4 and layer.adopt(ui.canvas.author.terrain)=="" and ui.store.document.attributions.size()==2,"new source layer retains previous four descriptors")
-	check(ui.store.undo()=="" and ui.store.document==first,"reimport Undo restores all old references")
+	check(ui.store.undo()=="" and same_content(ui.store.document,first),"reimport Undo restores all old references")
 	check(FileAccess.get_sha256(package)==sha,"existing package preserved")
 	check(layer.stage_dem(ui.canvas.author.terrain,result,reviewed,destination)=="","stage before generation change")
 	ui.store.redo();ui.store.undo();before=state()
@@ -110,10 +122,10 @@ func run() -> void:
 	timed.poll(timed.deadline_ms)
 	await wait_job()
 	check(timed.cancelled and panel.candidate==null and state()==before,"deadline preserves complete document")
-	panel.prepare()
+	start_closing_work(panel)
 	var owned: RefCounted=ui.import_job
 	ui.store.dirty=false
 	ui.queue_free();await process_frame
 	check(owned.cancelled and owned.pid==-1,"close reaps mosaic child")
-	print("dem_mosaic_validator: ","PASS" if failures.is_empty() else failures,"; checks=",checks)
+	print(test_name()+": ","PASS" if failures.is_empty() else failures,"; checks=",checks)
 	quit(0 if failures.is_empty() else 1)

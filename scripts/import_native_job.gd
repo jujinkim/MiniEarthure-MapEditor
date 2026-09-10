@@ -39,7 +39,10 @@ func start_validation(store: RefCounted, candidate: RefCounted, adopt: bool, sel
 	var bytes := JSON.stringify({"request":token, "document":store.document, "layer":candidate.value,
 		"project":project_source, "source":source, "expected_payloads":candidate.native_payload_digest if adopt else ""}).to_utf8_buffer()
 	if bytes.size() > REQUEST_LIMIT: return "Native import request exceeds 24 MiB."
-	var failure := _reserve_directory(token)
+	return _start_request(bytes)
+
+func _start_request(bytes: PackedByteArray) -> String:
+	var failure := _reserve_directory(identity)
 	if failure != "": return failure
 	failure = PAYLOADS.write_new(directory.path_join("request.json"), bytes)
 	if failure == "" and DirAccess.make_dir_absolute(directory.path_join("candidate")) != OK: failure = "Cannot reserve native candidate directory."
@@ -103,7 +106,7 @@ func _event(line: PackedByteArray) -> void:
 	# Nonstructural imports validate/open the snapshot without generating cells.
 	# A zero-cell event cannot stand in for required structural surface checks.
 	if raw.stage == "generate": generated_all = (raw.total > 0 if structural else raw.total == 0) and raw.completed == raw.total
-	if raw.stage == "recheck": source_rechecked = raw.total == int(layer.value.source.bytes) and raw.completed == raw.total
+	if raw.stage == "recheck": source_rechecked = raw.total == _source_bytes() and raw.completed == raw.total
 	if terminal_event:
 		if not LAYER._hex(raw.get("sha256"), 64) or raw.completed != raw.total or raw.total <= 0:
 			_fail("Invalid native validation result.")
@@ -118,8 +121,10 @@ func _read() -> void:
 	super._read()
 	if errors != "" and not cancelled: _fail("Native validation diagnostics: " + errors)
 
-func poll(now_ms: int = -1) -> void:
-	super.poll(now_ms)
+func _source_bytes() -> int:
+	return int(layer.value.source.bytes)
+
+func _finish_result() -> void:
 	if not done or not result.get("ok", false): return
 	var data: Variant = result.get("data")
 	var valid: bool = data is Dictionary and data.get("request") == identity and data.get("ok") is bool

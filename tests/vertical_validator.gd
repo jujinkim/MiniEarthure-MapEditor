@@ -49,8 +49,9 @@ func run() -> void:
 	dem.acquire(); await wait_job()
 	check(dem.candidate != null,"DEM native candidate: "+ui.status_label.text)
 	if dem.candidate == null: await finish(); return
-	dem.adopt()
-	check(ui.store.document.heightmaps.size()==1,"actual terrain adopted")
+	dem.adopt(); await wait_job()
+	check(ui.store.document.heightmaps.size()==1,"actual terrain adopted: "+ui.status_label.text)
+	if ui.store.document.heightmaps.size()!=1: await finish(); return
 	var before := state()
 	ui.import_source_format.select(1);ui.import_source_format.item_selected.emit(1)
 	ui.import_origin_lon.value=9.5;ui.import_origin_lat.value=55.5

@@ -71,9 +71,9 @@ Nonblocking stdout/stderr are drained at most 16 KiB each per frame. Request ID,
 sequence, ordered stage, nondecreasing completed/total and units are checked.
 Limits are 4 KiB/event, 1 MiB total IPC and 4 KiB retained stderr. Result bytes have
 an announced size/hash and must match after a successful process exit before the
-I01 boundary accepts them. Structural OSM candidate validation now uses the
-asynchronous native process described below; other bounded parsing/adoption paths
-remain synchronous. Quotas do not establish whole-frame latency or process RSS.
+I01 boundary accepts them. Vector and local DEM candidate validation use the
+asynchronous native processes described below; final command preparation and
+other authoring paths retain synchronous work. Quotas do not establish whole-frame latency or process RSS.
 
 Cancel, changed document and owner close kill the owned child; a 120-second job
 deadline bounds stalled work. Terminal PID state is cached because Godot kill
@@ -1999,7 +1999,8 @@ The parent commits successful adoption as one Undo command after revalidation.
 synchronously; ImportLayer decoding, request/attribution/command serialization
 and filesystem cleanup also retain synchronous work. This unit does not promise
 fully interruptible final commit or fixed UI latency/RSS. DEM/heightmap raster
-staging, binary mementos and adoption are a separate remaining implementation unit.
+staging and binary mementos are covered for the DEM wizard by the following
+extension; standalone PNG authoring remains synchronous.
 
 Run `scripts/check_documents.py --script import_vector_native_validator --script
 import_native_validator --script import_layer_validator --resource-pack` with
@@ -2010,3 +2011,72 @@ Adapter validators await the new asynchronous adoption before checking geometry,
 attribution and saved packages. Add `--rendered` for native display/source launch.
 Installed Windows/Linux, real-region driving/accuracy/latency/RSS and final
 integration remain separate gates; this is not whole I02/I03/I04 or cutover.
+
+
+## Asynchronous local DEM candidate validation — 2026-09-10
+
+The local Copernicus wizard now starts a fresh owned Godot process after Python
+sampling, and a second fresh process when **Adopt all reviewed terrain** is chosen.
+PNG decoding, captured/original source hashes, existing project file snapshots,
+vertical-reference checks, complete candidate native validation and required cell
+generation run inside that disposable child. The UI retains the accepted document,
+history and loaded native bridge. The synchronous `stage_dem()` and local PNG
+`stage()`/`adopt()` APIs remain available; standalone PNG authoring is unchanged.
+
+A review binds the request/selection revision, document generation/signature,
+project directory, candidate metadata and all input file identities. The child
+checks every reviewed original COG, captured COG, derived PNG and referenced
+project asset/heightmap before and after validation, including replaced old tiles.
+Adoption rechecks the reviewed fingerprint; missing, same-size changed, partial,
+stale or duplicate results cannot activate any cell. Terrain show/lock changes,
+option edits restored in the same frame, document edits and Cancel invalidate the
+work. Source/capture/PNG files and previous packages are preserved on failure.
+
+The existing limits remain: at most four COG sources totaling 64 MiB, 4×4 terrain
+cells, 1,050,625 samples, 4 MiB per PNG, 64 MiB candidate project payloads and
+16 MiB combined command text/binary Undo data. File identity scans independently
+bound original, captured, PNG and existing-project groups to 64 MiB each; these
+counts are not a process-memory guarantee. A child request is at most 24 MiB,
+events and terminal JSON at most 4 KiB, total IPC 1 MiB, and the native deadline
+120 seconds. A separate hash/size-bound 24 MiB binary transfer envelope contains
+only candidate metadata, patches, new blob paths and the bounded binary mementos;
+object deserialization is disabled. Neither source bytes nor PNG arrays go over IPC.
+
+The child builds one complete mosaic candidate, preserving outside-neighbor seam
+checks and shared quantization. With roads, it generates every affected terrain
+cell (at most 16); without roads, the zero-cell result certifies document/files
+and native terrain acceptance only. The supervisor requires the exact cell count.
+The parent loads the successful transfer only after confirmed child exit and
+installs content-addressed new PNGs before one canonical Undo command. Old/new
+references and exact bytes remain retained. As before, Undo/Redo refuses externally
+changed or missing referenced files instead of silently recreating them.
+
+Cancellation at native admission, controlled deadlines, EOF/owner close,
+failed/partial launch and malformed IPC use the shared vector supervisor. Only
+known files in the exclusively reserved scratch directory are removed after
+confirmed exit. Unknown files, links and unconfirmed termination are preserved;
+interrupted jobs remain discoverable through the existing `native` ownership marker.
+No cleanup adopts, resumes or deletes completed source captures.
+
+Still synchronous: request/selection and review formatting, bounded result decoding,
+immutable final file installation, cleanup and `DocumentStore._commit_command()`
+canonical validation/history mutation. Fully interruptible final commands and
+fixed UI latency/RSS are not claimed. Final command preparation/validation is the
+next separate implementation unit; Windows/Linux installed-build, representative
+accuracy/driving/performance and final integration acceptance remain open.
+
+Run the public isolated runner with Godot 4.7.2, the unchanged MapKit native binding
+and a Python containing the local import requirements:
+
+```sh
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/python --script dem_native_validator --script dem_validator --script dem_mosaic_validator --script heightmap_import_validator --script vertical_validator --resource-pack --log-dir /new/dem-native-checks
+```
+
+The new raster validator includes real native cancellation/deadline, four-cell
+road generation, source/capture/last-output changes, post-validation rechecks,
+corrupted transfers, failed/partial launches, invalid IPC, parent EOF, scratch
+ownership, stale UI selections, exact binary mementos and atomic Undo/Redo.
+`import_native_validator`, `import_vector_native_validator`, `import_job_validator`,
+`import_scratch_validator` and `import_recovery_validator` cover shared supervisor
+regressions. Add `--rendered` instead of `--resource-pack` for native display and
+source-project child launch. Only synthetic fixtures are used.

@@ -60,6 +60,10 @@ func run() -> void:
 	if failure == "":
 		if PAYLOADS.digest(read.bytes) != args[2]: failure = "Native validation input changed."
 		else: request = JSON.parse_string(read.bytes.get_string_from_utf8())
+	if failure == "" and request is Dictionary and request.get("kind") == "dem":
+		var output: Dictionary = preload("./dem_native_worker.gd").validate(request, directory, identity, progress)
+		finish(output)
+		return
 	if failure == "" and (request is not Dictionary or request.get("request") != identity or request.get("document") is not Dictionary or request.get("layer") is not Dictionary or request.get("project") is not String or request.get("source") is not String): failure = "Invalid native validation request."
 	if failure == "": failure = source_error(request, "source")
 	if failure == "":
@@ -82,6 +86,9 @@ func run() -> void:
 	var output := {"ok":failure == "", "request":identity}
 	if failure == "": output.payloads = JSON.stringify(hashes).sha256_text()
 	if failure != "": output.error = {"code":"E_IMPORT_NATIVE", "message":failure.left(2000)}
+	finish(output)
+
+func finish(output: Dictionary) -> void:
 	var bytes := JSON.stringify(output).to_utf8_buffer()
 	var error := PAYLOADS.write_new(directory.path_join("layer.json"), bytes)
 	if error != "":

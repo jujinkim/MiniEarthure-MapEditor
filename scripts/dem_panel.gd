@@ -1,4 +1,5 @@
 extends ConfirmationDialog
+const NATIVE_JOB := preload("./dem_native_job.gd")
 const LAYER := preload("./dem_import_layer.gd")
 var editor: Control
 var fields := {}
@@ -14,6 +15,11 @@ var requested := {}
 var plan := {}
 var destination := ""
 var candidate: RefCounted
+var native_identity := ""
+var candidate_data := {}
+var reviewed_payloads := ""
+var review_generation := -1
+var review_selection := ""
 
 func _ready() -> void:
 	title = "Local Copernicus DEM · 2021 source to local terrain cells"
@@ -69,6 +75,7 @@ func _ready() -> void:
 	review.canceled.connect(discard)
 	_mosaic_changed(false)
 	editor.store.changed.connect(_document_changed)
+	editor.layers.state_changed.connect(invalidate)
 
 func _mosaic_changed(enabled: bool) -> void:
 	fields["Cell columns"].editable=enabled
@@ -99,6 +106,7 @@ func _document_changed() -> void:
 	plan.clear()
 	get_ok_button().disabled = true
 	if editor.dem_mode.begins_with("dem") and editor.import_job != null: editor.import_job.cancel()
+	discard()
 
 func invalidate() -> void:
 	selection_revision += 1
@@ -106,6 +114,10 @@ func invalidate() -> void:
 	discard()
 
 func discard() -> void:
+	if editor.import_job is NATIVE_JOB: editor.import_job.cancel()
+	native_identity = ""
+	candidate_data.clear()
+	reviewed_payloads = ""
 	if candidate != null: candidate.discard()
 	candidate = null
 	if review != null: review.hide()
@@ -152,20 +164,69 @@ func finish(mode: String, result: Dictionary) -> void:
 		get_ok_button().disabled = false
 		return
 	discard()
-	candidate = LAYER.new()
-	var failure: String = candidate.stage_dem(editor.canvas.author.terrain,result.data,plan,destination)
+	candidate_data = result.data.duplicate(true)
+	_start_native(false)
+
+func native_selection() -> String:
+	return JSON.stringify([selection_revision, requested_revision, options(), requested, plan, destination,
+		candidate_data, candidate.value if candidate != null else {}, editor.canvas.layer_state]).sha256_text()
+
+func _start_native(adopting: bool) -> void:
+	if editor.busy: return
+	if not editor.canvas.available({"field":"heightmaps", "record":{"id":"terrain"}}, true):
+		discard()
+		editor._status("Show and unlock terrain before DEM validation.")
+		return
+	var job := NATIVE_JOB.new()
+	job.editor_generation = editor.generation
+	var previous := {"layer_id":candidate.value.layer_id, "payloads":reviewed_payloads} if adopting else {}
+	var failure := job.start_dem(editor.store, candidate_data, plan, destination, adopting, native_selection(), Crypto.new().generate_random_bytes(16).hex_encode(), previous)
 	if failure != "":
 		discard()
-		editor._status("E_DEM: " + failure + " Complete source retained: " + destination)
+		editor._status("E_DEM: " + failure)
 		return
+	native_identity = job.identity
+	editor.import_job = job
+	editor.dem_mode = "dem-native"
+	editor.worker_generation = editor.generation
+	editor.busy = true
+	editor.import_progress.visible = true
+	editor._status("Checking DEM files and terrain before %s · 120s deadline · Cancel preserves the map." % ("adoption" if adopting else "review"))
+
+func finish_native(job: RefCounted, result: Dictionary) -> void:
+	editor.dem_mode = ""
+	if native_identity != job.identity or editor.generation != job.editor_generation or not job.done or not job.exited or not job.matches(editor.store, native_selection()):
+		discard()
+		editor._status("E_DEM_STALE: Document or DEM selection changed; retry from source review.")
+		return
+	native_identity = ""
+	if not result.get("ok", false) or not result.get("data", {}).get("ok", false) or job.bundle.is_empty():
+		var rejected: Dictionary = result.get("data", result)
+		discard()
+		editor._status("E_DEM: " + editor.store.reason(rejected))
+		return
+	if job.adopting:
+		var failure: String = job.commit(editor.store)
+		discard()
+		editor._status("DEM layer adopted; save explicitly." if failure == "" else "E_DEM: " + failure)
+		return
+	candidate = LAYER.new()
+	candidate.value = job.bundle.value.duplicate(true)
+	reviewed_payloads = result.data.payloads
+	review_generation = editor.generation
+	review_selection = native_selection()
 	review_text.text = candidate.summary()
 	review.popup_centered(Vector2i(760,520))
+	editor._status("DEM ready for review; Adopt checks the complete snapshot again.")
 
 func adopt() -> void:
-	if candidate == null: return
-	var failure: String = candidate.adopt(editor.canvas.author.terrain)
-	editor._status("DEM layer adopted; save explicitly." if failure == "" else failure)
-	discard()
+	if candidate == null or editor.busy: return
+	if editor.generation != review_generation or native_selection() != review_selection:
+		discard()
+		editor._status("E_DEM_STALE: DEM review changed; prepare again.")
+		return
+	review.hide()
+	_start_native(true)
 
 func _exit_tree() -> void:
 	discard()

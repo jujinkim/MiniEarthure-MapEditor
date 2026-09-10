@@ -2,14 +2,14 @@ extends "./heightmap_import_layer.gd"
 const LICENSE := "https://copernicus-dem-30m.s3.amazonaws.com/readme.html#license"
 const NOTICE := "produced using Copernicus WorldDEM-%d © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved"
 
-func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String) -> String:
+func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String, context: Dictionary = {}) -> String:
 	discard()
 	if reviewed.get("options") is not Dictionary: return "Missing DEM options."
 	var options: Dictionary = reviewed.options
 	if options.get("coordinates") is not Dictionary or not TYPES._finite(options.get("vertical_zero_m"), -10000, 10000): return "Invalid DEM height reference."
 	var frame_error: String = preload("./import_vertical.gd").frame_error(terrain.store.document, {"target_crs":"EPSG:3855 / EGM2008 metres", "vertical_zero_m":options.get("vertical_zero_m")}, options.get("coordinates", {}))
 	if frame_error != "": return frame_error
-	if reviewed.get("adapter") == "copernicus-dem-v2": return _stage_mosaic(terrain,result,reviewed,destination)
+	if reviewed.get("adapter") == "copernicus-dem-v2": return _stage_mosaic(terrain,result,reviewed,destination,context)
 	if result.get("review") is not Dictionary or result.get("raster") is not Dictionary: return "Invalid DEM result."
 	var receipt: Dictionary = result.review
 	var raster: Dictionary = result.raster
@@ -34,16 +34,18 @@ func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, de
 	if float(raster.offset_cm) != floor(float(raster.offset_cm)) or not TYPES._count(raster.step_cm,100): return "DEM height offset/step must be integer cm."
 	var doc: Dictionary = terrain.store.document
 	if options.cell_size_cm != doc.cell_size_cm or options.map_min_cm != doc.bounds.min: return "DEM map grid changed."
-	var failure := stage(terrain,result.png_path,Vector2i(options.cell[0],options.cell[1]),int(options.spacing_cm),int(raster.offset_cm),int(raster.step_cm),0,{"source":"Copernicus 2021 GLO-%d" % int(receipt.resolution_m),"license":LICENSE,"notice":receipt.notice})
+	var failure := stage(terrain,result.png_path,Vector2i(options.cell[0],options.cell[1]),int(options.spacing_cm),int(raster.offset_cm),int(raster.step_cm),0,{"source":"Copernicus 2021 GLO-%d" % int(receipt.resolution_m),"license":LICENSE,"notice":receipt.notice},false,str(context.get("layer_id", "")))
 	if failure != "": return failure
 	value.adapter = "copernicus-dem-v1"
 	value.resampled = true
 	value.dem = {"receipt":receipt.duplicate(true),"sampling":raster.duplicate(true)}
 	_patches.back().after.notice = JSON.stringify(value)
 	_patches.back().id = terrain.store.record_id("attributions",_patches.back().after)
-	failure = FILES.apply(terrain.store,"Adopt DEM heightmap layer",_patches,_blobs,_cells,true)
-	if failure != "": discard()
-	return failure
+	failure = FILES.apply(terrain.store,"Adopt DEM heightmap layer",_patches,_blobs,_cells,true,context)
+	if failure != "":
+		discard()
+		return failure
+	return _retain_dependencies(terrain.store) if context.is_empty() else ""
 
 func summary() -> String:
 	if value.is_empty(): return "No DEM candidate."
@@ -61,7 +63,7 @@ func summary() -> String:
 	return introduction + super.summary().replace(value.source.name,"Derived PNG").replace("no resampling", "explicit bilinear resampling") + "\n\nDEM source / processing:\n" + JSON.stringify(value.dem, "  ")
 
 
-func _stage_mosaic(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String) -> String:
+func _stage_mosaic(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String, context: Dictionary = {}) -> String:
 	if result.get("review") is not Dictionary or result.get("raster") is not Dictionary or result.get("outputs") is not Array: return "Invalid DEM mosaic result."
 	var receipt: Dictionary = result.review
 	var raster: Dictionary = result.raster
@@ -116,10 +118,10 @@ func _stage_mosaic(terrain: RefCounted, result: Dictionary, reviewed: Dictionary
 		_blobs.merge(layer._blobs)
 		_cells.append_array(layer._cells)
 		layer.discard()
-	value={"import_version":1,"adapter":"copernicus-dem-v2","layer_id":Crypto.new().generate_random_bytes(16).hex_encode(),"heightmaps":records,"previous":previous,"dem":{"receipt":receipt.duplicate(true),"sampling":raster.duplicate(true)}}
+	value={"import_version":1,"adapter":"copernicus-dem-v2","layer_id":context.get("layer_id", Crypto.new().generate_random_bytes(16).hex_encode()),"heightmaps":records,"previous":previous,"dem":{"receipt":receipt.duplicate(true),"sampling":raster.duplicate(true)}}
 	var notice := {"source":"Copernicus 2021 mosaic#"+value.layer_id,"license":LICENSE,"notice":JSON.stringify(value)}
 	_patches.append({"field":"attributions","id":terrain.store.record_id("attributions",notice),"before":null,"after":notice})
-	var failure := FILES.apply(terrain.store,"Adopt DEM mosaic",_patches,_blobs,_cells,true)
+	var failure := FILES.apply(terrain.store,"Adopt DEM mosaic",_patches,_blobs,_cells,true,context)
 	if failure!="":
 		discard();return failure
-	return _retain_dependencies(terrain.store)
+	return _retain_dependencies(terrain.store) if context.is_empty() else ""

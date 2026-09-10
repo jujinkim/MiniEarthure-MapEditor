@@ -241,7 +241,11 @@ func poll(now_ms: int = -1) -> void:
 		if file != null: file.close()
 	done = true
 	_close()
+	_finish_result()
 	cleanup()
+
+func _finish_result() -> void:
+	pass
 
 func _close() -> void:
 	if stdio != null: stdio.close()
