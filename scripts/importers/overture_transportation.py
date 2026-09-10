@@ -3,6 +3,7 @@
 Connectivity comes only from source IDs, never snapping or geometric crossings.
 This profile retains whole in-area segments and refuses unsupported semantics.
 """
+from bisect import bisect_right
 import hashlib
 import json
 import sys
@@ -14,6 +15,8 @@ LICENSE = "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Founda
 MAX_FEATURES = 1024
 MAX_POINTS = 8192
 MAX_ROADS = 2048
+MAX_RULES = 1024
+MAX_OUTPUT_POINTS = 16384
 CLASSES = {"motorway", "trunk", "primary", "secondary", "tertiary", "residential", "living_street", "service", "unclassified"}
 COMMON = {"id", "bbox", "theme", "type", "version", "sources"}
 SEGMENT = COMMON | {"subtype", "class", "connectors", "road_flags", "road_surface", "width_rules", "level", "level_rules", "subclass", "subclass_rules", "names", "routes", "destinations", "speed_limits"}
@@ -59,6 +62,57 @@ def uniform(properties, key, default=None):
         if not isinstance(between, list) or len(between) != 2 or [number(v,key,0,1) for v in between] != [0,1]:
             raise ValueError(f"{key}: partial physical rule requires explicit authoring")
     return rule["value"]
+
+
+def physical_rules(properties, key):
+    """Canonical complete partition. Gaps/overlap never acquire guessed priority."""
+    rules = properties.get(key)
+    if rules is None or rules == []: return [(0, 1, None)]
+    if not isinstance(rules, list) or not 1 <= len(rules) <= MAX_RULES:
+        raise ValueError(f"{key}: physical rule budget exceeded")
+    result = []
+    for rule in rules:
+        if not isinstance(rule, dict) or set(rule) - {"value", "between"} or "value" not in rule:
+            raise ValueError(f"{key}: unsupported conditional/unknown rule")
+        between = rule.get("between")
+        if between is None: between = [0, 1]
+        if not isinstance(between, list) or len(between) != 2:
+            raise ValueError(f"{key}: expected bounded interval")
+        start, end = [number(v, key, 0, 1) for v in between]
+        if start >= end: raise ValueError(f"{key}: empty/reversed interval")
+        value = rule["value"]
+        if key == "width_rules": number(value, "road width", 0.2, 100)
+        elif value not in ("unknown", "paved", "gravel", "dirt"):
+            raise ValueError("Unsupported/ambiguous road surface")
+        result.append((start, end, value))
+    result.sort(key=lambda rule: rule[:2])
+    previous = 0
+    for start, end, _ in result:
+        if start != previous: raise ValueError(f"{key}: interval gap/overlap")
+        previous = end
+    if previous != 1: raise ValueError(f"{key}: incomplete interval coverage")
+    return result
+
+
+def densify(coords, lengths, widths, surfaces, geod):
+    """Split physical edges, never graph nodes, at WGS84 distance fractions."""
+    fractions = [distance / lengths[-1] for distance in lengths]
+    boundaries = {v for rules in (widths, surfaces) for a,b,_ in rules for v in (a,b)}
+    positions = dict(zip(fractions, coords))
+    for at in sorted(boundaries - positions.keys()):
+        edge = bisect_right(fractions, at) - 1
+        azimuth, _, _ = geod.inv(*coords[edge], *coords[edge+1])
+        lon, lat, _ = geod.fwd(*coords[edge], azimuth, at*lengths[-1]-lengths[edge])
+        positions[at] = [lon, lat]
+    ordered = sorted(positions)
+    indices = {at:i for i,at in enumerate(ordered)}
+    def values(rules):
+        index, output = 0, []
+        for start in ordered[:-1]:
+            while start >= rules[index][1]: index += 1
+            output.append(rules[index][2])
+        return output
+    return ordered, [positions[a] for a in ordered], [indices[a] for a in fractions], values(widths), values(surfaces)
 
 
 def parse(raw):
@@ -134,16 +188,14 @@ def parse(raw):
                     raise ValueError("Bridge/tunnel/other road flags unsupported without metric geometry")
             if p.get("subclass") not in (None,"link") or uniform(p,"subclass_rules",None) not in (None,"link"):
                 raise ValueError("Unsupported road subclass")
-            width = uniform(p,"width_rules",None)
-            if width is not None: number(width,"road width",0.01,1000)
-            surface = uniform(p,"road_surface",None)
-            if surface not in (None,"unknown","paved","gravel","dirt"):
-                raise ValueError("Unsupported/ambiguous road surface")
-            segments[fid] = dict(coords=coords, properties=p, width=width, surface=surface)
+            widths = physical_rules(p,"width_rules")
+            surfaces = physical_rules(p,"road_surface")
+            segments[fid] = dict(coords=coords, properties=p, widths=widths, surfaces=surfaces)
         if total_points > MAX_POINTS: raise ValueError("Transportation point budget exceeded")
     if not segments or not connectors: raise ValueError("Requires complete segments and connectors")
     geod = Geod(ellps="WGS84")
     used, roads = set(), []
+    output_points = len(connectors)
     for fid, segment in sorted(segments.items()):
         coords, p = segment["coords"], segment["properties"]
         refs = p.get("connectors")
@@ -169,9 +221,15 @@ def parse(raw):
             raise ValueError("Incomplete/ambiguous segment endpoints")
         used.update(ids)
         provenance[fid].update(road_class=p["class"], connectors=[dict(connector_id=c, at=a, vertex=i) for i,c,a in linked], road_ids=[])
+        fractions, points, vertex_indices, widths, surfaces = densify(coords, lengths, segment["widths"], segment["surfaces"], geod)
+        provenance[fid].update(road_spans=[], source_fractions=[v/lengths[-1] for v in lengths], physical_rules=dict(width_rules=segment["widths"], road_surface=segment["surfaces"]))
         for left,right in zip(linked,linked[1:]):
             if len(roads) >= MAX_ROADS: raise ValueError("Transportation split-road budget exceeded")
-            roads.append(dict(source_id=fid, start=left[1], end=right[1], coords=coords[left[0]:right[0]+1], width=segment["width"], surface=segment["surface"]))
+            a,b = vertex_indices[left[0]], vertex_indices[right[0]]
+            output_points += b-a+1
+            if output_points > MAX_OUTPUT_POINTS: raise ValueError("Transportation output point budget exceeded")
+            roads.append(dict(source_id=fid, start=left[1], end=right[1], coords=points[a:b+1],
+                              fractions=fractions[a:b+1], widths=widths[a:b], surfaces=surfaces[a:b]))
     if used != set(connectors): raise ValueError("Unreferenced connectors; incomplete graph is not adopted")
     metadata = dict(query, source_position_count=total_points, segment_sources=[provenance[f] for f in sorted(segments)],
                     connector_sources=[provenance[f] for f in sorted(connectors)])
@@ -215,25 +273,28 @@ def convert(parsed, source, raw, *, layer_id, coordinates, accuracy="unknown", p
         rid = prefix + f"road-{index}"
         points = [point(p) for p in road["coords"]]
         if not LineString([(p[0],p[2]) for p in points]).is_simple: raise ValueError("Road self-crosses after projection")
-        width = road["width"]
-        if width is None:
-            width = 8
-            layer.estimate("width_m")
-        surface = road["surface"]
-        if surface in (None,"unknown","paved"):
-            surface = "asphalt"
-            layer.estimate("asphalt_surface")
-        segments[road["source_id"]].update(width_cm=round(width*100), surface=surface)
+        widths, surfaces = [], []
+        for width, surface in zip(road["widths"], road["surfaces"]):
+            if width is None:
+                width = 8
+                layer.estimate("width_m")
+            if surface in (None,"unknown","paved"):
+                surface = "asphalt"
+                layer.estimate("asphalt_surface")
+            widths.append(round(width*100))
+            surfaces.append(surface)
         layer.estimate("chosen_road_plane")
         layer.add("roads",dict(id=rid,**{"from":node_ids[road["start"]],"to":node_ids[road["end"]]},
-            points=points,widths_cm=[round(width*100)]*(len(points)-1),surfaces=[surface]*(len(points)-1),
+            points=points,widths_cm=widths,surfaces=surfaces,
             kind="ground",clearance_cm=None,sidewalk_cm=None))
+        segments[road["source_id"]]["road_spans"].append(dict(road_id=rid, fractions=road["fractions"],
+            points_cm=points, widths_cm=widths, surfaces=surfaces))
         segments[road["source_id"]]["road_ids"].append(rid)
         if progress: progress(index+1,len(parsed["roads"]))
-    layer.warning("Transportation ground graph only; exact connector IDs connect endpoints. Interior connectors split whole source segments. Crossing coordinates never create graph connections.")
+    layer.warning("Transportation ground graph only; exact connector IDs connect endpoints. Interior connectors split whole source segments. Physical boundaries add geodetically interpolated vertices, never connectors. Crossing coordinates never create graph connections.")
     layer.warning("Chosen road plane is an estimate, not source elevation or terrain sampling. Recipe 2+ ground ribbons follow terrain. Verify terrain alignment before adoption; level is not metric height.")
     layer.warning("Absent width estimates 8 m; paved/unknown/absent surface estimates asphalt. Source names, routes, destinations and speed limits remain in the snapshot, not game rules. No inferred sidewalks.")
-    layer.warning("Complete segment/connector query required. Crossing bbox, missing refs, rail/water, restrictions, structures and partial physical rules reject the whole candidate. No clipped or repaired graph.")
+    layer.warning("Complete segment/connector query required. Crossing bbox, missing refs, rail/water, restrictions, structures and incomplete/overlapping/conditional physical rules reject the whole candidate. No clipped or repaired graph.")
     layer.encode()
     return layer
 

@@ -67,7 +67,7 @@ func run() -> void:
 	check(raw.adapter=="overture-transportation-v1" and raw.source.sha256==original,"snapshot identity preserved")
 	check(ui.import_summary.text.contains("2026-08-19.0") and ui.import_summary.text.contains("synthetic fixture") and ui.import_summary.text.contains("Chosen road plane"),"release/source/estimate review")
 	check(raw.patches.size()==7,"four connectors and three split roads")
-	for field in ["license","adapter","provenance","bbox","release","sources","missing","endpoint","height","width","unmapped","order","budget"]:
+	for field in ["license","adapter","provenance","bbox","release","sources","missing","endpoint","height","width","unmapped","order","budget","span_order","span_gap","span_width","span_surface","span_geometry","span_missing","span_boundary","span_one","source_fraction"]:
 		var bad:=raw.duplicate(true)
 		var meta: Dictionary=bad.coordinates.overture_transportation
 		if field=="license":bad.source.license="MIT"
@@ -82,6 +82,15 @@ func run() -> void:
 		elif field=="unmapped":meta.segment_sources[0].road_ids[0]="unmapped"
 		elif field=="order":meta.segment_sources[0].connectors.reverse()
 		elif field=="budget":meta.source_position_count=8193
+		elif field=="span_order":meta.segment_sources[0].road_spans[0].fractions.reverse()
+		elif field=="span_gap":meta.segment_sources[0].physical_rules.width_rules[1][0]=0.3
+		elif field=="span_width":meta.segment_sources[0].road_spans[0].widths_cm[0]=5
+		elif field=="span_surface":meta.segment_sources[0].road_spans[0].surfaces[0]="dirt"
+		elif field=="span_geometry":meta.segment_sources[0].road_spans[0].points_cm[1][0]+=1
+		elif field=="span_missing":meta.segment_sources[0].road_spans.pop_back()
+		elif field=="span_one":meta.segment_sources[0].road_spans[0].fractions[1]=1
+		elif field=="source_fraction":meta.segment_sources[0].source_fractions[1]=0.4
+		elif field=="span_boundary":meta.segment_sources[0].road_spans[0].fractions[1]=0.3
 		else:bad.coordinates.erase("overture_transportation")
 		check(LAYER.new().load_value(bad,raw.layer_id,ui.import_coordinates_request)!="","forged "+field+" rejected")
 	ui._discard_import()
@@ -94,6 +103,8 @@ func run() -> void:
 	check(ui.store.document.roads.size()==3,"one-shot candidate")
 	var roads: Array = ui.store.document.roads
 	check(roads[0].to==roads[1].from and roads[0].to==roads[2].from,"internal connector forms native T junction")
+	check(roads[0].widths_cm==[600.0,400.0] and roads[1].surfaces==["asphalt","dirt"],"scoped physical arrays survive native adoption: " + JSON.stringify([roads[0].widths_cm, roads[1].surfaces]))
+	check(roads[0].points.size()==3 and ui.store.document.nodes.size()==4,"property boundaries add vertices without false connectors")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.roads.is_empty() and ui.store.document.nodes.is_empty(),"one-command undo removes complete graph")
 	check(ui.store.redo()=="" and ui.store.document==adopted,"redo restores complete graph/provenance")

@@ -24,6 +24,14 @@ def snapshot():
         profile="ground-graph-v1",ground_m=0.2,license="ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation",features=features)
 
 
+def scoped_snapshot():
+    value = snapshot()
+    props = value["features"][4]["properties"]
+    props["width_rules"] = [dict(value=6,between=[0,0.25]), dict(value=4,between=[0.25,1])]
+    props["road_surface"] = [dict(value="paved",between=[0,0.75]), dict(value="dirt",between=[0.75,1])]
+    return value
+
+
 if __name__ == "__main__":
     if sys.argv[1] == "--snapshot":
         Path(sys.argv[2]).write_text(json.dumps(snapshot()))
@@ -33,7 +41,7 @@ if __name__ == "__main__":
     import overture_transportation as adapter
     original = adapter.acquire
     def features(query):
-        value = snapshot()
+        value = scoped_snapshot()
         for f in value["features"]:
             yield f
             if query["release"] == "2026-08-19.1": time.sleep(30)

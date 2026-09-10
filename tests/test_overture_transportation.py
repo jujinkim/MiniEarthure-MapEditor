@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts/importers"))
 import overture_transportation as a
-from overture_transportation_fixture import snapshot
+from overture_transportation_fixture import snapshot, scoped_snapshot
 
 
 class TransportationTests(unittest.TestCase):
@@ -116,6 +116,51 @@ class TransportationTests(unittest.TestCase):
     def test_budgets(self):
         for name,limit in [("MAX_FEATURES",5),("MAX_POINTS",8),("MAX_ROADS",2)]:
             with self.subTest(name=name),patch.object(a,name,limit),self.assertRaises(ValueError):self.layer(snapshot())
+
+    def test_scoped_geodetic_boundaries_and_provenance(self):
+        from pyproj import Geod
+        value=scoped_snapshot();raw=json.dumps(value).encode()
+        parsed=a.parse(raw);layer=self.layer(value)
+        roads=[p["after"] for p in layer.patches if p["field"]=="roads"]
+        self.assertEqual(len(roads),3)
+        self.assertEqual(len([p for p in layer.patches if p["field"]=="nodes"]),4)
+        self.assertEqual(roads[0]["widths_cm"],[600,400])
+        self.assertEqual(roads[1]["surfaces"],["asphalt","dirt"])
+        geod=Geod(ellps="WGS84")
+        original=value["features"][4]["geometry"]["coordinates"]
+        total=sum(geod.inv(*x,*y)[2] for x,y in zip(original,original[1:]))
+        inserted=parsed["roads"][0]["coords"][1]
+        self.assertAlmostEqual(geod.inv(*original[0],*inserted)[2]/total,0.25,places=9)
+        self.assertNotEqual(inserted[1],original[0][1],"ellipsoid interpolation, not linear lon/lat")
+        meta=layer.coordinates["overture_transportation"]["segment_sources"][0]
+        self.assertEqual(meta["road_spans"][0]["fractions"],[0,0.25,value["features"][4]["properties"]["connectors"][1]["at"]])
+        self.assertEqual(meta["road_spans"][1]["points_cm"],roads[1]["points"])
+        value["features"][4]["properties"]["width_rules"].reverse()
+        self.assertEqual(self.layer(value).patches,layer.patches)
+        self.assertEqual(self.layer(value).coordinates,layer.coordinates)
+
+    def test_interval_failures_and_output_admission(self):
+        invalid=[[],[0,0],[0.8,0.2],[False,1],[0,1.01],[0],"0,1"]
+        for between in invalid:
+            value=snapshot();value["features"][4]["properties"]["width_rules"]=[dict(value=6,between=between)]
+            with self.subTest(between=between),self.assertRaises(ValueError): self.layer(value)
+        for rules in [
+            [dict(value=6,between=[0,0.4]),dict(value=4,between=[0.5,1])],
+            [dict(value=6,between=[0,0.6]),dict(value=4,between=[0.5,1])],
+            [dict(value=6),dict(value=4,between=[0.5,1])],
+            [dict(value=6,when={})], [dict(value=None)], [dict(value=0.1)]]:
+            value=snapshot();value["features"][4]["properties"]["width_rules"]=rules
+            with self.subTest(rules=rules),self.assertRaises(ValueError): self.layer(value)
+        for name,limit in [("MAX_RULES",1),("MAX_OUTPUT_POINTS",11)]:
+            with patch.object(a,name,limit),self.assertRaises(ValueError): self.layer(scoped_snapshot())
+        value=scoped_snapshot();value["features"][4]["properties"]["width_rules"][0]["between"][1]=1e-10
+        value["features"][4]["properties"]["width_rules"][1]["between"][0]=1e-10
+        with self.assertRaisesRegex(ValueError,"collapse"):self.layer(value)
+        value=scoped_snapshot();p=value["features"][4]["properties"]
+        at=p["connectors"][1]["at"]
+        p["width_rules"]=[dict(value=6,between=[0,at]),dict(value=4,between=[at,1])]
+        p["road_surface"]=[dict(value="gravel")]
+        self.assertEqual([len(r["coords"]) for r in a.parse(json.dumps(value).encode())["roads"]],[2,2,2])
 
     def test_real_arrow_both_readers_atomic_capture_and_failure(self):
         import pyarrow as pa

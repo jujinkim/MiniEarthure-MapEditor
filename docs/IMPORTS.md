@@ -922,10 +922,22 @@ Supported profile:
   or one whole-segment zero `level_rules` is accepted. `is_link` and link subclass
   are accepted; bridges/tunnels, nonzero z-order and other flags reject. A z-order
   is never converted into metric elevation.
-- One whole-segment `width_rules`/`road_surface` rule (absent/null or `[0,1]` scope)
-  is supported. Missing width estimates 8 m. Gravel/dirt retain their material;
-  paved/unknown/missing surface estimates asphalt. Other/ambiguous materials,
-  varying/conditional physical rules and unsupported subclasses reject.
+- `width_rules` and `road_surface` support complete, nonoverlapping partitions of
+  `[0,1]`, sorted canonically regardless of input order (at most 1024 rules per
+  property/segment). Missing/null/empty property estimates 8 m or asphalt; an
+  explicit rule needs a value. Absent/null `between` means `[0,1]`. Gaps, overlaps
+  (including global plus scoped rules), reversed/empty ranges, unknown/conditional
+  fields and unsupported materials reject the whole layer. Width is 0.2–100 m
+  to match native admission; gravel/dirt are retained and paved/unknown estimates
+  asphalt. No interval priority, taper or missing-subrange estimation is inferred.
+- Physical boundaries are interpolated on the WGS84 geodesic within their source
+  edge before centimetre projection. Source vertices remain, and only connectors
+  create graph nodes/road records; physical edges carry their own width/material.
+  Exact coincident boundary fractions reuse a vertex. Distinct fractions that
+  collapse after projection reject, including numerically near-vertex boundaries;
+  no tolerance-based property snapping erases short intervals. Output admission
+  allows at most 16384 points, counting connector nodes and repeated road endpoints.
+  Source limits remain 8192 positions, 1024 features, 2048 roads and 32 MiB.
 - The chosen Y plane is a reviewed source-reference estimate. Recipe 2+ ground
   geometry follows terrain; it does not create raised decks or flatten terrain.
   Review terrain alignment yourself. The adapter never samples DEM or infers
@@ -980,3 +992,34 @@ separate geometry unit. This delivery is not whole-I02 or final acceptance.
 Real provider/Internet/accuracy, installed Windows/Linux and Client driving,
 representative performance and full integration remain deferred to their retained
 verification phase. A host PCK does not establish native target distribution.
+
+### Overture physical intervals — 2026-09-10
+
+The preceding uniform-only profile is superseded by the bounded interval contract
+above. The original immutable snapshot and adapter/profile identity remain usable.
+New provenance records canonical physical rules, original vertex fractions and
+ordered per-road fractions/projected points/widths/materials. The GDScript boundary
+checks coverage, source/connector boundaries, exact mapped arrays and output budgets
+before native validation. Previously authored uniform provenance remains accepted.
+This uses MapKit's existing per-edge arrays; no native ABI, recipe or dependency
+pin changes. Rule endpoints are hard transitions, not linear width interpolation.
+
+[Official rule scoping](https://docs.overturemaps.org/guides/transportation/scoping-and-travel-modes/)
+and [width rules](https://docs.overturemaps.org/schema/reference/transportation/types/segment/width_rule/)
+were checked 2026-09-10 together with the geodetic reference above. The complete
+partition requirement is this adapter's explicit restriction, not a claim that all
+provider data has complete coverage. Structures, restrictions, off-vertex connectors,
+large/partial graphs and other themes remain unimplemented. Real provider/installed
+platform/user-driving/performance acceptance is deferred; synthetic Mac compiled-PCK
+verification is not final I02 acceptance.
+
+Scoped verification: 9 transportation Python tests passed, covering independent
+width/surface boundaries, WGS84 interpolation, deterministic order, exact vertex
+reuse, gaps/overlaps/unknown conditions, centimetre collapse, input/rule/output
+budgets and Arrow source preservation. Final Godot 4.7.2 macOS arm64 rendered
+compiled-PCK run passed transportation 77 checks plus import-layer, worker lifetime
+and document-history regressions with no diagnostics. This includes native recipe-2
+junction generation, distinct physical arrays after adoption, forged span rejection,
+Undo/Redo, recovery, package I/O, original preservation, cancellation and stale review.
+Use the transportation command above with the last three safety validators; the
+unchanged native dylib is reused. Other platforms and full acceptance remain open.
