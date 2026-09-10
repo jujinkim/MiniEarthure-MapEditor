@@ -83,6 +83,43 @@ removes only that request's known scripts/result. If termination fails, original
 files remain protected and the failure is reported; retained scratch can be
 inspected and is never adopted automatically. No broad directory deletion occurs.
 
+### Live request scratch ownership — 2026-09-10
+
+Vector and local DEM jobs now reserve the request directory with one exclusive
+directory creation before claiming ownership or staging helpers. An existing
+directory, regular file or symbolic link at that token is rejected without being
+remembered as disposable scratch. A linked `import-jobs` root is also refused.
+Rejected jobs cannot remove any files through later shutdown/cleanup calls.
+Every start attempt consumes its job object, including a rejected request; retry
+creates a fresh object/token. A closed or cancelled object cannot launch a child.
+
+Both adapters share process-handle setup. If Python never starts, staged known
+files are removed immediately. If a child starts with incomplete pipe handles,
+shutdown must confirm its exit before cleanup; closing pipes alone is insufficient.
+Cleanup is blocked while an owned child may still be running. After one disposal
+attempt the object relinquishes cleanup ownership, so repeating cleanup cannot
+touch a later request reusing the same token. Unknown files/subdirectories remain;
+there is no recursive deletion. Partial file-write leftovers or failed filesystem
+removals can still require manual inspection.
+
+This is an in-memory lifetime fix, not persistent crash recovery. Earlier job
+directories are never automatically resumed, adopted or cleaned on startup.
+The next separate I03 unit is bounded detection and user-visible reporting of
+interrupted imports, including proof that another Editor's job is still live.
+Persistent ownership metadata and cross-process recovery are not implemented here.
+External replacement of a live directory by another same-user process is not an
+adversarial filesystem guarantee. Source/project/package preservation still applies.
+
+`import_scratch_validator` (included in `--full`) covers rejected reservations,
+file/link collisions, no-process/partial-handle launch failures, pre-launch
+validation, live cleanup refusal, old-owner reuse, unknown/nested preservation and
+retry with real child processes. Its symlink fixtures require OS symlink creation
+permission. Run alongside the existing lifetime and affected import/native checks:
+
+```sh
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/local-python --script import_scratch_validator --script import_job_validator --script import_layer_validator --script osm_stream_validator --script dem_validator --script dem_mosaic_validator --script local_only_validator --resource-pack --rendered --log-dir /new/scratch-ownership
+```
+
 Additional checks:
 
 ```sh

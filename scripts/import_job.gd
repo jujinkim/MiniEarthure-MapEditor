@@ -30,9 +30,13 @@ var done := false
 var result := {}
 var output_eof := false
 var error_eof := false
+var _owns_directory := false
+var _child_started := false
+var _attempted := false
 
 func start(source: String, license_name: String, accuracy: String, python: String, token: String, coordinates: Dictionary = {"mode":"local-metres"}, input_format: String = "geojson", source_label: String = "") -> String:
-	if pid != -1 or directory != "": return "ImportJob instances are single use."
+	if _attempted or cancelled: return "ImportJob instances are single use."
+	_attempted = true
 	if input_format not in ["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"]: return "Unsupported source format."
 	if input_format != "geojson" and coordinates.get("mode") != "wgs84-utm": return "Geographic source requires explicit WGS84 origins."
 	identity = token
@@ -48,8 +52,8 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		timeout_seconds = 900
 		stages = ["read", "index_nodes", "index_ways", "index_relations", "select", "parse", "convert", "write", "complete"]
 	if size <= 0 or size > progress_limit: return "Import source exceeds %s or is empty; PBF streaming needs an explicit crop area." % ("2 GiB" if streaming else "32 MiB")
-	directory = ProjectSettings.globalize_path("user://import-jobs/" + token)
-	if DirAccess.dir_exists_absolute(directory): return "Import job directory already exists."
+	var reservation := _reserve_directory(token)
+	if reservation != "": return reservation
 	var files := FILES.new()
 	for module in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
@@ -74,16 +78,38 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		arguments.append("--osm-bbox")
 		for value in coordinates.osm_bbox: arguments.append(str(value))
 	if streaming: arguments.append("--osm-stream")
-	var child := _spawn(python, arguments)
-	pid = int(child.get("pid", -1))
-	stdio = child.get("stdio")
-	stderr_pipe = child.get("stderr")
-	if pid <= 0 or stdio == null or stderr_pipe == null:
-		shutdown()
+	if not _launch(python, arguments):
 		return "Python could not start. Choose a Python 3 executable and retry."
 	deadline_ms = Time.get_ticks_msec() + timeout_seconds * 1000
 	progress = {"stage": "starting", "completed": 0, "total": size, "unit": "bytes"}
 	return ""
+
+func _reserve_directory(token: String) -> String:
+	var root := ProjectSettings.globalize_path("user://import-jobs")
+	var parent := DirAccess.open(root.get_base_dir())
+	if parent == null or parent.is_link(root.get_file()): return "Import scratch root is unavailable or is a symbolic link."
+	var error := DirAccess.make_dir_recursive_absolute(root)
+	if error != OK: return "Cannot create import scratch root: " + error_string(error)
+	# mkdir is the reservation. A check followed by recursive creation can claim
+	# an existing request (including a file/link or another Editor's new request).
+	var jobs := DirAccess.open(root)
+	if jobs == null: return "Cannot open import scratch root."
+	error = jobs.make_dir(token)
+	if error != OK: return "Cannot reserve a new import job directory: " + error_string(error)
+	directory = root.path_join(token)
+	_owns_directory = true
+	return ""
+
+func _launch(python: String, arguments: PackedStringArray) -> bool:
+	var child := _spawn(python, arguments)
+	pid = int(child.get("pid", -1))
+	_child_started = pid > 0
+	stdio = child.get("stdio")
+	stderr_pipe = child.get("stderr")
+	if not _child_started or stdio == null or stderr_pipe == null:
+		shutdown()
+		return false
+	return true
 
 func _spawn(python: String, arguments: PackedStringArray) -> Dictionary:
 	return OS.execute_with_pipe(python, arguments, false)
@@ -198,11 +224,15 @@ func _close() -> void:
 func shutdown() -> void:
 	cancel()
 	_close()
-	# Only clean after confirmed exit; a killed child may still be finishing.
-	if exited: cleanup()
+	cleanup()
 
 func cleanup() -> void:
-	if directory == "": return
+	# No child ever started, or its exit was confirmed. Closing pipes alone does
+	# not prove exit after a failed kill. A rejected reservation owns nothing.
+	if not _owns_directory or (_child_started and not exited): return
+	# Relinquish even when unknown files prevent rmdir. Never clean a later owner
+	# reusing this token, and never scan/adopt scratch from an earlier process.
+	_owns_directory = false
 	# Only files owned by this request; never recursively delete user inputs.
 	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "source.pbf.part", "source.pbf", "source-index.sqlite", "overture_area.py", "overture_transportation.py", "overture_land_cover.py", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
 		var path := directory.path_join(name)
