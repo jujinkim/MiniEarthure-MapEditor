@@ -32,6 +32,22 @@ def scoped_snapshot():
     return value
 
 
+def off_vertex_snapshot():
+    value = scoped_snapshot()
+    from pyproj import Geod
+    geod = Geod(ellps="WGS84")
+    coords = value["features"][4]["geometry"]["coordinates"]
+    a,b = coords[0],coords[-1]
+    azimuth,_,distance = geod.inv(*a,*b)
+    lon,lat,_ = geod.fwd(*a,azimuth,distance/2)
+    shared = [lon,lat]
+    value["features"][1]["geometry"]["coordinates"] = shared
+    value["features"][4]["geometry"]["coordinates"] = [a,b]
+    value["features"][4]["properties"]["connectors"][1]["at"] = 0.5
+    value["features"][5]["geometry"]["coordinates"][0] = shared
+    return value
+
+
 if __name__ == "__main__":
     if sys.argv[1] == "--snapshot":
         Path(sys.argv[2]).write_text(json.dumps(snapshot()))
@@ -41,7 +57,7 @@ if __name__ == "__main__":
     import overture_transportation as adapter
     original = adapter.acquire
     def features(query):
-        value = scoped_snapshot()
+        value = off_vertex_snapshot()
         for f in value["features"]:
             yield f
             if query["release"] == "2026-08-19.1": time.sleep(30)

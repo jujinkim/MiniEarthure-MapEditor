@@ -16,6 +16,8 @@ static func validate(raw: Dictionary, guard: Script) -> String:
 	var segments: Variant = meta.get("segment_sources")
 	var connectors: Variant = meta.get("connector_sources")
 	if segments is not Array or segments.is_empty() or connectors is not Array or connectors.is_empty() or segments.size()+connectors.size() > 1024 or segments.size()+connectors.size() != raw.get("feature_count"): return "Invalid transportation source counts."
+	var positioned: bool = meta.has("connection_profile")
+	if positioned and meta.connection_profile != "explicit-position-v1": return "Invalid connection position profile."
 	var source_ids := {}
 	var connector_nodes := {}
 	var expected_nodes := {}
@@ -44,18 +46,30 @@ static func validate(raw: Dictionary, guard: Script) -> String:
 		var road_ids: Variant = entry.get("road_ids")
 		if refs is not Array or refs.size() < 2 or refs.size() > 8192 or road_ids is not Array or road_ids.size() != refs.size()-1: return "Incomplete segment mapping."
 		var previous_at := -1.0
+		if positioned and (not scoped or entry.get("source_fractions") is not Array or entry.source_fractions.size() < 2 or entry.source_fractions.size() > 8192): return "Missing connection source fractions."
 		var previous_vertex := -1
+		var previous_resolved := -1.0
 		var unique := {}
 		for ref in refs:
-			if ref is not Dictionary or not guard._text(ref.get("connector_id")) or not connector_nodes.has(ref.connector_id) or unique.has(ref.connector_id) or not guard._finite(ref.get("at"),0,1) or ref.at <= previous_at or not guard._count(ref.get("vertex"),8191) or ref.vertex <= previous_vertex: return "Invalid segment connector ordering."
+			if ref is not Dictionary or not guard._text(ref.get("connector_id")) or not connector_nodes.has(ref.connector_id) or unique.has(ref.connector_id) or not guard._finite(ref.get("at"),0,1) or ref.at <= previous_at: return "Invalid segment connector ordering."
+			if positioned:
+				if not guard._finite(ref.get("resolved_at"),0,1) or ref.resolved_at <= previous_resolved or abs(ref.resolved_at-ref.at) > 0.0000001 or not guard._finite(ref.get("displacement_m"),0,0.001): return "Invalid connector position mapping."
+				if not ref.has("vertex"): return "Missing connector source index."
+				if ref.vertex != null and (not guard._count(ref.vertex,entry.source_fractions.size()-1) or entry.source_fractions[int(ref.vertex)] != ref.resolved_at): return "Invalid connector source index."
+				if ref.vertex == null and (ref.resolved_at <= 0 or ref.resolved_at >= 1 or entry.source_fractions.has(ref.resolved_at)): return "Invalid interior connector position."
+				previous_resolved = ref.resolved_at
+			elif not guard._count(ref.get("vertex"),8191) or ref.vertex <= previous_vertex: return "Invalid segment connector vertex."
 			unique[ref.connector_id] = true
 			used[ref.connector_id] = true
 			previous_at = ref.at
-			previous_vertex = int(ref.vertex)
+			if ref.vertex != null: previous_vertex = int(ref.vertex)
 		if refs[0].vertex != 0 or refs[0].at > 0.0000001 or refs[-1].at < 0.9999999: return "Missing segment endpoint connectors."
-		source_points += int(refs[-1].vertex)+1
+		if positioned:
+			if refs[-1].vertex != entry.source_fractions.size()-1 or refs[0].resolved_at != 0 or refs[-1].resolved_at != 1: return "Missing positioned endpoints."
+			source_points += entry.source_fractions.size()
+		else: source_points += int(refs[-1].vertex)+1
 		if scoped:
-			var error := validate_spans(entry, guard)
+			var error := validate_spans(entry, guard, positioned)
 			if error != "": return error
 		for i in range(road_ids.size()):
 			var rid: Variant = road_ids[i]
@@ -92,19 +106,19 @@ static func validate(raw: Dictionary, guard: Script) -> String:
 	return ""
 
 ## New span provenance is optional only for previously authored uniform layers.
-static func validate_spans(entry: Dictionary, guard: Script) -> String:
+static func validate_spans(entry: Dictionary, guard: Script, positioned: bool = false) -> String:
 	var spans: Variant = entry.road_spans
 	var physical: Variant = entry.get("physical_rules")
 	var source: Variant = entry.get("source_fractions")
 	if spans is not Array or spans.size() != entry.road_ids.size() or physical is not Dictionary: return "Incomplete physical spans."
-	if source is not Array or source.size() != entry.connectors[-1].vertex+1 or source.size() > 8192: return "Invalid source fractions."
+	if source is not Array or source.size() < 2 or source.size() != entry.connectors[-1].vertex+1 or source.size() > 8192: return "Invalid source fractions."
 	var last := -1.0
 	for at in source:
 		if not guard._finite(at,0,1) or at <= last: return "Invalid source fraction order."
 		last = at
 	if source[0] != 0 or source[-1] != 1: return "Incomplete source fractions."
 	for ref in entry.connectors:
-		if abs(source[int(ref.vertex)]-ref.at) > 0.0000001: return "Connector fraction mapping changed."
+		if not positioned and abs(source[int(ref.vertex)]-ref.at) > 0.0000001: return "Connector fraction mapping changed."
 	var boundaries := {}
 	for key in ["width_rules", "road_surface"]:
 		var rules: Variant = physical.get(key)
@@ -129,7 +143,9 @@ static func validate_spans(entry: Dictionary, guard: Script) -> String:
 		if fractions is not Array or fractions.size() < 2 or fractions.size() > 16384: return "Invalid span fractions."
 		count += fractions.size()
 		if count > 16384: return "Span point budget exceeded."
-		if fractions[0] != source[int(entry.connectors[i].vertex)] or fractions[-1] != source[int(entry.connectors[i+1].vertex)]: return "Span connector range changed."
+		var start: Variant = entry.connectors[i].resolved_at if positioned else source[int(entry.connectors[i].vertex)]
+		var end: Variant = entry.connectors[i+1].resolved_at if positioned else source[int(entry.connectors[i+1].vertex)]
+		if fractions[0] != start or fractions[-1] != end: return "Span connector range changed."
 		if span.get("points_cm") is not Array or span.points_cm.size() != fractions.size() or span.get("widths_cm") is not Array or span.widths_cm.size() != fractions.size()-1 or span.get("surfaces") is not Array or span.surfaces.size() != fractions.size()-1: return "Invalid span arrays."
 		last = -1
 		var indices := {"width_rules":0, "road_surface":0}

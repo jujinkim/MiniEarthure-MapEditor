@@ -17,6 +17,8 @@ MAX_POINTS = 8192
 MAX_ROADS = 2048
 MAX_RULES = 1024
 MAX_OUTPUT_POINTS = 16384
+CONNECTOR_TOLERANCE_M = 0.001
+MAX_CONNECTOR_EDGE_CHECKS = 65536
 CLASSES = {"motorway", "trunk", "primary", "secondary", "tertiary", "residential", "living_street", "service", "unclassified"}
 COMMON = {"id", "bbox", "theme", "type", "version", "sources"}
 SEGMENT = COMMON | {"subtype", "class", "connectors", "road_flags", "road_surface", "width_rules", "level", "level_rules", "subclass", "subclass_rules", "names", "routes", "destinations", "speed_limits"}
@@ -94,7 +96,7 @@ def physical_rules(properties, key):
     return result
 
 
-def densify(coords, lengths, widths, surfaces, geod):
+def densify(coords, lengths, widths, surfaces, geod, connections=None):
     """Split physical edges, never graph nodes, at WGS84 distance fractions."""
     fractions = [distance / lengths[-1] for distance in lengths]
     boundaries = {v for rules in (widths, surfaces) for a,b,_ in rules for v in (a,b)}
@@ -104,6 +106,7 @@ def densify(coords, lengths, widths, surfaces, geod):
         azimuth, _, _ = geod.inv(*coords[edge], *coords[edge+1])
         lon, lat, _ = geod.fwd(*coords[edge], azimuth, at*lengths[-1]-lengths[edge])
         positions[at] = [lon, lat]
+    positions.update(connections or {})
     ordered = sorted(positions)
     indices = {at:i for i,at in enumerate(ordered)}
     def values(rules):
@@ -113,6 +116,67 @@ def densify(coords, lengths, widths, surfaces, geod):
             output.append(rules[index][2])
         return output
     return ordered, [positions[a] for a in ordered], [indices[a] for a in fractions], values(widths), values(surfaces)
+
+
+def connection_position(point, at, coords, lengths, geod, budget):
+    """Explicit reference only: bounded geodetic closest point, no ID inference.
+
+    Canonical shared node is the connector coordinate. At most 1 mm correction
+    is permitted and recorded; multiple nearby positions reject, never choose one.
+    """
+    fractions = [v/lengths[-1] for v in lengths]
+    if point in coords:
+        index = coords.index(point)
+        if abs(at-fractions[index]) > 1e-7:
+            raise ValueError("Connector at disagrees with WGS84 geodetic vertex fraction")
+        return fractions[index], index, 0.0
+    budget[0] += len(coords)-1
+    if budget[0] > MAX_CONNECTOR_EDGE_CHECKS:
+        raise ValueError("Connector edge comparison budget exceeded")
+    candidates = []
+    for i, (a,b) in enumerate(zip(coords,coords[1:])):
+        azimuth, _, distance = geod.inv(*a,*b)
+        def evaluate(offset):
+            lon,lat,_ = geod.fwd(*a,azimuth,offset)
+            return geod.inv(lon,lat,*point)[2]
+        # Convex distance on these bounded (<~3 km), non-antipodal edges.
+        lo,hi = 0.0,distance
+        ratio = (5**0.5-1)/2
+        x,y = hi-ratio*(hi-lo),lo+ratio*(hi-lo)
+        dx,dy = evaluate(x),evaluate(y)
+        for _ in range(48):
+            if dx < dy:
+                hi,y,dy = y,x,dx
+                x = hi-ratio*(hi-lo); dx = evaluate(x)
+            else:
+                lo,x,dx = x,y,dy
+                y = lo+ratio*(hi-lo); dy = evaluate(y)
+        offset = min((0.0,distance,(lo+hi)/2),key=evaluate)
+        separation = evaluate(offset)
+        if separation <= CONNECTOR_TOLERANCE_M:
+            fraction = (lengths[i]+offset)/lengths[-1]
+            if not any(abs(fraction-prev[0])*lengths[-1] <= 0.000001 for prev in candidates):
+                candidates.append((fraction,separation))
+    if len(candidates) != 1:
+        raise ValueError("Off-line/ambiguous connector position")
+    closest,_ = candidates[0]
+    if abs(at-closest) > 1e-7:
+        raise ValueError("Connector at disagrees with closest geodetic position")
+    # Reuse a closest source endpoint; interior locations use the explicit at,
+    # so an exactly equal physical boundary remains one shape vertex.
+    vertex = next((i for i,v in enumerate(fractions) if closest == v),None)
+    resolved = fractions[vertex] if vertex is not None else at
+    if vertex is None:
+        if not 0 < resolved < 1: raise ValueError("Off-vertex endpoint mismatch")
+        edge = bisect_right(fractions,resolved)-1
+        azimuth,_,_ = geod.inv(*coords[edge],*coords[edge+1])
+        lon,lat,_ = geod.fwd(*coords[edge],azimuth,resolved*lengths[-1]-lengths[edge])
+        expected = [lon,lat]
+    else: expected = coords[vertex]
+    displacement = geod.inv(*expected,*point)[2]
+    if displacement > CONNECTOR_TOLERANCE_M:
+        raise ValueError("Connector position exceeds 1 mm correction")
+    return resolved,vertex,displacement
 
 
 def parse(raw):
@@ -196,11 +260,11 @@ def parse(raw):
     geod = Geod(ellps="WGS84")
     used, roads = set(), []
     output_points = len(connectors)
+    comparison_budget = [0]
     for fid, segment in sorted(segments.items()):
         coords, p = segment["coords"], segment["properties"]
         refs = p.get("connectors")
-        if not isinstance(refs,list) or not 2 <= len(refs) <= len(coords): raise ValueError("Missing/bounded connector references")
-        vertices = {tuple(pos):i for i,pos in enumerate(coords)}
+        if not isinstance(refs,list) or not 2 <= len(refs) <= MAX_FEATURES: raise ValueError("Missing/bounded connector references")
         lengths = [0.0]
         for a,b in zip(coords,coords[1:]):
             lengths.append(lengths[-1] + geod.inv(*a,*b)[2])
@@ -211,27 +275,27 @@ def parse(raw):
             at = number(ref["at"],"connector at",0,1)
             if cid in ids or cid not in connectors: raise ValueError("Duplicate/missing connector reference")
             ids.add(cid)
-            index = vertices.get(tuple(connectors[cid]))
-            if index is None: raise ValueError("Connector must be an exact source vertex; no snapping")
-            if abs(at - lengths[index]/lengths[-1]) > 1e-7:
-                raise ValueError("Connector at disagrees with WGS84 geodetic vertex fraction")
-            linked.append((index,cid,at))
+            resolved,index,displacement = connection_position(connectors[cid],at,coords,lengths,geod,comparison_budget)
+            linked.append((resolved,cid,at,index,displacement))
         linked.sort()
-        if linked[0][0] != 0 or linked[-1][0] != len(coords)-1 or len({v[0] for v in linked}) != len(linked):
+        if linked[0][0] != 0 or linked[-1][0] != 1 or len({v[0] for v in linked}) != len(linked):
             raise ValueError("Incomplete/ambiguous segment endpoints")
         used.update(ids)
-        provenance[fid].update(road_class=p["class"], connectors=[dict(connector_id=c, at=a, vertex=i) for i,c,a in linked], road_ids=[])
-        fractions, points, vertex_indices, widths, surfaces = densify(coords, lengths, segment["widths"], segment["surfaces"], geod)
+        provenance[fid].update(road_class=p["class"], connectors=[dict(connector_id=c, at=a, vertex=i,
+            resolved_at=r, displacement_m=d) for r,c,a,i,d in linked], road_ids=[])
+        connections = {r:connectors[c] for r,c,_,_,_ in linked}
+        fractions, points, _, widths, surfaces = densify(coords, lengths, segment["widths"], segment["surfaces"], geod, connections)
+        indices = {at:i for i,at in enumerate(fractions)}
         provenance[fid].update(road_spans=[], source_fractions=[v/lengths[-1] for v in lengths], physical_rules=dict(width_rules=segment["widths"], road_surface=segment["surfaces"]))
         for left,right in zip(linked,linked[1:]):
             if len(roads) >= MAX_ROADS: raise ValueError("Transportation split-road budget exceeded")
-            a,b = vertex_indices[left[0]], vertex_indices[right[0]]
+            a,b = indices[left[0]], indices[right[0]]
             output_points += b-a+1
             if output_points > MAX_OUTPUT_POINTS: raise ValueError("Transportation output point budget exceeded")
             roads.append(dict(source_id=fid, start=left[1], end=right[1], coords=points[a:b+1],
                               fractions=fractions[a:b+1], widths=widths[a:b], surfaces=surfaces[a:b]))
     if used != set(connectors): raise ValueError("Unreferenced connectors; incomplete graph is not adopted")
-    metadata = dict(query, source_position_count=total_points, segment_sources=[provenance[f] for f in sorted(segments)],
+    metadata = dict(query, connection_profile="explicit-position-v1", source_position_count=total_points, segment_sources=[provenance[f] for f in sorted(segments)],
                     connector_sources=[provenance[f] for f in sorted(connectors)])
     return dict(roads=roads, connectors=connectors, metadata=metadata)
 
@@ -292,6 +356,7 @@ def convert(parsed, source, raw, *, layer_id, coordinates, accuracy="unknown", p
         segments[road["source_id"]]["road_ids"].append(rid)
         if progress: progress(index+1,len(parsed["roads"]))
     layer.warning("Transportation ground graph only; exact connector IDs connect endpoints. Interior connectors split whole source segments. Physical boundaries add geodetically interpolated vertices, never connectors. Crossing coordinates never create graph connections.")
+    layer.warning("Explicit connector positions: WGS84 closest position and at are checked; shared ID uses the source connector coordinate with at most 1 mm correction. Ambiguous/off-line positions reject the entire graph.")
     layer.warning("Chosen road plane is an estimate, not source elevation or terrain sampling. Recipe 2+ ground ribbons follow terrain. Verify terrain alignment before adoption; level is not metric height.")
     layer.warning("Absent width estimates 8 m; paved/unknown/absent surface estimates asphalt. Source names, routes, destinations and speed limits remain in the snapshot, not game rules. No inferred sidewalks.")
     layer.warning("Complete segment/connector query required. Crossing bbox, missing refs, rail/water, restrictions, structures and incomplete/overlapping/conditional physical rules reject the whole candidate. No clipped or repaired graph.")

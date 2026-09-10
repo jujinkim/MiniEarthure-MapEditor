@@ -66,8 +66,9 @@ func run() -> void:
 	check(ui.store.document==before,"review leaves document unchanged")
 	check(raw.adapter=="overture-transportation-v1" and raw.source.sha256==original,"snapshot identity preserved")
 	check(ui.import_summary.text.contains("2026-08-19.0") and ui.import_summary.text.contains("synthetic fixture") and ui.import_summary.text.contains("Chosen road plane"),"release/source/estimate review")
+	check(raw.coordinates.overture_transportation.segment_sources[0].connectors[1].vertex==null and raw.coordinates.overture_transportation.segment_sources[0].connectors[1].resolved_at==0.5,"off-vertex mapping reaches native review")
 	check(raw.patches.size()==7,"four connectors and three split roads")
-	for field in ["license","adapter","provenance","bbox","release","sources","missing","endpoint","height","width","unmapped","order","budget","span_order","span_gap","span_width","span_surface","span_geometry","span_missing","span_boundary","span_one","source_fraction"]:
+	for field in ["license","adapter","provenance","bbox","release","sources","missing","endpoint","height","width","unmapped","order","budget","span_order","span_gap","span_width","span_surface","span_geometry","span_missing","span_boundary","span_one","source_fraction","position_profile","position_at","position_displacement","position_vertex","position_endpoint"]:
 		var bad:=raw.duplicate(true)
 		var meta: Dictionary=bad.coordinates.overture_transportation
 		if field=="license":bad.source.license="MIT"
@@ -89,6 +90,11 @@ func run() -> void:
 		elif field=="span_geometry":meta.segment_sources[0].road_spans[0].points_cm[1][0]+=1
 		elif field=="span_missing":meta.segment_sources[0].road_spans.pop_back()
 		elif field=="span_one":meta.segment_sources[0].road_spans[0].fractions[1]=1
+		elif field=="position_profile":meta.connection_profile="unknown"
+		elif field=="position_at":meta.segment_sources[0].connectors[1].resolved_at=0.6
+		elif field=="position_displacement":meta.segment_sources[0].connectors[1].displacement_m=0.002
+		elif field=="position_vertex":meta.segment_sources[0].connectors[1].vertex=1
+		elif field=="position_endpoint":meta.segment_sources[0].connectors[0].vertex=null
 		elif field=="source_fraction":meta.segment_sources[0].source_fractions[1]=0.4
 		elif field=="span_boundary":meta.segment_sources[0].road_spans[0].fractions[1]=0.3
 		else:bad.coordinates.erase("overture_transportation")

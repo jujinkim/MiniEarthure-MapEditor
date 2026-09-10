@@ -908,14 +908,14 @@ Supported profile:
   Provider Arrow/STAC/network allocations are not bounded by the snapshot cap.
 - Every source position must be strictly inside the reviewed bbox. No segment
   clipping or selected-feature dropping. Every endpoint and internal reference
-  must resolve to an exact connector vertex. All connectors must be referenced.
+  must resolve under the explicit-position contract below. All connectors must be referenced.
   Missing/duplicate/ambiguous references, incomplete endpoints, out-of-area features,
   loops/self-crossings and centimetre projection collapse reject the whole layer.
-- Interior connectors split the polyline without changing its coordinates. One
+- Interior connectors split the polyline at a checked source position. One
   source connector ID maps to one authored node; coincident distinct IDs remain
   distinct and 2D crossings never add graph edges. Reference `at` is checked using
   WGS84 ellipsoid distance (pyproj Geod) with absolute fractional tolerance 1e-7;
-  this tolerates serialized fractions, not off-vertex snapping or inferred links.
+  off-vertex positions additionally use the bounded metric check below; no inferred links.
   Source/connector/segment ordering is canonical; fresh layers get fresh namespaces.
 - Road classes: motorway, trunk, primary, secondary, tertiary, residential,
   living_street, service and unclassified. Ground level only; absent/zero `level`
@@ -982,13 +982,10 @@ JSON version numbers are accepted while booleans/fractions reject. The expanded
 form initially exceeded the minimum window; its scrollable content now passes.
 No assertion was relaxed to accept a broken graph or partial source.
 
-Still unimplemented: arbitrary linear-referenced physical rule boundaries,
-conditional restrictions/routing, off-vertex connectors, metric structures,
+Still unimplemented: conditional restrictions/routing, metric structures,
 rail/water paths, partial graph/large-region acquisition and terrain/datum alignment.
-Next unit is **Overture transportation varying width/surface linear-reference
-normalization**: interval coverage/overlap/unknown-rule rejection, geodetic boundary
-interpolation, preservation of connector identity and per-span provenance require a
-separate geometry unit. This delivery is not whole-I02 or final acceptance.
+The physical-interval and explicit-position sections below supersede the earlier
+vertex/uniform-only limits. This delivery is not whole-I02 or final acceptance.
 Real provider/Internet/accuracy, installed Windows/Linux and Client driving,
 representative performance and full integration remain deferred to their retained
 verification phase. A host PCK does not establish native target distribution.
@@ -1008,7 +1005,7 @@ pin changes. Rule endpoints are hard transitions, not linear width interpolation
 and [width rules](https://docs.overturemaps.org/schema/reference/transportation/types/segment/width_rule/)
 were checked 2026-09-10 together with the geodetic reference above. The complete
 partition requirement is this adapter's explicit restriction, not a claim that all
-provider data has complete coverage. Structures, restrictions, off-vertex connectors,
+provider data has complete coverage. Structures, restrictions,
 large/partial graphs and other themes remain unimplemented. Real provider/installed
 platform/user-driving/performance acceptance is deferred; synthetic Mac compiled-PCK
 verification is not final I02 acceptance.
@@ -1023,3 +1020,56 @@ junction generation, distinct physical arrays after adoption, forged span reject
 Undo/Redo, recovery, package I/O, original preservation, cancellation and stale review.
 Use the transportation command above with the last three safety validators; the
 unchanged native dylib is reused. Other platforms and full acceptance remain open.
+
+
+### Overture explicit connector positions — 2026-09-10
+
+This replaces the exact-source-vertex-only constraint. The adapter still uses only
+explicit shared connector IDs; coincident different IDs and geometric crossings
+never create a connection. The immutable source snapshot remains unchanged.
+
+For an off-vertex connector, compute the closest point on every bounded WGS84
+geodesic edge (48 golden-section iterations with endpoint comparison). Require
+exactly one candidate within **0.001 m**; candidates separated along the segment
+by more than 0.000001 m are distinct and ambiguous, so the entire input rejects.
+Require source `at` to agree with the closest fraction within 1e-7. The interpolated
+`at` position must also be within 0.001 m of the connector. Source vertices use
+the existing exact-vertex/fraction path. Closest source endpoints retain their
+source index; other positions insert `at`. Every endpoint still needs a connector.
+
+One connector ID uses its original coordinate for every road endpoint and authored
+node, avoiding independent per-road quantization gaps. This permits at most 1 mm
+of explicit geometric correction before centimetre projection; the threshold is
+an adapter restriction, **not an Overture accuracy guarantee**. Source shape and
+physical fractions are preserved; identical fractions reuse one point, while
+nearby distinct fractions that collapse to centimetres still reject. No property
+boundary is snapped away. Changed projected self-crossings reject as before.
+
+New metadata uses `connection_profile=explicit-position-v1`, with each reference's
+original `at`, `resolved_at`, nullable original `vertex`, and `displacement_m`.
+Original source fractions/count, ordered road spans and node positions survive
+review, adoption and project/package I/O. The GDScript boundary checks the new
+profile, ordering, displacement bound, index/fraction mapping, endpoint identity
+and budgets before native validation. Older vertex-based provenance stays readable.
+Non-exact references share a maximum of 65536 edge comparisons per snapshot;
+source/output/road/rule/IPC limits and atomic whole-input rejection remain.
+
+Official [connectivity](https://docs.overturemaps.org/guides/transportation/segments-and-connectors/)
+and [linear-reference](https://docs.overturemaps.org/guides/transportation/linear-referencing/)
+contracts were checked 2026-09-10: geometry determines the physical connection and
+an off-geometry connector uses the closest position. Our tight tolerance deliberately
+rejects wider repairs instead of inventing an intersection shape.
+
+Verification: 12 Python tests and rendered Mac compiled-PCK transportation (83
+checks), import-layer, worker-lifetime and document-history validators passed with
+no diagnostics. Covers off-vertex shared junctions, fractional physical boundaries,
+0.5 mm correction/2 mm rejection, ambiguous positions, comparison admission,
+source preservation, native generation, recovery/package I/O and cancellation.
+Use the preceding focused command with the three safety validators. Native code,
+ABI and MapKit pin are unchanged. Windows/Linux standalone builds, actual provider
+accuracy, user driving and performance/final integration remain deferred.
+
+Next independent unit: **I02 Overture land_cover vegetation input**. Determine
+which explicit source classes can map to the existing vegetation contract, retaining
+source classification, reviewed estimates, polygon holes and whole-input rejection.
+This is a new theme/acquisition/area-normalization unit, not another connector case.
