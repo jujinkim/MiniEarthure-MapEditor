@@ -92,7 +92,10 @@ before **Adopt new layer**. Discard changes nothing; reimport creates a fresh la
 and adoption is one Undo command. See [import contracts](docs/IMPORTS.md).
 The wizard supports Python executable selection, actual per-stage progress, Cancel
 and Retry last source. Child exit/output/identity budgets protect publication;
-owner shutdown and a parent-EOF watchdog stop helpers.
+owner shutdown and a parent-EOF watchdog stop helpers. Structural OSM surface checks
+before review and adoption use a separate cancellable Godot child, with a 120-second
+deadline and the same 16-cell/64 MiB limits. See the [native validation contract](docs/IMPORTS.md#asynchronous-structural-candidate-validation--2026-09-10),
+including bare-engine PCK launch instructions.
 
 Explicit **PBF streaming** in the OSM crop dialog supports local sources up to
 2 GiB using bounded disk indexing and complete candidate references before crop;

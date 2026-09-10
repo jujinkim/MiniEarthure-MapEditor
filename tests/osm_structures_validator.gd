@@ -41,6 +41,7 @@ func run() -> void:
 	check(ui.store.document == before,"review preserves accepted document")
 	check(ui.import_summary.text.contains("EGM96") and ui.import_summary.text.contains("maxheight:physical"),"vertical datum and physical clearance reviewed")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.roads.size() == 6,"native structure adoption: " + ui.status_label.text)
 	if ui.store.document.roads.size() == 6:
 		var roads: Array = ui.store.document.roads
@@ -79,6 +80,7 @@ func run() -> void:
 	check(ui.pending_import != null,"retry stages fresh structures")
 	check(ui.store.undo() == "","change document during structure review")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.roads.is_empty(),"stale structure review cannot overwrite document")
 	check(FileAccess.get_sha256(path) == source_hash and FileAccess.get_sha256(package) == package_hash,"source and prior package preserved")
 	await check_ground_crop(ui,path)
@@ -122,6 +124,7 @@ func check_ground_crop(ui: Control, path: String) -> void:
 	check(invalid.load_value(collapsed,ui.import_identity,ui.import_coordinates_request) == "" and invalid.validate_for(ui.store) != "","native rejects collapsed crop segment")
 	check(ui.store.document == before,"collapsed crop rejection preserves document")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.roads.size() == 6,"clipped approaches atomically adopted")
 	if ui.store.document.roads.size() != 6: return
 	var roads: Array = ui.store.document.roads
@@ -168,6 +171,7 @@ func check_ground_crop(ui: Control, path: String) -> void:
 	if ui.pending_import != null:
 		check(ui.pending_import.value.coordinates.osm_crop.vertical.clipped_ground_features == 4,"streaming preserves ground crop profile")
 		ui._adopt_import()
+		await wait_import(ui)
 		check(ui.store.document.roads.size() == roads.size(),"streaming crop native adoption")
 		if ui.store.document.roads.size() == roads.size():
 			for i in range(roads.size()): check(ui.store.document.roads[i].points == roads[i].points,"whole/streaming crop geometry parity %d" % i)
@@ -212,6 +216,7 @@ func check_structure_crop(ui: Control, path: String) -> void:
 	check(invalid.load_value(collapsed,ui.import_identity,ui.import_coordinates_request) == "" and invalid.validate_for(ui.store) != "","collapsed partial structure rejected by native review")
 	check(ui.store.document == before,"failed partial structure preserves map")
 	ui._adopt_import()
+	await wait_import(ui)
 	check(ui.store.document.roads.size() == 2,"only retained structural sections adopted")
 	if ui.store.document.roads.size() != 2: return
 	var roads: Array = ui.store.document.roads.duplicate(true)
@@ -269,6 +274,7 @@ func check_structure_crop(ui: Control, path: String) -> void:
 	if ui.pending_import != null:
 		check(ui.pending_import.value.coordinates.osm_crop == crop,"whole/streaming partial structure provenance parity")
 		ui._adopt_import()
+		await wait_import(ui)
 		check(ui.store.document.roads.size() == roads.size(),"streamed partial graph native adoption")
 		if ui.store.document.roads.size() == roads.size():
 			for i in range(roads.size()): check(ui.store.document.roads[i].points == roads[i].points,"streamed partial geometry parity %d" % i)
@@ -282,6 +288,7 @@ func check_structure_crop(ui: Control, path: String) -> void:
 	if ui.pending_import != null:
 		check(ui.pending_import.value.coordinates.osm_crop.vertical.section_endpoints == 2,"one section end per source way")
 		ui._adopt_import()
+		await wait_import(ui)
 		var connected: Array = ui.store.document.roads
 		check(connected.size() == 4,"two structures and two surviving ground approaches")
 		if connected.size() == 4:

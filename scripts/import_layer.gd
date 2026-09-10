@@ -7,6 +7,7 @@ const OVERTURE_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Map
 const OVERTURE_TRANSPORTATION_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation"
 const OVERTURE_LAND_COVER_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; ESA WorldCover (CC-BY-4.0); © ESA WorldCover project 2020 / Contains modified Copernicus Sentinel data (2020) processed by ESA WorldCover consortium; https://docs.overturemaps.org/attribution/#base"
 var value: Dictionary = {}
+var native_payload_digest := ""
 
 static func _hex(text: Variant, length: int) -> bool:
 	if text is not String or text.length() != length: return false
@@ -46,6 +47,7 @@ static func _coordinates(c: Variant, requested: Dictionary) -> String:
 
 func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -> String:
 	value = {}
+	native_payload_digest = ""
 	if raw is not Dictionary or JSON.stringify(raw).to_utf8_buffer().size() > MAX_BYTES: return "Invalid or oversized ImportLayer."
 	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1", "overture-buildings-v1", "overture-transportation-v1", "overture-land-cover-v1"]: return "Unsupported ImportLayer version/adapter."
 	if requested.has("adapter") and raw.adapter != requested.adapter: return "Import adapter does not match request."
@@ -346,7 +348,13 @@ func patches(store: RefCounted) -> Array:
 	result.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
 	return result
 
-func validate_for(store: RefCounted) -> String:
+func has_structures() -> bool:
+	if value.get("adapter") != "osm-extract-v1": return false
+	for patch: Dictionary in value.get("patches", []):
+		if patch.field == "roads" and patch.after.kind in ["bridge", "tunnel"]: return true
+	return false
+
+func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 	if value.is_empty(): return "No import candidate."
 	if value.adapter == "osm-extract-v1":
 		var explicit := false
@@ -367,10 +375,10 @@ func validate_for(store: RefCounted) -> String:
 		for patch: Dictionary in value.patches:
 			if patch.field == "roads" and patch.after.kind in ["bridge", "tunnel"]:
 				if candidate.recipe_version < 2: return "OSM bridges/tunnels require explicit recipe 2 or newer for connected surfaces."
-				return _validate_structure_cells(store, result.data.document)
+				return _validate_structure_cells(store, result.data.document, context)
 	return ""
 
-func _validate_structure_cells(store: RefCounted, candidate: Dictionary) -> String:
+func _validate_structure_cells(store: RefCounted, candidate: Dictionary, context: Dictionary = {}) -> String:
 	# Document validation alone cannot detect generation-time apron/clearance
 	# failures. Generate affected corridors in a disposable native candidate.
 	# Bound before cell enumeration; existing authoring payload/native budgets apply.
@@ -397,7 +405,7 @@ func _validate_structure_cells(store: RefCounted, candidate: Dictionary) -> Stri
 			for y in range(low.y, high.y+1):
 				cells[Vector2i(x,y)] = true
 				if cells.size() > 16: return "OSM structural generation check exceeds 16 cells; choose a smaller bbox."
-	return preload("./authoring_files.gd").validate(store, candidate, {}, cells.keys())
+	return preload("./authoring_files.gd").validate(store, candidate, {}, cells.keys(), context)
 
 func adopt(store: RefCounted) -> String:
 	var failure := validate_for(store)

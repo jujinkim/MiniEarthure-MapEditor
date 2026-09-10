@@ -28,11 +28,29 @@ static func write_new(path: String, bytes: PackedByteArray) -> String:
 	file.close()
 	return "" if failure == OK else "Payload write failed."
 
-static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary = {}, cells: Array = []) -> String:
+static func _progress(context: Dictionary, stage: String, completed: int, total: int) -> void:
+	if context.has("progress"): context.progress.call(stage, completed, total)
+
+static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary = {}, cells: Array = [], context: Dictionary = {}) -> String:
 	var result: Dictionary = store._validate(document)
 	if not result.ok: return store.reason(result)
 	var payloads := {}
 	var size := 0
+	var total := MAX_PAYLOAD_BYTES
+	if context.has("progress"):
+		total = 0
+		var counted := {}
+		for field in ["assets", "heightmaps"]:
+			for record: Dictionary in document.get(field, []):
+				var path := str(record.path)
+				if counted.has(path): continue
+				counted[path] = true
+				var file := FileAccess.open(store.project_path.path_join(path), FileAccess.READ)
+				if file == null: return "Cannot read candidate payload."
+				total += file.get_length()
+				file.close()
+				if total > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
+	_progress(context, "snapshot", 0, total)
 	for field in ["assets", "heightmaps"]:
 		for record: Dictionary in document.get(field, []):
 			var path := str(record.path)
@@ -42,22 +60,38 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 			size += source.bytes.size()
 			if size > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
 			payloads[path] = source.bytes
-	var scratch := ProjectSettings.globalize_path("user://authoring-candidates/" + Crypto.new().generate_random_bytes(12).hex_encode())
+			if context.has("hashes"):
+				context.hashes[path] = digest(source.bytes)
+				if FileAccess.get_sha256(store.project_path.path_join(path)) != context.hashes[path]: return "Source changed during native candidate snapshot."
+			_progress(context, "snapshot", size, total)
+	if context.get("expected_payloads", "") != "" and JSON.stringify(context.hashes).sha256_text() != context.expected_payloads: return "Project payload changed since import review; import again."
+	var scratch: String = context.get("scratch", ProjectSettings.globalize_path("user://authoring-candidates/" + Crypto.new().generate_random_bytes(12).hex_encode()))
 	var failure := write_new(scratch.path_join("document.json"), str(result.data.canonical).to_utf8_buffer())
 	for path: String in payloads:
 		if failure != "": break
 		failure = write_new(scratch.path_join(path), payloads[path])
 	if failure == "":
+		_progress(context, "open", 0, 1)
 		var native: RefCounted = ClassDB.instantiate("MapKitBridge")
 		result = JSON.parse_string(native.open_project(scratch))
 		if not result.ok: failure = store.reason(result)
 		if failure == "":
+			_progress(context, "open", 1, 1)
+			_progress(context, "generate", 0, cells.size())
+			var completed := 0
 			for cell: Vector2i in cells:
 				result = JSON.parse_string(native.generate_chunk(cell.x, cell.y))
 				if not result.ok:
 					failure = "Cell %s: %s" % [cell, store.reason(result)]
 					break
-	remove_scratch(scratch)
+				completed += 1
+				_progress(context, "generate", completed, cells.size())
+	if context.has("hashes"):
+		for path: String in context.hashes:
+			if FileAccess.get_sha256(store.project_path.path_join(path)) != context.hashes[path]: failure = "Source changed during native candidate validation."
+	# The supervising process owns this directory and retires it after confirmed
+	# child exit, including cancellation inside a native call.
+	if not context.has("scratch"): remove_scratch(scratch)
 	return failure
 
 static func remove_scratch(path: String) -> void:

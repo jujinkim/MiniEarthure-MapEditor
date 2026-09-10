@@ -105,6 +105,7 @@ func run() -> void:
 			"range": bad.coordinates.vertical.delta_range_m=[4,2]
 		check(LAYER.new().load_value(bad,ui.import_identity,ui.import_coordinates_request)!="","forged vertical metadata rejected: "+kind)
 	ui._adopt_import()
+	await wait_job()
 	check(ui.store.document.roads.size()==6,"atomic converted graph adoption")
 	if ui.store.document.roads.size()!=6: await finish(); return
 	check(ui.store.document.roads[1].points[2][1]==600 and ui.store.document.roads[4].points[2][1]==-600 and ui.store.document.roads[4].clearance_cm==450,"H96+delta-zero and unchanged physical clearance")
@@ -161,6 +162,7 @@ func run() -> void:
 	check(ui.pending_import!=null,"fresh retry")
 	panel.zero.value=101;panel.zero.value=102
 	ui._adopt_import()
+	await wait_job()
 	check(ui.pending_import==null and state()==before,"changed review selection cannot adopt after restoration")
 	# Streaming also uses the same captured correction and target-height crop.
 	ui.osm_panel.enabled.button_pressed=true

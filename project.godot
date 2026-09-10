@@ -3,7 +3,7 @@ config_version=5
 [application]
 config/name="MiniEarthure MapEditor"
 config/description="Independent map package editor"
-run/main_scene="res://main.tscn"
+run/main_scene="res://scripts/editor_entry.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]

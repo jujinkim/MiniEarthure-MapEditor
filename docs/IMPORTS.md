@@ -71,8 +71,9 @@ Nonblocking stdout/stderr are drained at most 16 KiB each per frame. Request ID,
 sequence, ordered stage, nondecreasing completed/total and units are checked.
 Limits are 4 KiB/event, 1 MiB total IPC and 4 KiB retained stderr. Result bytes have
 an announced size/hash and must match after a successful process exit before the
-I01 boundary accepts them. Parsing/native adoption remain bounded synchronous
-work; these quotas do not establish whole-frame latency or process RSS.
+I01 boundary accepts them. Structural OSM candidate validation now uses the
+asynchronous native process described below; other bounded parsing/adoption paths
+remain synchronous. Quotas do not establish whole-frame latency or process RSS.
 
 Cancel, changed document and owner close kill the owned child; a 120-second job
 deadline bounds stalled work. Terminal PID state is cached because Godot kill
@@ -1645,9 +1646,9 @@ one maximum imported road width as margin; at most 16 distinct affected cells ar
 admitted before enumeration. Choose a smaller bbox if that check exceeds its cap.
 Existing 64 MiB candidate-payload and native geometry/triangle budgets apply.
 Native errors leave the accepted map and its loaded bridge/package intact. The
-check uses synchronous native calls and does not claim interruptible generation,
-frame-latency, RSS or full-area performance acceptance. Worker cancellation and
-stale-request/review guards still run at their existing boundaries.
+structural UI path now uses the asynchronous native supervisor described below.
+Frame-latency, RSS and full-area performance acceptance remain open; native
+contracts and generation budgets are unchanged.
 
 Mixed ground/structural mouths must match actual terrain within the native 1 cm
 rule. Supply terrain-level approach vertices before the grade. Unequal tunnel
@@ -1735,9 +1736,8 @@ unequal tunnel clearances, terrain-incompatible ground approaches and exhausted
 subdivision/output budgets fail the whole candidate without replacing accepted
 state or its loaded package. For example, stacking a second copy of the synthetic
 22-road junction fixture exceeds the subdivision budget; this is a supported
-failure, not a reason to increase limits. Native validation remains synchronous:
-cancel is handled at the surrounding worker/review boundaries, not inside a native
-generation call. Asynchronous native candidate validation is a separate next unit.
+failure, not a reason to increase limits. The following asynchronous native
+validation contract replaces this profile's former synchronous UI execution.
 
 `test_osm_junctions.py` and `osm_junctions_validator` cover source identity/order,
 interior splitting, branch closure/cancellation/budgets, partial junctions, forged
@@ -1749,3 +1749,68 @@ Windows/Linux, real regional/driving accuracy, responsiveness or RSS acceptance.
 Missing-height reconstruction, unequal-clearance transitions, other unsupported
 source semantics and larger-area imports remain unimplemented. Remote map-service
 acquisition remains outside the product scope.
+
+
+## Asynchronous structural candidate validation — 2026-09-10
+
+Structural OSM review and adoption each run native document/payload loading and
+all affected-cell generation in a fresh **Godot child process**. The main Editor
+retains its accepted document/history and loaded bridge/package. No native session
+or mutable scene object is shared with the child. The synchronous `ImportLayer`
+validation API remains available to headless callers; the structural UI path does
+not call it on the main thread. Other authoring/DEM validation is unchanged.
+
+- One active operation owns a fresh request token, atomically reserved directory
+  under `user://import-jobs`, ownership marker, request, candidate files and child
+  handles. A request is one use; Retry creates a new job. Existing paths, links,
+  user sources, unrelated files and recovery scratch are never claimed or removed.
+- A bounded 24 MiB request binds the current document, layer and project/source
+  paths. The child checks its SHA-256 before loading. It revalidates the import
+  metadata/document, checks the original source size/hash, snapshots referenced
+  payloads and generates every admitted cell, then rechecks source/payload hashes.
+  Conversion's captured vertical correction metadata stays immutable and does not
+  require its external correction file to remain present.
+- Existing explicit recipe 2+, 16-cell admission, **64 MiB payload** and native
+  geometry/output/work budgets remain unchanged. Snapshot admission checks total
+  file lengths before reading; it checks actual bytes and hashes while capturing.
+  Review retains an aggregate payload fingerprint. Adoption performs a new native
+  validation and rejects a different payload fingerprint, even if changed terrain
+  is still valid. Source files are not copied back or locked against external tools.
+- The UI shows source/recheck bytes, snapshot bytes, loading stage and generated
+  cells. Progress is per stage. Pipe reads are at most 16 KiB per stream per frame;
+  events/results are at most 4 KiB and total IPC at most 1 MiB. Identity, sequence,
+  stage, monotonic counters, units, cell bounds, completed generation/recheck and
+  result size/hash/schema are checked. Native diagnostics reject the result.
+- A **120-second supervisor deadline** covers each native validation. Cancel,
+  changed document/selection and Editor close stop the owned process, including
+  during a native call. A separate child pipe watcher terminates on parent EOF;
+  successful completion requires the parent's final acknowledgement before exit.
+  The parent confirms/reaps exit and then removes only known owned files and empty
+  directories. If termination is unconfirmed or unknown files remain, scratch is
+  retained. Import work discovery recognizes the `native` ownership kind without
+  acquiring deletion or resume authority.
+- Completion must match the active one-use native request, its original Editor
+  generation, document/layer signatures, project path, input identity, origin and
+  crop/height selections. Discard/cancel consumes that operation; late or duplicate
+  results cannot publish into a newer operation. Review changes no map data.
+  Successful adoption commits one normal Undo command on the main thread.
+
+The product entry scene routes the private worker before creating any Editor UI.
+It uses user arguments instead of release-disabled `--scene` overrides. Normal
+installed executables use their embedded/adjacent resources. When launching a PCK
+with a bare Godot engine, set `MAPEDITOR_RESOURCE_PACK` to **that same absolute PCK
+path** as well as passing `--main-pack`; Godot removes the latter from script-visible
+arguments. `scripts/check_documents.py --resource-pack` supplies this automatically
+and tests with loose product scripts and the main scene hidden.
+
+`import_native_validator` covers actual native generation cancellation/deadline,
+parent EOF, Editor close, progress/result faults, startup/ownership/discovery,
+source/payload/selection changes, late results, retry, atomic adoption/Undo and
+prior package preservation. Run it with existing structural, vertical, streaming,
+import ownership/recovery and authoring safety validators. macOS compiled-resource
+and source runs do not replace Windows/Linux installed-build acceptance. Process
+termination does not prove a fixed cancel latency; request serialization, metadata
+review, final command validation and cleanup still have synchronous bounded work.
+Real-map UI latency/RSS, driving/geometry accuracy and final integration gates
+remain deferred. Missing elevations, unsupported source semantics and larger
+regions are still unimplemented; limits were not raised.

@@ -85,7 +85,10 @@ var import_review: ConfirmationDialog
 var import_summary: TextEdit
 var import_review_generation := 0
 const IMPORT_JOB := preload("./import_job.gd")
+const IMPORT_NATIVE_JOB := preload("./import_native_job.gd")
 var import_job: RefCounted
+var import_selection_signature := ""
+var native_request_identity := ""
 var import_python: LineEdit
 var last_import_source := ""
 var import_progress: ProgressBar
@@ -771,6 +774,7 @@ func _apply_properties() -> void:
 
 func _document_changed() -> void:
 	if import_job != null: import_job.cancel()
+	native_request_identity = ""
 	_discard_import()
 	generation += 1
 	if package_work != null: package_work.cancel()
@@ -892,6 +896,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 
 func _cancel_operation() -> void:
 	if import_job != null: import_job.cancel()
+	native_request_identity = ""
 	_discard_import()
 	generation += 1
 	preview_due = 0
@@ -1059,6 +1064,7 @@ func _start_import(source: String, license_name: String) -> void:
 		_operation_status("Import failed · Use Retry import to adjust settings", "E_IMPORT: " + failure)
 		return
 	import_job = job
+	import_selection_signature = _import_selection_signature()
 	worker_generation = generation
 	busy = true
 	import_progress.value = 0
@@ -1090,17 +1096,20 @@ func _process(_delta: float) -> void:
 	cancel_button.tooltip_text = "Cancel the running operation; keep prior preview and original files." if busy else "No running operation."
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	if import_job != null:
+		if import_job is IMPORT_NATIVE_JOB and (generation != worker_generation or import_job.selection_signature != _import_selection_signature()): import_job.cancel()
 		import_job.poll()
 		var progress: Dictionary = import_job.progress
 		if not progress.is_empty():
 			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
 			validation_label.text = "%s %s · %d / %d %s" % ["DEM" if dem_mode.begins_with("dem") else "Import", progress.stage, progress.completed, progress.total, progress.unit]
 		if import_job.done:
+			var completed: RefCounted = import_job
 			var result: Dictionary = import_job.result
 			import_job = null
 			busy = false
 			import_progress.visible = false
-			if dem_mode != "": _finish_dem(result)
+			if completed is IMPORT_NATIVE_JOB: _finish_native_import(completed, result)
+			elif dem_mode != "": _finish_dem(result)
 			else: _finish_import(result)
 		return
 	if not render_job.is_empty():
@@ -1132,6 +1141,9 @@ func _process(_delta: float) -> void:
 		_status("Client launched (PID %d). Close Client to end the test. Snapshot: %s" % [last_drive_result.data.pid, result.data.path] if last_drive_result.ok else store.reason(last_drive_result))
 		return
 func _finish_import(result: Dictionary) -> void:
+	if import_selection_signature != _import_selection_signature():
+		_status("Import selection changed; retry. Original source retained.")
+		return
 	if vertical_import_revision != vertical_panel.revision:
 		_status("Height reference changed during import; retry. Original source retained.")
 		return
@@ -1146,10 +1158,69 @@ func _finish_import(result: Dictionary) -> void:
 		return
 	var layer := IMPORT_LAYER.new()
 	var failure := layer.load_value(result.data, import_identity, import_coordinates_request)
+	if failure == "" and layer.has_structures():
+		_start_native_import(layer, false)
+		return
 	if failure == "": failure = layer.validate_for(store)
 	if failure != "":
 		_status("E_IMPORT: " + failure)
 		return
+	_review_import(layer)
+
+func _import_selection_signature() -> String:
+	return JSON.stringify([import_source_format.selected, import_coordinate_mode.selected,
+		import_origin_lon.value, import_origin_lat.value, import_origin_x.value, import_origin_y.value,
+		osm_panel.revision, vertical_panel.revision, import_coordinates_request, import_identity, last_import_source])
+
+func _start_native_import(layer: RefCounted, adopting: bool) -> void:
+	if busy:
+		_status("Another operation is running; wait for it to finish.")
+		return
+	var job := IMPORT_NATIVE_JOB.new()
+	job.editor_generation = generation
+	var failure := job.start_validation(store, layer, adopting, _import_selection_signature(), last_import_source, Crypto.new().generate_random_bytes(16).hex_encode())
+	if failure != "":
+		_operation_status("Native import validation stopped · Retry import", "E_IMPORT_NATIVE: " + failure)
+		return
+	import_job = job
+	native_request_identity = job.identity
+	worker_generation = generation
+	busy = true
+	import_progress.visible = true
+	import_progress.value = 0
+	_status("Checking structural surfaces before %s · 120s deadline · Cancel retains the current map." % ("adoption" if adopting else "review"))
+
+func _finish_native_import(job: RefCounted, result: Dictionary) -> void:
+	if native_request_identity != job.identity or generation != job.editor_generation or not job.done or not job.exited or not job.matches(store, _import_selection_signature()):
+		_status("E_IMPORT_STALE: Document or import selection changed; import again.")
+		return
+	native_request_identity = ""
+	if not result.get("ok", false):
+		_operation_status("Native import validation stopped · Retry import", store.reason(result))
+		return
+	var checked: Variant = result.get("data")
+	if checked is not Dictionary or checked.get("request") != job.identity or checked.get("ok") is not bool:
+		_status("E_IMPORT_NATIVE: Invalid validation result; import again.")
+		return
+	if not checked.ok:
+		if checked.get("error") is not Dictionary or checked.error.get("code") != "E_IMPORT_NATIVE" or checked.error.get("message") is not String:
+			_status("E_IMPORT_NATIVE: Invalid validation failure; import again.")
+			return
+		_operation_status("Native import validation rejected · Prior map retained", store.reason(checked))
+		return
+	if not IMPORT_LAYER._hex(checked.get("payloads"), 64):
+		_status("E_IMPORT_NATIVE: Missing validation snapshot identity.")
+		return
+	if job.adopting:
+		# A fresh process just validated this exact document, layer and payload
+		# snapshot. Commit only on the main thread; never repeat cell generation here.
+		var failure: String = store.apply_command("Adopt import " + str(job.layer.value.source.name), job.layer.patches(store))
+		_status(failure if failure != "" else "Imported new layer. Undo removes only this adoption.")
+	else:
+		job.layer.native_payload_digest = checked.payloads
+		_review_import(job.layer)
+
+func _review_import(layer: RefCounted) -> void:
 	pending_import = layer
 	import_review_generation = generation
 	validation_label.text = "Import ready for review · document unchanged until Adopt"
@@ -1163,12 +1234,15 @@ func _discard_import() -> void:
 	if import_review != null: import_review.hide()
 
 func _adopt_import() -> void:
-	if pending_import == null or generation != import_review_generation:
+	if pending_import == null or generation != import_review_generation or import_selection_signature != _import_selection_signature():
 		_discard_import()
 		_status("E_IMPORT_STALE: Document changed; import again.")
 		return
 	var candidate: RefCounted = pending_import
 	_discard_import()
+	if candidate.has_structures():
+		_start_native_import(candidate, true)
+		return
 	var failure: String = candidate.adopt(store)
 	_status(failure if failure != "" else "Imported new layer. Undo removes only this adoption.")
 

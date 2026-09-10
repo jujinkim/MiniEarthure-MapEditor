@@ -65,7 +65,7 @@ func _metadata(name: String) -> Dictionary:
 	var data: Variant = parser.data
 	if data is not Dictionary or data.size() != 7: return {}
 	if data.get("format") != "mapeditor-import-owner" or data.get("version") != 1 or data.get("request") != name or not PRESENCE.hex32(data.get("owner")): return {}
-	if data.get("kind") not in ["vector", "dem-plan", "dem"]: return {}
+	if data.get("kind") not in ["vector", "dem-plan", "dem", "native"]: return {}
 	if not _integer(data.get("port"), 1, 65535) or not _integer(data.get("created_unix"), 0, 9999999999): return {}
 	return data
 

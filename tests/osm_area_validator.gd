@@ -69,6 +69,7 @@ func run() -> void:
 	bad.coordinates.erase("osm_crop")
 	check(LAYER.new().load_value(bad,ui.import_identity,ui.import_coordinates_request)!="","missing crop metadata rejected")
 	ui._adopt_import()
+	await wait_job(ui)
 	check(ui.store.document.buildings.size()==1 and ui.store.document.roads.size()==1,"atomic clipped layer adoption")
 	check(ui.store.undo()=="","crop Undo")
 	var undone: Dictionary=ui.store.document.duplicate(true)
@@ -97,6 +98,7 @@ func run() -> void:
 		check(zones.size()==2,"clipped forest keeps outer and island")
 		check(zones.any(func(z): return z.exclusions.size()==1),"clipped forest retains courtyard exclusion")
 		ui._adopt_import()
+		await wait_job(ui)
 		check(ui.store.undo()=="","multipart crop one-command Undo")
 	ui.osm_panel.enabled.button_pressed=false
 	check(ui.osm_panel.error()=="","whole-snapshot mode remains available")

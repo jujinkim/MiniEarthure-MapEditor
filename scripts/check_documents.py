@@ -73,6 +73,7 @@ def main():
             scripts.append('vertical_validator')
             scripts.append('osm_connections_validator')
             scripts.append('osm_junctions_validator')
+            scripts.append('import_native_validator')
         pack_args = []
         if args.resource_pack:
             shutil.copy2(root / 'export_presets.cfg', project / 'export_presets.cfg')
@@ -97,6 +98,7 @@ def main():
                     **os.environ, "MAPEDITOR_TEST_IMPORT_PYTHON": args.import_python,
                     "MAPEDITOR_TEST_PROJECT": str(project),
                     "MAPEDITOR_TEST_RESOURCE_PACK": str(artifact) if args.resource_pack else "",
+                    "MAPEDITOR_RESOURCE_PACK": str(artifact) if args.resource_pack else "",
                 })
             text = log.read_text()
             diagnostics = [line for line in text.splitlines() if line.startswith(('ERROR:', 'SCRIPT ERROR:', 'WARNING:'))]
