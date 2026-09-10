@@ -87,6 +87,7 @@ var import_summary: TextEdit
 var import_review_generation := 0
 var import_review_controls: Array = []
 const IMPORT_JOB := preload("./import_job.gd")
+const HEIGHTMAP_NATIVE_JOB := preload("./heightmap_native_job.gd")
 const DEM_NATIVE_JOB := preload("./dem_native_job.gd")
 const IMPORT_NATIVE_JOB := preload("./import_native_job.gd")
 var import_job: RefCounted
@@ -1116,7 +1117,10 @@ func _process(_delta: float) -> void:
 	cancel_button.tooltip_text = "Cancel the running operation; keep prior preview and original files." if busy else "No running operation."
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	if import_job != null:
-		if import_job is DEM_NATIVE_JOB:
+		if import_job is HEIGHTMAP_NATIVE_JOB:
+			if generation != worker_generation or import_job.document_epoch != store.command_epoch or import_job.selection_signature != author_panel.heightmap_selection(): import_job.cancel()
+			author_panel.heightmap_progress(import_job.progress)
+		elif import_job is DEM_NATIVE_JOB:
 			if generation != worker_generation or import_job.document_epoch != store.command_epoch or import_job.selection_signature != dem_panel.native_selection(): import_job.cancel()
 		elif import_job is IMPORT_NATIVE_JOB and (generation != worker_generation or import_job.document_epoch != store.command_epoch or import_job.selection_signature != _import_selection_signature()): import_job.cancel()
 		import_job.poll()
@@ -1130,7 +1134,8 @@ func _process(_delta: float) -> void:
 			import_job = null
 			busy = false
 			import_progress.visible = false
-			if completed is DEM_NATIVE_JOB: dem_panel.finish_native(completed, result)
+			if completed is HEIGHTMAP_NATIVE_JOB: author_panel.finish_heightmap(completed, result)
+			elif completed is DEM_NATIVE_JOB: dem_panel.finish_native(completed, result)
 			elif completed is IMPORT_NATIVE_JOB: _finish_native_import(completed, result)
 			elif dem_mode != "": _finish_dem(result)
 			else: _finish_import(result)

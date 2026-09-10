@@ -61,6 +61,9 @@ func run() -> void:
 	if failure == "":
 		if PAYLOADS.digest(read.bytes) != args[2]: failure = "Native validation input changed."
 		else: request = JSON.parse_string(read.bytes.get_string_from_utf8())
+	if failure == "" and request is Dictionary and request.get("kind") == "png":
+		finish(preload("./heightmap_native_worker.gd").validate(request, directory, identity, progress))
+		return
 	if failure == "" and request is Dictionary and request.get("kind") == "dem":
 		var output: Dictionary = preload("./dem_native_worker.gd").validate(request, directory, identity, progress)
 		finish(output)

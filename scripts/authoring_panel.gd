@@ -1,8 +1,17 @@
 extends AcceptDialog
+const HEIGHTMAP_JOB := preload("./heightmap_native_job.gd")
 const HEIGHTMAP_LAYER := preload("./heightmap_import_layer.gd")
 var heightmap_candidate: RefCounted
 var heightmap_review: ConfirmationDialog
 var heightmap_summary: RichTextLabel
+var heightmap_controls := {}
+var heightmap_request := {}
+var heightmap_revision := 0
+var heightmap_identity := ""
+var heightmap_payloads := ""
+var heightmap_review_selection := ""
+var heightmap_review_epoch := -1
+var heightmap_cancel: Button
 const FILES := preload("./authoring_files.gd")
 var editor: Control
 var author: RefCounted
@@ -30,6 +39,11 @@ func _ready() -> void:
 	feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	feedback.custom_minimum_size.y = 40
 	column.add_child(feedback)
+	heightmap_cancel = Button.new()
+	heightmap_cancel.text = "Cancel PNG validation"
+	heightmap_cancel.visible = false
+	heightmap_cancel.pressed.connect(_discard_heightmap)
+	column.add_child(heightmap_cancel)
 	source_picker = FileDialog.new()
 	source_picker.access = FileDialog.ACCESS_FILESYSTEM
 	source_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
@@ -45,37 +59,109 @@ func _ready() -> void:
 	heightmap_review.add_child(heightmap_summary)
 	heightmap_review.confirmed.connect(_adopt_heightmap)
 	heightmap_review.canceled.connect(_discard_heightmap)
+	editor.store.changed.connect(_invalidate_heightmap)
 	visibility_changed.connect(func():
 		if not visible:
 			heightmap_review.hide()
 			_discard_heightmap()
 	)
 
+func _invalidate_heightmap() -> void:
+	heightmap_revision += 1
+	_discard_heightmap()
+
 func _discard_heightmap() -> void:
+	if editor != null and editor.import_job is HEIGHTMAP_JOB: editor.import_job.cancel()
+	heightmap_identity = ""
+	heightmap_payloads = ""
+	heightmap_request.clear()
 	if heightmap_candidate != null: heightmap_candidate.discard()
 	heightmap_candidate = null
+	if heightmap_review != null: heightmap_review.hide()
 
 func _exit_tree() -> void:
 	_discard_heightmap()
 
+func heightmap_selection() -> String:
+	var controls := {}
+	for key: String in heightmap_controls:
+		var control: Control = heightmap_controls[key]
+		controls[key] = control.value if control is SpinBox else control.text
+	return JSON.stringify([heightmap_revision, heightmap_request, controls, author.options.grid_cm,
+		heightmap_candidate.value if heightmap_candidate != null else {}, editor.canvas.layer_state]).sha256_text()
+
 func _stage_heightmap(path: String, cell: Vector2i, spacing: int, offset: int, step: int, accuracy: int, attribution: Dictionary) -> void:
+	if editor.busy: return
 	_discard_heightmap()
-	heightmap_candidate = HEIGHTMAP_LAYER.new()
-	var failure: String = heightmap_candidate.stage(author.terrain, path, cell, spacing, offset, step, accuracy, attribution)
+	heightmap_request = {"path":path, "cell":[cell.x, cell.y], "spacing":spacing, "offset":offset, "step":step, "accuracy":accuracy, "attribution":attribution.duplicate(true)}
+	_start_heightmap(false)
+
+func _start_heightmap(adopting: bool) -> void:
+	if editor.busy: return
+	if not editor.canvas.available({"field":"heightmaps", "record":{"id":"terrain"}}, true):
+		_discard_heightmap()
+		report("Show and unlock terrain before PNG validation.")
+		return
+	var job := HEIGHTMAP_JOB.new()
+	job.editor_generation = editor.generation
+	var previous := {"layer_id":heightmap_candidate.value.layer_id, "payloads":heightmap_payloads} if adopting else {}
+	var failure := job.start_png(editor.store, heightmap_request, adopting, heightmap_selection(), Crypto.new().generate_random_bytes(16).hex_encode(), previous)
 	if failure != "":
 		_discard_heightmap()
 		report(failure)
 		return
+	heightmap_identity = job.identity
+	editor.import_job = job
+	editor.worker_generation = editor.generation
+	editor.busy = true
+	editor.import_progress.visible = true
+	heightmap_cancel.visible = true
+	feedback.text = "Checking PNG before %s · 120s deadline · Cancel preserves the map." % ("adoption" if adopting else "review")
+
+func heightmap_progress(progress: Dictionary) -> void:
+	if progress.is_empty(): return
+	feedback.text = "PNG %s · %d / %d %s · 120s deadline" % [progress.stage, progress.completed, progress.total, progress.unit]
+
+func finish_heightmap(job: RefCounted, result: Dictionary) -> void:
+	heightmap_cancel.visible = false
+	if heightmap_identity != job.identity or editor.generation != job.editor_generation or not job.done or not job.exited or not job.matches(editor.store, heightmap_selection()):
+		_discard_heightmap()
+		report("PNG validation cancelled or stale; stage the source again.")
+		return
+	heightmap_identity = ""
+	if not result.get("ok", false) or not result.get("data", {}).get("ok", false) or job.bundle.is_empty():
+		_discard_heightmap()
+		report(editor.store.reason(result.get("data", result)))
+		return
+	if job.adopting:
+		var failure: String = job.commit(editor.store)
+		_discard_heightmap()
+		report(failure)
+		return
+	heightmap_candidate = HEIGHTMAP_LAYER.new()
+	heightmap_candidate.value = job.bundle.value.duplicate(true)
+	heightmap_payloads = result.data.payloads
+	heightmap_review_epoch = editor.store.command_epoch
+	heightmap_review_selection = heightmap_selection()
+	heightmap_candidate.recheck_source = true
 	heightmap_summary.text = heightmap_candidate.summary()
 	heightmap_review.popup_centered(Vector2i(680, 460))
 	feedback.text = "Validated candidate; document unchanged. Review then adopt or discard."
 
 func _adopt_heightmap() -> void:
-	if heightmap_candidate == null: return
-	report(heightmap_candidate.adopt(author.terrain))
-	_discard_heightmap()
+	if heightmap_candidate == null or editor.busy: return
+	if heightmap_review_epoch != editor.store.command_epoch or heightmap_review_selection != heightmap_selection():
+		_discard_heightmap()
+		report("PNG review changed; stage the source again.")
+		return
+	heightmap_review.hide()
+	_start_heightmap(true)
 
 func open() -> void:
+	if editor.busy: return
+	if not editor.layers.state_changed.is_connected(_invalidate_heightmap): editor.layers.state_changed.connect(_invalidate_heightmap)
+	_discard_heightmap()
+	heightmap_controls.clear()
 	editor.canvas.cancel_interaction()
 	author = editor.canvas.author
 	session_signature = editor.store._signature(editor.store.document)
@@ -222,7 +308,7 @@ func _drawing() -> void:
 func choose_file(target: LineEdit, filters: PackedStringArray) -> void:
 	for connection in source_picker.file_selected.get_connections(): source_picker.file_selected.disconnect(connection.callable)
 	source_picker.filters = filters
-	source_picker.file_selected.connect(func(path): target.text = path)
+	source_picker.file_selected.connect(func(path): target.text = path; target.text_changed.emit(path))
 	source_picker.popup_centered(Vector2i(760, 500))
 
 func _terrain() -> void:
@@ -247,9 +333,10 @@ func _terrain() -> void:
 	button(box, "Stage heightmap for review…", func():
 		if fresh(): _stage_heightmap(path.text, Vector2i(x.value, y.value), int(author.options.grid_cm), int(offset.value), int(step.value), int(accuracy.value), {"source":source.text,"license":license.text,"notice":notice.text})
 	)
-	button(box, "Import heightmap atomically", func():
-		if fresh(): report(author.terrain.import_png(path.text, Vector2i(x.value, y.value), int(author.options.grid_cm), int(offset.value), int(step.value), int(accuracy.value), {"source": source.text, "license": license.text, "notice": notice.text}))
-	)
+	heightmap_controls = {"path":path, "x":x, "y":y, "spacing":fields.grid_cm, "offset":offset, "step":step, "accuracy":accuracy, "source":source, "license":license, "notice":notice}
+	for control: Control in heightmap_controls.values():
+		if control is SpinBox: control.value_changed.connect(func(_value): _invalidate_heightmap())
+		else: control.text_changed.connect(func(_value): _invalidate_heightmap())
 
 func json_edit(box: Node, title: String, value: Variant) -> TextEdit:
 	hint(box, title)

@@ -101,7 +101,7 @@ func run() -> void:
 	# Exercise the actual authoring review and cancel/adopt controls.
 	ui.author_panel.open()
 	ui.author_panel._stage_heightmap(source,Vector2i.ZERO,3200,0,1,500,attribution)
-	await process_frame
+	await wait_png()
 	check(ui.author_panel.heightmap_review.visible and ui.author_panel.heightmap_summary.text.contains("SHA-256"), "review UI shows source identity")
 	check(ui.author_panel.heightmap_review.size.x <= root.size.x and ui.author_panel.heightmap_review.size.y <= root.size.y, "review fits minimum window")
 	if DisplayServer.get_name() != "headless" and OS.get_environment("MAPEDITOR_CAPTURE_PATH") != "":
@@ -110,10 +110,17 @@ func run() -> void:
 	ui.author_panel.heightmap_review.canceled.emit()
 	check(ui.author_panel.heightmap_candidate == null and state() == before, "UI discard preserves state")
 	ui.author_panel._stage_heightmap(source,Vector2i.ZERO,3200,0,1,500,attribution)
+	await wait_png()
 	ui.author_panel.heightmap_review.confirmed.emit()
+	await wait_png()
 	check(ui.author_panel.heightmap_candidate == null and ui.store.document.attributions.size() == 3, "UI adopts one new layer")
 	ui.store.dirty = false
 	ui.queue_free()
 	await process_frame
 	print("heightmap_import_validator: ", "PASS" if failures.is_empty() else failures, "; checks=",checks)
 	quit(0 if failures.is_empty() else 1)
+
+func wait_png() -> void:
+	var until := Time.get_ticks_msec() + 20000
+	while ui.busy and Time.get_ticks_msec() < until: await process_frame
+	check(not ui.busy and ui.import_job == null, "asynchronous PNG job finishes")

@@ -2144,7 +2144,63 @@ authoring safety and lifecycle regressions remain applicable. Run:
 python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/python --script import_command_validator --script dem_native_validator --script import_native_validator --script import_vector_native_validator --resource-pack --log-dir /new/command-checks
 ```
 
-Standalone PNG authoring review/adoption remains synchronous and is the next
+At this delivery, standalone PNG authoring was still synchronous; the next section supersedes that boundary. It was the next
 separate implementation unit. Installed Windows/Linux, representative local-region
 accuracy/driving/latency/RSS and final integration/clean-clone acceptance remain
 open. This is scoped implementation, not whole I02/I03/I04 completion or cutover.
+
+
+## Asynchronous standalone PNG authoring — 2026-09-10
+
+Authoring → Terrain → **Stage heightmap for review…** now runs PNG decoding,
+source/project-file checks, disposable native validation and command preparation
+inside a fresh owned Godot child. **Adopt and activate tile** launches another
+child against the reviewed identity. The window reports progress and provides
+**Cancel PNG validation**; closing Authoring or changing PNG options/terrain layer
+state cancels work. The former direct synchronous import button is removed from
+this UI. Script callers retain synchronous `TerrainTools.import_png()` and
+`HeightmapImportLayer.stage()/adopt()` and the existing terrain-brush behavior.
+
+This explicitly replaces the UI's earlier captured-source adoption rule: the
+original PNG must remain available and unchanged through review and adoption.
+Both phases hash the original and all referenced project files; adoption requires
+the reviewed fingerprint and original layer ID. PNG bytes read for decoding must
+match the initial hash, and old binary Undo images must match their inspected
+project files. Rechecks occur after native validation, canonical command and
+transfer serialization. Changed originals require another review; the Editor never
+rewrites them. Synchronous script-only candidates retain their captured-source
+semantics. No external writer filesystem transaction is promised.
+
+A single tile plus a new source attribution is adopted as one command. Exact old
+and new PNG bytes remain in the shared 16 MiB/200-command Undo/Redo budget. Native
+seam/height checks, source accuracy and axes, no implicit resampling, 4 MiB PNG,
+513-sample side, 64 MiB candidate/project files, 24 MiB request/binary transfer,
+4 KiB event/result, 1 MiB IPC and 120-second deadline limits remain. With roads,
+one affected terrain/road cell is actually generated; without roads a zero-cell
+result means native document/files were checked, not geometry generation.
+
+`raster_native_job.gd` shares raster transfer/publication with DEM. The child writes
+a bounded request-bound single-output marker before installing a content-addressed
+candidate PNG, letting the parent retire that path after confirmed exit even if
+cancelled during native work. Existing reservations, unknown files, invalid markers
+and links are preserved; no recovery scratch is automatically adopted or removed.
+Parent EOF, launch failures, deadlines and Editor shutdown use the existing native
+supervisor. The final result requires original store/command epoch, document,
+project and authoring selection; option/layer changes followed by restoration also
+invalidate review. Ready-result cancellation and duplicate/reentrant commit refuse.
+
+The parent only decodes a bounded hash-checked transfer, installs immutable output
+and publishes the prepared command. Request/selection signatures, transfer decoding,
+immutable file installation, cleanup and changed-signal/UI work remain synchronous;
+this is not fixed frame-time or RSS acceptance. Ordinary brush/asset authoring and
+history travel are outside this import execution unit.
+
+Reproduce with a fresh log directory:
+
+    rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/python --script heightmap_native_validator --script heightmap_import_validator --script dem_native_validator --script import_command_validator --resource-pack --log-dir /new/png-checks
+
+Replace `--resource-pack` with `--rendered` for display/input verification. Tests use
+synthetic PNGs, actual child/native work, controlled preparation barriers, original
+mutation, stale UI, malformed/oversized input and IPC, owned cleanup, exact binary
+Undo/Redo, save/reopen and original package/bridge preservation. Installed
+Windows/Linux, real-region accuracy and driving/latency/RSS remain separate gates.

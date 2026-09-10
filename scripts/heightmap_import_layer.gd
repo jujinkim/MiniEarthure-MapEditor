@@ -4,6 +4,7 @@ const FILES := preload("./authoring_files.gd")
 const PNG := preload("./terrain_png.gd")
 const TYPES := preload("./import_layer.gd")
 var value: Dictionary = {}
+var recheck_source := false
 var _patches: Array = []
 var _blobs: Dictionary = {}
 var _cells: Array = []
@@ -25,7 +26,7 @@ func discard() -> void:
 func _changed() -> void:
 	_stale = true
 
-func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offset: int, step: int, accuracy: int, attribution: Dictionary, validate_candidate: bool = true, layer_id: String = "") -> String:
+func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offset: int, step: int, accuracy: int, attribution: Dictionary, validate_candidate: bool = true, layer_id: String = "", context: Dictionary = {}) -> String:
 	discard()
 	var store: RefCounted = terrain.store
 	if store.has_gesture() or store.project_path.is_empty(): return "Save the project and finish the active gesture before staging."
@@ -36,6 +37,8 @@ func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offs
 	if spacing < 200 or int(store.document.cell_size_cm) % spacing != 0 or step < 1 or step > 100 or absi(offset) > 1000000 or accuracy < 0 or accuracy > 1000000: return "Invalid heightmap spacing/offset/step/accuracy."
 	var source := FILES.read(path, PNG.MAX_BYTES)
 	if source.has("error"): return source.error
+	var sha := FILES.digest(source.bytes)
+	if context.get("expected_source", sha) != sha: return "PNG source changed before decoding."
 	var side := int(store.document.cell_size_cm) / spacing + 1
 	var decoded := PNG.decode(source.bytes, side, offset, step)
 	if decoded.has("error"): return decoded.error
@@ -44,7 +47,6 @@ func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offs
 	for height: int in decoded.heights:
 		low = mini(low, height)
 		high = maxi(high, height)
-	var sha := FILES.digest(source.bytes)
 	var before: Dictionary = terrain.descriptor(cell).duplicate(true)
 	var record := {"cell":{"x":cell.x,"y":cell.y},"path":"editor/" + sha + ".png","spacing_cm":spacing,"offset_cm":offset,"step_cm":step,"source_accuracy_cm":accuracy if accuracy > 0 else null}
 	value = {"import_version":1,"adapter":"heightmap-local-v1","layer_id":layer_id if layer_id != "" else Crypto.new().generate_random_bytes(16).hex_encode(),"source":{"name":attribution.source,"license":attribution.license,"notice":attribution.get("notice", ""),"sha256":sha,"bytes":source.bytes.size()},"heightmap":record.duplicate(true),"previous":null if before.is_empty() else before.duplicate(true),"sample_side":side,"height_range_cm":[low,high],"axes":"PNG columns +local x, rows +local y","resampled":false}
@@ -52,11 +54,11 @@ func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offs
 	_patches = [{"field":"heightmaps","id":store.record_id("heightmaps",record),"before":null if before.is_empty() else before,"after":record},{"field":"attributions","id":store.record_id("attributions",notice),"before":null,"after":notice}]
 	_blobs = {record.path:source.bytes}
 	_cells = [cell] if not store.document.roads.is_empty() else []
-	var failure := FILES.apply(store, "Adopt heightmap layer", _patches, _blobs, _cells, true) if validate_candidate else ""
+	var failure := FILES.apply(store, "Adopt heightmap layer", _patches, _blobs, _cells, true, context) if validate_candidate else ""
 	if failure != "":
 		discard()
 		return failure
-	return _retain_dependencies(store) if validate_candidate else ""
+	return _retain_dependencies(store) if validate_candidate and context.is_empty() else ""
 
 func _retain_dependencies(store: RefCounted) -> String:
 	var retained_size := 0
@@ -94,4 +96,4 @@ func adopt(terrain: RefCounted) -> String:
 
 func summary() -> String:
 	if value.is_empty(): return "No staged heightmap."
-	return "%s · %d bytes\nLicense: %s\nSHA-256: %s\nNew source layer: %s\nCell: %s · %d × %d samples\nSpacing / offset / step (cm): %d / %d / %d\nSource accuracy (cm; null unknown): %s\nRestored height range (cm): %s\n%s · no resampling\nPrevious active tile: %s\n\nAdopt explicitly activates this tile and retains its source notice. Previous file references and bytes remain available to Undo/Redo. Source changes after staging do not change this captured candidate." % [value.source.name,value.source.bytes,value.source.license,value.source.sha256,value.layer_id,str(value.heightmap.cell),value.sample_side,value.sample_side,value.heightmap.spacing_cm,value.heightmap.offset_cm,value.heightmap.step_cm,str(value.heightmap.source_accuracy_cm),str(value.height_range_cm),value.axes,str(value.previous)]
+	return "%s · %d bytes\nLicense: %s\nSHA-256: %s\nNew source layer: %s\nCell: %s · %d × %d samples\nSpacing / offset / step (cm): %d / %d / %d\nSource accuracy (cm; null unknown): %s\nRestored height range (cm): %s\n%s · no resampling\nPrevious active tile: %s\n\nAdopt explicitly activates this tile and retains its source notice. Previous file references and bytes remain available to Undo/Redo. %s" % [value.source.name,value.source.bytes,value.source.license,value.source.sha256,value.layer_id,str(value.heightmap.cell),value.sample_side,value.sample_side,value.heightmap.spacing_cm,value.heightmap.offset_cm,value.heightmap.step_cm,str(value.heightmap.source_accuracy_cm),str(value.height_range_cm),value.axes,str(value.previous),"Adopt rechecks the original PNG and project files; changed sources require a new review." if recheck_source else "Source changes after staging do not change this captured candidate."]

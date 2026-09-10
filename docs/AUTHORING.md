@@ -109,8 +109,10 @@ Original PNG/GLB/WebP files are never overwritten. Editor writes content-address
 bytes before reuse, and validates a detached temporary project through the native
 reader before publishing a document command. Candidate payload copies are capped
 at 64 MiB; only this operation's random scratch directory is removed. Validation
-and these bounded tools run synchronously; large-map input latency/RSS calibration
-remains a representative-hardware acceptance gate, not a frame-time guarantee.
+for standalone PNG review/adoption now runs in a cancellable owned Godot child;
+brush/asset operations and synchronous script APIs keep their existing execution.
+Request/selection signatures, transfer decoding and final file/history installation
+remain synchronous. Large-map latency/RSS calibration is a separate acceptance gate.
 
 Binary before/after bytes accompany file-command mementos and count toward the
 same shared **200 commands / 16 MiB** Undo+Redo limit as serialized record patches.
@@ -160,8 +162,10 @@ affected-cell invalidation, frame-budgeted preview attachment, file-copy Save As
 and capacity/error presentation preserve these command/payload boundaries.
 E05 installed-Client authoring and final platform/performance acceptance remain open.
 
-Staged heightmap review/adoption is also available beside direct PNG editing.
-See [IMPORTS.md](IMPORTS.md#staged-local-heightmap-i02-raster-unit) for snapshot,
+The PNG UI uses staged asynchronous review/adoption, with progress and Cancel in
+the Authoring window. The original PNG must remain unchanged until adoption;
+changed options/layers discard review. The old direct import button is removed.
+See [IMPORTS.md](IMPORTS.md#asynchronous-standalone-png-authoring--2026-09-10) for source,
 active-cell replacement, source notices and review cancellation semantics.
 
 The offline [G01 driving test map](DRIVING_TEST_MAP.md) provides a fixed small
