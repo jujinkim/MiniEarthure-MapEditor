@@ -102,11 +102,9 @@ touch a later request reusing the same token. Unknown files/subdirectories remai
 there is no recursive deletion. Partial file-write leftovers or failed filesystem
 removals can still require manual inspection.
 
-This is an in-memory lifetime fix, not persistent crash recovery. Earlier job
-directories are never automatically resumed, adopted or cleaned on startup.
-The next separate I03 unit is bounded detection and user-visible reporting of
-interrupted imports, including proof that another Editor's job is still live.
-Persistent ownership metadata and cross-process recovery are not implemented here.
+The initial lifetime fix above was in-memory only. The following discovery unit
+adds persistent evidence and a read-only report. Earlier job directories are never
+automatically resumed, adopted or cleaned on startup.
 External replacement of a live directory by another same-user process is not an
 adversarial filesystem guarantee. Source/project/package preservation still applies.
 
@@ -1224,8 +1222,8 @@ retain geometry, native adoption, source/package hashes, stale response, control
 deadline, cancellation/retry and owner-close checks. Mac verification additionally
 runs with outbound IP connections denied; installed target-platform and final
 integration acceptance remain separate. No user source/receipt/project migration
-or cleanup runs on startup. Abrupt-crash scratch recovery remains the existing I03
-limitation; it is never automatically resumed or adopted.
+or cleanup runs on startup. Read-only interrupted-work discovery is described below; interrupted work is
+never automatically resumed or adopted.
 
 Scoped Mac result: 89 distinct Python tests passed across the initial run and
 focused corrected reruns; 21 rendered Godot validators passed with the native
@@ -1240,3 +1238,75 @@ its child and writes a phase marker before killing it. This proves actual save
 boundary interruption instead of mistaking a child startup failure for a crash.
 Target-platform distribution, user driving, representative accuracy/performance
 and final integration remain deferred under the existing acceptance plan.
+
+
+## Interrupted local import work — 2026-09-10
+
+On startup, the **Import work** button checks the local work folder and reports
+responding Editors and entries to review. Opening it or selecting **Scan again**
+starts a fresh bounded scan. The report is a snapshot and has a selectable folder
+path. To retry, close the earlier Editor and import the original source as a new
+request. There is no delete, resume or adopt action. Reading/dismissing a report
+cannot change the current map, history, original source or existing package.
+
+After exclusive directory reservation, vector, DEM-plan and DEM jobs publish a
+version-1 `owner.json` through `owner.json.part`, flush and rename, before staging
+helpers or launching Python. The bounded record contains only the format/version,
+request token, random 128-bit owner identity, operation kind, loopback port and
+creation time. It contains no source path, dataset, project content or credentials.
+A loopback listen/record publication failure refuses startup and follows the same
+newly-owned scratch cleanup. Ordinary successful disposal removes the record; if
+unknown files or failed removals leave work behind, the record remains and the
+presence endpoint closes. Directory creation before record publication or a torn
+record is explicitly unknown. Flush/rename is not a power-loss durability guarantee.
+
+The in-memory owner listens only on `127.0.0.1` with an OS-selected port. A discovery
+probe sends a fresh random 128-bit nonce; a live owner returns its own identity and
+that nonce. A matching response confirms that this request's Editor responded at
+that time. Reused ports, a different owner or replayed responses do not confirm it.
+No response means **possibly interrupted or temporarily unavailable**, never proof
+that the Editor/worker exited. Busy, suspended or firewall-blocked Editors and a
+worker left after failed termination must be preserved. PID, age and directory
+names are not liveness/cleanup authority. The record/probe is not authentication
+against a malicious process running as the same user and never grants file deletion.
+
+The scanner only reads the immediate `user://import-jobs` directory. It refuses a
+linked/unavailable root and skips directory/record links, missing/torn/oversized
+records, unsupported versions and mismatched request identities as unknown. It
+never traverses child directories, loads importer results/originals, hashes source
+files or trusts a host/path from metadata. All probes target fixed IPv4 loopback.
+Application-owned bounds are 8 entries per frame, 256 inspected entries, 64 report
+rows, 1 KiB per record, 4 concurrent probes and 5 seconds per scan. Every entry
+currently occupies a row, so the 64-row limit is normally reached first. The report
+explicitly says **partial** at a cap/deadline, including when unlisted work may remain;
+rescan is a fresh enumeration, not a cursor or guarantee to reach every old entry.
+The user may inspect the displayed folder manually. Filesystem calls themselves
+remain synchronous and can exceed a frame/deadline on a stalled filesystem.
+
+Each owner admits at most 4 sockets and one new connection per poll, with 800 ms
+per connection, 33 request bytes and 66 response bytes. Discovery has the same
+800 ms per-probe deadline. Socket I/O is partial/nonblocking. Cancellation, rescan
+and closing the report's Editor release discovery handles. Ordinary worker progress,
+parent EOF/watchdog, source hash/native review, cancellation/retry and atomic adoption
+keep their existing contracts. Map-provider network acquisition remains absent.
+
+`import_recovery_validator` uses separate actual Editor processes killed at a
+record-published boundary and after the production parent-watchdog worker is ready.
+It also checks simultaneous live ownership, wrong-owner/replayed responses, idle/
+oversized probes, unknown/linked/bounded records, controlled deadline/cancellation,
+cleanup remnants, unchanged source/package hashes and report/document preservation.
+The public runner now reuses one import/PCK while isolating `user://` per validator;
+each loose or packed script's effective user path is checked before execution.
+
+Run the affected standalone build and regressions with synthetic data:
+
+```sh
+python3 scripts/check_documents.py --godot /path/to/godot --import-python /absolute/local-python --script import_scratch_validator --script import_recovery_validator --script import_job_validator --script import_layer_validator --script dem_validator --script dem_mosaic_validator --script osm_stream_validator --script editor_ux_validator --script document_recovery_validator --resource-pack --rendered --log-dir /new/import-recovery
+```
+
+Mac results and exact revisions are recorded with delivery evidence. Actual installed
+Windows/Linux behavior, power-loss/disk-full faults, representative inputs and final
+platform acceptance remain separate; automatic discovery does not complete all I03.
+The local IPC API follows the public Godot [TCPServer](https://docs.godotengine.org/en/stable/classes/class_tcpserver.html)
+and [StreamPeerTCP](https://docs.godotengine.org/en/stable/classes/class_streampeertcp.html)
+interfaces. No native/package/runtime protocol or Python dependency is added.

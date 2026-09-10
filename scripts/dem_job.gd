@@ -6,6 +6,7 @@ func start_local(request: Dictionary, python: String, token: String) -> String:
 	if not LAYER._hex(token, 32): return "Invalid DEM token."
 	identity = token
 	if request.get("mode") not in ["dem-plan", "dem"]: return "Unsupported local DEM operation."
+	import_kind = request.mode
 	stages = ["acquire", "sample", "write", "complete"]
 	progress_limit = 64 * 1024 * 1024
 	var reservation := _reserve_directory(token)

@@ -102,6 +102,9 @@ var osm_panel: RefCounted
 var osm_import_revision := -1
 var dem_mode := ""
 
+const IMPORT_RECOVERY := preload("./import_recovery_panel.gd")
+var import_recovery: AcceptDialog
+
 var selected_field := ""
 var selected_record: Dictionary = {}
 var displayed_map_id := ""
@@ -172,15 +175,26 @@ func _build_ui() -> void:
 	add_child(margin)
 	var column := VBoxContainer.new()
 	margin.add_child(column)
+	var title_row := HBoxContainer.new()
+	column.add_child(title_row)
 	var title := Label.new()
 	title.text = "MINIEARTHURE   /   MAP EDITOR"
 	title.add_theme_color_override("font_color", Color("ffe14c"))
 	title.add_theme_font_size_override("font_size", 24)
-	column.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(title)
 	var bar := HFlowContainer.new()
 	column.add_child(bar)
 	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Import vector", _import_geojson], ["Export .memap", _export], ["Test Drive", _test_drive]]:
 		_button(bar, entry[0], entry[1])
+	var import_work_button := Button.new()
+	import_work_button.text = "Import work"
+	import_work_button.tooltip_text = "Inspect leftover local import work without changing files."
+	title_row.add_child(import_work_button)
+	import_recovery = IMPORT_RECOVERY.new()
+	import_recovery.banner = import_work_button
+	add_child(import_recovery)
+	import_work_button.pressed.connect(import_recovery.show_report)
 	project_label = Label.new()
 	project_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	column.add_child(project_label)

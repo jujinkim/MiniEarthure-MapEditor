@@ -56,13 +56,17 @@ def main():
         shutil.copy2(root / 'addons/mapkit/mapkit.gdextension', addon / 'mapkit.gdextension')
         (addon / 'target/debug').mkdir(parents=True)
         shutil.copy2(native, addon / 'target/debug' / native_name)
-        (project / 'override.cfg').write_text('[application]\nconfig/use_custom_user_dir=true\nconfig/custom_user_dir_name="MapEditorDocumentValidation/' + Path(user_directory).name + '"\n')
-        (project / 'check_user_path.gd').write_text('extends SceneTree\nfunc _initialize():\n\tif OS.get_user_data_dir().replace("\\\\", "/") != ' + json.dumps(Path(user_directory).as_posix()) + ':\n\t\tpush_error("User-data isolation failed")\n\t\tquit(1)\n\telse: quit(0)\n')
+        def configure_user(path):
+            path.mkdir(parents=True, exist_ok=True)
+            relative = path.relative_to(data_root).as_posix()
+            (project / 'override.cfg').write_text('[application]\nconfig/use_custom_user_dir=true\nconfig/custom_user_dir_name="MapEditorDocumentValidation/' + relative + '"\n')
+            (project / 'check_user_path.gd').write_text('extends SceneTree\nfunc _initialize():\n\tif OS.get_user_data_dir().replace("\\\\", "/") != ' + json.dumps(path.as_posix()) + ':\n\t\tpush_error("User-data isolation failed")\n\t\tquit(1)\n\telse: quit(0)\n')
+        configure_user(Path(user_directory))
         commands = [('import', [godot, '--headless', '--import', '--frame-delay', '1000', '--path', str(project)]),
                     ('user-path', [godot, '--headless', '--path', str(project), '--script', 'res://check_user_path.gd'])]
         scripts = ['document_history_validator', 'document_recovery_validator']
         if args.full:
-            scripts += ['editor_ux_validator', 'editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator', 'import_layer_validator', 'import_job_validator', 'import_scratch_validator', 'projection_validator', 'heightmap_import_validator', 'osm_import_validator', 'osm_structures_validator', 'osm_multipolygon_validator', 'local_only_validator', 'overture_validator', 'area_selection_validator', 'osm_area_validator', 'osm_stream_validator', 'overture_geometry_validator', 'overture_vertical_validator', 'overture_transportation_validator', 'overture_land_cover_validator', 'dem_validator', 'dem_mosaic_validator']
+            scripts += ['editor_ux_validator', 'editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator', 'import_layer_validator', 'import_job_validator', 'import_scratch_validator', 'import_recovery_validator', 'projection_validator', 'heightmap_import_validator', 'osm_import_validator', 'osm_structures_validator', 'osm_multipolygon_validator', 'local_only_validator', 'overture_validator', 'area_selection_validator', 'osm_area_validator', 'osm_stream_validator', 'overture_geometry_validator', 'overture_vertical_validator', 'overture_transportation_validator', 'overture_land_cover_validator', 'dem_validator', 'dem_mosaic_validator']
         if args.script:
             scripts = args.script
         pack_args = []
@@ -75,9 +79,13 @@ def main():
             artifact = project / 'editor.pck'
             commands.append(('resource-pack', [godot, '--headless', '--path', str(project), '--export-pack', preset, str(artifact)]))
             pack_args = ['--main-pack', str(artifact)]
-        commands += [(name, [godot, *([] if args.rendered else ['--headless']), '--path', str(project), *pack_args,
-                             '--script', str(project / 'tests' / (name + '.gd')) if args.resource_pack else f'res://tests/{name}.gd']) for name in scripts]
+        for name in scripts:
+            commands.append((name + '-user-path', [godot, '--headless', '--path', str(project), *pack_args, '--script', str(project / 'check_user_path.gd')]))
+            commands.append((name, [godot, *([] if args.rendered else ['--headless']), '--path', str(project), *pack_args,
+                                   '--script', str(project / 'tests' / (name + '.gd')) if args.resource_pack else f'res://tests/{name}.gd']))
         for name, command in commands:
+            if name.endswith('-user-path'):
+                configure_user(Path(user_directory) / name.removesuffix('-user-path'))
             started = time.monotonic()
             log = args.log_dir / f'{name}.log'
             with log.open('w') as output:

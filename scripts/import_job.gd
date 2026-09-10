@@ -1,5 +1,8 @@
 extends RefCounted
 ## Owns one public adapter process and a private, disposable job directory.
+const PRESENCE := preload("./import_presence.gd")
+var presence: RefCounted
+var import_kind := "vector"
 const LAYER := preload("./import_layer.gd")
 const FILES := preload("./document_files.gd")
 const PIPE_LIMIT := 1024 * 1024
@@ -98,7 +101,10 @@ func _reserve_directory(token: String) -> String:
 	if error != OK: return "Cannot reserve a new import job directory: " + error_string(error)
 	directory = root.path_join(token)
 	_owns_directory = true
-	return ""
+	presence = PRESENCE.new()
+	var failure: String = presence.begin(directory, token, import_kind)
+	if failure != "": cleanup()
+	return failure
 
 func _launch(python: String, arguments: PackedStringArray) -> bool:
 	var child := _spawn(python, arguments)
@@ -186,6 +192,7 @@ func _read() -> void:
 		if received > PIPE_LIMIT: _fail("Import IPC exceeds 1 MiB.")
 
 func poll(now_ms: int = -1) -> void:
+	if presence != null: presence.poll()
 	if done or pid <= 0: return
 	_read()
 	if not cancelled and (Time.get_ticks_msec() if now_ms < 0 else now_ms) >= deadline_ms: _fail("Import timed out after %d seconds; use a smaller source or retry." % timeout_seconds)
@@ -233,8 +240,19 @@ func cleanup() -> void:
 	# Relinquish even when unknown files prevent rmdir. Never clean a later owner
 	# reusing this token, and never scan/adopt scratch from an earlier process.
 	_owns_directory = false
+	if presence != null: presence.close()
+	presence = null
 	# Only files owned by this request; never recursively delete user inputs.
 	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "source.pbf.part", "source.pbf", "source-index.sqlite", "overture_area.py", "overture_transportation.py", "overture_land_cover.py", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute(directory.path_join(PRESENCE.PENDING))
+	var remaining := DirAccess.open(directory)
+	if remaining == null: return
+	if remaining.list_dir_begin() != OK: return
+	var name := remaining.get_next()
+	while name == PRESENCE.MARKER: name = remaining.get_next()
+	remaining.list_dir_end()
+	if name != "": return
+	DirAccess.remove_absolute(directory.path_join(PRESENCE.MARKER))
 	DirAccess.remove_absolute(directory)
