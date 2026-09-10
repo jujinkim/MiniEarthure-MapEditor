@@ -179,7 +179,8 @@ def crop(collection, selected):
     retained_connection_ends = Counter(str(ref) for f in output
         if f["properties"].get("road_kind") in ("bridge", "tunnel")
         for ref in (f["properties"]["osm_node_refs"][0], f["properties"]["osm_node_refs"][-1]))
-    connection_sections = {entry["ref"] for entry in connections if retained_connection_ends[entry["ref"]] == 1}
+    connection_sections = {entry["ref"] for entry in connections
+        if 0 < retained_connection_ends[entry["ref"]] < len(entry.get("source_arms", [None, None]))}
     counts["output_features"] = len(output)
     meta = dict(bbox=selected, policy="geometry-intersection-v1", shapely="2.1.2", geos=shapely.geos_version_string, counts=counts)
     if has_explicit:

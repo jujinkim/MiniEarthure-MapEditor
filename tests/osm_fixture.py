@@ -97,6 +97,41 @@ def connected_structures_xml():
     return ET.tostring(root, encoding="unicode")
 
 
+def structural_junctions_xml(interior=False):
+    """Synthetic separated mouths, level ground approaches, no real dataset."""
+    import xml.etree.ElementTree as ET
+    root = ET.Element("osm", version="0.6")
+    for base, x, z, kinds in [(1,96,96,["bridge"]*3), (100,256,96,["tunnel"]*3),
+                              (200,416,96,["bridge","tunnel","tunnel"]),
+                              (300,96,256,["bridge","tunnel"])]:
+        height = -6 if base == 100 else 6
+        def node(identity, px, pz, h):
+            n = ET.SubElement(root,"node",id=str(identity),lon=str(9+px/64000),lat=str(55+pz/111000))
+            ET.SubElement(n,"tag",k="ele",v=str(h))
+        node(base,x,z,height)
+        directions = [(-60,0),(30,52),(30,-52)] if len(kinds) == 3 else [(-60,0),(60,0)]
+        for index, (kind,(dx,dz)) in enumerate(zip(kinds,directions)):
+            refs = [base]
+            for offset, (t,h) in enumerate([(0.2,height),(0.85,0),(1,0),(1.2,0)],1):
+                identity = base+index*4+offset
+                node(identity,x+dx*t,z+dz*t,h)
+                refs.append(identity)
+            for identity, sequence, tags in [(base+index*2,refs[:4],{kind:"yes",**({"maxheight:physical":"4.5"} if kind == "tunnel" else {})}),
+                                              (base+index*2+1,refs[3:],{})]:
+                way = ET.SubElement(root,"way",id=str(identity))
+                for ref in sequence: ET.SubElement(way,"nd",ref=str(ref))
+                for key,value in dict(highway="service",width="4",surface="gravel" if index == 0 else "asphalt",**tags).items():
+                    ET.SubElement(way,"tag",k=key,v=value)
+    if interior:
+        a,b = root.find("way[@id='1']"),root.find("way[@id='3']")
+        refs = list(reversed([n.get("ref") for n in a.findall("nd")])) + [n.get("ref") for n in b.findall("nd")][1:]
+        for n in a.findall("nd"): a.remove(n)
+        for index, ref in enumerate(refs): a.insert(index,ET.Element("nd",ref=ref))
+        root.remove(b)
+    root[:] = sorted(root,key=lambda e: ({"node":0,"way":1}[e.tag],int(e.get("id"))))
+    return ET.tostring(root,encoding="unicode")
+
+
 if __name__ == "__main__":
-    xml = connected_structures_xml() if len(sys.argv) > 3 and sys.argv[3] == "chains" else structural_xml(level_approaches=True) if len(sys.argv) > 3 and sys.argv[3] == "structures" else multipolygon_xml() if len(sys.argv) > 3 else XML
+    xml = structural_junctions_xml(interior=True) if len(sys.argv) > 3 and sys.argv[3] == "junctions" else connected_structures_xml() if len(sys.argv) > 3 and sys.argv[3] == "chains" else structural_xml(level_approaches=True) if len(sys.argv) > 3 and sys.argv[3] == "structures" else multipolygon_xml() if len(sys.argv) > 3 else XML
     pbf(sys.argv[1], xml.replace("12 m", sys.argv[2] + " m") if len(sys.argv) > 2 else xml)

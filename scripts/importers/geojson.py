@@ -131,10 +131,16 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
         for index, feature in enumerate(features):
             p = feature["properties"]
             if p.get("road_kind") not in ("bridge", "tunnel"): continue
-            for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1]):
-                retained.setdefault(str(ref), []).append(dict(feature=index, source_way=str(p["osm_way_id"])))
-        layer.coordinates["osm_connections"] = dict(profile="same-kind-endpoints-v1", joins=[
-            dict(entry, retained=retained.get(entry["ref"], [])) for entry in value["osm_connections"]])
+            for end, ref in (("from", p["osm_node_refs"][0]), ("to", p["osm_node_refs"][-1])):
+                retained.setdefault(str(ref), []).append(dict(feature=index, source_way=str(p["osm_way_id"]), end=end))
+        extended = any("source_arms" in entry for entry in value["osm_connections"])
+        joins = []
+        for entry in value["osm_connections"]:
+            arms = retained.get(entry["ref"], [])
+            if "source_arms" not in entry:
+                arms = [{k: v for k, v in arm.items() if k != "end"} for arm in arms]
+            joins.append(dict(entry, retained=arms))
+        layer.coordinates["osm_connections"] = dict(profile="explicit-structural-junctions-v2" if extended else "same-kind-endpoints-v1", joins=joins)
     layer.encode()  # Bound the complete contract before handing it to any caller.
     return layer
 

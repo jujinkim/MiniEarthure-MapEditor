@@ -39,7 +39,7 @@ func run() -> void:
 	if ui.pending_import != null:
 		var raw: Dictionary = ui.pending_import.value.duplicate(true)
 		check(ui.store.document == before,"review preserves accepted map")
-		check(ui.import_summary.text.contains("two explicit ground ends") and ui.import_summary.text.contains("maxheight:physical"),"continuation profile/clearance reviewed")
+		check(ui.import_summary.text.contains("two distinct explicit ground connections") and ui.import_summary.text.contains("maxheight:physical"),"continuation profile/clearance reviewed")
 		check(raw.coordinates.osm_connections.joins.size() == 4,"four original source continuations retained")
 		var limited := preload("res://scripts/document_store.gd").new()
 		limited.document = before.duplicate(true)

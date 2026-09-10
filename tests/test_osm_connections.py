@@ -49,19 +49,9 @@ class Connections(unittest.TestCase):
         root.find("way[@id='3']/nd").set("ref", "100")
         with self.assertRaisesRegex(ValueError, "ground connections"): self.parse(root)
 
-    def test_missing_mixed_branch_interior_untagged_and_clearance_reject_before_crop(self):
-        def branch(root, explicit=True, interior=False):
-            way = ET.SubElement(root, "way", id="100")
-            for ref in ([1,3,6] if interior else [3,6]): ET.SubElement(way,"nd",ref=str(ref))
-            ET.SubElement(way,"tag",k="highway",v="service")
-            if explicit: ET.SubElement(way,"tag",k="bridge",v="yes")
-            else:
-                # No elevations: this approach must not disappear from incidence.
-                for node in root.findall("node"): node.remove(node.find("tag"))
+    def test_missing_untagged_and_clearance_reject_before_crop(self):
         changes = {
             "missing": lambda r: r.remove(r.find("way[@id='1']")),
-            "mixed": lambda r: (r.find("way[@id='3']/tag[@k='bridge']").set("k","tunnel"), ET.SubElement(r.find("way[@id='3']"),"tag",k="maxheight:physical",v="4.5")),
-            "branch": lambda r: branch(r), "interior": lambda r: branch(r,interior=True),
             "clearance": lambda r: r.find("way[@id='8']/tag[@k='maxheight:physical']").set("v","4.51"),
             "height": lambda r: r.find("node[@id='2']").remove(r.find("node[@id='2']/tag")),
             "unsupported": lambda r: ET.SubElement(r.find("way[@id='2']"),"tag",k="incline",v="2%"),
@@ -187,7 +177,7 @@ class Connections(unittest.TestCase):
             self.assertEqual(layer["source"]["sha256"],hashlib.sha256(raw).hexdigest())
             self.assertEqual(layer["coordinates"]["osm_crop"]["policy"],"geometry-intersection-v4")
             self.assertEqual(layer["coordinates"]["vertical"]["explicit_roads"],10)
-            self.assertIn("two explicit ground ends"," ".join(layer["warnings"]))
+            self.assertIn("two distinct explicit ground connections"," ".join(layer["warnings"]))
             self.assertTrue(all(len(w)<=512 for w in layer["warnings"]))
             self.assertNotEqual(subprocess.run(command,capture_output=True,timeout=20).returncode,0)
             self.assertEqual(output.read_bytes(),saved);self.assertEqual(source.read_bytes(),raw)

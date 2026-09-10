@@ -1586,6 +1586,9 @@ contracts, not an official PROJ grid format or a certified transformation.
 
 ## Connected OSM structure endpoints — 2026-09-10
 
+The junction profile below replaces the unique-pair/exactly-two-ground-ends
+restriction in this section. Its v1 records and native admission remain supported.
+
 This replaces the per-way mandatory ground-end rule and the one-hop streaming
 closure above. All heights are still explicit; the existing datum conversion
 runs on the complete selected source vertices **before** crop. No heights,
@@ -1662,3 +1665,87 @@ checks with `--resource-pack`. They use only synthetic data and isolated user pa
 General branching/mixed structural connections, missing-height reconstruction,
 larger-area imports and installed-platform/real-region accuracy/performance remain
 outside this delivered profile. Remote map-service acquisition remains excluded.
+
+## Explicit OSM structural junctions — 2026-09-10
+
+This replaces the non-ground unique-pair, same-kind-only and exactly-two-ground-end
+restrictions above. Complete explicit OSM node heights and original shared IDs now
+support bridge/tunnel branches, endpoint-to-interior and interior-to-interior
+connections, and direct bridge/tunnel transitions. Interior source vertices split
+the original way into ordered segments and contribute two arms. Coordinate
+coincidence, `layer`, missing elevation and legal `maxheight` never infer a join,
+grade or physical clearance. Every incident highway must have a supported complete
+profile before crop; a dangling structural end still rejects the entire candidate.
+
+Components linked through non-ground structural joins require at least two
+**distinct original ground nodes**, including explicit interior ground contacts.
+Three or more ground approaches and grounded cycles are allowed by source
+admission; an unanchored/one-anchor cycle rejects. Ground roads do not transit
+streaming selection to unrelated roads. Existing recursive source closure,
+full immutable XML/PBF capture/hash, vertical conversion before crop, deadlines,
+selection/index/payload budgets and exclusive output publication remain intact.
+The graph uses linear incidence storage, not all-pairs edges. New non-ground
+junctions admit at most 32 directed arms, 20,000 joins and 200,000 source arms in
+total. An interior attachment counts twice. These caps are upper bounds, not a
+promise that every graph under them can be generated.
+
+`coordinates.osm_connections.profile = explicit-structural-junctions-v2` is emitted
+when any join needs the expanded profile. An expanded join records:
+
+- `ref`: original positive OSM node ID; `kind`: `bridge`, `tunnel` or `mixed`;
+  `source_ways`: unique original way IDs.
+- `source_arms`: each original incident side's `source_way`, `end` (`from` for the
+  outgoing side in source traversal order, `to` for the incoming side), `kind`, and
+  `clearance_cm` (null for bridges). Two sides of one way must have the same profile.
+  All incident tunnel clearances must agree after centimetre quantization.
+- `retained`: exact output `feature`, `source_way` and `end` for each remaining
+  side. The consumer checks every actual road incidence, direction, kind,
+  clearance, duplicate/missing arm, feature/source consistency and crop mapping.
+
+Simple same-kind endpoint pairs keep their v1 join representation without
+`source_arms` or retained `end`, including within a v2 collection. Inputs containing
+only those pairs still emit `same-kind-endpoints-v1`. Both reader profiles are
+supported; source metadata remains review evidence, not independent source-byte
+reconstruction. The historical `structure_continuations` count now counts all
+non-ground joins, including branches and mixed connections.
+
+When crop removes any incident side but leaves others, v4 `connection_sections`
+records the source join and marks its retained endpoints as boundary sections.
+This includes two remaining sides of a three-arm branch; it does not falsely claim
+the junction is complete or that each retained source way is partial. Zero-arm
+off-window source joins remain in context. Retained sides share the original node
+and rebuild their native apron together; crop does not preserve the omitted fan
+sector or the full source junction footprint. Required original ground approaches
+must still retain nonzero length. Older v1–v4 crop metadata remains readable.
+
+The existing public [recipe-2 generator](../addons/mapkit/spec/FORMAT.md#recipe-2-roads-and-structures-k05)
+defines the cross-section. No native code, recipe, ABI or package version changes.
+Each authored arm stops at its native mouth; the apron is a convex fan through the
+source node. Stable incident-road ID ownership assigns each fan face its kind and
+material. Only tunnel-owned faces receive a clearance-height ceiling and the
+corresponding outer non-mouth edges receive side walls. Mixed portal boundaries
+therefore follow the native fan sectors, **not** a recovered real-world portal
+plane. Tunnel/bridge sections, walls and ramps are geometric estimates that the
+creator must inspect. Independent intersecting structures/buildings still require
+creator clearance review. No pillars or automatic terrain fitting are added.
+
+Explicit recipe 2+, at most 16 conservatively affected cells and real native
+generation before review and adoption remain required. Overlapping/acute mouths,
+unequal tunnel clearances, terrain-incompatible ground approaches and exhausted
+subdivision/output budgets fail the whole candidate without replacing accepted
+state or its loaded package. For example, stacking a second copy of the synthetic
+22-road junction fixture exceeds the subdivision budget; this is a supported
+failure, not a reason to increase limits. Native validation remains synchronous:
+cancel is handled at the surrounding worker/review boundaries, not inside a native
+generation call. Asynchronous native candidate validation is a separate next unit.
+
+`test_osm_junctions.py` and `osm_junctions_validator` cover source identity/order,
+interior splitting, branch closure/cancellation/budgets, partial junctions, forged
+metadata, native floor/ceiling sampling across mouths, open passage, failure
+preservation, package reopen, Undo/Redo and stale requests. Run alongside existing
+connection/structure/vertical/import regressions using `check_documents.py` and
+`--resource-pack`. These synthetic automated checks do not complete installed
+Windows/Linux, real regional/driving accuracy, responsiveness or RSS acceptance.
+Missing-height reconstruction, unequal-clearance transitions, other unsupported
+source semantics and larger-area imports remain unimplemented. Remote map-service
+acquisition remains outside the product scope.

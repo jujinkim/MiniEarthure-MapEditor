@@ -193,7 +193,7 @@ static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 	var v4: bool = crop is Dictionary and crop.get("policy") == "geometry-intersection-v4"
 	if not raw.coordinates.has("osm_connections"): return "Missing structure connections." if v4 else ""
 	var meta: Variant = raw.coordinates.osm_connections
-	if raw.adapter != "osm-extract-v1" or meta is not Dictionary or meta.get("profile") != "same-kind-endpoints-v1" or meta.get("joins") is not Array or meta.joins.is_empty() or meta.joins.size() > 20000: return "Invalid structure connections."
+	if raw.adapter != "osm-extract-v1" or meta is not Dictionary or meta.get("profile") not in ["same-kind-endpoints-v1", "explicit-structural-junctions-v2"] or meta.get("joins") is not Array or meta.joins.is_empty() or meta.joins.size() > 20000: return "Invalid structure connections."
 	var incident := {}
 	for patch: Dictionary in raw.patches:
 		if patch.field != "roads": continue
@@ -202,34 +202,81 @@ static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 			incident[endpoint].append(patch.after)
 	var seen := {}
 	var sections := {}
+	var feature_sources := {}
+	var total_arms := 0
 	var source_id := RegEx.new()
 	source_id.compile("^[1-9][0-9]{0,18}$")
 	for join in meta.joins:
-		if join is not Dictionary or join.get("ref") is not String or source_id.search(join.ref) == null or seen.has(join.ref) or join.get("kind") not in ["bridge", "tunnel"]: return "Invalid/duplicate source continuation."
+		if join is not Dictionary or join.get("ref") is not String or source_id.search(join.ref) == null or seen.has(join.ref): return "Invalid/duplicate source continuation."
+		var extended: bool = join.has("source_arms")
+		if extended and meta.profile != "explicit-structural-junctions-v2": return "Structural arms require connection version 2."
+		if join.get("kind") not in (["bridge", "tunnel", "mixed"] if extended else ["bridge", "tunnel"]): return "Invalid structural kind."
 		seen[join.ref] = true
 		var ways: Variant = join.get("source_ways")
-		if ways is not Array or ways.size() != 2 or ways[0] == ways[1]: return "Invalid continuation source ways."
+		if ways is not Array or ways.size() < 2 or ways.size() > (32 if extended else 2): return "Invalid continuation source ways."
+		var unique_ways := {}
 		for way in ways:
-			if way is not String or source_id.search(way) == null: return "Invalid continuation source way."
+			if way is not String or source_id.search(way) == null or unique_ways.has(way): return "Invalid continuation source way."
+			unique_ways[way] = true
+		var expected := {}
+		var expected_count := 2
+		if extended:
+			if join.source_arms is not Array or join.source_arms.size() < 2 or join.source_arms.size() > 32: return "Invalid structural arm budget."
+			expected_count = join.source_arms.size()
+			var source_kinds := {}
+			var source_clearance: Variant = null
+			var declared_ways := {}
+			for arm in join.source_arms:
+				if arm is not Dictionary or arm.get("source_way") not in ways or arm.get("end") not in ["from", "to"] or arm.get("kind") not in ["bridge", "tunnel"]: return "Invalid source structural arm."
+				var key: String = arm.source_way + ":" + arm.end
+				if expected.has(key): return "Duplicate source structural arm."
+				expected[key] = arm
+				if declared_ways.has(arm.source_way):
+					var previous: Dictionary = declared_ways[arm.source_way]
+					if previous.kind != arm.kind or previous.get("clearance_cm") != arm.get("clearance_cm"): return "Conflicting source-way structural profile."
+				declared_ways[arm.source_way] = arm
+				source_kinds[arm.kind] = true
+				if arm.kind == "tunnel":
+					if not _count(arm.get("clearance_cm"), 5000) or arm.clearance_cm < 200 or (source_clearance != null and source_clearance != arm.clearance_cm): return "Source tunnel clearance mismatch."
+					source_clearance = arm.clearance_cm
+				elif not arm.has("clearance_cm") or arm.clearance_cm != null: return "Bridge arm cannot declare tunnel clearance."
+			if declared_ways.size() != ways.size() or join.kind != ("mixed" if source_kinds.size() == 2 else source_kinds.keys()[0]): return "Source structural kind/way mismatch."
+		total_arms += expected_count
+		if total_arms > 200000: return "Structural source incidence budget exceeded."
 		var retained: Variant = join.get("retained")
 		var roads: Array = incident.get(prefix + "osm-node-" + join.ref, [])
-		if retained is not Array or retained.size() > 2 or retained.size() != roads.size(): return "Incomplete continuation mapping."
+		if retained is not Array or retained.size() > expected_count or retained.size() != roads.size(): return "Incomplete continuation mapping."
 		var mapped := {}
 		var source_ways := {}
 		var clearance: Variant = null
 		for arm in retained:
-			if arm is not Dictionary or not _count(arm.get("feature"), int(raw.feature_count)-1) or arm.get("source_way") not in ways or source_ways.has(arm.source_way): return "Invalid retained continuation arm."
+			if arm is not Dictionary or not _count(arm.get("feature"), int(raw.feature_count)-1) or arm.get("source_way") not in ways: return "Invalid retained continuation arm."
+			var source_key: String = arm.source_way
+			if extended:
+				if arm.get("end") not in ["from", "to"]: return "Missing retained structural direction."
+				source_key += ":" + arm.end
+				if not expected.has(source_key): return "Unknown retained structural arm."
+			if source_ways.has(source_key): return "Duplicate retained source arm."
 			var id := prefix + str(int(arm.feature))
 			if mapped.has(id): return "Duplicate continuation arm."
-			mapped[id] = true
-			source_ways[arm.source_way] = true
+			if feature_sources.has(id) and feature_sources[id] != arm.source_way: return "Conflicting structural feature source."
+			feature_sources[id] = arm.source_way
+			mapped[id] = arm
+			source_ways[source_key] = true
 		for road: Dictionary in roads:
-			if not mapped.has(road.id) or road.get("kind") != join.kind: return "Continuation road mismatch."
-			if join.kind == "tunnel":
+			if not mapped.has(road.id): return "Continuation road mismatch."
+			var kind: String = join.kind
+			if extended:
+				var arm: Dictionary = mapped[road.id]
+				var source_arm: Dictionary = expected[arm.source_way + ":" + arm.end]
+				if road.get(arm.end) != prefix + "osm-node-" + join.ref or road.get("clearance_cm") != source_arm.clearance_cm: return "Structural direction/clearance mismatch."
+				kind = source_arm.kind
+			if road.get("kind") != kind: return "Continuation road kind mismatch."
+			if kind == "tunnel":
 				if not _count(road.get("clearance_cm"), 5000) or road.clearance_cm < 200 or (clearance != null and clearance != road.clearance_cm): return "Joined tunnel clearance mismatch."
 				clearance = road.clearance_cm
-		if roads.size() == 1: sections[join.ref] = true
-		if roads.size() != 2 and crop is not Dictionary: return "Missing uncropped continuation arms."
+		if roads.size() > 0 and roads.size() < expected_count: sections[join.ref] = true
+		if roads.size() != expected_count and crop is not Dictionary: return "Missing uncropped continuation arms."
 	if v4:
 		var declared: Variant = crop.vertical.get("connection_sections")
 		if declared is not Array or declared.is_empty() or declared.size() != sections.size(): return "Invalid connection sections."

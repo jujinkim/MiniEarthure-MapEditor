@@ -99,48 +99,67 @@ def road_vertical(tags, references, node_tags):
 
 
 def structure_connections(roads, source_uses):
-    """Prove endpoint continuations before crop; no positional or height inference.
+    """Prove explicit source incidence before crop, then let native test geometry.
 
-    Only a unique same-kind endpoint peer replaces a ground approach. Each
-    component of these new links must terminate at two explicit ground ends.
-    Existing interior junctions still split and undergo native apron validation.
+    Interior source vertices contribute two directed arms. A star links each
+    junction in linear space; dense input never allocates a peer cross-product.
     """
     ground = {ref for f in roads if f["properties"]["road_kind"] == "ground"
               for ref in f["properties"]["osm_node_refs"]}
     structures = {f["properties"]["osm_way_id"]: f["properties"] for f in roads
                   if f["properties"]["road_kind"] != "ground"}
-    ends = {}
+    incident = {}
     for way, p in structures.items():
-        for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1]):
-            ends.setdefault(ref, []).append(way)
+        for index, ref in enumerate(p["osm_node_refs"]):
+            incident.setdefault(ref, []).append((way, index))
     links, joins = {way: [] for way in structures}, []
-    for ref, ways in sorted(ends.items()):
+    total_arms = 0
+    for ref, uses in sorted(incident.items()):
         if ref in ground: continue
-        if len(ways) != 2 or source_uses[ref] != 2:
-            raise ValueError("OSM structure endpoints require explicit-height ground connections or a unique endpoint continuation; missing approaches/branches are unsupported")
-        a, b = (structures[way] for way in ways)
-        if a["road_kind"] != b["road_kind"]:
-            raise ValueError("OSM mixed bridge/tunnel continuation requires an explicit ground transition")
-        if a["road_kind"] == "tunnel" and round(a["clearance_m"]*100) != round(b["clearance_m"]*100):
+        if len(uses) != source_uses[ref]:
+            raise ValueError("OSM structural junction requires every incident highway's explicit height profile")
+        arms = []
+        for way, index in uses:
+            p = structures[way]
+            for end, present in (("to", index > 0), ("from", index < len(p["osm_node_refs"])-1)):
+                if present:
+                    if len(arms) >= 32:
+                        raise ValueError("OSM structural junction exceeds 32 native arms")
+                    arms.append(dict(source_way=str(way), end=end, kind=p["road_kind"],
+                        clearance_cm=round(p["clearance_m"]*100) if p["road_kind"] == "tunnel" else None))
+        if len(arms) < 2:
+            raise ValueError("OSM structure endpoints require explicit-height ground connections or explicit structural peers; missing approaches are unsupported")
+        if len(uses) == 1: continue  # Ordinary authored bend, not a graph junction.
+        total_arms += len(arms)
+        if total_arms > MAX_REFS or len(joins) >= MAX_FEATURES:
+            raise ValueError("OSM structural source incidence budget exceeded")
+        if len({a["clearance_cm"] for a in arms if a["kind"] == "tunnel"}) > 1:
             raise ValueError("OSM joined tunnel clearances must agree after centimetre quantization")
-        links[ways[0]].append(ways[1])
-        links[ways[1]].append(ways[0])
-        joins.append(dict(ref=str(ref), kind=a["road_kind"], source_ways=list(map(str, sorted(ways)))))
+        ways = sorted(way for way, _ in uses)
+        for peer in ways[1:]:
+            links[ways[0]].append(peer)
+            links[peer].append(ways[0])
+        kinds = {a["kind"] for a in arms}
+        join = dict(ref=str(ref), kind=next(iter(kinds)) if len(kinds) == 1 else "mixed", source_ways=list(map(str, ways)))
+        # Preserve the v1 representation for its original unique-endpoint profile.
+        if len(arms) != 2 or len(kinds) != 1:
+            join["source_arms"] = sorted(arms, key=lambda a: (int(a["source_way"]), a["end"]))
+        joins.append(join)
     visited = set()
     for first in structures:
         if first in visited: continue
-        pending, grounded = [first], 0
+        pending, grounded = [first], set()
         visited.add(first)
         while pending:
             way = pending.pop()
             refs = structures[way]["osm_node_refs"]
-            grounded += sum(ref in ground for ref in (refs[0], refs[-1]))
+            grounded.update(ref for ref in refs if ref in ground)
             for peer in links[way]:
                 if peer not in visited:
                     visited.add(peer)
                     pending.append(peer)
-        if grounded != 2:
-            raise ValueError("OSM structure continuation chain requires two explicit ground ends; unanchored cycles are unsupported")
+        if len(grounded) < 2:
+            raise ValueError("OSM structure component requires at least two distinct explicit ground connections; unanchored cycles are unsupported")
     return joins
 
 
@@ -393,7 +412,9 @@ def finish(layer, counts):
             layer.warning("Explicit OSM node ele metres use EGM96 sea level as map Y=0; no vertical offset/datum conversion or terrain alignment. Verify against your map before adoption.")
         else:
             layer.warning(f"Explicit OSM EGM96 heights → {vertical['target_crs']} minus {vertical['vertical_zero_m']} m at local zero; {vertical['method']}. Convert original vertices before crop, then linearly grade target heights. No terrain fitting. Local authored/estimated heights and physical clearance are unchanged; source and correction accuracy are separate.")
-        layer.warning("Explicit-height roads join only shared OSM node IDs. Same-kind structure endpoint continuations require a unique peer and two explicit ground ends per chain before crop; mixed kinds, missing ends and continuation branches reject. Native apron/clearance checks still apply. Layer is ordering only. Bridges add no invented supports; tunnel ceiling uses maxheight:physical, not legal maxheight.")
+        layer.warning("Explicit-height roads join only shared OSM node IDs. Structural components need at least two distinct explicit ground connections before crop. Branches, interior joins and bridge/tunnel transitions use at most 32 native arms with matching tunnel clearance. Native apron/terrain checks still apply. Layer is ordering only. Bridges add no invented supports; tunnel ceiling uses maxheight:physical, not legal maxheight.")
+        if any("source_arms" in join for join in layer.coordinates.get("osm_connections", {}).get("joins", [])):
+            layer.warning("Structural junction floor fans use authored mouths and the source node. Native road-ID ownership assigns each fan face its material/kind; only tunnel-owned sectors have ceilings and outer side walls. Mixed portal boundaries follow those sectors, not an inferred portal plane. Cropping rebuilds the retained junction; missing source arms remain in review metadata. Cross-sections are estimates; inspect the generated map.")
         layer.warning("Only bridge=yes/tunnel=yes with complete node elevations supported. Road grades interpolate between supplied nodes; tunnel cross-section is rectangular and physical clearance is constant (shape estimate). Access/oneway/vehicle limits remain omitted.")
         if counts.get("tunnel_segments"): layer.estimate("rectangular_tunnel_cross_section")
     # Put source-level omissions before per-road warning samples, even at the cap.
