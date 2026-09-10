@@ -1,0 +1,99 @@
+{
+  "profile": "physics-test-v1",
+  "map_id": "physics-test-v1",
+  "bounds_cm": {
+    "min": [
+      0,
+      0
+    ],
+    "max": [
+      102400,
+      102400
+    ]
+  },
+  "world_scale": 0.125,
+  "cell_size_cm": 102400,
+  "cell_count": 1,
+  "counts": {
+    "nodes": 0,
+    "roads": 0,
+    "buildings": 0,
+    "zones": 0,
+    "assets": 0,
+    "placements": 0,
+    "repetitions": 0,
+    "heightmaps": 1
+  },
+  "authored_object_count": 1,
+  "road_centerline_planar_m": 0.0,
+  "road_centerline_spatial_m": 0.0,
+  "terrain": {
+    "spacing_cm": 3200,
+    "source_accuracy_cm": null,
+    "description": "Single 33x33 PNG16 heightfield, flat ground and two compact smooth hills",
+    "hills": [
+      {
+        "center_m": [
+          704,
+          640
+        ],
+        "radius_m": 192,
+        "height_m": 16
+      },
+      {
+        "center_m": [
+          320,
+          768
+        ],
+        "radius_m": 128,
+        "height_m": 8
+      }
+    ]
+  },
+  "source_files": {
+    "document.json": "fef187fb54a05a417f2257cac4f92092ada71f37937324075302769fb23114ec",
+    "terrain/hills.png": "eade99d6d356ebdb658b5bcecefc042e930b95f2ff44a4ab211fbfbd663083cf"
+  },
+  "attributions": [
+    {
+      "source": "physics-test-v1",
+      "license": "MIT",
+      "notice": "Original synthetic terrain for vehicle tuning; no external data or assets."
+    }
+  ],
+  "locations": [
+    {
+      "id": "start",
+      "title": "Flat ground",
+      "position_cm": [
+        51200,
+        0,
+        25600
+      ],
+      "surface_id": "terrain",
+      "heading_degrees": 0
+    },
+    {
+      "id": "hill",
+      "title": "Gentle hill approach",
+      "position_cm": [
+        70400,
+        274,
+        51200
+      ],
+      "surface_id": "terrain",
+      "heading_degrees": 0
+    }
+  ],
+  "routes": [],
+  "start": {
+    "x_cm": 51200,
+    "y_cm": 25600,
+    "surface_id": "terrain",
+    "heading_degrees": 0
+  },
+  "limitations": [
+    "Terrain material only; no paved friction comparison or scenery.",
+    "Finite test area; existing runtime boundary recovery remains active."
+  ]
+}
