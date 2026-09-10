@@ -408,7 +408,7 @@ func _build_ui() -> void:
 	_label(import_fields, "Select a local source up to 32 MiB; review before adopting.\nWGS84 needs pyproj 3.7.2; OSM also needs osmium 4.3.1 in the selected Python.")
 	import_fields.get_child(0).custom_minimum_size.x = 700
 	import_source_format = OptionButton.new()
-	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)", "Overture building area snapshot (.overture.json)", "Overture transportation snapshot (.overture-roads.json)"]: import_source_format.add_item(format_title)
+	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)", "Overture building area snapshot (.overture.json)", "Overture transportation snapshot (.overture-roads.json)", "Overture land cover snapshot (.overture-land-cover.json)"]: import_source_format.add_item(format_title)
 	import_fields.add_child(import_source_format)
 	_button(import_fields, "Download Geofabrik region…", _open_download)
 	osm_crop_button = _button(import_fields, "OSM crop area…", func(): osm_panel.open())
@@ -441,10 +441,10 @@ func _build_ui() -> void:
 		import_license.editable = index == 0
 		import_coordinate_mode.disabled = index != 0
 		if index != 0:
-			import_license.text = IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if index == 4 else IMPORT_LAYER.OVERTURE_LICENSE if index == 3 else IMPORT_LAYER.OSM_LICENSE
+			import_license.text = IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if index == 5 else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if index == 4 else IMPORT_LAYER.OVERTURE_LICENSE if index == 3 else IMPORT_LAYER.OSM_LICENSE
 			import_coordinate_mode.select(1)
 			geographic.visible = true
-		elif import_license.text in [IMPORT_LAYER.OSM_LICENSE, IMPORT_LAYER.OVERTURE_LICENSE, IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE]:
+		elif import_license.text in [IMPORT_LAYER.OSM_LICENSE, IMPORT_LAYER.OVERTURE_LICENSE, IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE, IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE]:
 			import_license.text = ""
 		import_dialog.get_ok_button().disabled = import_license.text.strip_edges() == ""
 	)
@@ -587,6 +587,7 @@ func _choose(action: String) -> void:
 			dialog.filters = PackedStringArray(["*.geojson,*.json ; GeoJSON (explicit coordinates)"])
 			if import_source_format.selected == 1: dialog.filters = PackedStringArray(["*.osm.pbf,*.pbf ; OSM PBF snapshot"])
 			if import_source_format.selected == 3: dialog.filters = PackedStringArray(["*.overture.json ; Overture building snapshot"])
+			if import_source_format.selected == 5: dialog.filters = PackedStringArray(["*.overture-land-cover.json ; Overture land cover snapshot"])
 			if import_source_format.selected == 4: dialog.filters = PackedStringArray(["*.overture-roads.json ; Overture transportation snapshot"])
 			if import_source_format.selected == 2: dialog.filters = PackedStringArray(["*.osm ; OSM XML snapshot"])
 		if action == "recover":
@@ -1038,15 +1039,15 @@ func _start_import(source: String, license_name: String) -> void:
 	var job := IMPORT_JOB.new()
 	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
 	import_coordinates_request = {"mode":"local-metres"} if import_coordinate_mode.selected == 0 else {"mode":"wgs84-utm", "origin":[import_origin_lon.value,import_origin_lat.value], "local_origin_m":[import_origin_x.value,import_origin_y.value]}
-	var input_format: String = ["geojson", "pbf", "osm", "overture", "overture-transportation"][import_source_format.selected]
+	var input_format: String = ["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"][import_source_format.selected]
 	osm_import_revision = osm_panel.revision
 	if input_format in ["osm", "pbf"] and osm_panel.enabled.button_pressed:
 		if osm_panel.error() != "":
 			_status(osm_panel.error())
 			return
 		import_coordinates_request.osm_bbox = osm_panel.bbox()
-	import_coordinates_request.adapter = "overture-transportation-v1" if input_format == "overture-transportation" else "overture-buildings-v1" if input_format == "overture" else ("geojson-v2" if input_format == "geojson" else "osm-extract-v1")
-	if input_format != "geojson": license_name = IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if input_format == "overture-transportation" else IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
+	import_coordinates_request.adapter = "overture-land-cover-v1" if input_format == "overture-land-cover" else "overture-transportation-v1" if input_format == "overture-transportation" else "overture-buildings-v1" if input_format == "overture" else ("geojson-v2" if input_format == "geojson" else "osm-extract-v1")
+	if input_format != "geojson": license_name = IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if input_format == "overture-land-cover" else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if input_format == "overture-transportation" else IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
 	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, str(download_sources.get(source, "")))
 	if failure != "":
 		_operation_status("Import failed · Use Retry import to adjust settings", "E_IMPORT: " + failure)
@@ -1087,7 +1088,7 @@ func _process(_delta: float) -> void:
 		var progress: Dictionary = import_job.progress
 		if not progress.is_empty():
 			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
-			validation_label.text = "%s %s · %d / %d %s" % ["Overture captured snapshot" if acquisition_mode in ["overture", "overture-transportation"] else "DEM" if acquisition_mode.begins_with("dem") else "Import", progress.stage, progress.completed, progress.total, progress.unit]
+			validation_label.text = "%s %s · %d / %d %s" % ["Overture captured snapshot" if acquisition_mode in ["overture", "overture-transportation", "overture-land-cover"] else "DEM" if acquisition_mode.begins_with("dem") else "Import", progress.stage, progress.completed, progress.total, progress.unit]
 		if import_job.done:
 			var result: Dictionary = import_job.result
 			import_job = null
@@ -1410,12 +1411,12 @@ func _finish_acquisition(result: Dictionary) -> void:
 	if generation != worker_generation:
 		_status("Document changed; download result will not start an import. Complete source files are retained.")
 		return
-	if mode in ["overture", "overture-transportation"]:
+	if mode in ["overture", "overture-transportation", "overture-land-cover"]:
 		if overture_request_revision != overture_revision or overture_requested != _overture_plan():
 			_status("Area changed; completed source retained without selecting it. Retry the new area.")
 			return
 		last_import_source = str(result.data.path)
-		var format_index := 4 if mode == "overture-transportation" else 3
+		var format_index := 5 if mode == "overture-land-cover" else 4 if mode == "overture-transportation" else 3
 		import_source_format.select(format_index)
 		import_source_format.item_selected.emit(format_index)
 		_status("Overture snapshot retained: " + last_import_source + ". Set origins, then Import / retry last source.")
@@ -1461,10 +1462,11 @@ func _setup_overture() -> void:
 	overture_theme = OptionButton.new()
 	overture_theme.add_item("Buildings / optional vertical parts")
 	overture_theme.add_item("Transportation · ground roads + connectors")
+	overture_theme.add_item("Land cover · high-detail forest vegetation")
 	fields.add_child(overture_theme)
 	overture_theme.item_selected.connect(func(index):
-		overture_parts.disabled = index == 1
-		overture_ground.editable = index == 1 or overture_parts.button_pressed
+		overture_parts.disabled = index != 0
+		overture_ground.editable = index == 1 or (index == 0 and overture_parts.button_pressed)
 		_overture_changed()
 	)
 	overture_release = LineEdit.new()
@@ -1481,7 +1483,7 @@ func _setup_overture() -> void:
 	overture_ground = _import_number(grid, "Chosen ground / road plane (m)", -9000, 9000, 0, 0.01)
 	overture_ground.editable = false
 	overture_parts.toggled.connect(func(enabled):
-		overture_ground.editable = enabled or overture_theme.selected == 1
+		overture_ground.editable = overture_theme.selected == 1 or (overture_theme.selected == 0 and enabled)
 		_overture_changed()
 	)
 	overture_ground.value_changed.connect(func(_value): _overture_changed())
@@ -1515,7 +1517,7 @@ func _setup_overture() -> void:
 	)
 	add_child(overture_review)
 	overture_dialog.canceled.connect(func():
-		if acquisition_mode in ["overture", "overture-transportation"] and import_job != null: import_job.cancel()
+		if acquisition_mode in ["overture", "overture-transportation", "overture-land-cover"] and import_job != null: import_job.cancel()
 	)
 	add_child(overture_dialog)
 	_overture_changed()
@@ -1531,6 +1533,8 @@ func _overture_plan() -> Dictionary:
 	var query := {"provider":"Overture", "release":overture_release.text.strip_edges(), "bbox":bounds, "theme":"buildings", "type":"building", "license":IMPORT_LAYER.OVERTURE_LICENSE}
 	if overture_theme.selected == 1:
 		query.merge({"theme":"transportation", "type":"segment", "profile":"ground-graph-v1", "ground_m":overture_ground.value, "license":IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE}, true)
+	elif overture_theme.selected == 2:
+		query.merge({"theme":"base", "type":"land_cover", "profile":"forest-high-detail-v1", "license":IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE}, true)
 	elif overture_parts.button_pressed:
 		query.include_parts = true
 		query.ground_m = overture_ground.value
@@ -1549,8 +1553,8 @@ func _download_overture() -> void:
 	if error != OK:
 		_status("Cannot create source folder: " + error_string(error))
 		return
-	var destination := folder.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + (".overture-roads.json" if overture_theme.selected == 1 else ".overture.json"))
-	_begin_acquisition({"mode":"overture-transportation" if overture_theme.selected == 1 else "overture", "provider":"Overture", "plan":overture_requested.duplicate(true), "destination":destination})
+	var destination := folder.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + (".overture-land-cover.json" if overture_theme.selected == 2 else ".overture-roads.json" if overture_theme.selected == 1 else ".overture.json"))
+	_begin_acquisition({"mode":"overture-land-cover" if overture_theme.selected == 2 else "overture-transportation" if overture_theme.selected == 1 else "overture", "provider":"Overture", "plan":overture_requested.duplicate(true), "destination":destination})
 
 func _overture_error() -> String:
 	var query := _overture_plan()
@@ -1572,13 +1576,16 @@ func _overture_changed() -> void:
 	var roads := overture_theme.selected == 1
 	overture_limits.text = "overturemaps 1.0.2 · dated release / area ≤ 0.02° per side.\nTransfer/count unknown; snapshot ≤32 MiB / %s.\nReader memory/network bytes can exceed snapshot size; deadline 120s.\nProgress is captured snapshot bytes, not network completion." % ("1024 features / 8192 points / 2048 split roads" if roads else "256 features / 8192 points" if overture_parts.button_pressed else "20,000 buildings")
 	overture_notice.text = ("ODbL · OpenStreetMap contributors / TomTom / Overture Maps Foundation.\nComplete ground graph inside area; exact connector IDs join roads.\nNo structures/restrictions/conditional rules; chosen plane is estimated.\nComplete width/surface intervals; missing width → 8m, paved/unknown → asphalt." if roads else "ODbL · OpenStreetMap contributors / Overture Maps Foundation.\nWhole multipart/courtyard footprints (recipe 5 for courtyards).\nVertical parts: explicit heights, complete parents inside the area.\nChosen ground is not sampled terrain; underground parts reject.") + "\nhttps://docs.overturemaps.org/attribution/\nCompleted sources stay; cancel removes only this partial; retry starts fresh."
+	if overture_theme.selected == 2:
+		overture_limits.text = "Dated release / area ≤0.02° · 256 source features / 8192 points / 32 MiB snapshot.\nTransfer/count and reader memory unknown; captured-byte progress; deadline 120s."
+		overture_notice.text = _land_cover_notice()
 	overture_revision += 1
 	overture_reviewed.clear()
 	overture_review.hide()
 	overture_area.set_bounds(_overture_plan().bbox)
 	var error := _overture_error()
 	overture_dialog.get_ok_button().disabled = error != ""
-	overture_area_status.text = error if error != "" else ("Complete ground graph must be inside area; missing connectors reject. Origins chosen on import." if overture_theme.selected == 1 else "Valid query envelope · crossing buildings stay whole; origin is chosen separately on import.")
+	overture_area_status.text = error if error != "" else ("Whole forest polygons and holes retained; no crop. Origins chosen on import." if overture_theme.selected == 2 else "Complete ground graph must be inside area; missing connectors reject. Origins chosen on import." if overture_theme.selected == 1 else "Valid query envelope · crossing buildings stay whole; origin is chosen separately on import.")
 
 func _review_overture() -> void:
 	if busy: return
@@ -1594,6 +1601,12 @@ func _review_overture() -> void:
 	overture_review.dialog_text = "Release: %s · buildings only\nW %.6f / S %.6f / E %.6f / N %.6f\n\nQuery envelope, not a crop. All returned footprint parts stay whole.\nTransfer/count unknown; captured snapshot ≤32 MiB / 20,000 features.\nNetwork bytes and reader memory may exceed that cap. Deadline 120s.\nODbL · OpenStreetMap contributors / Overture Maps Foundation.\n\nDownload preserves a new source; it does not adopt or change the map.\nNext: set explicit geographic/local origins, import, review and adopt.\nCancel stops this request; completed sources remain; retry starts fresh." % [overture_reviewed.release,b[0],b[1],b[2],b[3]]
 	if overture_theme.selected == 1:
 		overture_review.dialog_text = "Release: %s · transportation segment + connector\nW %.6f / S %.6f / E %.6f / N %.6f\nChosen road plane: %.2f m (estimate, not terrain sampled).\n\nComplete ground graph only: all vertices strictly inside area.\n1024 source features / 8192 positions / 2048 split roads; snapshot ≤32 MiB.\nBoth readers finish before publication; transfer/count unknown.\nReader/network memory may exceed snapshot cap; deadline 120s.\n\nExact connector IDs connect; interior connectors split roads.\nUniform width/surface only. Missing width estimates 8m; paved estimates asphalt.\nStructures, restrictions, rail/water and incomplete graphs reject whole input.\nODbL · OpenStreetMap contributors / TomTom / Overture Maps Foundation.\n\nDownload preserves a new source; next set origins, import, review and adopt.\nCancel stops this request; complete sources remain; retry starts fresh." % [overture_reviewed.release,b[0],b[1],b[2],b[3],overture_ground.value]
+	elif overture_theme.selected == 2:
+		overture_review.dialog_text = "Release: %s · base/land_cover\nW %.6f / S %.6f / E %.6f / N %.6f\n256 source features / 8192 points / 32 MiB snapshot; deadline 120s.\nTransfer/count and reader memory unknown; progress counts captured bytes.\n\n%s\n\nNext: set origins, import, review and adopt as a new layer." % [overture_reviewed.release,b[0],b[1],b[2],b[3],_land_cover_notice(false)]
 	elif overture_parts.button_pressed:
 		overture_review.dialog_text += "\n\nIncludes building + building_part. Common ground altitude: %.2f m.\n256 total source features / 8192 points; explicit height + min_height.\nParents must be wholly inside area and exactly covered by parts.\nParent outlines are retained as sources; only parts become solids." % overture_ground.value
 	overture_review.popup_centered(Vector2i(740,480))
+
+func _land_cover_notice(full_attribution: bool = true) -> String:
+	var notice := IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if full_attribution else "ODbL · ESA WorldCover CC BY 4.0 · full notice in area review and snapshot."
+	return "Forest only · min_zoom=8 / max_zoom=15. Other land classes and lower detail\nare retained in source/provenance and excluded, never inferred as trees.\nWhole polygons/holes/islands; no clipping. Unknown profiles reject.\nWorldCover 10m raster classification is not measured tree positions/accuracy.\n8m spacing / 750‰ density and generated trees are estimates; review alignment.\n" + notice + "\nCompleted sources remain; cancel removes owned partial; retry starts fresh."

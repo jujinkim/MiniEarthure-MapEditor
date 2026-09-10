@@ -5,6 +5,7 @@ const FIELDS := ["nodes", "roads", "buildings", "zones"]
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 const OVERTURE_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
 const OVERTURE_TRANSPORTATION_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation"
+const OVERTURE_LAND_COVER_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; ESA WorldCover (CC-BY-4.0); © ESA WorldCover project 2020 / Contains modified Copernicus Sentinel data (2020) processed by ESA WorldCover consortium; https://docs.overturemaps.org/attribution/#base"
 var value: Dictionary = {}
 
 static func _hex(text: Variant, length: int) -> bool:
@@ -46,7 +47,7 @@ static func _coordinates(c: Variant, requested: Dictionary) -> String:
 func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -> String:
 	value = {}
 	if raw is not Dictionary or JSON.stringify(raw).to_utf8_buffer().size() > MAX_BYTES: return "Invalid or oversized ImportLayer."
-	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1", "overture-buildings-v1", "overture-transportation-v1"]: return "Unsupported ImportLayer version/adapter."
+	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1", "overture-buildings-v1", "overture-transportation-v1", "overture-land-cover-v1"]: return "Unsupported ImportLayer version/adapter."
 	if requested.has("adapter") and raw.adapter != requested.adapter: return "Import adapter does not match request."
 	if not _hex(raw.get("layer_id"), 32) or raw.layer_id != expected_id: return "Stale or invalid import identity."
 	var source: Variant = raw.get("source")
@@ -144,6 +145,9 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if raw.adapter == "overture-transportation-v1":
 		var transport_error: String = preload("./import_transportation.gd").validate(raw, get_script())
 		if transport_error != "": return transport_error
+	if raw.adapter == "overture-land-cover-v1":
+		var land_error: String = preload("./import_land_cover.gd").validate(raw, get_script())
+		if land_error != "": return land_error
 	value = raw.duplicate(true)
 	return ""
 
@@ -157,6 +161,7 @@ func patches(store: RefCounted) -> Array:
 
 func validate_for(store: RefCounted) -> String:
 	if value.is_empty(): return "No import candidate."
+	if value.adapter == "overture-land-cover-v1" and store.document.recipe_version < 3: return "Land cover vegetation requires explicit recipe 3 or newer."
 	if value.adapter == "overture-buildings-v1" and value.coordinates.overture.get("include_parts", false) and store.document.recipe_version < 3: return "Vertical building parts require explicit recipe 3 or newer."
 	var candidate: Dictionary = store.document.duplicate(true)
 	var failure: String = store._apply(candidate, patches(store), false)

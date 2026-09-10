@@ -1073,3 +1073,72 @@ Next independent unit: **I02 Overture land_cover vegetation input**. Determine
 which explicit source classes can map to the existing vegetation contract, retaining
 source classification, reviewed estimates, polygon holes and whole-input rejection.
 This is a new theme/acquisition/area-normalization unit, not another connector case.
+
+
+## Overture land_cover vegetation — 2026-09-10
+
+Implemented bounded `overture-land-cover-v1` with `forest-high-detail-v1` source
+profile. Choose **Download Overture area → Land cover**, review a dated release
+and bbox, then import the retained `.overture-land-cover.json` using explicit
+WGS84/local origins. Select recipe **3 or newer** before native review/adoption.
+Acquisition uses overturemaps 1.0.2 `land_cover`, the same release/bbox, and the
+existing owned worker, captured-byte progress, deadline and exclusive publication.
+The full snapshot contains all returned records, including excluded classifications.
+
+Only `forest` with `cartography.min_zoom=8, max_zoom=15` maps to existing forest
+zones. Known nonforest subtypes (barren, crop, grass, mangrove, moss, shrub, snow,
+urban, wetland) and lower-detail records with max_zoom<8 are explicitly excluded
+with per-source disposition and no authored IDs. Unknown classes, missing zooms,
+other overlapping resolution profiles or zero selected forests reject the whole
+candidate. No crop-to-orchard, wetland-to-forest or mangrove inference is made.
+This conservative mapping does not implement every vegetation class or base theme.
+
+Polygon/MultiPolygon parts, exclusion holes and islands remain complete, including
+parts outside the query envelope; the bbox is not a crop. Simple non-touching
+source/projected rings, declared hole owners and centimetre collapse are checked
+without repair. Current map bounds and native validation must admit every selected
+part. Maximum 256 source features, 8192 source positions, 256 parts per feature,
+16 holes per part, existing 2-million topology comparisons, 32 MiB input and
+12 MiB typed output remain enforced. Reader/network memory can exceed captured
+snapshot bytes; these limits do not claim a whole-process memory cap.
+
+Provenance retains IDs, version, sources/licenses, class, zooms, disposition,
+source/selected counts, all source-to-zone IDs and per-part exclusion counts.
+The GDScript boundary rechecks classification, mapping, counts, attribution,
+fixed estimates and namespace before native admission. Adoption remains one fresh
+layer/Undo command; discard, failed imports and updates preserve original files,
+accepted documents and prior packages. Reimports require explicit new adoption.
+
+8m spacing and 750-per-mille density are reviewed estimates. Recipe-3+ tree shape,
+species, lattice placement and terrain attachment are generated, not observations.
+WorldCover's 10m raster classification does not provide measured tree locations or
+centimetre accuracy. Source accuracy remains explicit/unknown; inspect alignment.
+The complete ODbL base notice and ESA WorldCover CC BY 4.0 attribution are retained
+in snapshot, typed layer, project and package; adapter source remains MIT.
+
+Official references checked 2026-09-10:
+[land-cover schema](https://docs.overturemaps.org/schema/reference/base/land_cover/),
+[subtypes](https://docs.overturemaps.org/schema/reference/base/types/land_cover_subtype/),
+[high-detail selection example](https://docs.overturemaps.org/blog/2024/05/16/land-cover/),
+[base attribution](https://docs.overturemaps.org/attribution/#base).
+
+Verification: 33 Overture Python tests passed, including six new land-cover tests
+with real synthetic Arrow/WKB capture. Rendered Mac compiled-PCK land-cover,
+import-layer, worker-lifetime, document-history and transportation regressions
+passed without diagnostics. Native forest generation/exclusions, preview, source
+review/adoption, reimport, recovery/package I/O and cancellation are covered.
+Reproduce from this public repository:
+
+```sh
+rtk proxy /path/to/import-python -B -m unittest discover -s tests -p 'test_overture*.py' -v
+rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/import-python --script overture_land_cover_validator --script import_layer_validator --script import_job_validator --script document_history_validator --script overture_transportation_validator --resource-pack --rendered --log-dir /new/land-cover-checks
+```
+
+MapKit source/ABI/recipe/pin are unchanged; the existing matching native build was
+reused. Mac resource packing does not establish Windows/Linux standalone install
+acceptance, actual provider accuracy, user driving or representative performance.
+Those and full final integration remain deferred. Whole I02 and cutover are open.
+Next independent unit: bounded large-source **OSM PBF selected-area extraction**;
+read existing `osm_extract.py`, input/worker budgets and preservation contracts
+before designing streaming passes. The current 32 MiB source limit remains until
+an explicit replacement profile is implemented and validated.

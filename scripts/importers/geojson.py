@@ -153,7 +153,7 @@ def main():
     parser.add_argument("--source-name")
     parser.add_argument("--layer-id", required=True)
     parser.add_argument("--watch-parent", action="store_true")
-    parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture", "overture-transportation"], default="geojson")
+    parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"], default="geojson")
     parser.add_argument("--osm-bbox", nargs=4, type=float)
     args = parser.parse_args()
     if args.osm_bbox is not None and args.input_format not in ("osm", "pbf"):
@@ -183,6 +183,11 @@ def main():
         if args.coordinates != "wgs84-utm" or args.license != LICENSE:
             raise ValueError("Transportation requires WGS84 origins and source attribution")
         value = parse(raw)
+    elif args.input_format == "overture-land-cover":
+        from overture_land_cover import parse, LICENSE
+        if args.coordinates != "wgs84-utm" or args.license != LICENSE:
+            raise ValueError("Land cover requires WGS84 origins and source attribution")
+        value, overture_metadata = parse(raw)
     elif args.input_format == "overture":
         from overture_area import parse, LICENSE
         if args.coordinates != "wgs84-utm" or args.license != LICENSE:
@@ -221,7 +226,10 @@ def main():
             result.warning_count += 1
             result.warnings = result.warnings[:50]
     if overture_metadata is not None:
-        from overture_area import finish
+        if args.input_format == "overture-land-cover":
+            from overture_land_cover import finish
+        else:
+            from overture_area import finish
         result = finish(result, overture_metadata)
     encoded = result.encode()
     event("write", 0, len(encoded))
