@@ -56,7 +56,8 @@ func setup(owner_ui: Control) -> void:
 
 func bbox() -> Array:
 	var result := []
-	for field in fields: result.append(field.value)
+	# Match the displayed six-decimal source boundary, not SpinBox step noise.
+	for field in fields: result.append(float("%.6f" % field.value))
 	return result
 
 func error() -> String:

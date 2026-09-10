@@ -16,6 +16,7 @@ func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	check(ui.store.apply_command("Choose connected road recipe",[{"field":"recipe_version","before":1,"after":2}]) == "","explicit recipe 2 selection")
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	ui.import_source_format.select(1)
 	ui.import_source_format.item_selected.emit(1)
@@ -46,7 +47,7 @@ func run() -> void:
 		check(roads[1].kind == "bridge" and roads[4].kind == "tunnel", "structure kinds survive native adoption")
 		check(roads[0].to == roads[1].from and roads[1].to == roads[2].from,"bridge approaches share graph endpoints")
 		check(roads[3].to == roads[4].from and roads[4].to == roads[5].from,"tunnel approaches share graph endpoints")
-		check(roads[1].points[1][1] == 600 and roads[4].points[1][1] == -600 and roads[4].clearance_cm == 450,"explicit grades and physical clearance survive")
+		check(roads[1].points[2][1] == 600 and roads[4].points[2][1] == -600 and roads[4].clearance_cm == 450,"explicit grades and physical clearance survive")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo() == "" and ui.store.document.roads.is_empty(),"one-command undo removes whole structure graph")
 	check(ui.store.redo() == "" and ui.store.document == adopted,"redo restores exact graph")

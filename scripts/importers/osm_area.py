@@ -91,6 +91,7 @@ def crop(collection, selected):
     vertical_counts = dict(clipped_ground_features=0, outside_explicit_features=0, retained_structure_features=0)
     retained_structures, incomplete_structures = set(), set()
     structure_sources = []
+    connections = collection.get("osm_connections", [])
     source_ends = Counter((f["properties"]["osm_way_id"], ref) for f in collection["features"]
         if f["properties"].get("road_kind") in ("bridge", "tunnel")
         for ref in (f["properties"]["osm_node_refs"][0], f["properties"]["osm_node_refs"][-1]))
@@ -175,12 +176,16 @@ def crop(collection, selected):
         if p.get("road_kind") in ("bridge", "tunnel") and any(ref in source_ground_refs and ref not in ground_ends for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1])):
             raise ValueError("OSM crop removes a required nonzero explicit-height ground approach; expand bbox")
     if not output: raise ValueError("OSM bbox contains no supported nonzero geometry")
+    retained_connection_ends = Counter(str(ref) for f in output
+        if f["properties"].get("road_kind") in ("bridge", "tunnel")
+        for ref in (f["properties"]["osm_node_refs"][0], f["properties"]["osm_node_refs"][-1]))
+    connection_sections = {entry["ref"] for entry in connections if retained_connection_ends[entry["ref"]] == 1}
     counts["output_features"] = len(output)
     meta = dict(bbox=selected, policy="geometry-intersection-v1", shapely="2.1.2", geos=shapely.geos_version_string, counts=counts)
     if has_explicit:
         meta["policy"] = "geometry-intersection-v2"
         meta["vertical"] = dict(profile=VERTICAL_PROFILE, **vertical_counts)
-    if retained_structures & incomplete_structures:
+    if retained_structures & incomplete_structures or connection_sections:
         # A source vertex cut is also a section end when its other source-way arm
         # was removed. Retained original junctions continue to use their own ID.
         retained_ends = Counter((f["properties"]["osm_way_id"], ref) for f in output
@@ -193,10 +198,15 @@ def crop(collection, selected):
             entry["endpoints"] = []
             for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1]):
                 key = (p["osm_way_id"], ref)
-                section = isinstance(ref, str) or (source_ends[key] != 1 and retained_ends[key] == 1)
+                section = isinstance(ref, str) or (source_ends[key] != 1 and retained_ends[key] == 1) or str(ref) in connection_sections
                 entry["endpoints"].append(dict(ref=str(ref), role="boundary-section" if section else "source-node"))
                 section_ends += section
         meta["policy"] = "geometry-intersection-v3"
         meta["vertical"].update(profile="explicit-structure-crop-v1", section_endpoints=section_ends,
             partial_structure_ways=len(retained_structures & incomplete_structures), structures=structure_sources)
-    return dict(type="FeatureCollection", features=output), meta
+        if connection_sections:
+            meta["policy"] = "geometry-intersection-v4"
+            meta["vertical"].update(profile="explicit-connected-structure-crop-v1", connection_sections=sorted(connection_sections))
+    result = dict(type="FeatureCollection", features=output)
+    if connections: result["osm_connections"] = connections
+    return result, meta

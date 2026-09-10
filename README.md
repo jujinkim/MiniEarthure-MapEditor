@@ -141,7 +141,7 @@ These development fixtures do not establish representative-map performance accep
 
 OSM import now assembles bounded split-way multipolygons, multiple building/zone
 outers and forest/orchard holes (zone exclusions), preserving atomic review and
-adoption. Building courtyards and vertical structures remain unsupported. See
+adoption. Later extensions below describe courtyard and explicit structure support. See
 [the exact import profile](docs/IMPORTS.md#multipolygon-assembly-extension--2026-09-09).
 
 
@@ -149,3 +149,9 @@ OSM explicit heights support an EGM96 local zero or a bounded, externally prepar
 local EGM96→EGM2008 difference grid. Active imported DEM/OSM datum, zero and origins
 must agree. Review retains correction bytes/hash/license/accuracy; it never fits
 heights to terrain. See [height references](docs/IMPORTS.md#local-height-reference-and-correction-grids--2026-09-10).
+
+
+Explicit OSM bridges/tunnels can continue through unique same-kind source
+endpoints with complete grounded ends. Full structural source closure, lost-join
+crop sections and bounded recipe-2 native generation protect atomic adoption.
+See [connected structures and the native validation correction](docs/IMPORTS.md#connected-osm-structure-endpoints--2026-09-10).

@@ -45,7 +45,7 @@ def multipolygon_xml():
     return ET.tostring(root, encoding="unicode")
 
 
-def structural_xml():
+def structural_xml(level_approaches=False):
     import xml.etree.ElementTree as ET
     root = ET.Element("osm", version="0.6", generator="mapeditor-synthetic")
     # Explicit approaches, elevated span and a depressed tunnel, spaced apart.
@@ -58,6 +58,14 @@ def structural_xml():
         way = ET.SubElement(root, "way", id=str(identity))
         for ref in refs: ET.SubElement(way, "nd", ref=str(ref))
         for key,value in dict(highway="residential",width="4",**tags).items(): ET.SubElement(way,"tag",k=key,v=value)
+    if level_approaches:
+        # Recipe 2 requires terrain-level mouths before the independent grade.
+        for identity, x, z, way_id, offset in [(13,24,0,2,1),(14,116,0,2,4),(15,24,80,5,1),(16,116,80,5,4)]:
+            node = ET.Element("node", id=str(identity), lon=str(9+x/64000), lat=str(55+z/111000))
+            ET.SubElement(node,"tag",k="ele",v="0")
+            root.insert(0,node)
+            root.find(f"way[@id='{way_id}']").insert(offset,ET.Element("nd",ref=str(identity)))
+        root[:] = sorted(root,key=lambda e: ({"node":0,"way":1}[e.tag],int(e.get("id"))))
     return ET.tostring(root, encoding="unicode")
 
 
@@ -70,6 +78,25 @@ def pbf(path, xml=XML):
     return Path(path).read_bytes()
 
 
+def connected_structures_xml():
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(structural_xml(level_approaches=True))
+    for identity, x in [(3,48), (4,96), (9,48), (10,96)]:
+        root.find(f"node[@id='{identity}']").set("lon", str(9+x/64000))
+    originals = list(root.findall("way"))
+    for way in originals: root.remove(way)
+    identity = 0
+    for way in originals:
+        refs = [n.get("ref") for n in way.findall("nd")]
+        groups = [refs[:3],refs[2:4],refs[3:]] if len(refs) == 6 else [refs]
+        for group in groups:
+            identity += 1
+            derived = ET.SubElement(root, "way", id=str(identity))
+            for ref in group: ET.SubElement(derived, "nd", ref=ref)
+            for tag in way.findall("tag"): derived.append(ET.fromstring(ET.tostring(tag)))
+    return ET.tostring(root, encoding="unicode")
+
+
 if __name__ == "__main__":
-    xml = structural_xml() if len(sys.argv) > 3 and sys.argv[3] == "structures" else multipolygon_xml() if len(sys.argv) > 3 else XML
+    xml = connected_structures_xml() if len(sys.argv) > 3 and sys.argv[3] == "chains" else structural_xml(level_approaches=True) if len(sys.argv) > 3 and sys.argv[3] == "structures" else multipolygon_xml() if len(sys.argv) > 3 else XML
     pbf(sys.argv[1], xml.replace("12 m", sys.argv[2] + " m") if len(sys.argv) > 2 else xml)

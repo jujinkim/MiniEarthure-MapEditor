@@ -71,6 +71,7 @@ def main():
             scripts = args.script
         elif args.full:
             scripts.append('vertical_validator')
+            scripts.append('osm_connections_validator')
         pack_args = []
         if args.resource_pack:
             shutil.copy2(root / 'export_presets.cfg', project / 'export_presets.cfg')

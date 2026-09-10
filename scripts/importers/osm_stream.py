@@ -13,6 +13,7 @@ import sqlite3
 import stat
 import struct
 import zlib
+from collections import deque
 
 from import_layer import MAX_INPUT, MAX_POINTS
 from osm_area import bounds
@@ -173,6 +174,49 @@ def _potential(tags):
     return bool(tags.get("highway") or tags.get("building", "no") != "no" or "building:part" in tags or tags.get("landuse") in ("forest", "orchard") or tags.get("natural") == "wood")
 
 
+def _structure_closure(db, event, size):
+    """Visit every incident highway at structural source nodes, transit structures.
+
+    Ground roads are included whole but are never traversal edges. A separate
+    operation cap bounds dense incidence, in addition to payload/index quotas.
+    """
+    if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
+        raise ValueError("OSM selected entity budget exceeded")
+    pending, admitted = deque(), set()
+    for (way,) in db.execute("SELECT s.id FROM structural_ways s JOIN chosen c ON c.id=s.id ORDER BY s.id"):
+        if len(admitted) >= MAX_FEATURES: raise ValueError("OSM selected approach/feature budget exceeded")
+        admitted.add(way)
+        pending.append(way)
+    nodes, payload_bytes, references, visits, structures = set(), 0, 0, 0, 0
+    event("index_relations", size, size)
+    while pending:
+        way = pending.popleft()
+        raw = db.execute("SELECT data FROM ways WHERE id=?", (way,)).fetchone()[0]
+        payload_bytes += len(raw.encode("utf-8"))
+        if payload_bytes > MAX_INPUT: raise ValueError("OSM structure closure payload budget exceeded")
+        refs, _ = json.loads(raw)
+        references += len(refs)
+        if references > MAX_REFS: raise ValueError("OSM structure closure reference budget exceeded")
+        structures += 1
+        for ref in refs:
+            if ref in nodes: continue
+            nodes.add(ref)
+            for (peer,) in db.execute("SELECT way FROM road_nodes WHERE node=? ORDER BY way", (ref,)):
+                visits += 1
+                if visits > MAX_REFS: raise ValueError("OSM structure closure incidence budget exceeded")
+                if visits % 100 == 0: event("index_relations", size, size)
+                if peer in admitted: continue
+                if len(admitted) >= MAX_FEATURES: raise ValueError("OSM selected approach/feature budget exceeded")
+                admitted.add(peer)
+                db.execute("INSERT OR IGNORE INTO chosen VALUES(?)", (peer,))
+                if db.execute("SELECT 1 FROM structural_ways WHERE id=?", (peer,)).fetchone():
+                    pending.append(peer)
+        event("index_relations", size, size)
+    if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
+        raise ValueError("OSM selected entity budget exceeded")
+    return dict(profile="structural-incidence-v1", ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits)
+
+
 def extract(source, selected, directory, event=lambda *a: None):
     selected = bounds(selected)
     source, directory = Path(source), Path(directory)
@@ -197,8 +241,8 @@ def extract(source, selected, directory, event=lambda *a: None):
             CREATE TABLE relations(id INTEGER PRIMARY KEY, data TEXT, candidate INTEGER);
             CREATE TABLE owners(way INTEGER, relation INTEGER, blocked INTEGER, PRIMARY KEY(way,relation));
             CREATE TABLE chosen(id INTEGER PRIMARY KEY);
-            CREATE TABLE ground_nodes(node INTEGER, way INTEGER, PRIMARY KEY(node,way)) WITHOUT ROWID;
-            CREATE TABLE structure_ends(node INTEGER PRIMARY KEY);
+            CREATE TABLE road_nodes(node INTEGER, way INTEGER, PRIMARY KEY(node,way)) WITHOUT ROWID;
+            CREATE TABLE structural_ways(id INTEGER PRIMARY KEY);
 
         """)
         totals = dict(nodes=0, ways=0, relations=0, references=0)
@@ -237,14 +281,14 @@ def extract(source, selected, directory, event=lambda *a: None):
                 box = envelope(box,*row)
                 refs.append(n.ref)
             db.execute("INSERT INTO ways VALUES(?,?,?,?,?,?,?)", (entity.id,*(box or [None]*4),json.dumps([refs,tags]),int(_potential(tags))))
-            if "highway" in tags and all(tags.get(k, "no") in ("no", "0") for k in ("bridge", "tunnel")):
+            if "highway" in tags:
                 # Only source graph evidence, never an inferred positional join.
                 # Disk/index/deadline/reference caps also cover this adjacency.
-                db.executemany("INSERT OR IGNORE INTO ground_nodes VALUES(?,?)", ((ref,entity.id) for ref in refs))
+                db.executemany("INSERT OR IGNORE INTO road_nodes VALUES(?,?)", ((ref,entity.id) for ref in refs))
+                if any(tags.get(k, "no") not in ("no", "0") for k in ("bridge", "tunnel")):
+                    db.execute("INSERT INTO structural_ways VALUES(?)", (entity.id,))
             if _potential(tags) and intersects(box):
                 db.execute("INSERT INTO chosen VALUES(?)", (entity.id,))
-                if "highway" in tags and any(tags.get(k, "no") not in ("no", "0") for k in ("bridge", "tunnel")) and refs:
-                    db.executemany("INSERT OR IGNORE INTO structure_ends VALUES(?)", ((refs[0],),(refs[-1],)))
         def relation(entity):
             tags = scalar(entity)
             references(len(entity.members))
@@ -278,18 +322,7 @@ def extract(source, selected, directory, event=lambda *a: None):
         for stage, bits, callback in [("index_nodes",osmium.osm.NODE,node),("index_ways",osmium.osm.WAY,way),("index_relations",osmium.osm.RELATION,relation)]:
             _scan(path, stage, event, size, osmium, bits, callback)
             db.commit()
-        # A selected full structural way must retain source validation of both
-        # original approaches, even when its ends lie outside the crop window.
-        # Bounded one-hop closure only; do not recursively import the road graph.
-        if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
-            raise ValueError("OSM selected entity budget exceeded")
-        event("index_relations", size, size)
-        for count, (identity,) in enumerate(db.execute("SELECT DISTINCT g.way FROM structure_ends e CROSS JOIN ground_nodes g ON g.node=e.node LIMIT ?", (MAX_FEATURES+1,))):
-            if count >= MAX_FEATURES: raise ValueError("OSM selected approach/feature budget exceeded")
-            db.execute("INSERT OR IGNORE INTO chosen VALUES(?)", (identity,))
-            if count % 100 == 0: event("index_relations", size, size)
-        if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
-            raise ValueError("OSM selected entity budget exceeded")
+        closure = _structure_closure(db, event, size)
         event("index_relations", size, size)
         nodes, node_tags, all_ways, ways, relations, blocked = {}, {}, {}, [], [], set()
         counts = dict(nodes=0,ways=0,relations=0,ignored_ways=0,ignored_relations=0,tagged_nodes=0,assembled_relations=0,outer_rings=0,inner_rings=0,member_ways=0)
@@ -342,7 +375,7 @@ def extract(source, selected, directory, event=lambda *a: None):
         event("parse",0,selection_bytes)
         value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts)
         meta = dict(profile=PROFILE,passes=3,source_bytes=size,source_sha256=digest,
-                    scan=totals,selected=dict(nodes=len(nodes),ways=len(all_ways),relations=len(relations),references=selected_refs,bytes=selection_bytes))
+                    scan=totals,structure_closure=closure,selected=dict(nodes=len(nodes),ways=len(all_ways),relations=len(relations),references=selected_refs,bytes=selection_bytes))
         return value, counts, meta
     except (sqlite3.Error, RuntimeError, zlib.error) as exc:
         raise ValueError("invalid/budget-exceeding PBF stream: " + str(exc)[:300]) from exc

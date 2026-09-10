@@ -98,11 +98,62 @@ def road_vertical(tags, references, node_tags):
     return result
 
 
-def split_vertical_roads(features):
+def structure_connections(roads, source_uses):
+    """Prove endpoint continuations before crop; no positional or height inference.
+
+    Only a unique same-kind endpoint peer replaces a ground approach. Each
+    component of these new links must terminate at two explicit ground ends.
+    Existing interior junctions still split and undergo native apron validation.
+    """
+    ground = {ref for f in roads if f["properties"]["road_kind"] == "ground"
+              for ref in f["properties"]["osm_node_refs"]}
+    structures = {f["properties"]["osm_way_id"]: f["properties"] for f in roads
+                  if f["properties"]["road_kind"] != "ground"}
+    ends = {}
+    for way, p in structures.items():
+        for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1]):
+            ends.setdefault(ref, []).append(way)
+    links, joins = {way: [] for way in structures}, []
+    for ref, ways in sorted(ends.items()):
+        if ref in ground: continue
+        if len(ways) != 2 or source_uses[ref] != 2:
+            raise ValueError("OSM structure endpoints require explicit-height ground connections or a unique endpoint continuation; missing approaches/branches are unsupported")
+        a, b = (structures[way] for way in ways)
+        if a["road_kind"] != b["road_kind"]:
+            raise ValueError("OSM mixed bridge/tunnel continuation requires an explicit ground transition")
+        if a["road_kind"] == "tunnel" and round(a["clearance_m"]*100) != round(b["clearance_m"]*100):
+            raise ValueError("OSM joined tunnel clearances must agree after centimetre quantization")
+        links[ways[0]].append(ways[1])
+        links[ways[1]].append(ways[0])
+        joins.append(dict(ref=str(ref), kind=a["road_kind"], source_ways=list(map(str, sorted(ways)))))
+    visited = set()
+    for first in structures:
+        if first in visited: continue
+        pending, grounded = [first], 0
+        visited.add(first)
+        while pending:
+            way = pending.pop()
+            refs = structures[way]["osm_node_refs"]
+            grounded += sum(ref in ground for ref in (refs[0], refs[-1]))
+            for peer in links[way]:
+                if peer not in visited:
+                    visited.add(peer)
+                    pending.append(peer)
+        if grounded != 2:
+            raise ValueError("OSM structure continuation chain requires two explicit ground ends; unanchored cycles are unsupported")
+    return joins
+
+
+def split_vertical_roads(features, source_uses=None, connections=None):
     """Join only shared source node IDs; split explicit roads at graph junctions."""
     roads = [f for f in features if "osm_node_refs" in f["properties"]]
     uses = Counter(ref for f in roads for ref in f["properties"]["osm_node_refs"])
-    ground = set(ref for f in roads if f["properties"]["road_kind"] == "ground" for ref in f["properties"]["osm_node_refs"])
+    for f in roads:
+        refs = f["properties"]["osm_node_refs"]
+        if len(set(refs)) != len(refs):
+            raise ValueError("OSM explicit road repeats nodes; prepare unambiguous segments")
+    joins = structure_connections(roads, uses if source_uses is None else source_uses)
+    if connections is not None: connections.extend(joins)
     output = []
     for feature in features:
         p = feature["properties"]
@@ -110,10 +161,6 @@ def split_vertical_roads(features):
             output.append(feature)
             continue
         refs = p["osm_node_refs"]
-        if len(set(refs)) != len(refs):
-            raise ValueError("OSM explicit road repeats nodes; prepare unambiguous segments")
-        if p["road_kind"] != "ground" and (refs[0] not in ground or refs[-1] not in ground):
-            raise ValueError("OSM structure endpoints require explicit-height ground connections; prepare complete approaches")
         cuts = [0] + [i for i in range(1, len(refs)-1) if uses[refs[i]] > 1] + [len(refs)-1]
         for a,b in zip(cuts,cuts[1:]):
             if len(output) >= MAX_FEATURES:
@@ -315,7 +362,9 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                 properties["landuse"] = "orchard" if tags.get("landuse") == "orchard" else "forest"
             geometry = dict(type="Polygon", coordinates=[points])
         features.append(dict(type="Feature", properties=properties, geometry=geometry))
-    features = split_vertical_roads(features)
+    connections = []
+    features = split_vertical_roads(features,
+        Counter(ref for _, kind, refs, _ in ways if kind == "road" for ref in refs), connections)
     counts["explicit_height_roads"] = sum("elevations_m" in f["properties"] for f in features)
     counts["bridge_segments"] = sum(f["properties"].get("road_kind") == "bridge" for f in features)
     counts["tunnel_segments"] = sum(f["properties"].get("road_kind") == "tunnel" for f in features)
@@ -324,7 +373,10 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         raise ValueError("OSM selected feature budget exceeded")
     if not features:
         raise ValueError("OSM extract contains no supported road/building/forest/orchard features")
-    return dict(type="FeatureCollection", features=features), counts
+    counts["structure_continuations"] = len(connections)
+    collection = dict(type="FeatureCollection", features=features)
+    if connections: collection["osm_connections"] = connections
+    return collection, counts
 
 
 def finish(layer, counts):
@@ -341,7 +393,7 @@ def finish(layer, counts):
             layer.warning("Explicit OSM node ele metres use EGM96 sea level as map Y=0; no vertical offset/datum conversion or terrain alignment. Verify against your map before adoption.")
         else:
             layer.warning(f"Explicit OSM EGM96 heights → {vertical['target_crs']} minus {vertical['vertical_zero_m']} m at local zero; {vertical['method']}. Convert original vertices before crop, then linearly grade target heights. No terrain fitting. Local authored/estimated heights and physical clearance are unchanged; source and correction accuracy are separate.")
-        layer.warning("Explicit-height roads join only shared OSM node IDs (including split interior junctions); original source structure ends require explicit ground approaches before crop. Layer is ordering only, never height. Bridges add no invented supports or under-deck clearance; tunnel ceiling uses maxheight:physical, not legal maxheight.")
+        layer.warning("Explicit-height roads join only shared OSM node IDs. Same-kind structure endpoint continuations require a unique peer and two explicit ground ends per chain before crop; mixed kinds, missing ends and continuation branches reject. Native apron/clearance checks still apply. Layer is ordering only. Bridges add no invented supports; tunnel ceiling uses maxheight:physical, not legal maxheight.")
         layer.warning("Only bridge=yes/tunnel=yes with complete node elevations supported. Road grades interpolate between supplied nodes; tunnel cross-section is rectangular and physical clearance is constant (shape estimate). Access/oneway/vehicle limits remain omitted.")
         if counts.get("tunnel_segments"): layer.estimate("rectangular_tunnel_cross_section")
     # Put source-level omissions before per-road warning samples, even at the cap.

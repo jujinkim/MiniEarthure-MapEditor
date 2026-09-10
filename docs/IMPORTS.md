@@ -756,8 +756,9 @@ The generated road linearly grades between fully supplied vertices.
   This becomes a constant clearance above the graded floor. The rectangular
   cross-section is an explicitly reviewed estimate. Legal `maxheight` is never
   used as physical geometry; access/vehicle restrictions are not implemented.
-- Each structure endpoint must be shared with an explicit-height **ground** way.
-  Missing approaches and structures connected only to other structures reject.
+- Each structure endpoint must meet an explicit-height **ground** way or the
+  [same-kind continuation contract](#connected-osm-structure-endpoints--2026-09-10).
+  Missing approaches and unanchored continuation cycles reject.
   Interior shared source nodes split roads into bounded segments. Only matching
   OSM node IDs join; coincident coordinates and geometric crossings never weld.
   Graph node level stays zero, with elevation carrying the vertical geometry.
@@ -1581,3 +1582,83 @@ References checked 2026-09-10: [OSM ele reference](https://wiki.openstreetmap.or
 [Copernicus DSM description](https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM).
 These establish source conventions; this JSON profile and its limits are Editor
 contracts, not an official PROJ grid format or a certified transformation.
+
+
+## Connected OSM structure endpoints — 2026-09-10
+
+This replaces the per-way mandatory ground-end rule and the one-hop streaming
+closure above. All heights are still explicit; the existing datum conversion
+runs on the complete selected source vertices **before** crop. No heights,
+terrain fitting, positional joins, ramps, portal geometry or routes are inferred.
+
+A structure end without a ground connection may share its original OSM node ID
+with exactly one other structure **end**, of the same kind (`bridge` or `tunnel`).
+There must be exactly two source-highway uses at that node. A branch, endpoint to
+interior attachment, missing peer or direct mixed-kind continuation fails the
+whole candidate. Joined tunnel clearances must match after the existing centimetre
+quantization. Widths, surfaces, vertex order and source-way identities remain
+separate. Each component of these continuation links must have two original ends
+on explicit-height ground ways; an unanchored cycle fails. Existing grounded and
+interior junctions remain subject to native validation; this does not newly infer
+or support general structural branches or bridge/tunnel transitions.
+
+Streaming now indexes every highway's source-node incidence, follows the complete
+connected structural component from each selected structural way, and includes
+**all** incident highway ways at every structural vertex, including outside the
+bbox. It transits structural ways only: collected ground roads do not expand the
+selection through their other nodes. Unsupported/ambiguous types encountered in
+this closure cannot be hidden outside the crop. Relation ownership and complete
+node/way validation still apply. The index remains within 2 GiB; closure admits at
+most 20,000 distinct highway ways, 200,000 structural references, 200,000 incidence
+visits and 32 MiB of structural payload, plus the existing combined selected
+entity/reference/byte caps. Dense graphs fail before further accumulation. Periodic
+closure events check the worker deadline/cancellation; the three PBF scans and
+full immutable capture/hash, exclusive publication and owned cleanup remain.
+
+`coordinates.osm_connections` uses `same-kind-endpoints-v1`: each original join
+stores its source node ID, kind, two source-way IDs, and zero/one/two retained arms
+mapped to output feature and source way. It retains off-window joins as source
+context. The consumer checks identity, duplicates, retained graph incidence,
+kind/clearance and crop mapping. Original source bytes/hash remain authoritative;
+this metadata is neither independent source reconstruction nor accuracy proof.
+Streaming additionally reports `structural-incidence-v1` closure counts.
+
+If crop ends exactly at a source continuation and removes its peer, that endpoint
+is an **open boundary section**, even when the retained source way is geometrically
+complete. `geometry-intersection-v4` / `explicit-connected-structure-crop-v1`
+extends v3 with `connection_sections`; actual partial-source-way flags remain
+truthful and may all be false. Both retained arms keep the original shared ID;
+synthetic cuts remain separate. V1–V3 metadata remains readable. The bbox form
+serializes its displayed six decimal places, avoiding step-rounding noise at a
+shared node. Required original ground approaches must still retain nonzero length.
+
+**Native admission correction:** structural OSM import now requires an explicit
+recipe 2 or newer. Recipe 1 can emit independent legacy surfaces without the
+connected apron checks and is rejected for this profile; the map is not upgraded
+silently. After document validation, all imported road corridors (including their
+width/possible junction extent) undergo native generation in a disposable project
+before review/adoption. A conservative per-road bounding rectangle is used, with
+one maximum imported road width as margin; at most 16 distinct affected cells are
+admitted before enumeration. Choose a smaller bbox if that check exceeds its cap.
+Existing 64 MiB candidate-payload and native geometry/triangle budgets apply.
+Native errors leave the accepted map and its loaded bridge/package intact. The
+check uses synchronous native calls and does not claim interruptible generation,
+frame-latency, RSS or full-area performance acceptance. Worker cancellation and
+stale-request/review guards still run at their existing boundaries.
+
+Mixed ground/structural mouths must match actual terrain within the native 1 cm
+rule. Supply terrain-level approach vertices before the grade. Unequal tunnel
+ceilings and overlapping structural mouths fail generation. Previous synthetic
+structure/height validators used default recipe 1, so their passing results did
+**not** establish these recipe-2 junction guarantees. The validators now explicitly
+select recipe 2, supply level approaches and exercise real native success and
+failure paths. Python-only legacy fixtures remain useful adapter inputs; successful
+normalization alone does not promise native acceptance.
+
+Run the optional-Python `test_osm_connections.py` suite and the public runner's
+`osm_connections_validator`, `osm_structures_validator`, `vertical_validator`,
+`osm_stream_validator`, `osm_area_validator`, import/lifetime and area-selection
+checks with `--resource-pack`. They use only synthetic data and isolated user paths.
+General branching/mixed structural connections, missing-height reconstruction,
+larger-area imports and installed-platform/real-region accuracy/performance remain
+outside this delivered profile. Remote map-service acquisition remains excluded.

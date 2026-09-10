@@ -124,6 +124,17 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             raise ValueError(f"unsupported geometry {kind}; no features imported")
         if progress and (index % 100 == 0 or index + 1 == len(features)):
             progress(index + 1, len(features))
+    if osm_graph and value.get("osm_connections"):
+        # Keep original source joins even when neither arm survives the crop.
+        # Map each retained arm to the exact normalized output feature/way.
+        retained = {}
+        for index, feature in enumerate(features):
+            p = feature["properties"]
+            if p.get("road_kind") not in ("bridge", "tunnel"): continue
+            for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1]):
+                retained.setdefault(str(ref), []).append(dict(feature=index, source_way=str(p["osm_way_id"])))
+        layer.coordinates["osm_connections"] = dict(profile="same-kind-endpoints-v1", joins=[
+            dict(entry, retained=retained.get(entry["ref"], [])) for entry in value["osm_connections"]])
     layer.encode()  # Bound the complete contract before handing it to any caller.
     return layer
 
@@ -244,17 +255,17 @@ def main():
         result = finish(result, osm_counts)
         if osm_stream is not None:
             result.coordinates["osm_stream"] = osm_stream
-            result.warnings.insert(0,"PBF area streaming: complete candidate envelopes, relation members and one-hop original structure ground approaches precede crop. Other geometry outside candidate envelopes is not normalized. Nested feature/area relations reject globally; non-area relation semantics remain omitted. Three disk-indexed passes; full captured source hash retained.")
+            result.warnings.insert(0,"PBF area streaming: complete candidate envelopes, relation members and connected structures with every incident highway precede crop. Closure transits structures only, within selection/index/work budgets; ground roads do not expand the graph. Other outside geometry is not normalized. Nested feature/area relations reject globally. Three disk-indexed passes; full captured source hash retained.")
             result.warning_count += 1
         if osm_crop is not None:
             result.coordinates["osm_crop"] = osm_crop
-            if osm_crop["policy"] == "geometry-intersection-v3":
+            if osm_crop["policy"] in ("geometry-intersection-v3", "geometry-intersection-v4"):
                 result.warnings.insert(0, "Partial bridge/tunnel crop: boundary-section ends are open truncated cross-sections, not surveyed entrances or ground ramps. Width/deck/ceiling/walls use the existing native corridor and may extend beyond the centreline bbox. Original retained ground junctions still need nonzero approaches. Review source-way/range/endpoints in crop provenance; no outside continuation or datum alignment is inferred.")
                 result.warning_count += 1
             elif "vertical" in osm_crop:
                 result.warnings.insert(0, "OSM ground crop interpolates reviewed target-datum heights at WGS84 segment cuts; source heights are references, ground still follows map terrain. Original node IDs stay connected; new boundary cuts are separate endpoints. Complete bridge/tunnel spans and nonzero ground approaches are required; no extra terrain fitting is inferred.")
                 result.warning_count += 1
-            crop_summary = "OSM derived geometry crop: " + json.dumps(osm_crop, sort_keys=True) if osm_crop["policy"] != "geometry-intersection-v3" else "OSM partial structure crop counts: " + json.dumps({k:v for k,v in osm_crop["vertical"].items() if k != "structures"}, sort_keys=True) + "; full source mapping is recorded in projection provenance."
+            crop_summary = "OSM derived geometry crop: " + json.dumps(osm_crop, sort_keys=True) if osm_crop["policy"] not in ("geometry-intersection-v3", "geometry-intersection-v4") else "OSM partial structure crop counts: " + json.dumps({k:v for k,v in osm_crop["vertical"].items() if k not in ("structures", "connection_sections")}, sort_keys=True) + "; full source mapping is recorded in projection provenance."
             result.warnings.insert(0, crop_summary)
             result.warning_count += 1
             result.warnings = result.warnings[:50]

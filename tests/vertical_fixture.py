@@ -14,8 +14,8 @@ def grid(values=None):
         values_m=[2,2,2,2] if values is None else values)
 
 
-def xml():
-    root = ET.fromstring(structural_xml())
+def xml(level_approaches=False):
+    root = ET.fromstring(structural_xml(level_approaches))
     for node in root.findall("node"):
         node.set("lon",str(float(node.get("lon")) + 0.5))
         node.set("lat",str(float(node.get("lat")) + 0.5))
@@ -27,8 +27,8 @@ def xml():
 if __name__ == "__main__":
     directory = Path(sys.argv[1])
     (directory / "correction.json").write_text(json.dumps(grid(),ensure_ascii=False),encoding="utf-8")
-    (directory / "source.osm").write_text(xml(),encoding="utf-8")
-    pbf(directory / "source.osm.pbf", xml())
+    (directory / "source.osm").write_text(xml(level_approaches=True),encoding="utf-8")
+    pbf(directory / "source.osm.pbf", xml(level_approaches=True))
     import numpy as np
     import rasterio
     from rasterio.transform import Affine

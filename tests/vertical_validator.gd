@@ -21,6 +21,7 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	check(ui.store.apply_command("Choose connected road recipe",[{"field":"recipe_version","before":1,"after":2}]) == "","explicit recipe 2 selection")
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	var directory := ProjectSettings.globalize_path("user://")
 	var output: Array = []
@@ -106,7 +107,7 @@ func run() -> void:
 	ui._adopt_import()
 	check(ui.store.document.roads.size()==6,"atomic converted graph adoption")
 	if ui.store.document.roads.size()!=6: await finish(); return
-	check(ui.store.document.roads[1].points[1][1]==600 and ui.store.document.roads[4].points[1][1]==-600 and ui.store.document.roads[4].clearance_cm==450,"H96+delta-zero and unchanged physical clearance")
+	check(ui.store.document.roads[1].points[2][1]==600 and ui.store.document.roads[4].points[2][1]==-600 and ui.store.document.roads[4].clearance_cm==450,"H96+delta-zero and unchanged physical clearance")
 	check(ui.store.document.attributions.back().notice.contains(hashes["correction.json"]),"correction provenance retained")
 	var adopted: Dictionary=ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.roads.is_empty() and ui.store.document.heightmaps.size()==1,"one Undo keeps terrain and removes vector layer")
