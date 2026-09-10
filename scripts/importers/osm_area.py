@@ -1,4 +1,5 @@
 """Bounded derived geometry crop; captured OSM bytes are never rewritten."""
+from collections import Counter
 from importlib.metadata import version
 import json
 from import_layer import number, MAX_POINTS
@@ -20,7 +21,7 @@ def segment_interval(a, b, selected):
     return (lo, hi) if lo < hi and a != b else None
 
 
-def ground_parts(feature, selected, identity):
+def explicit_parts(feature, selected, identity):
     """Clip in source traversal order; never join separate visits to the window.
 
     Heights interpolate only between two supplied node elevations. Synthetic cut
@@ -35,7 +36,7 @@ def ground_parts(feature, selected, identity):
         interval = segment_interval(a, b, selected)
         if interval is None:
             if current is not None:
-                yield current
+                yield current, span
                 current = None
             continue
         lo, hi = interval
@@ -54,15 +55,17 @@ def ground_parts(feature, selected, identity):
 
         start, end = endpoint(lo, "in"), endpoint(hi, "out")
         if current is None:
+            span = [index + lo, index + hi]
             current = dict(type="Feature", properties=dict(p, osm_node_refs=[start[1]], elevations_m=[start[2]]),
                            geometry=dict(type="LineString", coordinates=[start[0]]))
+        span[1] = index + hi
         current["geometry"]["coordinates"].append(end[0])
         current["properties"]["osm_node_refs"].append(end[1])
         current["properties"]["elevations_m"].append(end[2])
         if hi < 1:
-            yield current
+            yield current, span
             current = None
-    if current is not None: yield current
+    if current is not None: yield current, span
 
 
 def bounds(value):
@@ -87,6 +90,10 @@ def crop(collection, selected):
     has_explicit = any("osm_node_refs" in f["properties"] for f in collection["features"])
     vertical_counts = dict(clipped_ground_features=0, outside_explicit_features=0, retained_structure_features=0)
     retained_structures, incomplete_structures = set(), set()
+    structure_sources = []
+    source_ends = Counter((f["properties"]["osm_way_id"], ref) for f in collection["features"]
+        if f["properties"].get("road_kind") in ("bridge", "tunnel")
+        for ref in (f["properties"]["osm_node_refs"][0], f["properties"]["osm_node_refs"][-1]))
     source_ground_refs = {ref for f in collection["features"] if f["properties"].get("road_kind") == "ground"
                           for ref in f["properties"]["osm_node_refs"]}
 
@@ -120,22 +127,24 @@ def crop(collection, selected):
             complete = window.covers(source)
             if structure and not complete: incomplete_structures.add(p["osm_way_id"])
             before = len(output)
-            if structure:
-                if not complete:
-                    coordinates = feature["geometry"]["coordinates"]
-                    if any(segment_interval(a,b,selected) is not None for a,b in zip(coordinates,coordinates[1:])):
-                        raise ValueError("OSM bbox must contain complete bridge/tunnel spans; partial structure crop is unsupported")
-                else:
-                    retained_structures.add(p["osm_way_id"])
-                    vertical_counts["retained_structure_features"] += 1
             if complete:
                 # Retain exact vertex order/profile and original graph node IDs.
                 append(feature)
-            elif not structure:
-                for part in ground_parts(feature, selected, index): append(part)
+                spans = [[0, len(p["osm_node_refs"])-1]]
+            else:
+                spans = []
+                for part, span in explicit_parts(feature, selected, index):
+                    append(part)
+                    spans.append(span)
                 if len(output) > before:
                     counts["changed_features"] += 1
-                    vertical_counts["clipped_ground_features"] += 1
+                    if not structure: vertical_counts["clipped_ground_features"] += 1
+            if structure:
+                for offset, span in enumerate(spans):
+                    retained_structures.add(p["osm_way_id"])
+                    vertical_counts["retained_structure_features"] += 1
+                    structure_sources.append(dict(feature=before+offset, source_feature=index,
+                        source_way=str(p["osm_way_id"]), source_range=span))
             if len(output) == before:
                 counts["outside_features"] += 1
                 counts["boundary_contacts"] += source.intersects(window)
@@ -157,8 +166,6 @@ def crop(collection, selected):
             geometries_json = [json.loads(json.dumps(mapping(g))) for g in geometries]
         for geometry in geometries_json:
             append(dict(type="Feature", properties=feature["properties"], geometry=geometry))
-    if retained_structures & incomplete_structures:
-        raise ValueError("OSM bbox must contain complete bridge/tunnel spans, including split source-way pieces")
     # A boundary-only contact is not a drivable approach. Check the retained graph,
     # not the complete source's earlier connectivity proof.
     ground_ends = {ref for f in output if f["properties"].get("road_kind") == "ground"
@@ -173,4 +180,23 @@ def crop(collection, selected):
     if has_explicit:
         meta["policy"] = "geometry-intersection-v2"
         meta["vertical"] = dict(profile=VERTICAL_PROFILE, **vertical_counts)
+    if retained_structures & incomplete_structures:
+        # A source vertex cut is also a section end when its other source-way arm
+        # was removed. Retained original junctions continue to use their own ID.
+        retained_ends = Counter((f["properties"]["osm_way_id"], ref) for f in output
+            if f["properties"].get("road_kind") in ("bridge", "tunnel")
+            for ref in (f["properties"]["osm_node_refs"][0], f["properties"]["osm_node_refs"][-1]))
+        section_ends = 0
+        for entry in structure_sources:
+            p = output[entry["feature"]]["properties"]
+            entry["partial"] = p["osm_way_id"] in incomplete_structures
+            entry["endpoints"] = []
+            for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1]):
+                key = (p["osm_way_id"], ref)
+                section = isinstance(ref, str) or (source_ends[key] != 1 and retained_ends[key] == 1)
+                entry["endpoints"].append(dict(ref=str(ref), role="boundary-section" if section else "source-node"))
+                section_ends += section
+        meta["policy"] = "geometry-intersection-v3"
+        meta["vertical"].update(profile="explicit-structure-crop-v1", section_endpoints=section_ends,
+            partial_structure_ways=len(retained_structures & incomplete_structures), structures=structure_sources)
     return dict(type="FeatureCollection", features=output), meta

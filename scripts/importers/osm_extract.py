@@ -337,7 +337,7 @@ def finish(layer, counts):
     layer.warning("Ground elevation/base, missing width/height/surface, vegetation and materials are estimates; building levels/roof tags are not interpreted.")
     if counts.get("explicit_height_roads"):
         layer.warning("Explicit OSM node ele metres use EGM96 sea level as map Y=0; no vertical offset/datum conversion or terrain alignment. Verify against your map before adoption.")
-        layer.warning("Explicit-height roads join only shared OSM node IDs (including split interior junctions); structure ends require explicit ground approaches. Layer is ordering only, never height. Bridges add no invented supports or under-deck clearance; tunnel ceiling uses maxheight:physical, not legal maxheight.")
+        layer.warning("Explicit-height roads join only shared OSM node IDs (including split interior junctions); original source structure ends require explicit ground approaches before crop. Layer is ordering only, never height. Bridges add no invented supports or under-deck clearance; tunnel ceiling uses maxheight:physical, not legal maxheight.")
         layer.warning("Only bridge=yes/tunnel=yes with complete node elevations supported. Road grades interpolate between supplied nodes; tunnel cross-section is rectangular and physical clearance is constant (shape estimate). Access/oneway/vehicle limits remain omitted.")
         if counts.get("tunnel_segments"): layer.estimate("rectangular_tunnel_cross_section")
     # Put source-level omissions before per-road warning samples, even at the cap.

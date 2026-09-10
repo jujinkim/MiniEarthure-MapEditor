@@ -769,7 +769,7 @@ The generated road linearly grades between fully supplied vertices.
 - The ground-crop extension below replaces the original all-roads-contained rule.
   Complete retained bridge/tunnel ways keep their exact graph/profile; explicit
   ground approaches may be clipped while preserving nonzero required connections.
-  Partial bridge/tunnel spans still reject. Legacy ground/polygon crop is unchanged.
+  Partial bridge/tunnel spans follow the section-crop contract below. Legacy ground/polygon crop is unchanged.
 
 This replaces the earlier independent-endpoint rule only for explicit-height
 roads. Untagged ground roads retain the previous estimated elevation and independent
@@ -786,7 +786,7 @@ Run `python -B -m unittest discover -s tests -p 'test_osm*.py' -v` with optional
 requirements, and `scripts/check_documents.py --script osm_structures_validator
 --resource-pack --log-dir /new/structures` with the documented Godot/Python arguments.
 The full runner now includes the new validator. Real regional accuracy, datum
-alignment, partial structural crop, chained structure approaches, other source
+alignment, chained structure approaches, other source
 profiles and target-platform acceptance remain separate work.
 
 
@@ -1127,9 +1127,12 @@ Ignored area ownership and overlapping/shared multipolygon ownership cannot
 silently convert selected member ways into standalone filled polygons.
 
 The shared normalizer retains explicit road heights, nonzero required ground
-approaches, hole/island ownership, topology and crop safety. The ground-crop
-extension below also applies to this streaming path. A bbox cutting a bridge/tunnel
-span or removing a required approach rejects the whole candidate.
+approaches, hole/island ownership, topology and crop safety. The ground-crop and
+partial structure extensions below also apply to this streaming path. An indexed
+one-hop selection adds every ground-highway way sharing either original endpoint
+of a selected structural way, including off-window approaches, before normalization.
+This preserves complete original source validation when a span is cut. A missing
+original approach or removal of a retained original ground junction still rejects.
 No inferred heights, missing members, partial graph success or routing/access
 interpretation is introduced. Native validation precedes atomic new-layer adoption;
 existing documents, previews and prior packages survive failures, Undo and reimport.
@@ -1316,6 +1319,9 @@ interfaces. No native/package/runtime protocol or Python dependency is added.
 
 ## Explicit-height ground-road crop — 2026-09-10
 
+The partial-structure extension below supersedes this profile's whole-span refusal.
+This v2 profile remains emitted when no retained structural source way is partial.
+
 Local PBF/XML bbox imports, including selected-area PBF streaming, now crop
 explicit-height **ground roads and structure approaches**. This replaces only
 the earlier refusal of every partial or outside explicit-height road. The existing
@@ -1378,5 +1384,85 @@ This scoped Mac automatic delivery does not complete general structural crop,
 vertical-datum conversion, larger-area/representative-source accuracy, installed
 Windows/Linux behavior, driving or performance acceptance. MapKit ABI/recipe and
 native sources are unchanged. Whole I02/I03/I04 and final cutover remain open.
-The next separate unit is partial bridge/tunnel **span** crop: first establish
-cut-end, portal, graph and native generation semantics before relaxing that refusal.
+Partial bridge/tunnel **span** crop is implemented by the following extension.
+Vertical datum alignment remains a separate implementation unit.
+
+
+## Partial bridge and tunnel section crop — 2026-09-10
+
+The existing local OSM XML/PBF and streaming import now clips explicit-height
+`bridge=yes` and `tunnel=yes` centrelines to the selected bbox. This replaces the
+whole-original-way containment refusal above; it does not change MapKit recipe,
+ABI, package format or generation. Complete source ways still need all node
+`ele` values, physical tunnel clearance and original explicit ground approaches.
+
+- Keep source traversal order, original vertices and shared node IDs. At a segment
+  cut, interpolate the two supplied EGM96 heights at the same WGS84 line fraction,
+  preserve the clipping plane exactly, then apply existing UTM/cm quantization.
+  Width, material and tunnel clearance are retained. Separate visits produce
+  separate roads; coincident synthetic cuts never create a positional connection.
+- A cut endpoint is an **open truncated cross-section**, not a surveyed entrance,
+  a connection to outside geometry or a ground ramp. An exact original internal
+  vertex becomes a section end if its other original-way arm was removed; its ID
+  survives, including any other retained original junction. Reconnecting separately
+  imported layers is an explicit author edit, not automatic boundary stitching.
+- Native recipe 2+ keeps the independently elevated deck or tunnel floor, physical
+  ceiling and side walls. It leaves graph endpoints open without a closing end-cap.
+  It cuts intruding terrain below the tunnel ceiling and preserves terrain above
+  the bore according to the existing corridor contract. A cut through an underground
+  bore does not create an access path from the terrain surface. The bbox crops the
+  **centreline**, not the entire width/roof/wall footprint or the map's terrain;
+  native corridor geometry may extend beyond that bbox within the document bounds.
+- A retained original ground junction still requires a nonzero retained approach.
+  Losing an approach to a point-only contact rejects the whole candidate. The
+  native terrain/apron alignment, geometry, cm-collapse and generation budgets
+  also remain authoritative; an arbitrary source may still reject. No heights,
+  clearance, supports, vertical datum conversion or missing source graph is inferred.
+
+When any retained original structural way is partial, crop provenance uses
+`geometry-intersection-v3` / `explicit-structure-crop-v1`. Unchanged/ground-only
+crops continue to emit v1/v2, which remain readable. The v3 vertical record carries
+existing normalized-feature counts plus `partial_structure_ways`,
+`section_endpoints` (endpoint occurrences, not unique nodes) and `structures`.
+Every output structure maps its output feature index to a normalized source feature
+index, decimal-string original OSM way ID, whole-way `partial` flag, `[start,end]`
+source range and two `{ref,role}` endpoints. A range value is a zero-based segment
+index plus its fractional position in that normalized source feature. A source
+feature index refers to the selected, sorted, junction-split collection; it is not
+an index into the binary PBF. The source hash and original way ID allow tracing to
+the captured input. Roles are `source-node` or `boundary-section`; refs preserve
+original IDs or identify synthetic cuts. The consumer checks mapping completeness,
+road/end identity, interval/count bounds, consistent partial flags and section roles.
+This is structural validation of adapter metadata, not an independent survey or
+reconstruction of the original source. Full metadata is stored in attribution and
+retained on save/export/reopen. Warning samples summarize counts within 512 chars.
+
+Streaming selection adds only the original source approaches needed by selected
+structural way ends. Ground-way node incidence is held in a disk-backed indexed
+table under the existing 2 GiB index budget; the closure is bounded to 20000 distinct
+approach ways, then existing combined selection/reference/byte/point limits apply.
+It does not recursively follow newly added roads. Original source bytes/hash,
+three-pass progress, deadline, cancellation, exclusive publication and owned-index
+cleanup remain. This index may reach its cap earlier for dense input; it is not a
+new RSS or maximum-performance claim. Other unsupported off-envelope geometry
+remains a disclosed omission, and added approaches undergo full normalization.
+
+Mac automatic verification covers two-ended and one-ended cuts, signed grade
+interpolation, exact source-vertex cuts and retained junctions, reentry/reversal,
+non-welded cuts, complete off-window source validation, budget/cancel/retry, bounded
+review, forged metadata and native collapsed-geometry rejection. XML/PBF/stream
+parity, original source/prior package hashes, native deck/floor/ceiling and open ends,
+original ground joins, save/export/reopen, stale bbox responses and Undo/Redo were
+checked using synthetic inputs and a standalone compiled host PCK. Reproduce:
+
+```sh
+rtk proxy python3 -B -m unittest discover -s tests -p 'test_osm*.py' -v
+rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/import-python --script osm_structures_validator --script osm_stream_validator --script osm_area_validator --script import_job_validator --script import_layer_validator --script import_scratch_validator --resource-pack --log-dir /new/structure-crop
+```
+
+Native MapKit source/build/recipe are unchanged; its existing Mac binary was reused
+and loaded by the actual import/generation checks. Actual Windows/Linux installed
+behavior, representative geodetic accuracy/driving/performance and final integration
+acceptance remain unverified. Vertical datum alignment, other unsupported source
+semantics and larger areas remain implementation work. No direct provider downloads
+or automatic original/project/package edits were introduced.

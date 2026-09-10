@@ -69,7 +69,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		return "Non-streaming import source exceeds 32 MiB."
 	var crop: Variant = raw.coordinates.get("osm_crop")
 	if requested.has("osm_bbox") or crop != null:
-		if raw.adapter != "osm-extract-v1" or crop is not Dictionary or crop.get("policy") not in ["geometry-intersection-v1", "geometry-intersection-v2"] or crop.get("shapely") != "2.1.2" or not _text(crop.get("geos")): return "Invalid OSM crop provenance."
+		if raw.adapter != "osm-extract-v1" or crop is not Dictionary or crop.get("policy") not in ["geometry-intersection-v1", "geometry-intersection-v2", "geometry-intersection-v3"] or crop.get("shapely") != "2.1.2" or not _text(crop.get("geos")): return "Invalid OSM crop provenance."
 		var bbox: Variant = crop.get("bbox")
 		if bbox is not Array or bbox.size() != 4: return "Invalid OSM crop area."
 		for i in range(4):
@@ -80,13 +80,13 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		for key in ["input_features", "outside_features", "changed_features", "output_features", "boundary_contacts"]:
 			if not _count(crop.counts.get(key), 200000): return "Invalid OSM crop count."
 		if crop.counts.output_features != raw.get("feature_count"): return "OSM crop count mismatch."
-		if crop.policy == "geometry-intersection-v2":
+		if crop.policy in ["geometry-intersection-v2", "geometry-intersection-v3"]:
 			var vertical: Variant = crop.get("vertical")
-			if vertical is not Dictionary or vertical.get("profile") != "explicit-ground-crop-v1": return "Invalid OSM vertical crop profile."
+			if vertical is not Dictionary or vertical.get("profile") != ("explicit-structure-crop-v1" if crop.policy == "geometry-intersection-v3" else "explicit-ground-crop-v1"): return "Invalid OSM vertical crop profile."
 			for key in ["clipped_ground_features", "outside_explicit_features", "retained_structure_features"]:
 				if not _count(vertical.get(key), 20000): return "Invalid OSM vertical crop count."
 			if vertical.clipped_ground_features > crop.counts.changed_features or vertical.outside_explicit_features > crop.counts.outside_features or vertical.retained_structure_features > crop.counts.output_features: return "OSM vertical crop count mismatch."
-		elif crop.has("vertical"): return "OSM vertical crop requires version 2."
+		elif crop.has("vertical"): return "OSM vertical crop requires version 2 or 3."
 	var overture_building_ids := {}
 	var overture_vertical := false
 	if raw.adapter == "overture-buildings-v1":
@@ -161,9 +161,12 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		ids[patch.id] = true
 		if patch.field == "nodes": nodes[patch.id] = true
 		if patch.field == "roads" and patch.after.get("kind") in ["bridge", "tunnel"]: structure_count += 1
-	if crop is Dictionary and crop.get("policy") == "geometry-intersection-v2" and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
+	if crop is Dictionary and crop.get("policy") in ["geometry-intersection-v2", "geometry-intersection-v3"] and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
 	for patch in raw.patches:
 		if patch.field == "roads" and (not nodes.has(patch.after.get("from")) or not nodes.has(patch.after.get("to"))): return "Imported roads must reference their own layer nodes."
+	if crop is Dictionary and crop.get("policy") == "geometry-intersection-v3":
+		var structure_error := _structure_crop(raw, prefix)
+		if structure_error != "": return structure_error
 	if raw.adapter == "overture-transportation-v1":
 		var transport_error: String = preload("./import_transportation.gd").validate(raw, get_script())
 		if transport_error != "": return transport_error
@@ -171,6 +174,44 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		var land_error: String = preload("./import_land_cover.gd").validate(raw, get_script())
 		if land_error != "": return land_error
 	value = raw.duplicate(true)
+	return ""
+
+static func _structure_crop(raw: Dictionary, prefix: String) -> String:
+	var crop: Dictionary = raw.coordinates.osm_crop
+	var v: Dictionary = crop.vertical
+	if not _count(v.get("partial_structure_ways"), 20000) or v.partial_structure_ways < 1 or not _count(v.get("section_endpoints"), 40000): return "Invalid partial structure counts."
+	if v.get("structures") is not Array or v.structures.size() != v.retained_structure_features: return "Incomplete structure crop mapping."
+	var roads := {}
+	for patch: Dictionary in raw.patches:
+		if patch.field == "roads": roads[patch.id] = patch.after
+	var mapped := {}
+	var ways := {}
+	var sections := 0
+	var source_id := RegEx.new()
+	source_id.compile("^[1-9][0-9]{0,18}$")
+	for entry in v.structures:
+		if entry is not Dictionary or not _count(entry.get("feature"), int(crop.counts.output_features)-1) or not _count(entry.get("source_feature"), int(crop.counts.input_features)-1): return "Invalid structural source feature."
+		if entry.get("source_way") is not String or source_id.search(entry.source_way) == null: return "Invalid structural source way."
+		var span: Variant = entry.get("source_range")
+		if span is not Array or span.size() != 2 or not _finite(span[0],0,200000) or not _finite(span[1],0,200000) or span[0] >= span[1]: return "Invalid structural source interval."
+		var id := prefix + str(int(entry.feature))
+		if not roads.has(id) or mapped.has(id) or roads[id].get("kind") not in ["bridge", "tunnel"]: return "Unmapped/duplicate cropped structure."
+		mapped[id] = true
+		if entry.get("partial") is not bool or (ways.has(entry.source_way) and ways[entry.source_way] != entry.partial): return "Inconsistent partial source-way mapping."
+		ways[entry.source_way] = entry.partial
+		if entry.get("endpoints") is not Array or entry.endpoints.size() != 2: return "Missing structure crop endpoints."
+		for i in range(2):
+			var end: Variant = entry.endpoints[i]
+			if end is not Dictionary or not _text(end.get("ref")) or end.get("role") not in ["source-node", "boundary-section"]: return "Invalid structure endpoint role."
+			if roads[id].get("from" if i == 0 else "to") != prefix + "osm-node-" + end.ref: return "Structure crop endpoint mismatch."
+			if end.ref.begins_with("crop-"):
+				if end.role != "boundary-section": return "Synthetic cut is not an original structure endpoint."
+			elif source_id.search(end.ref) == null: return "Invalid structure source node."
+			if end.role == "boundary-section" and not entry.partial: return "Section end requires a partial source way."
+			sections += int(end.role == "boundary-section")
+	var partial_ways := 0
+	for partial: bool in ways.values(): partial_ways += int(partial)
+	if sections < 1 or sections != v.section_endpoints or v.partial_structure_ways != partial_ways: return "Structure section count mismatch."
 	return ""
 
 func patches(store: RefCounted) -> Array:

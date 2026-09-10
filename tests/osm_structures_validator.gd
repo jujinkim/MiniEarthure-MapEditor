@@ -81,6 +81,7 @@ func run() -> void:
 	check(ui.store.document.roads.is_empty(),"stale structure review cannot overwrite document")
 	check(FileAccess.get_sha256(path) == source_hash and FileAccess.get_sha256(package) == package_hash,"source and prior package preserved")
 	await check_ground_crop(ui,path)
+	await check_structure_crop(ui,path)
 	check(FileAccess.get_sha256(path) == source_hash and FileAccess.get_sha256(package) == package_hash,"ground crop preserves original PBF and prior package")
 	ui.store.dirty = false
 	ui.queue_free()
@@ -142,11 +143,11 @@ func check_ground_crop(ui: Control, path: String) -> void:
 		check(deck and roof,"cropped package retains elevated deck and physical tunnel roof")
 	# Save updates provenance, so freeze the accepted state after that operation.
 	adopted = ui.store.document.duplicate(true)
-	ui.osm_panel.fields[0].value = 9.0005
+	ui.osm_panel.fields[2].value = 9.001875
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	await wait_import(ui)
-	check(ui.pending_import == null and ui.store.document == adopted,"partial bridge/tunnel crop rejected without changing map")
-	ui.osm_panel.fields[0].value = bbox[0]
+	check(ui.pending_import == null and ui.store.document == adopted,"lost original ground approach rejected without changing map")
+	ui.osm_panel.fields[2].value = bbox[2]
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	ui._cancel_operation()
 	await wait_import(ui)
@@ -169,3 +170,124 @@ func check_ground_crop(ui: Control, path: String) -> void:
 		check(ui.store.document.roads.size() == roads.size(),"streaming crop native adoption")
 		if ui.store.document.roads.size() == roads.size():
 			for i in range(roads.size()): check(ui.store.document.roads[i].points == roads[i].points,"whole/streaming crop geometry parity %d" % i)
+
+func check_structure_crop(ui: Control, path: String) -> void:
+	check(ui.store.undo() == "" and ui.store.document.roads.is_empty(), "remove previous layer before span crop")
+	ui.osm_panel.streaming.button_pressed = false
+	var before: Dictionary = ui.store.document.duplicate(true)
+	var bbox := [9.0005,54.9999,9.0016,55.001]
+	for i in range(4): ui.osm_panel.fields[i].value = bbox[i]
+	ui._start_import(path,LAYER.OSM_LICENSE)
+	await wait_import(ui)
+	check(ui.pending_import != null,"partial bridge/tunnel native review: " + ui.status_label.text)
+	if ui.pending_import == null: return
+	check(ui.store.document == before,"partial structure review preserves map")
+	check(ui.import_summary.text.contains("open truncated cross-sections") and ui.import_summary.text.contains("not surveyed entrances"),"section ends and portal limitation reviewed")
+	var raw: Dictionary = ui.pending_import.value.duplicate(true)
+	var crop: Dictionary = raw.coordinates.osm_crop
+	check(crop.policy == "geometry-intersection-v3" and crop.vertical.section_endpoints == 4 and crop.vertical.partial_structure_ways == 2,"partial structure profile/counts reviewed")
+	for kind in ["missing", "profile", "section-count", "way-count", "partial", "mapping", "duplicate", "range", "role", "endpoint", "downgrade"]:
+		var bad: Dictionary = raw.duplicate(true)
+		var v: Dictionary = bad.coordinates.osm_crop.vertical
+		match kind:
+			"missing": v.erase("structures")
+			"profile": v.profile = "explicit-ground-crop-v1"
+			"section-count": v.section_endpoints = 0
+			"way-count": v.partial_structure_ways = 3
+			"partial": v.structures[0].partial = false
+			"mapping": v.structures[0].feature = 20000
+			"duplicate": v.structures[1] = v.structures[0].duplicate(true)
+			"range": v.structures[0].source_range = [2,1]
+			"role": v.structures[0].endpoints[0].role = "source-node"
+			"endpoint": v.structures[0].endpoints[0].ref = "crop-forged"
+			"downgrade": bad.coordinates.osm_crop.policy = "geometry-intersection-v2"
+		check(LAYER.new().load_value(bad,ui.import_identity,ui.import_coordinates_request) != "","forged structural crop rejected: " + kind)
+	var collapsed: Dictionary = raw.duplicate(true)
+	for patch: Dictionary in collapsed.patches:
+		if patch.field == "roads":
+			patch.after.points[1] = patch.after.points[0].duplicate()
+			break
+	var invalid := LAYER.new()
+	check(invalid.load_value(collapsed,ui.import_identity,ui.import_coordinates_request) == "" and invalid.validate_for(ui.store) != "","collapsed partial structure rejected by native review")
+	check(ui.store.document == before,"failed partial structure preserves map")
+	ui._adopt_import()
+	check(ui.store.document.roads.size() == 2,"only retained structural sections adopted")
+	if ui.store.document.roads.size() != 2: return
+	var roads: Array = ui.store.document.roads.duplicate(true)
+	check(roads[0].kind == "bridge" and roads[1].kind == "tunnel" and roads[1].clearance_cm == 450,"partial kinds and physical clearance preserved")
+	check(ui.store.document.nodes.size() == 4,"independent degree-one section ends, no invented ground/ramp nodes")
+	for road: Dictionary in roads:
+		check(road.from.contains("crop-") and road.to.contains("crop-"),"two cut endpoints retain distinct identities")
+	var base := ProjectSettings.globalize_path("user://structure-crop-project")
+	check(ui.store.save_project(base) == "","save partial structure source/provenance")
+	check(JSON.stringify(ui.store.document.attributions).contains("explicit-structure-crop-v1"),"source mapping preserved in document attribution")
+	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"build partial structure package")
+	check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"reopen partial structure package")
+	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+	check(generated.ok,"native generates cropped deck/floor/walls/roof: " + str(generated.get("error","")))
+	if generated.ok:
+		for road: Dictionary in roads:
+			var floors := 0
+			var shell := 0
+			var floor_ends := [false,false]
+			var roof_ends := [false,false]
+			for triangle: Dictionary in generated.data.chunk.triangles:
+				if triangle.object_id != road.id: continue
+				if triangle.spawnable: floors += 1
+				else:
+					shell += 1
+					for end: Array in [road.points[0],road.points[-1]]:
+						check(not triangle.vertices.all(func(p): return absi(int(p[0])-int(end[0])) <= 1),"native tunnel section has no closing end-cap")
+				for point: Array in triangle.vertices:
+					for i in range(2):
+						var endpoint: Array = road.points[0 if i == 0 else -1]
+						if absi(int(point[0])-int(endpoint[0])) <= 1:
+							floor_ends[i] = floor_ends[i] or (triangle.spawnable and point[1] == endpoint[1])
+							roof_ends[i] = roof_ends[i] or (not triangle.spawnable and point[1] == endpoint[1]+450)
+			check(floors > 0 and floor_ends.all(func(x): return x),"native floor reaches both interpolated cut elevations: " + road.kind)
+			if road.kind == "tunnel": check(shell > 0 and roof_ends.all(func(x): return x),"physical ceiling reaches both cut ends; shell is not spawnable")
+		var again: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+		check(again == generated,"partial structure native generation deterministic")
+	var adopted: Dictionary = ui.store.document.duplicate(true)
+	ui._start_import(path,LAYER.OSM_LICENSE)
+	ui._cancel_operation()
+	await wait_import(ui)
+	check(ui.pending_import == null and ui.store.document == adopted,"partial structure cancellation preserves accepted map")
+	ui._start_import(path,LAYER.OSM_LICENSE)
+	ui.osm_panel.fields[0].value += 0.000001
+	ui.osm_panel.fields[0].value -= 0.000001
+	await wait_import(ui)
+	check(ui.pending_import == null and ui.store.document == adopted,"restored bbox still rejects late partial structure response")
+	check(ui.store.undo() == "" and ui.store.document.roads.is_empty(),"partial graph removed by one Undo")
+	check(ui.store.redo() == "" and ui.store.document.roads == roads,"partial graph restored by Redo")
+	check(ui.store.undo() == "","remove partial layer for streaming retry")
+	ui.osm_panel.streaming.button_pressed = true
+	ui._start_import(path,LAYER.OSM_LICENSE)
+	await wait_import(ui)
+	check(ui.pending_import != null,"streaming retry includes outside source approaches: " + ui.status_label.text)
+	if ui.pending_import != null:
+		check(ui.pending_import.value.coordinates.osm_crop == crop,"whole/streaming partial structure provenance parity")
+		ui._adopt_import()
+		check(ui.store.document.roads.size() == roads.size(),"streamed partial graph native adoption")
+		if ui.store.document.roads.size() == roads.size():
+			for i in range(roads.size()): check(ui.store.document.roads[i].points == roads[i].points,"streamed partial geometry parity %d" % i)
+
+	check(ui.store.undo() == "", "remove streamed sections before one-sided crop")
+	ui.osm_panel.streaming.button_pressed = false
+	ui.osm_panel.fields[2].value = 9.0021
+	ui._start_import(path,LAYER.OSM_LICENSE)
+	await wait_import(ui)
+	check(ui.pending_import != null,"one-sided structural cut keeps native original ground approach: " + ui.status_label.text)
+	if ui.pending_import != null:
+		check(ui.pending_import.value.coordinates.osm_crop.vertical.section_endpoints == 2,"one section end per source way")
+		ui._adopt_import()
+		var connected: Array = ui.store.document.roads
+		check(connected.size() == 4,"two structures and two surviving ground approaches")
+		if connected.size() == 4:
+			check(connected[0].to == connected[1].from and connected[2].to == connected[3].from,"original ground joins survive one-sided partial adoption")
+		var joined_base := ProjectSettings.globalize_path("user://one-sided-crop-project")
+		check(ui.store.save_project(joined_base) == "","save one-sided sections")
+		check(JSON.parse_string(ui.store.bridge.export_project(joined_base,joined_base+".memap")).ok,"native exports cropped structures with original ground joins")
+		check(JSON.parse_string(ui.store.bridge.open_package(joined_base+".memap")).ok,"open one-sided section package")
+		var joined: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+		check(joined.ok,"native ground apron and cut end generate together: " + str(joined.get("error","")))

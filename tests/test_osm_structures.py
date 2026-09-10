@@ -59,7 +59,7 @@ class Structures(unittest.TestCase):
         value, _ = osm.parse(structural_xml().encode(),"osm")
         clipped, _ = crop(value,[8.999,54.999,9.004,55.003])
         self.assertEqual(clipped,value)
-        for bbox, message in [([9.0005,54.999,9.004,55.003],"complete bridge/tunnel"),([9.01,55.01,9.02,55.02],"no supported")]:
+        for bbox, message in [([9.01,55.01,9.02,55.02],"no supported")]:
             with self.assertRaisesRegex(ValueError,message):
                 crop(value,bbox)
 

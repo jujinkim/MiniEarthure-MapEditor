@@ -75,13 +75,39 @@ class Streaming(unittest.TestCase):
                     structural_xml().replace('<tag k="ele" v="6" />', '',1)]:
             with self.assertRaises(ValueError): self.extract(xml)
 
-    def test_ignored_area_ownership_and_partial_structure_reject(self):
+    def test_ignored_area_ownership_and_partial_structure_source_closure(self):
         xml=XML.replace('</osm>','<relation id="3"><member type="way" ref="1" role="outer"/><tag k="type" v="boundary"/></relation></osm>')
         with self.assertRaisesRegex(ValueError,"area relation"): self.extract(xml)
         box=[9.0004,54.9999,9.0016,55.0001]
-        with self.assertRaisesRegex(ValueError,"ground connections|complete bridge/tunnel"):
-            value,_,_=self.extract(structural_xml(),box)
-            crop(value,box)
+        value,_,meta=self.extract(structural_xml(),box)
+        clipped,crop_meta=crop(value,box)
+        self.assertEqual(len(clipped["features"]),1)
+        self.assertEqual(meta["selected"]["ways"],3)  # Both off-window source approaches.
+        self.assertEqual(crop_meta["vertical"]["section_endpoints"],2)
+        self.assertEqual(clipped,crop(parse(self.source.read_bytes(),"pbf")[0],box)[0])
+        # Missing original source approaches remain invalid even outside the box.
+        root=ET.fromstring(structural_xml());root.remove(root.find("way[@id='1']"))
+        with self.assertRaisesRegex(ValueError,"ground connections"):
+            self.extract(ET.tostring(root,encoding="unicode"),box)
+        root=ET.fromstring(structural_xml());ET.SubElement(root.find("way[@id='1']"),"tag",k="incline",v="1%")
+        with self.assertRaisesRegex(ValueError,"vertical semantics"):
+            self.extract(ET.tostring(root,encoding="unicode"),box)
+
+    def test_partial_approach_closure_budget_and_cancellation(self):
+        box=[9.0004,54.9999,9.0016,55.0001]
+        with patch.object(stream,"MAX_FEATURES",1),self.assertRaisesRegex(ValueError,"approach/feature budget"):
+            self.extract(structural_xml(),box)
+        completed_relations=0
+        def interrupt(stage,c,t,*unit):
+            nonlocal completed_relations
+            if stage=="index_relations" and c==t:
+                completed_relations+=1
+                # End of scan, start of closure, then its first admitted approach.
+                if completed_relations==3: raise InterruptedError("closure cancelled")
+        with self.assertRaisesRegex(InterruptedError,"closure cancelled"):
+            self.extract(structural_xml(),box,interrupt)
+        self.assertTrue(all(not (self.directory/n).exists() for n in stream.OWNED_FILES))
+        self.extract(structural_xml(),box)  # A fresh retry preserves the source.
 
     def test_limits_workspace_and_capture_mutation(self):
         for name,value in [("MAX_SOURCE",1),("MAX_INDEX",4096),("MAX_SCAN_ENTITIES",1),

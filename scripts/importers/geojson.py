@@ -235,14 +235,18 @@ def main():
         result = finish(result, osm_counts)
         if osm_stream is not None:
             result.coordinates["osm_stream"] = osm_stream
-            result.warnings.insert(0,"PBF area streaming: complete candidate envelopes and relation members precede crop; geometry outside candidate envelopes is not normalized. Nested feature/area relations reject globally. Non-area relation semantics remain omitted. Three disk-indexed passes; full captured source hash retained.")
+            result.warnings.insert(0,"PBF area streaming: complete candidate envelopes, relation members and one-hop original structure ground approaches precede crop. Other geometry outside candidate envelopes is not normalized. Nested feature/area relations reject globally; non-area relation semantics remain omitted. Three disk-indexed passes; full captured source hash retained.")
             result.warning_count += 1
         if osm_crop is not None:
             result.coordinates["osm_crop"] = osm_crop
-            if "vertical" in osm_crop:
+            if osm_crop["policy"] == "geometry-intersection-v3":
+                result.warnings.insert(0, "Partial bridge/tunnel crop: boundary-section ends are open truncated cross-sections, not surveyed entrances or ground ramps. Width/deck/ceiling/walls use the existing native corridor and may extend beyond the centreline bbox. Original retained ground junctions still need nonzero approaches. Review source-way/range/endpoints in crop provenance; no outside continuation or datum alignment is inferred.")
+                result.warning_count += 1
+            elif "vertical" in osm_crop:
                 result.warnings.insert(0, "OSM ground crop interpolates supplied EGM96 node heights at WGS84 segment cuts; source heights are references, ground still follows map terrain. Original node IDs stay connected; new boundary cuts are separate endpoints. Complete bridge/tunnel spans and nonzero ground approaches are required; no terrain or datum alignment is inferred.")
                 result.warning_count += 1
-            result.warnings.insert(0, "OSM derived geometry crop: " + json.dumps(osm_crop, sort_keys=True))
+            crop_summary = "OSM derived geometry crop: " + json.dumps(osm_crop, sort_keys=True) if osm_crop["policy"] != "geometry-intersection-v3" else "OSM partial structure crop counts: " + json.dumps({k:v for k,v in osm_crop["vertical"].items() if k != "structures"}, sort_keys=True) + "; full source mapping is recorded in projection provenance."
+            result.warnings.insert(0, crop_summary)
             result.warning_count += 1
             result.warnings = result.warnings[:50]
     if overture_metadata is not None:

@@ -100,12 +100,11 @@ class GroundCrop(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"unsupported"):
             crop(osm.parse(ET.tostring(root),"osm")[0],[9.0001,54.9999,9.0021,55.0001])
 
-    def test_partial_span_lost_approach_and_split_way_reject(self):
+    def test_partial_span_keeps_required_approach_and_split_way_identity(self):
         value,_=osm.parse(structural_xml().encode(),"osm")
-        for box,message in [([9.0005,*BOX[1:]],"complete bridge/tunnel"),
-                            ([9+20/64000,*BOX[1:]],"nonzero explicit-height ground approach")]:
+        for box,message in [([9+20/64000,*BOX[1:]],"nonzero explicit-height ground approach")]:
             with self.assertRaisesRegex(ValueError,message): crop(value,box)
-        # Clipping at an existing shared interior node must not retain half a way.
+        # Clipping at a shared interior node retains its real junction identity.
         root=ET.fromstring(structural_xml())
         node=ET.SubElement(root,"node",id="99",lon=str(9+50/64000),lat="55.0001")
         ET.SubElement(node,"tag",k="ele",v="6")
@@ -115,8 +114,9 @@ class GroundCrop(unittest.TestCase):
         value,_=osm.parse(ET.tostring(root),"osm")
         cut=next(f["geometry"]["coordinates"][-1][0] for f in value["features"]
                  if f["properties"]["road_kind"]=="bridge" and f["properties"]["osm_node_refs"][-1]==3)
-        with self.assertRaisesRegex(ValueError,"split source-way"):
-            crop(value,[cut,54.9999,9.0021,55.0002])
+        output,meta=crop(value,[cut,54.9999,9.0021,55.0002])
+        self.assertEqual(output["features"][0]["properties"]["osm_node_refs"][0],3)
+        self.assertEqual(meta["vertical"]["structures"][0]["endpoints"][0],dict(ref="3",role="boundary-section"))
 
     def test_caps_and_zero_source_segment_reject(self):
         f=road([[-.001,.002],[.011,.002]],[0,1])

@@ -197,6 +197,9 @@ def extract(source, selected, directory, event=lambda *a: None):
             CREATE TABLE relations(id INTEGER PRIMARY KEY, data TEXT, candidate INTEGER);
             CREATE TABLE owners(way INTEGER, relation INTEGER, blocked INTEGER, PRIMARY KEY(way,relation));
             CREATE TABLE chosen(id INTEGER PRIMARY KEY);
+            CREATE TABLE ground_nodes(node INTEGER, way INTEGER, PRIMARY KEY(node,way)) WITHOUT ROWID;
+            CREATE TABLE structure_ends(node INTEGER PRIMARY KEY);
+
         """)
         totals = dict(nodes=0, ways=0, relations=0, references=0)
         def scalar(entity):
@@ -234,7 +237,14 @@ def extract(source, selected, directory, event=lambda *a: None):
                 box = envelope(box,*row)
                 refs.append(n.ref)
             db.execute("INSERT INTO ways VALUES(?,?,?,?,?,?,?)", (entity.id,*(box or [None]*4),json.dumps([refs,tags]),int(_potential(tags))))
-            if _potential(tags) and intersects(box): db.execute("INSERT INTO chosen VALUES(?)", (entity.id,))
+            if "highway" in tags and all(tags.get(k, "no") in ("no", "0") for k in ("bridge", "tunnel")):
+                # Only source graph evidence, never an inferred positional join.
+                # Disk/index/deadline/reference caps also cover this adjacency.
+                db.executemany("INSERT OR IGNORE INTO ground_nodes VALUES(?,?)", ((ref,entity.id) for ref in refs))
+            if _potential(tags) and intersects(box):
+                db.execute("INSERT INTO chosen VALUES(?)", (entity.id,))
+                if "highway" in tags and any(tags.get(k, "no") not in ("no", "0") for k in ("bridge", "tunnel")) and refs:
+                    db.executemany("INSERT OR IGNORE INTO structure_ends VALUES(?)", ((refs[0],),(refs[-1],)))
         def relation(entity):
             tags = scalar(entity)
             references(len(entity.members))
@@ -268,6 +278,19 @@ def extract(source, selected, directory, event=lambda *a: None):
         for stage, bits, callback in [("index_nodes",osmium.osm.NODE,node),("index_ways",osmium.osm.WAY,way),("index_relations",osmium.osm.RELATION,relation)]:
             _scan(path, stage, event, size, osmium, bits, callback)
             db.commit()
+        # A selected full structural way must retain source validation of both
+        # original approaches, even when its ends lie outside the crop window.
+        # Bounded one-hop closure only; do not recursively import the road graph.
+        if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
+            raise ValueError("OSM selected entity budget exceeded")
+        event("index_relations", size, size)
+        for count, (identity,) in enumerate(db.execute("SELECT DISTINCT g.way FROM structure_ends e CROSS JOIN ground_nodes g ON g.node=e.node LIMIT ?", (MAX_FEATURES+1,))):
+            if count >= MAX_FEATURES: raise ValueError("OSM selected approach/feature budget exceeded")
+            db.execute("INSERT OR IGNORE INTO chosen VALUES(?)", (identity,))
+            if count % 100 == 0: event("index_relations", size, size)
+        if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
+            raise ValueError("OSM selected entity budget exceeded")
+        event("index_relations", size, size)
         nodes, node_tags, all_ways, ways, relations, blocked = {}, {}, {}, [], [], set()
         counts = dict(nodes=0,ways=0,relations=0,ignored_ways=0,ignored_relations=0,tagged_nodes=0,assembled_relations=0,outer_rings=0,inner_rings=0,member_ways=0)
         selection_bytes, selected_refs = 0, 0
