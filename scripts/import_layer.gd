@@ -51,10 +51,22 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if requested.has("adapter") and raw.adapter != requested.adapter: return "Import adapter does not match request."
 	if not _hex(raw.get("layer_id"), 32) or raw.layer_id != expected_id: return "Stale or invalid import identity."
 	var source: Variant = raw.get("source")
-	if source is not Dictionary or not _text(source.get("name")) or not _text(source.get("license")) or not _text(source.get("accuracy")) or not _hex(source.get("sha256"), 64) or not _count(source.get("bytes"), 32 * 1024 * 1024): return "Invalid import source metadata."
+	if source is not Dictionary or not _text(source.get("name")) or not _text(source.get("license")) or not _text(source.get("accuracy")) or not _hex(source.get("sha256"), 64) or not _count(source.get("bytes"), 2 * 1024 * 1024 * 1024): return "Invalid import source metadata."
 	var coordinate_error := _coordinates(raw.get("coordinates"), requested)
 	if coordinate_error != "": return coordinate_error
 	if raw.adapter == "osm-extract-v1" and (source.license != OSM_LICENSE or raw.coordinates.mode != "wgs84-utm"): return "OSM requires geographic coordinates and ODbL attribution."
+	var streaming: Variant = raw.coordinates.get("osm_stream")
+	if streaming != null or requested.has("osm_stream"):
+		if raw.adapter != "osm-extract-v1" or streaming is not Dictionary or streaming.get("profile") != "pbf-area-stream-v1" or streaming.get("passes") != 3 or not raw.coordinates.has("osm_crop"): return "Invalid PBF streaming provenance."
+		if not requested.is_empty() and requested.get("osm_stream") != true: return "PBF streaming selection changed."
+		if source.bytes <= 0 or streaming.get("source_bytes") != source.bytes or streaming.get("source_sha256") != source.sha256: return "PBF captured source mismatch."
+		if streaming.get("scan") is not Dictionary or streaming.get("selected") is not Dictionary: return "Invalid PBF streaming counts."
+		for key in ["nodes", "ways", "relations", "references"]:
+			if not _count(streaming.scan.get(key), 80000000 if key == "references" else 20000000) or not _count(streaming.selected.get(key), 200000 if key in ["nodes", "references"] else 250000): return "PBF streaming count budget exceeded."
+			if streaming.selected[key] > streaming.scan[key]: return "PBF selected counts exceed scanned source."
+		if streaming.scan.nodes + streaming.scan.ways + streaming.scan.relations > 20000000 or streaming.selected.nodes + streaming.selected.ways + streaming.selected.relations > 250000 or not _count(streaming.selected.get("bytes"), 32 * 1024 * 1024): return "PBF streaming selection budget exceeded."
+	elif source.bytes > 32 * 1024 * 1024:
+		return "Non-streaming import source exceeds 32 MiB."
 	var crop: Variant = raw.coordinates.get("osm_crop")
 	if requested.has("osm_bbox") or crop != null:
 		if raw.adapter != "osm-extract-v1" or crop is not Dictionary or crop.get("policy") != "geometry-intersection-v1" or crop.get("shapely") != "2.1.2" or not _text(crop.get("geos")): return "Invalid OSM crop provenance."

@@ -277,6 +277,11 @@ def parse(raw, input_format):
                 raise ValueError("unsupported OSM entity")
     except RuntimeError as exc:
         raise ValueError("invalid OSM snapshot: " + str(exc)[:300]) from exc
+    return build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts)
+
+
+def build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts):
+    """Normalize a complete bounded selection from either snapshot reader."""
     assembled, consumed = relation_features(relations, all_ways, nodes, area_members, counts, Budget())
     counts["ignored_ways"] -= sum(category(all_ways[ref][1]) is None for ref in consumed)
     features = []

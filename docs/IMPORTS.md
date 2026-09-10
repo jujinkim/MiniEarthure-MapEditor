@@ -7,6 +7,9 @@ untrusted results before native MapKit checks and explicit adoption.
 
 Adapters include `geojson-v2` below and the bounded `osm-extract-v1` snapshot profile
 at the end of this document. Select the format explicitly in **Import vector**.
+The [PBF streaming extension](#osm-pbf-selected-area-streaming--2026-09-10)
+adds an explicit local-source profile beyond 32 MiB; earlier whole-source limits
+still apply when streaming is disabled and to the Geofabrik downloader.
 `geojson-v2`: explicit local-metre or WGS84 LineString, Polygon and MultiPolygon input.
 Forest/orchard polygon holes become existing zone exclusions; recipe-5 building holes
 are supported by the courtyard extension below, which supersedes earlier rejection.
@@ -1142,3 +1145,124 @@ Next independent unit: bounded large-source **OSM PBF selected-area extraction**
 read existing `osm_extract.py`, input/worker budgets and preservation contracts
 before designing streaming passes. The current 32 MiB source limit remains until
 an explicit replacement profile is implemented and validated.
+
+## OSM PBF selected-area streaming — 2026-09-10
+
+Implemented and scoped Mac automatic checks passed. **Import vector → OSM PBF →
+OSM crop area** now offers **PBF streaming**, with crop enabled and an explicit
+WGS84 bbox (at most 0.02° per side). It keeps `osm-extract-v1` and adds provenance
+profile `pbf-area-stream-v1`; MapKit contracts/recipe/native ABI are unchanged.
+The old bounded whole-source PBF/XML path remains available. Streaming is explicit
+even for small PBFs so candidate-selection semantics never change merely with size.
+
+This replaces the former 32 MiB whole-source/no-streaming restriction only for
+local current PBF snapshots. GeoJSON/XML/Overture sources and Geofabrik download
+admission remain 32 MiB. Large-source network acquisition is a separate next unit.
+Streaming requires osmium 4.3.1, shapely 2.1.2 and pyproj 3.7.2; the disk index uses
+Python's public SQLite module. Data remains ODbL, while the new adapter is MIT.
+
+### Capture, selection and completeness
+
+The worker opens a regular source read-only, copies in 1 MiB chunks to its unique
+job directory, and calculates the SHA-256 of every captured byte. It checks source
+identity, length and modification/change timestamps before and after capture.
+Changes during capture reject; later source edits do not alter the frozen candidate.
+An exclusive hard link publishes only the private captured snapshot. Original
+files are never overwritten/deleted and source hashes never describe the cropped
+geometry in place of the original. The final layer retains full source bytes/hash,
+three-pass identity, scanned/selected counts and existing bbox/crop/library metadata.
+
+Three passes read complete bounded PBF frames: nodes into SQLite; way references
+and envelopes using indexed node lookups; relation envelopes and area ownership
+using indexed way/node lookups. Input entity ordering need not be sorted. There
+is no whole-source Python dictionary or automatic libosmium location/area cache.
+Supported feature way envelopes and feature relation envelopes intersecting the
+bbox become candidates; whole member ways and every referenced node are loaded
+before normalization/crop. This includes crossing roads and enclosing polygons
+with no vertex inside the bbox, split multipolygon members, holes and islands.
+Envelope false positives are intentional: a complete candidate can still reject
+or crop away. This is conservative selection, not exact prefiltering or geometry repair.
+
+Global admission rejects history/deleted/duplicate IDs, malformed frames/tags,
+missing node references in any way and missing node/way relation members. Nested
+feature or area relations reject globally because this profile cannot establish
+their spatial/ownership closure. Non-area/non-feature relation-to-relation
+semantics remain disclosed omissions. Empty feature geometry also rejects.
+Unsupported feature semantics in candidate envelopes reject as before; geometry
+outside those envelopes is not normalized, unlike the old whole-source path.
+Ignored area ownership and overlapping/shared multipolygon ownership cannot
+silently convert selected member ways into standalone filled polygons.
+
+The existing shared normalizer retains explicit road heights, complete ground
+approaches, hole/island ownership, topology and crop safety. A bbox cutting an
+explicit-height road/structure/required approach rejects the whole candidate.
+No inferred heights, missing members, partial graph success or routing/access
+interpretation is introduced. Native validation precedes atomic new-layer adoption;
+existing documents, previews and prior packages survive failures, Undo and reimport.
+
+### Resource and worker limits
+
+| Resource | Streaming limit / behavior |
+| --- | --- |
+| Whole captured source | Nonempty regular PBF, at most 2 GiB |
+| Workspace admission | Free bytes ≥ source size + 2 GiB index + 64 MiB; later I/O/disk-full failure still rejects |
+| Disposable SQLite file | 2 GiB maximum page count, 4096-byte pages, 8 MiB suggested cache, mmap off, journal off |
+| PBF envelope | 64 KiB header; 32 MiB compressed/raw blob and 32 MiB expanded payload; raw/zlib only |
+| Reader concurrency | One explicit worker and one queued task, one bounded frame at a time |
+| Whole-source work | 20 million entities; 80 million references; 20,000 references per way/relation |
+| Tags | 128 per entity, 512 characters per key/value and relation role |
+| Complete selected input | 250,000 entities, 200,000 nodes/references, 20,000 candidate features, 32 MiB scalar JSON payload |
+| Conversion/adoption | Existing 200,000 points / 60,000 patches / 12 MiB output plus native/history/topology quotas |
+| Deadline | 900 seconds in both Editor and streaming helper; other jobs retain 120 seconds |
+| IPC | Existing 4 KiB event, 1 MiB total, 16 KiB per pipe/frame drain; incomplete stages/regressing counters reject |
+
+SQLite holds only disposable worker-owned data: journaling is disabled because a
+partial index is never resumed or adopted. Selection walks primary keys and loads
+one payload at a time before byte admission, avoiding whole-payload query sorting.
+These application/record/file bounds are not a whole-process RSS cap. Pyosmium's
+decoded block expansion, Python object overhead, SQLite cache behavior and OS
+cache need representative measurement; a bounded compressed input is not itself
+a memory measurement. No representative speed, latency or peak-memory claim is made.
+
+`read`, `index_nodes`, `index_ways`, `index_relations` report actual completed
+source bytes (zero to source length for each pass, throttled at 8 MiB/frame ends).
+`select` counts completed candidate way/relation records; `parse` marks bounded
+normalization/crop entry and completion; `convert` reports features; write/complete
+report encoded bytes/hash. Per-stage counters are not overall-time percentages.
+
+Normal completion/errors remove the private snapshot/index in `finally`. Cancel,
+deadline and normal owner shutdown kill/reap the child before `ImportJob` removes
+its known files. Parent-pipe EOF stops a helper even after Editor crash. As with
+existing I03, abrupt process/app termination or failed OS deletion can retain
+known files in that request's `user://import-jobs/<token>`; they are never resumed
+or adopted automatically. Inspect/remove only a confirmed stopped job's known
+scratch, never user PBFs or broad data folders. No grandchildren are created.
+
+### Verification and next unit
+
+`test_osm_stream.py` covers actual >32 MiB raw PBF, zlib parity, geometry enclosing/
+crossing a bbox, complete multipolygons/structures, malformed/oversized/expansion
+frames, input/index/scan/selection quotas, source mutation/frozen capture,
+interruption cleanup, history, parent EOF and exclusive result publication.
+`osm_stream_validator` exercises the >32 MiB fixture through compiled public
+Editor + native MapKit: source review, bounds/provenance refusal, atomic adoption,
+save/package reopen/generation, Undo/Redo, indexing cancellation, controlled
+deadline, late restored-bbox responses, retry, stale document and owner shutdown.
+Existing OSM area/structure/import-layer/worker/history checks also pass.
+
+```sh
+rtk proxy /path/to/import-python -B -m unittest discover -s tests -p 'test_osm*.py' -v
+rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/import-python --script osm_stream_validator --script osm_area_validator --script osm_structures_validator --script import_job_validator --script import_layer_validator --script document_history_validator --resource-pack --rendered --log-dir /new/osm-stream-checks
+```
+
+Mac resource packing is not Windows/Linux standalone installation acceptance.
+Actual provider sources/Internet, target platforms, representative performance
+and user driving remain deferred; whole I02/cutover remains open. The next separate
+unit is **large Geofabrik source acquisition/review feeding this local streaming
+profile**, including explicit transfer/disk/deadline budgets and interrupted
+download ownership. The present downloader still refuses sources above 32 MiB.
+
+Official interfaces checked for this implementation:
+[PBF Blob/BlobHeader wire contract](https://raw.githubusercontent.com/openstreetmap/OSM-binary/master/osmpbf/fileformat.proto),
+[pyosmium FileBuffer/Reader/thread pool](https://docs.osmcode.org/pyosmium/latest/reference/IO/),
+[SQLite page-count quota](https://www.sqlite.org/pragma.html#pragma_max_page_count).

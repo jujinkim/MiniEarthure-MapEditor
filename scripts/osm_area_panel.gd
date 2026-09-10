@@ -3,6 +3,7 @@ extends RefCounted
 var ui: Control
 var dialog: AcceptDialog
 var enabled: CheckBox
+var streaming: CheckBox
 var fields: Array[SpinBox] = []
 var area: Control
 var status: Label
@@ -23,7 +24,11 @@ func setup(owner_ui: Control) -> void:
 	enabled = CheckBox.new()
 	enabled.text = "Crop OSM PBF/XML during import (source stays unchanged)"
 	layout.add_child(enabled)
-	ui._label(layout, "Road centerlines and building/vegetation polygons are intersected with this box.\nHoles and split parts survive. Road width may extend outside; new cut walls are artificial.\nWhole source must fit 32 MiB and supported geometry. This does not reduce download size.")
+	ui._label(layout, "Road centerlines and building/vegetation polygons are intersected with this box.\nHoles and split parts survive. Road width may extend outside; new cut walls are artificial.")
+	streaming = CheckBox.new()
+	streaming.text = "PBF streaming · local source up to 2 GiB (requires crop)"
+	layout.add_child(streaming)
+	ui._label(layout, "Streaming: source bytes + 2 GiB index + 64 MiB free disk; 15-minute deadline.\nThree byte-counted passes; complete candidate ways/relations before crop.\nOther local inputs and Geofabrik downloads stay at 32 MiB.")
 	var grid := GridContainer.new()
 	grid.columns = 4
 	layout.add_child(grid)
@@ -47,6 +52,7 @@ func setup(owner_ui: Control) -> void:
 		if child is Label: child.custom_minimum_size.x = 690
 	for field in fields: field.value_changed.connect(func(_v): changed())
 	enabled.toggled.connect(func(_v): changed())
+	streaming.toggled.connect(func(_v): changed())
 	dialog.confirmed.connect(func(): ui.import_dialog.popup_centered(Vector2i(760,550)))
 	dialog.canceled.connect(func(): ui.import_dialog.popup_centered(Vector2i(760,550)))
 	ui.add_child(dialog)
@@ -58,6 +64,7 @@ func bbox() -> Array:
 	return result
 
 func error() -> String:
+	if streaming.button_pressed and not enabled.button_pressed: return "Enable crop and select a bbox for PBF streaming."
 	if not enabled.button_pressed: return ""
 	var b := bbox()
 	if b[0] >= b[2] or b[1] >= b[3]: return "Require west < east and south < north; no dateline crossing."

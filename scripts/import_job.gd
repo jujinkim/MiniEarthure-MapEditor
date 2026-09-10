@@ -19,6 +19,7 @@ var exit_code := -1
 var cancelled := false
 var failure := ""
 var deadline_ms := 0
+var timeout_seconds := 120
 var progress := {}
 var terminal := {}
 var sequence := 0
@@ -40,11 +41,17 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	if input == null: return "Cannot open selected source."
 	var size := input.get_length()
 	input.close()
-	if size > 32 * 1024 * 1024: return "Import source exceeds 32 MiB; select a smaller area."
+	var streaming: bool = coordinates.get("osm_stream", false) == true
+	if coordinates.has("osm_stream") and (not streaming or input_format != "pbf" or not coordinates.has("osm_bbox")): return "PBF streaming requires PBF input and an explicit crop area."
+	if streaming:
+		progress_limit = 2 * 1024 * 1024 * 1024
+		timeout_seconds = 900
+		stages = ["read", "index_nodes", "index_ways", "index_relations", "select", "parse", "convert", "write", "complete"]
+	if size <= 0 or size > progress_limit: return "Import source exceeds %s or is empty; PBF streaming needs an explicit crop area." % ("2 GiB" if streaming else "32 MiB")
 	directory = ProjectSettings.globalize_path("user://import-jobs/" + token)
 	if DirAccess.dir_exists_absolute(directory): return "Import job directory already exists."
 	var files := FILES.new()
-	for module in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]:
+	for module in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "Importer module is missing."
 		if error != "":
@@ -66,6 +73,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 			return "OSM crop requires four coordinates and an OSM source."
 		arguments.append("--osm-bbox")
 		for value in coordinates.osm_bbox: arguments.append(str(value))
+	if streaming: arguments.append("--osm-stream")
 	var child := _spawn(python, arguments)
 	pid = int(child.get("pid", -1))
 	stdio = child.get("stdio")
@@ -73,7 +81,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	if pid <= 0 or stdio == null or stderr_pipe == null:
 		shutdown()
 		return "Python could not start. Choose a Python 3 executable and retry."
-	deadline_ms = Time.get_ticks_msec() + 120000
+	deadline_ms = Time.get_ticks_msec() + timeout_seconds * 1000
 	progress = {"stage": "starting", "completed": 0, "total": size, "unit": "bytes"}
 	return ""
 
@@ -115,7 +123,10 @@ func _event(line: PackedByteArray) -> void:
 	if index == phase and (raw.total != progress.total or raw.completed < progress.completed):
 		_fail("Import progress regressed.")
 		return
-	if raw.get("unit") != ("features" if raw.get("stage") == "convert" else "samples" if raw.get("stage") == "sample" else "bytes"):
+	if timeout_seconds == 900 and index > phase and phase >= 0 and progress.completed != progress.total:
+		_fail("Incomplete PBF streaming stage.")
+		return
+	if raw.get("unit") != ("features" if raw.get("stage") == "convert" else "entities" if raw.get("stage") == "select" else "samples" if raw.get("stage") == "sample" else "bytes"):
 		_fail("Invalid import progress unit.")
 		return
 	phase = index
@@ -151,7 +162,7 @@ func _read() -> void:
 func poll(now_ms: int = -1) -> void:
 	if done or pid <= 0: return
 	_read()
-	if not cancelled and (Time.get_ticks_msec() if now_ms < 0 else now_ms) >= deadline_ms: _fail("Import timed out after 120 seconds; use a smaller source or retry.")
+	if not cancelled and (Time.get_ticks_msec() if now_ms < 0 else now_ms) >= deadline_ms: _fail("Import timed out after %d seconds; use a smaller source or retry." % timeout_seconds)
 	if not exited:
 		exited = not OS.is_process_running(pid)
 		if exited: exit_code = OS.get_process_exit_code(pid)
@@ -193,7 +204,7 @@ func shutdown() -> void:
 func cleanup() -> void:
 	if directory == "": return
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py", "osm_download.py", "copernicus_dem.py", "dem.png.part", "request.json", "download.part", "layer.json"]:
+	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "source.pbf.part", "source.pbf", "source-index.sqlite", "overture_area.py", "overture_transportation.py", "overture_land_cover.py", "osm_download.py", "copernicus_dem.py", "dem.png.part", "request.json", "download.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)

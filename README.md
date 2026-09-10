@@ -92,7 +92,13 @@ before **Adopt new layer**. Discard changes nothing; reimport creates a fresh la
 and adoption is one Undo command. See [import contracts](docs/IMPORTS.md).
 The wizard supports Python executable selection, actual per-stage progress, Cancel
 and Retry last source. Child exit/output/identity budgets protect publication;
-owner shutdown and a parent-EOF watchdog stop helpers. OSM needs optional osmium
+owner shutdown and a parent-EOF watchdog stop helpers.
+
+Explicit **PBF streaming** in the OSM crop dialog supports local sources up to
+2 GiB using bounded disk indexing and complete candidate references before crop;
+the ordinary import and Geofabrik download limits remain 32 MiB. See the
+[streaming limits and verification](docs/IMPORTS.md#osm-pbf-selected-area-streaming--2026-09-10).
+OSM needs optional osmium
 4.3.1 and imports supported simple ways; incomplete/structural/area-relation
 geometry rejects rather than flattening. Terrain authoring also supports staged
 PNG16 review and explicit active-tile adoption. OSM downloads, general OSM

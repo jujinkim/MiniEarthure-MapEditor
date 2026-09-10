@@ -14,13 +14,13 @@ from projection import Coordinates
 from polygon_geometry import Budget, group_rings
 
 
-def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False):
+def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False, captured_source=None):
     if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or "crs" in value:
         raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
-    raw = source_bytes if source_bytes is not None else json.dumps(value, sort_keys=True, allow_nan=False).encode()
+    raw = b"" if captured_source is not None else source_bytes if source_bytes is not None else json.dumps(value, sort_keys=True, allow_nan=False).encode()
     transform = Coordinates(coordinates)
     topology_budget = Budget()
-    layer = ImportLayer(layer_id or uuid.uuid4().hex, Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v2")
+    layer = ImportLayer(layer_id or uuid.uuid4().hex, captured_source or Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v2")
     features = value.get("features")
     if not isinstance(features, list) or not 1 <= len(features) <= 20_000:
         raise ValueError("expected 1..20000 features")
@@ -128,7 +128,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     return layer
 
 
-def watch_parent_lifetime():
+def watch_parent_lifetime(timeout=120):
     # EOF terminates this helper if its owner exits/crashes. No grandchildren.
     def watch_parent():
         while os.read(sys.stdin.fileno(), 1):
@@ -136,7 +136,7 @@ def watch_parent_lifetime():
         os._exit(3)
     threading.Thread(target=watch_parent, daemon=True).start()
     def watchdog():
-        time.sleep(120)
+        time.sleep(timeout)
         os._exit(4)
     threading.Thread(target=watchdog, daemon=True).start()
 
@@ -155,27 +155,34 @@ def main():
     parser.add_argument("--watch-parent", action="store_true")
     parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"], default="geojson")
     parser.add_argument("--osm-bbox", nargs=4, type=float)
+    parser.add_argument("--osm-stream", action="store_true")
     args = parser.parse_args()
     if args.osm_bbox is not None and args.input_format not in ("osm", "pbf"):
         raise ValueError("OSM bbox is only valid for OSM PBF/XML")
+    if args.osm_stream and (args.input_format != "pbf" or args.osm_bbox is None):
+        raise ValueError("PBF streaming requires PBF input and an explicit bbox")
     if args.watch_parent:
-        watch_parent_lifetime()
+        watch_parent_lifetime(900 if args.osm_stream else 120)
     sequence = 0
     def event(stage, completed, total, unit="bytes", **extra):
         nonlocal sequence
         sequence += 1
         print(json.dumps(dict(request=args.layer_id, seq=sequence, stage=stage, completed=completed, total=total, unit=unit, **extra)), flush=True)
     size = args.source.stat().st_size
-    if size > MAX_INPUT: raise ValueError("input exceeds 32 MiB")
-    event("read", 0, size)
-    with args.source.open("rb") as stream:
-        raw = stream.read(MAX_INPUT + 1)
-    if len(raw) != size: raise ValueError("source size changed during read; retry")
-    event("read", len(raw), size)
-    event("parse", 0, size)
+    raw = None
+    if not args.osm_stream:
+        if size > MAX_INPUT: raise ValueError("input exceeds 32 MiB; select PBF streaming with a bbox")
+        event("read", 0, size)
+        with args.source.open("rb") as stream:
+            raw = stream.read(MAX_INPUT + 1)
+        if len(raw) != size: raise ValueError("source size changed during read; retry")
+        event("read", len(raw), size)
+        event("parse", 0, size)
     osm_crop = None
     osm_counts = None
     overture_metadata = None
+    osm_stream = None
+    captured_source = None
     if args.input_format == "geojson":
         value = strict_json(raw)
     elif args.input_format == "overture-transportation":
@@ -199,11 +206,17 @@ def main():
             raise ValueError("OSM requires explicit WGS84 origin and local map origin")
         if args.license != LICENSE:
             raise ValueError("OSM attribution must retain OpenStreetMap contributors and ODbL-1.0")
-        value, osm_counts = parse(raw, args.input_format)
+        if args.osm_stream:
+            from osm_stream import extract
+            value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event)
+            captured_source = Source(args.source_name or args.source.name, osm_stream["source_sha256"], osm_stream["source_bytes"], args.license, args.accuracy)
+        else:
+            value, osm_counts = parse(raw, args.input_format)
         if args.osm_bbox is not None:
             from osm_area import crop
             value, osm_crop = crop(value, args.osm_bbox)
-    event("parse", size, size)
+    parse_bytes = osm_stream["selected"]["bytes"] if osm_stream else size
+    event("parse", parse_bytes, parse_bytes)
     options = {"mode": args.coordinates}
     if args.coordinates == "wgs84-utm":
         options.update(origin=args.origin, local_origin_m=args.local_origin)
@@ -216,10 +229,14 @@ def main():
             progress=lambda c,t:event("convert",c,t,"features"))
     else:
         result = convert(value, args.source_name or args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
-            progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options, osm_graph=osm_counts is not None)
+            progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options, osm_graph=osm_counts is not None, captured_source=captured_source)
     if osm_counts is not None:
         from osm_extract import finish
         result = finish(result, osm_counts)
+        if osm_stream is not None:
+            result.coordinates["osm_stream"] = osm_stream
+            result.warnings.insert(0,"PBF area streaming: complete candidate envelopes and relation members precede crop; geometry outside candidate envelopes is not normalized. Nested feature/area relations reject globally. Non-area relation semantics remain omitted. Three disk-indexed passes; full captured source hash retained.")
+            result.warning_count += 1
         if osm_crop is not None:
             result.coordinates["osm_crop"] = osm_crop
             result.warnings.insert(0, "OSM derived geometry crop: " + json.dumps(osm_crop, sort_keys=True))

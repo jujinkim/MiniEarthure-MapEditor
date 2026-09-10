@@ -405,7 +405,7 @@ func _build_ui() -> void:
 	var import_fields := VBoxContainer.new()
 	import_fields.custom_minimum_size.x = 700
 	import_dialog.add_child(import_fields)
-	_label(import_fields, "Select a local source up to 32 MiB; review before adopting.\nWGS84 needs pyproj 3.7.2; OSM also needs osmium 4.3.1 in the selected Python.")
+	_label(import_fields, "Local sources up to 32 MiB; PBF streaming in OSM crop supports up to 2 GiB.\nWGS84 needs pyproj 3.7.2; OSM also needs osmium 4.3.1 in the selected Python.")
 	import_fields.get_child(0).custom_minimum_size.x = 700
 	import_source_format = OptionButton.new()
 	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)", "Overture building area snapshot (.overture.json)", "Overture transportation snapshot (.overture-roads.json)", "Overture land cover snapshot (.overture-land-cover.json)"]: import_source_format.add_item(format_title)
@@ -1041,6 +1041,11 @@ func _start_import(source: String, license_name: String) -> void:
 	import_coordinates_request = {"mode":"local-metres"} if import_coordinate_mode.selected == 0 else {"mode":"wgs84-utm", "origin":[import_origin_lon.value,import_origin_lat.value], "local_origin_m":[import_origin_x.value,import_origin_y.value]}
 	var input_format: String = ["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"][import_source_format.selected]
 	osm_import_revision = osm_panel.revision
+	if osm_panel.streaming.button_pressed:
+		if input_format != "pbf" or osm_panel.error() != "":
+			_status("PBF streaming requires PBF input and an enabled valid crop area.")
+			return
+		import_coordinates_request.osm_stream = true
 	if input_format in ["osm", "pbf"] and osm_panel.enabled.button_pressed:
 		if osm_panel.error() != "":
 			_status(osm_panel.error())
@@ -1057,7 +1062,7 @@ func _start_import(source: String, license_name: String) -> void:
 	busy = true
 	import_progress.value = 0
 	import_progress.visible = true
-	_status("Starting import · %d source bytes · maximum 32 MiB. Cancel stops the child; Retry last source starts a new layer." % job.progress.total)
+	_status("Starting import · %d source bytes · %ds deadline. Cancel stops the child; Retry last source starts a new layer." % [job.progress.total, job.timeout_seconds])
 
 func _start_worker(operation: String, source: String, destination: String) -> void:
 	if operation == "import":
