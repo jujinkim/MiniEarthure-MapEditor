@@ -38,7 +38,7 @@ func run() -> void:
 	var raw: Dictionary=ui.pending_import.value.duplicate(true)
 	check(ui.store.document==before,"review leaves document unchanged")
 	check(raw.adapter=="overture-buildings-v1" and raw.source.sha256==original,"snapshot identity preserved")
-	check(ui.import_summary.text.contains("2026-08-19.0") and ui.import_summary.text.contains("synthetic fixture") and ui.import_summary.text.contains("base_m"),"release/source/estimate review")
+	check(ui.import_summary.text.contains("2026-08-19.0") and preload("res://tests/import_review_helpers.gd").source_readable(ui, "overture", "feature_sources") and ui.import_summary.text.contains("base_m"),"release/source/estimate review")
 	for field in ["license","adapter","provenance","bbox","release","sources"]:
 		var bad:=raw.duplicate(true)
 		if field=="license":bad.source.license="MIT"

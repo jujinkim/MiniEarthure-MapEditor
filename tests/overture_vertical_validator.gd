@@ -39,7 +39,7 @@ func run() -> void:
 	check(ui.pending_import != null, "vertical native review")
 	var candidate: Dictionary = ui.pending_import.value.duplicate(true)
 	check(candidate.patches.size() == 2 and candidate.coordinates.overture.parent_sources.size() == 1, "parent retained only as source")
-	check(ui.import_summary.text.contains("Common ground") and ui.import_summary.text.contains("synthetic fixture"), "source and plane limitations reviewed")
+	check(ui.import_summary.text.contains("Common ground") and preload("res://tests/import_review_helpers.gd").source_readable(ui, "overture", "feature_sources"), "source and plane limitations reviewed")
 	for mode in ["parent", "duplicate", "orphan", "dimension", "unknown"]:
 		var bad: Dictionary = candidate.duplicate(true)
 		if mode == "parent": bad.coordinates.overture.parent_sources.clear()

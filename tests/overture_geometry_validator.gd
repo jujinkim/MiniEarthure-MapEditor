@@ -40,7 +40,7 @@ func run() -> void:
 	await wait_work()
 	check(ui.pending_import != null, "native-valid courtyard review")
 	check(ui.pending_import.value.patches.size() == 3 and ui.pending_import.value.patches[0].after.holes.size() == 1, "three complete parts retain courtyard and island")
-	check(ui.import_summary.text.contains("recipe 5") and ui.import_summary.text.contains("synthetic fixture"), "review exposes recipe and attribution")
+	check(ui.import_summary.text.contains("recipe 5") and preload("res://tests/import_review_helpers.gd").source_readable(ui, "overture", "feature_sources"), "review exposes recipe and attribution")
 	var candidate: Dictionary = ui.pending_import.value.duplicate(true)
 	check(candidate.coordinates.overture.feature_sources[0].building_ids.size() == 3, "source identity maps every complete part")
 	for mode in ["missing", "duplicate", "unknown", "count"]:

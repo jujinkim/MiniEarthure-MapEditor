@@ -39,7 +39,7 @@ func run() -> void:
 	var raw: Dictionary=ui.pending_import.value.duplicate(true)
 	check(ui.store.document==before,"review leaves document unchanged")
 	check(raw.adapter=="overture-transportation-v1" and raw.source.sha256==original,"snapshot identity preserved")
-	check(ui.import_summary.text.contains("2026-08-19.0") and ui.import_summary.text.contains("synthetic fixture") and ui.import_summary.text.contains("Chosen road plane"),"release/source/estimate review")
+	check(ui.import_summary.text.contains("2026-08-19.0") and preload("res://tests/import_review_helpers.gd").source_readable(ui, "overture_transportation", "segment_sources") and ui.import_summary.text.contains("Chosen road plane"),"release/source/estimate review")
 	check(raw.coordinates.overture_transportation.segment_sources[0].connectors[1].vertex==null and raw.coordinates.overture_transportation.segment_sources[0].connectors[1].resolved_at==0.5,"off-vertex mapping reaches native review")
 	check(raw.patches.size()==7,"four connectors and three split roads")
 	for field in ["license","adapter","provenance","bbox","release","sources","missing","endpoint","height","width","unmapped","order","budget","span_order","span_gap","span_width","span_surface","span_geometry","span_missing","span_boundary","span_one","source_fraction","position_profile","position_at","position_displacement","position_vertex","position_endpoint"]:

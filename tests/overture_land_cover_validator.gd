@@ -39,7 +39,7 @@ func run() -> void:
 	var raw: Dictionary=ui.pending_import.value.duplicate(true)
 	check(ui.store.document==before,"review leaves document unchanged")
 	check(raw.adapter=="overture-land-cover-v1" and raw.source.sha256==original,"snapshot identity preserved")
-	check(ui.import_summary.text.contains("2026-08-19.0") and ui.import_summary.text.contains("synthetic fixture") and ui.import_summary.text.contains("WorldCover"),"release/source/estimate review")
+	check(ui.import_summary.text.contains("2026-08-19.0") and preload("res://tests/import_review_helpers.gd").source_readable(ui, "overture_land_cover", "feature_sources") and ui.import_summary.text.contains("WorldCover"),"release/source/estimate review")
 	check(raw.patches.size()==3 and raw.patches[0].after.exclusions.size()==1,"forest parts and hole preserved")
 	check(raw.coordinates.overture_land_cover.feature_sources[1].disposition=="other-subtype" and raw.coordinates.overture_land_cover.feature_sources[2].disposition=="lower-detail","excluded classes and duplicate detail explicitly reviewed")
 	for field in ["license","adapter","profile","bbox","release","sources","missing","kind","spacing","density","unmapped","subtype","zoom","disposition","excluded","point_budget","estimates","holes","count"]:

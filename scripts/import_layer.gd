@@ -8,6 +8,7 @@ const OVERTURE_TRANSPORTATION_LICENSE := "ODbL-1.0; © OpenStreetMap contributor
 const OVERTURE_LAND_COVER_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; ESA WorldCover (CC-BY-4.0); © ESA WorldCover project 2020 / Contains modified Copernicus Sentinel data (2020) processed by ESA WorldCover consortium; https://docs.overturemaps.org/attribution/#base"
 var value: Dictionary = {}
 var native_payload_digest := ""
+var _review_prefix := ""
 
 static func _hex(text: Variant, length: int) -> bool:
 	if text is not String or text.length() != length: return false
@@ -48,6 +49,7 @@ static func _coordinates(c: Variant, requested: Dictionary) -> String:
 func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -> String:
 	value = {}
 	native_payload_digest = ""
+	_review_prefix = ""
 	if raw is not Dictionary or JSON.stringify(raw).to_utf8_buffer().size() > MAX_BYTES: return "Invalid or oversized ImportLayer."
 	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1", "overture-buildings-v1", "overture-transportation-v1", "overture-land-cover-v1"]: return "Unsupported ImportLayer version/adapter."
 	if requested.has("adapter") and raw.adapter != requested.adapter: return "Import adapter does not match request."
@@ -190,6 +192,12 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		var land_error: String = preload("./import_land_cover.gd").validate(raw, get_script())
 		if land_error != "": return land_error
 	value = raw.duplicate(true)
+	# These already validated, <=256 KiB source documents are parsed once here;
+	# reopening the review does not parse raw JSON or traverse large mappings.
+	if value.coordinates.has("vertical"):
+		_review_prefix = preload("./import_vertical.gd").summary(value.coordinates.vertical) + "\n"
+	if value.coordinates.has("osm_height_supplement"):
+		_review_prefix += preload("./import_height_supplement.gd").summary(value.coordinates.osm_height_supplement) + "\n"
 	return ""
 
 static func _structure_connections(raw: Dictionary, prefix: String) -> String:
@@ -414,12 +422,21 @@ func adopt(store: RefCounted) -> String:
 	return failure if failure != "" else store.apply_command("Adopt import " + str(value.source.name), patches(store))
 
 func summary() -> String:
-	var coordinates: Dictionary = value.coordinates.duplicate(true)
-	var vertical := ""
-	if coordinates.has("vertical"):
-		vertical = preload("./import_vertical.gd").summary(coordinates.vertical) + "\n"
-		coordinates.erase("vertical")
-	if coordinates.has("osm_height_supplement"):
-		vertical += preload("./import_height_supplement.gd").summary(coordinates.osm_height_supplement) + "\n"
-		coordinates.erase("osm_height_supplement")
-	return vertical + "%s · %d bytes\nLicense: %s · source accuracy: %s\n%d features / %d records · local extent (cm): %s\nProjection: %s\nEstimated fields (counts): %s\nWarnings: %d (showing %d)\n%s\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged." % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.feature_count, value.patches.size(), str(value.extent_cm), JSON.stringify(coordinates), JSON.stringify(value.estimates), value.warning_count, value.warnings.size(), "\n".join(value.warnings)]
+	if value.is_empty(): return "No import candidate."
+	var text := preload("./import_review_text.gd")
+	var coordinates := {}
+	for key in ["mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
+		if value.coordinates.has(key): coordinates[key] = value.coordinates[key]
+	var estimates := ""
+	var count := 0
+	for key: String in value.estimates:
+		if count == 32: break
+		estimates += "%s: %d\n" % [text.preview(key, 80), value.estimates[key]]
+		count += 1
+	var warnings := ""
+	for index in range(mini(50, value.warnings.size())): warnings += value.warnings[index] + "\n"
+	var result := "%s · %d bytes\nLicense: %s · source accuracy: %s\nSHA-256: %s\n%d features / %d records · local extent (cm): %s\n" % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.source.sha256, value.feature_count, value.patches.size(), str(value.extent_cm)]
+	result += _review_prefix + "\nProjection / processing summary:\n" + text.metadata(coordinates)
+	result += "\nEstimated fields (counts; showing %d of %d):\n%sWarnings: %d (showing %d of %d retained):\n%s" % [count, value.estimates.size(), estimates, value.warning_count, mini(50, value.warnings.size()), value.warnings.size(), warnings]
+	result = result.substr(0, text.MAX_SUMMARY_CHARS - 320)
+	return result + "\nSummary is limited. Browse exact details for every retained field, mapping, warning and captured source JSON. Adapter warning samples may omit source warnings.\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged."

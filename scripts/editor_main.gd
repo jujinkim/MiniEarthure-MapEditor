@@ -82,8 +82,10 @@ const IMPORT_LAYER := preload("./import_layer.gd")
 var import_identity := ""
 var pending_import: RefCounted
 var import_review: ConfirmationDialog
+var import_details: AcceptDialog
 var import_summary: TextEdit
 var import_review_generation := 0
+var import_review_controls: Array = []
 const IMPORT_JOB := preload("./import_job.gd")
 const IMPORT_NATIVE_JOB := preload("./import_native_job.gd")
 var import_job: RefCounted
@@ -459,11 +461,15 @@ func _build_ui() -> void:
 	import_review.title = "Review imported layer"
 	import_review.ok_button_text = "Adopt new layer"
 	import_review.cancel_button_text = "Discard"
+	var review_fields := VBoxContainer.new()
+	import_review.add_child(review_fields)
 	import_summary = TextEdit.new()
 	import_summary.editable = false
 	import_summary.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	import_summary.custom_minimum_size = Vector2(640, 340)
-	import_review.add_child(import_summary)
+	import_summary.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	review_fields.add_child(import_summary)
+	_button(review_fields, "Browse exact details", _open_import_details)
 	import_review.confirmed.connect(_adopt_import)
 	import_review.canceled.connect(func():
 		_discard_import()
@@ -471,6 +477,13 @@ func _build_ui() -> void:
 		_status("Imported layer discarded. Use Retry import to prepare it again.")
 	)
 	add_child(import_review)
+	import_details = preload("./import_review_browser.gd").new()
+	# Nest under the review so closing detail returns to its modal owner.
+	import_review.add_child(import_details)
+	for control in [import_source_format, import_coordinate_mode]:
+		control.item_selected.connect(func(_index): _discard_import())
+	for control in [import_origin_lon, import_origin_lat, import_origin_x, import_origin_y]:
+		control.value_changed.connect(func(_value): _discard_import())
 	osm_panel = preload("./osm_area_panel.gd").new()
 	osm_panel.setup(self)
 	dem_panel = DEM_PANEL.new()
@@ -1226,15 +1239,37 @@ func _finish_native_import(job: RefCounted, result: Dictionary) -> void:
 		_review_import(job.layer)
 
 func _review_import(layer: RefCounted) -> void:
+	import_details.clear()
 	pending_import = layer
 	import_review_generation = generation
+	import_review_controls = _review_controls()
 	validation_label.text = "Import ready for review · document unchanged until Adopt"
 	import_summary.text = layer.summary()
 	import_review.popup_centered(Vector2i(760, 460))
 	_status("Import prepared. Review and adopt the new layer, or discard it.")
 	return
 
+func _import_review_current() -> bool:
+	# Detail-page guards compare only bounded UI identities. The full immutable
+	# request signature remains checked on entry and again by adoption/native work.
+	return pending_import != null and generation == import_review_generation and import_review_controls == _review_controls()
+
+func _review_controls() -> Array:
+	return [import_source_format.selected, import_coordinate_mode.selected,
+		import_origin_lon.value, import_origin_lat.value, import_origin_x.value, import_origin_y.value,
+		osm_panel.revision, vertical_panel.revision, import_identity, last_import_source]
+
+func _open_import_details() -> void:
+	if not _import_review_current() or import_selection_signature != _import_selection_signature():
+		_discard_import()
+		_status("E_IMPORT_STALE: Document or import selection changed; import again.")
+		return
+	import_details.open(pending_import.value, _import_review_current)
+
 func _discard_import() -> void:
+	if import_details != null: import_details.clear()
+	if import_summary != null: import_summary.text = ""
+	import_review_controls.clear()
 	pending_import = null
 	if import_review != null: import_review.hide()
 

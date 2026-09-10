@@ -1907,3 +1907,54 @@ remain unimplemented. Installed Windows/Linux, real-region accuracy/driving,
 physical-memory/UI latency measurements and final integration remain separate
 acceptance gates; the bounded synchronous metadata/command work is not a fixed
 latency guarantee.
+
+
+## Bounded vector provenance review — 2026-09-10
+
+Vector import review shows source identity/license/accuracy, counts, projection and
+processing profiles, the existing bounded estimate/warning samples, and an explicit
+**Browse exact details** action. Initial text is at most 49,152 Unicode characters.
+Metadata summarization visits at most 128 values, 16 children per object, three
+object levels and 8,192 text characters; large mapping arrays show counts. It never
+deep-copies or stringifies the complete coordinates. Height-reference/supplement
+headings are cached after validating their existing bounded source JSON. The
+source/native/IPC budgets and adapter warning sampling are unchanged.
+
+Browse exact details opens a read-only view of the retained candidate, including
+all coordinate/crop/connection/stream/provider mappings, patches, estimates,
+retained warnings, unknown extension fields and captured source JSON. It is not a
+claim that the complete original PBF/XML or discarded adapter warning stream is
+embedded in the candidate. The selected original files remain unchanged.
+
+- Objects/arrays show 24 entries per page, with counts, page number, Previous,
+  Next, direct Go to page, Open value and Up. Up restores the parent page.
+  Previews shorten long names/values; **Read full field name** exposes every key.
+- Strings show 4,096 original characters per page. Text is JSON-quoted to preserve
+  CR/CRLF, tabs, newlines, quotes, backslashes and Unicode in a TextEdit that would
+  otherwise normalize line endings. **Copy exact text page** copies the original
+  slice. Joining decoded slices or copied pages in order reconstructs the exact
+  retained string; no source text is truncated or rewritten in storage.
+- Object pages scan keys without a complete key-index allocation, yielding after
+  each 128 visited entries, including skipped earlier pages. Jumping late in a
+  wide object can take multiple frames. Arrays use direct indexing. Only one
+  displayed page and ancestor references are retained; cancelled/older scans
+  cannot publish into a newer page or review.
+- Closing details returns to review without adoption. Discard, document changes,
+  changed/restored import controls, replacement review, cancellation and owner
+  close release detail references. The full request signature is checked on
+  opening and adoption; page scans compare bounded UI/generation identities.
+  Structural adoption still runs the owned native validation and commits one
+  Undo command with complete attribution. Browsing never alters that payload.
+
+This is a vector review presentation unit. Single-heightmap/DEM review, adapter
+normalization, candidate validation, attribution serialization and command costs
+retain their current boundaries. Input caps and operation counts are not fixed
+latency, physical-memory, survey-accuracy or whole I03 acceptance guarantees.
+
+Validation: `scripts/check_documents.py --script import_review_validator` exercises
+20,000 mapping records, wide objects, exact Unicode/control text, stale page scans,
+selection restoration, actual import/adoption/Undo/Redo/export, source/prior-package
+preservation and minimum-window pointer navigation. Add `--resource-pack` for
+compiled resources and `--rendered` for the native display. Existing Overture
+validators now inspect per-feature attribution through the detail UI, while
+summary checks retain release, recipe, plane and source limitation requirements.
