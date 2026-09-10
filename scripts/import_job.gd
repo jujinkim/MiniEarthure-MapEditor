@@ -58,7 +58,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	var reservation := _reserve_directory(token)
 	if reservation != "": return reservation
 	var files := FILES.new()
-	for module in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]:
+	for module in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "Importer module is missing."
 		if error != "":
@@ -92,6 +92,17 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 			cleanup()
 			return write_error
 		arguments.append_array(PackedStringArray(["--vertical-request", request_path]))
+	if coordinates.has("height_supplement"):
+		var height_error: String = preload("./import_height_supplement.gd").source_error(coordinates.height_supplement)
+		if input_format not in ["osm", "pbf"] or height_error != "":
+			cleanup()
+			return height_error if height_error != "" else "Height supplements require OSM input."
+		var height_path := directory.path_join("height-supplement.json")
+		var write_error: String = files.write(height_path, coordinates.height_supplement, "")
+		if write_error != "":
+			cleanup()
+			return write_error
+		arguments.append_array(PackedStringArray(["--height-supplement", height_path]))
 	if not _launch(python, arguments):
 		return "Python could not start. Choose a Python 3 executable and retry."
 	deadline_ms = Time.get_ticks_msec() + timeout_seconds * 1000
@@ -254,7 +265,7 @@ func cleanup() -> void:
 	if presence != null: presence.close()
 	presence = null
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "vertical.json", "osm_extract.py", "osm_area.py", "osm_stream.py", "source.pbf.part", "source.pbf", "source-index.sqlite", "overture_area.py", "overture_transportation.py", "overture_land_cover.py", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
+	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "vertical.json", "height-supplement.json", "osm_extract.py", "osm_area.py", "osm_stream.py", "source.pbf.part", "source.pbf", "source-index.sqlite", "overture_area.py", "overture_transportation.py", "overture_land_cover.py", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory.path_join(PRESENCE.PENDING))

@@ -1,4 +1,5 @@
 """Bounded offline OSM snapshot adapter; no private modules or source writes."""
+import hashlib
 from importlib.metadata import version, PackageNotFoundError
 import re
 from collections import Counter
@@ -268,7 +269,7 @@ def relation_features(relations, all_ways, nodes, blocked_members, counts, budge
     return features, consumed
 
 
-def parse(raw, input_format):
+def parse(raw, input_format, supplement=None):
     """Capture scalars only: osmium entities expire at the next iteration.
 
     Bounds include ignored entities/references, so filtering cannot evade admission.
@@ -343,11 +344,14 @@ def parse(raw, input_format):
                 raise ValueError("unsupported OSM entity")
     except RuntimeError as exc:
         raise ValueError("invalid OSM snapshot: " + str(exc)[:300]) from exc
-    return build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts)
+    return build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts,
+                          supplement, hashlib.sha256(raw).hexdigest() if supplement is not None else None)
 
 
-def build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts):
+def build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts, supplement=None, source_sha256=None):
     """Normalize a complete bounded selection from either snapshot reader."""
+    if supplement is not None:
+        node_tags = supplement.apply(nodes, node_tags, ways, source_sha256)
     assembled, consumed = relation_features(relations, all_ways, nodes, area_members, counts, Budget())
     counts["ignored_ways"] -= sum(category(all_ways[ref][1]) is None for ref in consumed)
     features = []

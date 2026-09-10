@@ -1047,6 +1047,11 @@ func _start_import(source: String, license_name: String) -> void:
 			_status("E_IMPORT: " + vertical.error)
 			return
 		import_coordinates_request.vertical = vertical
+		var supplement: Dictionary = vertical_panel.capture_supplement()
+		if supplement.has("error"):
+			_status("E_IMPORT: " + supplement.error)
+			return
+		import_coordinates_request.merge(supplement)
 	if osm_panel.streaming.button_pressed:
 		if input_format != "pbf" or osm_panel.error() != "":
 			_status("PBF streaming requires PBF input and an enabled valid crop area.")

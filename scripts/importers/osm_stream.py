@@ -217,7 +217,7 @@ def _structure_closure(db, event, size):
     return dict(profile="structural-incidence-v1", ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits)
 
 
-def extract(source, selected, directory, event=lambda *a: None):
+def extract(source, selected, directory, event=lambda *a: None, supplement=None):
     selected = bounds(selected)
     source, directory = Path(source), Path(directory)
     # Refuse before claiming ownership. Cleanup may only remove files created here.
@@ -373,7 +373,7 @@ def extract(source, selected, directory, event=lambda *a: None):
         admit("")
         counts.update(nodes=len(nodes),ways=len(all_ways),relations=len(relations),tagged_nodes=len(node_tags))
         event("parse",0,selection_bytes)
-        value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts)
+        value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts,supplement,digest)
         meta = dict(profile=PROFILE,passes=3,source_bytes=size,source_sha256=digest,
                     scan=totals,structure_closure=closure,selected=dict(nodes=len(nodes),ways=len(all_ways),relations=len(relations),references=selected_refs,bytes=selection_bytes))
         return value, counts, meta

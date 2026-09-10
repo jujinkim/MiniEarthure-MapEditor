@@ -1814,3 +1814,96 @@ review, final command validation and cleanup still have synchronous bounded work
 Real-map UI latency/RSS, driving/geometry accuracy and final integration gates
 remain deferred. Missing elevations, unsupported source semantics and larger
 regions are still unimplemented; limits were not raised.
+
+
+## Local supplements for missing OSM structural heights — 2026-09-10
+
+**Import vector → OSM height reference… → Choose missing-node heights…** accepts
+one externally prepared local JSON file. Clear the optional path to disable it.
+This replaces only the missing-`ele` refusal for original nodes of selected
+bridges/tunnels and their incident ground approaches. Source-node IDs never fetch
+extra geometry or enlarge the selected graph. All referenced profiles, including
+outside-window structural peers and complete approaches, must still be valid
+before clipping. Automatic elevation inference and remote acquisition remain
+excluded.
+
+Prepare a UTF-8 file of at most **256 KiB**, with **1..4096** node entries:
+
+```json
+{
+  "format": "miniearthure-osm-node-heights-v1",
+  "osm_sha256": "<64 lowercase hex digits for this exact OSM XML or PBF file>",
+  "source": "Description of the externally prepared local height material",
+  "license": "License and attribution for that material",
+  "accuracy": "Declared accuracy, or explicitly unknown",
+  "vertical_crs": "EPSG:5773 / EGM96 metres",
+  "nodes": [
+    {"node_id": "123456", "height_m": 102.25}
+  ]
+}
+```
+
+Replace the illustrative hash and node ID with values for your own file. Node IDs
+are canonical positive decimal **strings** in the signed 64-bit range; strings
+preserve IDs beyond JSON's exact floating-point integer range. Heights are finite
+absolute EGM96 metres within ±10000, like supported OSM `ele` values. The SHA-256
+must identify the exact raw input file, including for streaming. Re-encoding XML
+as PBF requires that PBF's hash. Source, license and accuracy are nonempty bounded
+text; unknown accuracy must be explicitly stated. The hash does not authenticate
+the heights, license or survey accuracy.
+
+- Only missing elevations can be supplied. Any listed node with an existing `ele`
+  rejects, even when equal; original invalid `ele` or unsupported `ele:*` semantics
+  cannot be repaired by this file. Duplicate JSON keys/IDs, extra keys, noncanonical
+  IDs, bool/null/nonfinite heights, unsupported datums, snapshot mismatch and
+  unreferenced/nonstructural nodes reject the entire candidate.
+- PBF closure collects complete connected structures and all incident highways
+  using the existing bounded three-pass index. After collection, supplements fill
+  missing original nodes, followed by ordinary full profile/graph validation,
+  EGM96→target conversion and finally crop. A missing outside node/height, missing
+  physical tunnel clearance or invalid approach still rejects. All existing
+  selection/index/point, 16-cell, 64 MiB payload and native generation budgets stay.
+- Choose EGM96/target zero or the existing EGM2008 correction grid and target zero
+  independently in the same dialog. **Supplemental inputs themselves must be
+  EGM96**; EGM2008 heights, ellipsoid heights or a local offset are not auto-detected.
+  A conversion grid must cover every explicit original vertex before crop,
+  including supplemental vertices outside the crop. Ground roads still follow
+  terrain; no terrain fit or clearance inference is added.
+- The request captures the exact UTF-8 supplement once. `coordinates.`
+  `osm_height_supplement` (`osm-node-heights-v1`) stores its raw JSON, byte count,
+  SHA-256, full applied-node count and operation order. Review prominently shows
+  source/license/accuracy, both hashes and the height reference. Original node
+  IDs/heights remain available in the raw supplement even when cropped out.
+  Consumer validation checks this contract, exact request identity and bound OSM
+  hash. It is not an independent reconstruction of the captured OSM source or a
+  survey certification.
+- External edits after capture cannot change the reviewed/adopted candidate.
+  Retry reads the current file. Changing or clearing the UI selection increments
+  its revision, cancels an active Python/native operation and invalidates old
+  review/adoption even if restored. Native review and adoption remain separate
+  owned children; document/history and loaded bridge/prior package are preserved.
+  Adoption is one Undo command. Attribution, project save/reopen and package
+  export preserve the exact supplemental source snapshot and its license.
+
+CLI: add `--height-supplement /absolute/local/heights.json` to `geojson.py` with
+`--input-format osm` or `pbf`, WGS84/local origins and the OSM license. Combine with
+`--vertical-request`, `--osm-bbox` and `--osm-stream` when needed; exclusive output
+creation and parent-watch/cancel rules are unchanged. Original OSM, supplement,
+correction, DEM, project and package files are never rewritten by import.
+
+Verification: `test_osm_heights.py` exercises XML/PBF/stream equivalence to complete
+explicit source, partial and entire missing profiles, structural closure before
+crop, datum conversion, immutable provenance, admission failures and cancellation.
+`osm_heights_validator` exercises the actual Editor selection/review/child/adoption,
+source tampering, invalid provenance, Undo/Redo, saved project/package/native
+surfaces, stale selection and Python/native cancellation. Use
+`check_documents.py --script osm_heights_validator --script vertical_validator
+--script import_native_validator --resource-pack` with the pinned public import
+Python and Godot 4.7.2. Native display can run the same validator with `--rendered`.
+
+This implementation unit does not complete I02/I03/I04. Other source semantics,
+unequal tunnel-clearance junctions, native geoid ingestion and larger regions
+remain unimplemented. Installed Windows/Linux, real-region accuracy/driving,
+physical-memory/UI latency measurements and final integration remain separate
+acceptance gates; the bounded synchronous metadata/command work is not a fixed
+latency guarantee.

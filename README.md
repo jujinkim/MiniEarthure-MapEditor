@@ -158,3 +158,10 @@ Explicit OSM bridges/tunnels can continue through unique same-kind source
 endpoints with complete grounded ends. Full structural source closure, lost-join
 crop sections and bounded recipe-2 native generation protect atomic adoption.
 See [connected structures and the native validation correction](docs/IMPORTS.md#connected-osm-structure-endpoints--2026-09-10).
+
+
+Local OSM structural imports can use an explicit node-ID/EGM96 height supplement
+for missing elevations. Select it in **Import vector → OSM height reference…**;
+review retains its exact bytes, source/license/accuracy and the bound OSM hash.
+See [the bounded local height contract](docs/IMPORTS.md#local-supplements-for-missing-osm-structural-heights--2026-09-10).
+Existing source heights and the full structural validation remain authoritative.

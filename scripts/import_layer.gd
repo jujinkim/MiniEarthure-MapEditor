@@ -58,6 +58,8 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if coordinate_error != "": return coordinate_error
 	var vertical_error: String = preload("./import_vertical.gd").validate(raw, requested)
 	if vertical_error != "": return vertical_error
+	var height_error: String = preload("./import_height_supplement.gd").validate(raw, requested)
+	if height_error != "": return height_error
 	if raw.adapter == "osm-extract-v1" and (source.license != OSM_LICENSE or raw.coordinates.mode != "wgs84-utm"): return "OSM requires geographic coordinates and ODbL attribution."
 	var streaming: Variant = raw.coordinates.get("osm_stream")
 	if streaming != null or requested.has("osm_stream"):
@@ -417,4 +419,7 @@ func summary() -> String:
 	if coordinates.has("vertical"):
 		vertical = preload("./import_vertical.gd").summary(coordinates.vertical) + "\n"
 		coordinates.erase("vertical")
+	if coordinates.has("osm_height_supplement"):
+		vertical += preload("./import_height_supplement.gd").summary(coordinates.osm_height_supplement) + "\n"
+		coordinates.erase("osm_height_supplement")
 	return vertical + "%s · %d bytes\nLicense: %s · source accuracy: %s\n%d features / %d records · local extent (cm): %s\nProjection: %s\nEstimated fields (counts): %s\nWarnings: %d (showing %d)\n%s\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged." % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.feature_count, value.patches.size(), str(value.extent_cm), JSON.stringify(coordinates), JSON.stringify(value.estimates), value.warning_count, value.warnings.size(), "\n".join(value.warnings)]

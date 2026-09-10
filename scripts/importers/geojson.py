@@ -174,7 +174,10 @@ def main():
     parser.add_argument("--osm-bbox", nargs=4, type=float)
     parser.add_argument("--osm-stream", action="store_true")
     parser.add_argument("--vertical-request", type=Path)
+    parser.add_argument("--height-supplement", type=Path)
     args = parser.parse_args()
+    if args.height_supplement is not None and args.input_format not in ("osm", "pbf"):
+        raise ValueError("height supplements require OSM input")
     if args.vertical_request is not None and args.input_format not in ("osm", "pbf"):
         raise ValueError("vertical conversion is only supported for explicit OSM heights")
     if args.osm_bbox is not None and args.input_format not in ("osm", "pbf"):
@@ -188,6 +191,10 @@ def main():
         nonlocal sequence
         sequence += 1
         print(json.dumps(dict(request=args.layer_id, seq=sequence, stage=stage, completed=completed, total=total, unit=unit, **extra)), flush=True)
+    supplement = None
+    if args.height_supplement is not None:
+        from osm_heights import Supplement, read_source
+        supplement = Supplement(read_source(args.height_supplement))
     size = args.source.stat().st_size
     raw = None
     if not args.osm_stream:
@@ -229,10 +236,10 @@ def main():
             raise ValueError("OSM attribution must retain OpenStreetMap contributors and ODbL-1.0")
         if args.osm_stream:
             from osm_stream import extract
-            value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event)
+            value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event,supplement)
             captured_source = Source(args.source_name or args.source.name, osm_stream["source_sha256"], osm_stream["source_bytes"], args.license, args.accuracy)
         else:
-            value, osm_counts = parse(raw, args.input_format)
+            value, osm_counts = parse(raw, args.input_format, supplement)
         from vertical import Vertical, read_options
         vertical = Vertical(read_options(args.vertical_request) if args.vertical_request is not None else
             dict(target="EGM96", zero_m=0, grid=None))
@@ -258,6 +265,8 @@ def main():
     if osm_counts is not None:
         from osm_extract import finish
         result.coordinates["vertical"] = vertical.metadata
+        if supplement is not None:
+            result.coordinates["osm_height_supplement"] = supplement.metadata
         result = finish(result, osm_counts)
         if osm_stream is not None:
             result.coordinates["osm_stream"] = osm_stream

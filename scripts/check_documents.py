@@ -71,6 +71,7 @@ def main():
             scripts = args.script
         elif args.full:
             scripts.append('vertical_validator')
+            scripts.append('osm_heights_validator')
             scripts.append('osm_connections_validator')
             scripts.append('osm_junctions_validator')
             scripts.append('import_native_validator')
