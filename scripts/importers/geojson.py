@@ -239,6 +239,9 @@ def main():
             result.warning_count += 1
         if osm_crop is not None:
             result.coordinates["osm_crop"] = osm_crop
+            if "vertical" in osm_crop:
+                result.warnings.insert(0, "OSM ground crop interpolates supplied EGM96 node heights at WGS84 segment cuts; source heights are references, ground still follows map terrain. Original node IDs stay connected; new boundary cuts are separate endpoints. Complete bridge/tunnel spans and nonzero ground approaches are required; no terrain or datum alignment is inferred.")
+                result.warning_count += 1
             result.warnings.insert(0, "OSM derived geometry crop: " + json.dumps(osm_crop, sort_keys=True))
             result.warning_count += 1
             result.warnings = result.warnings[:50]

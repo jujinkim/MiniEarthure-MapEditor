@@ -69,7 +69,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		return "Non-streaming import source exceeds 32 MiB."
 	var crop: Variant = raw.coordinates.get("osm_crop")
 	if requested.has("osm_bbox") or crop != null:
-		if raw.adapter != "osm-extract-v1" or crop is not Dictionary or crop.get("policy") != "geometry-intersection-v1" or crop.get("shapely") != "2.1.2" or not _text(crop.get("geos")): return "Invalid OSM crop provenance."
+		if raw.adapter != "osm-extract-v1" or crop is not Dictionary or crop.get("policy") not in ["geometry-intersection-v1", "geometry-intersection-v2"] or crop.get("shapely") != "2.1.2" or not _text(crop.get("geos")): return "Invalid OSM crop provenance."
 		var bbox: Variant = crop.get("bbox")
 		if bbox is not Array or bbox.size() != 4: return "Invalid OSM crop area."
 		for i in range(4):
@@ -80,6 +80,13 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		for key in ["input_features", "outside_features", "changed_features", "output_features", "boundary_contacts"]:
 			if not _count(crop.counts.get(key), 200000): return "Invalid OSM crop count."
 		if crop.counts.output_features != raw.get("feature_count"): return "OSM crop count mismatch."
+		if crop.policy == "geometry-intersection-v2":
+			var vertical: Variant = crop.get("vertical")
+			if vertical is not Dictionary or vertical.get("profile") != "explicit-ground-crop-v1": return "Invalid OSM vertical crop profile."
+			for key in ["clipped_ground_features", "outside_explicit_features", "retained_structure_features"]:
+				if not _count(vertical.get(key), 20000): return "Invalid OSM vertical crop count."
+			if vertical.clipped_ground_features > crop.counts.changed_features or vertical.outside_explicit_features > crop.counts.outside_features or vertical.retained_structure_features > crop.counts.output_features: return "OSM vertical crop count mismatch."
+		elif crop.has("vertical"): return "OSM vertical crop requires version 2."
 	var overture_building_ids := {}
 	var overture_vertical := false
 	if raw.adapter == "overture-buildings-v1":
@@ -140,6 +147,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if raw.adapter == "overture-buildings-v1" and overture_building_ids.size() != raw.patches.size(): return "Incomplete Overture footprint mapping."
 	var ids := {}
 	var nodes := {}
+	var structure_count := 0
 	var prefix := "import-" + expected_id + "-"
 	for patch in raw.patches:
 		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]): return "Invalid import patch."
@@ -152,6 +160,8 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 			if patch.after.get("base_cm") != dimensions.base_cm or patch.after.get("height_cm") != dimensions.height_cm: return "Overture vertical dimensions changed."
 		ids[patch.id] = true
 		if patch.field == "nodes": nodes[patch.id] = true
+		if patch.field == "roads" and patch.after.get("kind") in ["bridge", "tunnel"]: structure_count += 1
+	if crop is Dictionary and crop.get("policy") == "geometry-intersection-v2" and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
 	for patch in raw.patches:
 		if patch.field == "roads" and (not nodes.has(patch.after.get("from")) or not nodes.has(patch.after.get("to"))): return "Imported roads must reference their own layer nodes."
 	if raw.adapter == "overture-transportation-v1":

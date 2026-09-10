@@ -79,7 +79,7 @@ class Streaming(unittest.TestCase):
         xml=XML.replace('</osm>','<relation id="3"><member type="way" ref="1" role="outer"/><tag k="type" v="boundary"/></relation></osm>')
         with self.assertRaisesRegex(ValueError,"area relation"): self.extract(xml)
         box=[9.0004,54.9999,9.0016,55.0001]
-        with self.assertRaisesRegex(ValueError,"ground connections|complete explicit"):
+        with self.assertRaisesRegex(ValueError,"ground connections|complete bridge/tunnel"):
             value,_,_=self.extract(structural_xml(),box)
             crop(value,box)
 

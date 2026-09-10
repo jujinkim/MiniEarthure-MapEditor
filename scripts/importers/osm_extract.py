@@ -301,6 +301,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             if len(references) < 2 or references[0] == references[-1]:
                 raise ValueError(f"OSM way {identity}: closed/short road requires explicit segmentation")
             properties.update(road_vertical(tags, references, node_tags))
+            if "osm_node_refs" in properties: properties["osm_way_id"] = identity
             if "width" in tags: properties["width_m"] = metres(tags, "width")
             if "surface" in tags: properties["surface"] = tags["surface"]
             geometry = dict(type="LineString", coordinates=points)
