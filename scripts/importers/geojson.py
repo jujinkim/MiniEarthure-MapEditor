@@ -153,7 +153,7 @@ def main():
     parser.add_argument("--source-name")
     parser.add_argument("--layer-id", required=True)
     parser.add_argument("--watch-parent", action="store_true")
-    parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture"], default="geojson")
+    parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture", "overture-transportation"], default="geojson")
     parser.add_argument("--osm-bbox", nargs=4, type=float)
     args = parser.parse_args()
     if args.osm_bbox is not None and args.input_format not in ("osm", "pbf"):
@@ -178,6 +178,11 @@ def main():
     overture_metadata = None
     if args.input_format == "geojson":
         value = strict_json(raw)
+    elif args.input_format == "overture-transportation":
+        from overture_transportation import parse, LICENSE
+        if args.coordinates != "wgs84-utm" or args.license != LICENSE:
+            raise ValueError("Transportation requires WGS84 origins and source attribution")
+        value = parse(raw)
     elif args.input_format == "overture":
         from overture_area import parse, LICENSE
         if args.coordinates != "wgs84-utm" or args.license != LICENSE:
@@ -199,8 +204,14 @@ def main():
         options.update(origin=args.origin, local_origin_m=args.local_origin)
     elif args.origin is not None or args.local_origin is not None:
         raise ValueError("local-metre mode must not specify geographic origins")
-    result = convert(value, args.source_name or args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
-        progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options, osm_graph=osm_counts is not None)
+    if args.input_format == "overture-transportation":
+        from overture_transportation import convert as convert_transportation
+        result = convert_transportation(value, args.source_name or args.source.name, raw,
+            layer_id=args.layer_id, coordinates=options, accuracy=args.accuracy,
+            progress=lambda c,t:event("convert",c,t,"features"))
+    else:
+        result = convert(value, args.source_name or args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
+            progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options, osm_graph=osm_counts is not None)
     if osm_counts is not None:
         from osm_extract import finish
         result = finish(result, osm_counts)

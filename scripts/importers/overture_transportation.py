@@ -1,0 +1,245 @@
+"""Bounded, complete Overture road/connector snapshots. Public MIT adapter.
+
+Connectivity comes only from source IDs, never snapping or geometric crossings.
+This profile retains whole in-area segments and refuses unsupported semantics.
+"""
+import hashlib
+import json
+import sys
+from import_layer import ImportLayer, Source, MAX_INPUT, number, text, strict_json
+from projection import Coordinates
+import overture_area as area
+
+LICENSE = "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation"
+MAX_FEATURES = 1024
+MAX_POINTS = 8192
+MAX_ROADS = 2048
+CLASSES = {"motorway", "trunk", "primary", "secondary", "tertiary", "residential", "living_street", "service", "unclassified"}
+COMMON = {"id", "bbox", "theme", "type", "version", "sources"}
+SEGMENT = COMMON | {"subtype", "class", "connectors", "road_flags", "road_surface", "width_rules", "level", "level_rules", "subclass", "subclass_rules", "names", "routes", "destinations", "speed_limits"}
+
+
+def plan(release, bbox, ground_m):
+    result = area.plan(release, bbox)
+    result.update(theme="transportation", type="segment", license=LICENSE,
+                  profile="ground-graph-v1", ground_m=number(ground_m, "chosen road plane", -9000, 9000))
+    return result
+
+
+def checked_plan(value):
+    return plan(value.get("release"), value.get("bbox"), value.get("ground_m"))
+
+
+def remote_features(query):
+    yield from area.read_features(query, ["segment", "connector"])
+
+
+def acquire(query, partial, destination, progress, features=remote_features):
+    return area.acquire(query, partial, destination, progress, features,
+                        checker=checked_plan, feature_limit=MAX_FEATURES)
+
+
+def identity(value):
+    result = text(value, "Overture ID", 128)
+    if result != value: raise ValueError("Overture ID must not contain surrounding whitespace")
+    return result
+
+
+def uniform(properties, key, default=None):
+    """Only one whole-segment physical rule; never erase scoping/restrictions."""
+    rules = properties.get(key)
+    if rules is None or rules == []: return default
+    if not isinstance(rules, list) or len(rules) != 1 or not isinstance(rules[0], dict):
+        raise ValueError(f"{key}: requires one whole-segment rule")
+    rule = rules[0]
+    if set(rule) - {"value", "between"} or "value" not in rule:
+        raise ValueError(f"{key}: unsupported conditional/unknown rule")
+    between = rule.get("between")
+    if between is not None:
+        if not isinstance(between, list) or len(between) != 2 or [number(v,key,0,1) for v in between] != [0,1]:
+            raise ValueError(f"{key}: partial physical rule requires explicit authoring")
+    return rule["value"]
+
+
+def parse(raw):
+    from pyproj import Geod
+    from shapely.geometry import LineString
+    if len(raw) > MAX_INPUT: raise ValueError("Overture snapshot exceeds 32 MiB")
+    value = strict_json(raw)
+    if not isinstance(value, dict) or number(value.get("snapshot_version"),"snapshot version",1,1) != 1:
+        raise ValueError("Expected Overture transportation snapshot version 1")
+    query = checked_plan(value)
+    if set(value) != set(query) | {"snapshot_version", "features"} or any(value[k] != v for k,v in query.items()):
+        raise ValueError("Invalid transportation source contract/license")
+    features = value["features"]
+    if not isinstance(features, list) or not 1 <= len(features) <= MAX_FEATURES:
+        raise ValueError("Transportation feature budget exceeded (1..1024)")
+    segments, connectors, provenance, seen = {}, {}, {}, set()
+    total_points = 0
+    w,s,e,n = query["bbox"]
+    def position(pos):
+        if not isinstance(pos, list) or len(pos) != 2: raise ValueError("Expected 2D WGS84 position")
+        x,y = number(pos[0],"longitude",-180,180), number(pos[1],"latitude",-80,84)
+        if not w < x < e or not s < y < n:
+            raise ValueError("Whole road graph must be strictly inside query; enlarge area, no clipping")
+        return [x,y]
+    for feature in features:
+        if not isinstance(feature, dict) or feature.get("type") != "Feature": raise ValueError("Expected Overture Feature")
+        fid = identity(feature.get("id"))
+        if fid in seen: raise ValueError("Duplicate Overture ID")
+        seen.add(fid)
+        p,g = feature.get("properties"), feature.get("geometry")
+        if not isinstance(p, dict) or p.get("id") != fid or p.get("theme") != "transportation" or not isinstance(g, dict):
+            raise ValueError("Invalid transportation identity/theme/geometry")
+        kind = p.get("type")
+        if kind not in ("segment", "connector"): raise ValueError("Unsupported transportation feature type")
+        version = number(p.get("version"),"source version",1,2147483647)
+        if int(version) != version: raise ValueError("Invalid source version")
+        for key in set(p) - (COMMON if kind == "connector" else SEGMENT):
+            if p[key] is not None and p[key] != []:
+                raise ValueError(f"Unsupported transportation property {key}; no silent loss")
+        sources = p.get("sources")
+        if not isinstance(sources, list) or not 1 <= len(sources) <= 128 or len(json.dumps(sources).encode()) > 16384:
+            raise ValueError("Missing/oversized transportation attribution")
+        for source in sources:
+            if not isinstance(source, dict): raise ValueError("Invalid source attribution")
+            text(source.get("dataset"), "source dataset")
+            if source.get("license") is not None: text(source["license"], "source license")
+        provenance[fid] = dict(id=fid, version=p["version"], sources=sources)
+        coords = g.get("coordinates")
+        if kind == "connector":
+            if g.get("type") != "Point": raise ValueError("Connector requires Point")
+            total_points += 1
+            connectors[fid] = position(coords)
+        else:
+            if g.get("type") != "LineString" or not isinstance(coords,list) or not 2 <= len(coords) <= MAX_POINTS:
+                raise ValueError("Segment requires bounded LineString")
+            total_points += len(coords)
+            coords = [position(pos) for pos in coords]
+            if len(set(map(tuple,coords))) != len(coords) or not LineString(coords).is_simple:
+                raise ValueError("Repeated/self-crossing road geometry is unsupported")
+            if p.get("subtype") != "road" or p.get("class") not in CLASSES:
+                raise ValueError("Unsupported road subtype/class; no partial graph")
+            if number(p.get("level",0) if p.get("level") is not None else 0,"level",-100,100) != 0 or number(uniform(p,"level_rules",0),"level rule",-100,100) != 0:
+                raise ValueError("Z-order is not height; elevated/underground roads require explicit authoring")
+            flags = p.get("road_flags")
+            if flags not in (None, []):
+                # Historical flag arrays and current rules are both explicit.
+                if isinstance(flags,list) and all(isinstance(f,str) for f in flags):
+                    values = flags
+                elif isinstance(flags,list) and len(flags) == 1 and isinstance(flags[0],dict) and set(flags[0]) <= {"values","between"} and flags[0].get("between") is None:
+                    values = flags[0].get("values")
+                else: raise ValueError("Scoped road flags require explicit authoring")
+                if not isinstance(values,list) or not values or any(f != "is_link" for f in values):
+                    raise ValueError("Bridge/tunnel/other road flags unsupported without metric geometry")
+            if p.get("subclass") not in (None,"link") or uniform(p,"subclass_rules",None) not in (None,"link"):
+                raise ValueError("Unsupported road subclass")
+            width = uniform(p,"width_rules",None)
+            if width is not None: number(width,"road width",0.01,1000)
+            surface = uniform(p,"road_surface",None)
+            if surface not in (None,"unknown","paved","gravel","dirt"):
+                raise ValueError("Unsupported/ambiguous road surface")
+            segments[fid] = dict(coords=coords, properties=p, width=width, surface=surface)
+        if total_points > MAX_POINTS: raise ValueError("Transportation point budget exceeded")
+    if not segments or not connectors: raise ValueError("Requires complete segments and connectors")
+    geod = Geod(ellps="WGS84")
+    used, roads = set(), []
+    for fid, segment in sorted(segments.items()):
+        coords, p = segment["coords"], segment["properties"]
+        refs = p.get("connectors")
+        if not isinstance(refs,list) or not 2 <= len(refs) <= len(coords): raise ValueError("Missing/bounded connector references")
+        vertices = {tuple(pos):i for i,pos in enumerate(coords)}
+        lengths = [0.0]
+        for a,b in zip(coords,coords[1:]):
+            lengths.append(lengths[-1] + geod.inv(*a,*b)[2])
+        linked, ids = [], set()
+        for ref in refs:
+            if not isinstance(ref,dict) or set(ref) != {"connector_id","at"}: raise ValueError("Invalid connector reference")
+            cid = identity(ref["connector_id"])
+            at = number(ref["at"],"connector at",0,1)
+            if cid in ids or cid not in connectors: raise ValueError("Duplicate/missing connector reference")
+            ids.add(cid)
+            index = vertices.get(tuple(connectors[cid]))
+            if index is None: raise ValueError("Connector must be an exact source vertex; no snapping")
+            if abs(at - lengths[index]/lengths[-1]) > 1e-7:
+                raise ValueError("Connector at disagrees with WGS84 geodetic vertex fraction")
+            linked.append((index,cid,at))
+        linked.sort()
+        if linked[0][0] != 0 or linked[-1][0] != len(coords)-1 or len({v[0] for v in linked}) != len(linked):
+            raise ValueError("Incomplete/ambiguous segment endpoints")
+        used.update(ids)
+        provenance[fid].update(road_class=p["class"], connectors=[dict(connector_id=c, at=a, vertex=i) for i,c,a in linked], road_ids=[])
+        for left,right in zip(linked,linked[1:]):
+            if len(roads) >= MAX_ROADS: raise ValueError("Transportation split-road budget exceeded")
+            roads.append(dict(source_id=fid, start=left[1], end=right[1], coords=coords[left[0]:right[0]+1], width=segment["width"], surface=segment["surface"]))
+    if used != set(connectors): raise ValueError("Unreferenced connectors; incomplete graph is not adopted")
+    metadata = dict(query, source_position_count=total_points, segment_sources=[provenance[f] for f in sorted(segments)],
+                    connector_sources=[provenance[f] for f in sorted(connectors)])
+    return dict(roads=roads, connectors=connectors, metadata=metadata)
+
+
+def convert(parsed, source, raw, *, layer_id, coordinates, accuracy="unknown", progress=None):
+    from shapely.geometry import LineString
+    transform = Coordinates(coordinates)
+    if transform.metadata["mode"] != "wgs84-utm": raise ValueError("Transportation needs explicit WGS84 origins")
+    # Metadata is owned by this conversion, not mutated on the reusable parse result.
+    metadata = json.loads(json.dumps(parsed["metadata"]))
+    layer = ImportLayer(layer_id, Source(source,hashlib.sha256(raw).hexdigest(),len(raw),LICENSE,accuracy),
+                        transform.metadata, adapter="overture-transportation-v1")
+    layer.coordinates["overture_transportation"] = metadata
+    layer.feature_count = len(metadata["segment_sources"]) + len(metadata["connector_sources"])
+    height = round(metadata["ground_m"]*100)
+    prefix = f"import-{layer_id}-"
+    projected, occupied = {}, {}
+    def point(pos):
+        key = tuple(pos)
+        if key not in projected:
+            x,z = transform.point(pos)
+            if (x,z) in occupied and occupied[x,z] != key:
+                raise ValueError("Distinct source vertices collapse after centimetre projection")
+            occupied[x,z] = key
+            projected[key] = [x,height,z]
+        p = projected[key]
+        layer.point(p[0],p[2])
+        return p
+    node_ids = {}
+    for index, entry in enumerate(metadata["connector_sources"]):
+        cid = entry["id"]
+        nid = prefix + f"connector-{index}"
+        node_ids[cid] = nid
+        p = point(parsed["connectors"][cid])
+        entry.update(node_id=nid, position_cm=p)
+        layer.add("nodes",dict(id=nid,position=p,level=0))
+    segments = {entry["id"]:entry for entry in metadata["segment_sources"]}
+    for index, road in enumerate(parsed["roads"]):
+        rid = prefix + f"road-{index}"
+        points = [point(p) for p in road["coords"]]
+        if not LineString([(p[0],p[2]) for p in points]).is_simple: raise ValueError("Road self-crosses after projection")
+        width = road["width"]
+        if width is None:
+            width = 8
+            layer.estimate("width_m")
+        surface = road["surface"]
+        if surface in (None,"unknown","paved"):
+            surface = "asphalt"
+            layer.estimate("asphalt_surface")
+        segments[road["source_id"]].update(width_cm=round(width*100), surface=surface)
+        layer.estimate("chosen_road_plane")
+        layer.add("roads",dict(id=rid,**{"from":node_ids[road["start"]],"to":node_ids[road["end"]]},
+            points=points,widths_cm=[round(width*100)]*(len(points)-1),surfaces=[surface]*(len(points)-1),
+            kind="ground",clearance_cm=None,sidewalk_cm=None))
+        segments[road["source_id"]]["road_ids"].append(rid)
+        if progress: progress(index+1,len(parsed["roads"]))
+    layer.warning("Transportation ground graph only; exact connector IDs connect endpoints. Interior connectors split whole source segments. Crossing coordinates never create graph connections.")
+    layer.warning("Chosen road plane is an estimate, not source elevation or terrain sampling. Recipe 2+ ground ribbons follow terrain. Verify terrain alignment before adoption; level is not metric height.")
+    layer.warning("Absent width estimates 8 m; paved/unknown/absent surface estimates asphalt. Source names, routes, destinations and speed limits remain in the snapshot, not game rules. No inferred sidewalks.")
+    layer.warning("Complete segment/connector query required. Crossing bbox, missing refs, rail/water, restrictions, structures and partial physical rules reject the whole candidate. No clipped or repaired graph.")
+    layer.encode()
+    return layer
+
+
+if __name__ == "__main__":
+    try: area.main(acquire)
+    except Exception as exc:
+        print(json.dumps({"error":str(exc)[:1024]}),file=sys.stderr)
+        sys.exit(1)

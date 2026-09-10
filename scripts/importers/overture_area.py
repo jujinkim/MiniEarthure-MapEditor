@@ -40,6 +40,10 @@ def checked_plan(value):
 
 
 def remote_features(query):
+    yield from read_features(query, ["building", "building_part"] if query.get("include_parts") else ["building"], query.get("include_parts", False))
+
+
+def read_features(query, kinds, explicit_types=True):
     try:
         if version("overturemaps") != CLIENT_VERSION: raise ImportError("version mismatch")
         from overturemaps.core import record_batch_reader
@@ -48,7 +52,7 @@ def remote_features(query):
         raise ValueError("Overture needs overturemaps 1.0.2; install requirements-import.txt in the selected Python") from exc
     # Exhaust both readers for the same reviewed envelope/release before publication.
     # Requiring complete contained parents during parse avoids partial bbox families.
-    for kind in (["building", "building_part"] if query.get("include_parts") else ["building"]):
+    for kind in kinds:
         with contextlib.redirect_stdout(sys.stderr):
             reader = record_batch_reader(kind, bbox=query["bbox"], release=query["release"], stac=True, connect_timeout=15, request_timeout=15)
         if reader is None: raise ValueError("No Overture reader; area may be empty or provider unavailable")
@@ -66,7 +70,7 @@ def remote_features(query):
                     shape = from_wkb(geometry)
                     if shape.has_z or shape.has_m:
                         raise ValueError("Overture Z/M geometry is unsupported")
-                    if query.get("include_parts"):
+                    if explicit_types:
                         if row.get("type", kind) != kind: raise ValueError("Provider feature type mismatch")
                         row["type"] = kind
                     yield dict(type="Feature", id=row.get("id"), geometry=json.loads(to_geojson(shape)), properties=row)
@@ -77,8 +81,8 @@ def _json_default(value):
     raise ValueError("Unsupported provider value")
 
 
-def acquire(query, partial, destination, progress, features=remote_features):
-    checked = checked_plan(query)
+def acquire(query, partial, destination, progress, features=remote_features, *, checker=checked_plan, feature_limit=None):
+    checked = checker(query)
     if query != checked: raise ValueError("Overture review contract changed")
     count, seen = 0, set()
     header = json.dumps(dict(snapshot_version=1, **query), sort_keys=True).encode()[:-1] + b',"features":['
@@ -88,7 +92,7 @@ def acquire(query, partial, destination, progress, features=remote_features):
         stream.write(header)
         for feature in features(query):
             count += 1
-            if count > (MAX_VERTICAL_FEATURES if query.get("include_parts") else MAX_FEATURES): raise ValueError("Overture feature budget exceeded")
+            if count > (feature_limit if feature_limit is not None else MAX_VERTICAL_FEATURES if query.get("include_parts") else MAX_FEATURES): raise ValueError("Overture feature budget exceeded")
             identity = text(feature.get("id"), "Overture ID", 128)
             if identity in seen: raise ValueError("Duplicate Overture ID")
             seen.add(identity)
@@ -98,7 +102,7 @@ def acquire(query, partial, destination, progress, features=remote_features):
             if count > 1: stream.write(b",")
             stream.write(encoded)
             if count % 100 == 0: progress(size, MAX_INPUT)
-        if count == 0: raise ValueError("No buildings in selected area")
+        if count == 0: raise ValueError("No source features in selected area")
         stream.write(b"]}")
         stream.flush()
         os.fsync(stream.fileno())
@@ -251,7 +255,8 @@ def finish(layer, metadata):
     return layer
 
 
-def main():
+def main(acquirer=None):
+    if acquirer is None: acquirer = acquire
     from geojson import watch_parent_lifetime
     parser = argparse.ArgumentParser()
     parser.add_argument("request", type=Path)
@@ -267,7 +272,7 @@ def main():
         nonlocal sequence
         sequence += 1
         print(json.dumps(dict(request=args.layer_id, seq=sequence, stage=stage, completed=completed, total=total, unit="bytes", **extra)), flush=True)
-    result = acquire(request["plan"], args.output.parent / "download.part", Path(request["destination"]), lambda c,t:event("acquire",c,t))
+    result = acquirer(request["plan"], args.output.parent / "download.part", Path(request["destination"]), lambda c,t:event("acquire",c,t))
     encoded = json.dumps(result, sort_keys=True).encode()
     event("write",0,len(encoded))
     with args.output.open("xb") as stream: stream.write(encoded)

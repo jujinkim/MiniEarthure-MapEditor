@@ -689,7 +689,7 @@ separate; no representative-data or performance result is claimed.
 
 ## Bounded area-selection wizard — 2026-09-09
 
-In Import, choose **Download Overture building area…**. Enter a dated release and
+In Import, choose **Download Overture area…** (Buildings). Enter a dated release and
 W/S/E/N coordinates, then **Fit coordinates** to inspect the envelope. Drag in the
 offline coordinate diagram in either direction to replace the bbox; numeric fields
 remain the precise keyboard path. **Area at import origin** explicitly seeds a
@@ -886,3 +886,97 @@ python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/
 Actual provider accuracy/Internet acquisition, installed target platforms and
 performance acceptance remain deferred. Larger areas, incomplete family handling,
 underground solids, automatic terrain alignment and other themes are unimplemented.
+
+
+## Overture transportation ground graph — 2026-09-10
+
+`overture-transportation-v1` is a separate, bounded adapter; building snapshots and
+`overture-buildings-v1` keep their existing contract. In **Import vector → Download
+Overture area…**, select **Transportation · ground roads + connectors**. Choose a
+dated release, bbox and explicit road reference plane, review, then download.
+The acquisition uses `overturemaps 1.0.2` segment and connector readers for exactly
+one release/bbox. Both readers must finish before the immutable
+`.overture-roads.json` snapshot is exclusively published. Select that format for
+local snapshots too; choose geographic/local origins, import, review and adopt.
+The scrollable source form keeps Cancel and Review accessible at 1024×720.
+
+Supported profile:
+
+- Source cap: 32 MiB, 1024 total segment/connector features, 8192 source positions,
+  at most 2048 split roads. Existing 12 MiB output/16 MiB history/native admission,
+  owned worker deadline/pipe/parent lifetime and exclusive publication remain.
+  Provider Arrow/STAC/network allocations are not bounded by the snapshot cap.
+- Every source position must be strictly inside the reviewed bbox. No segment
+  clipping or selected-feature dropping. Every endpoint and internal reference
+  must resolve to an exact connector vertex. All connectors must be referenced.
+  Missing/duplicate/ambiguous references, incomplete endpoints, out-of-area features,
+  loops/self-crossings and centimetre projection collapse reject the whole layer.
+- Interior connectors split the polyline without changing its coordinates. One
+  source connector ID maps to one authored node; coincident distinct IDs remain
+  distinct and 2D crossings never add graph edges. Reference `at` is checked using
+  WGS84 ellipsoid distance (pyproj Geod) with absolute fractional tolerance 1e-7;
+  this tolerates serialized fractions, not off-vertex snapping or inferred links.
+  Source/connector/segment ordering is canonical; fresh layers get fresh namespaces.
+- Road classes: motorway, trunk, primary, secondary, tertiary, residential,
+  living_street, service and unclassified. Ground level only; absent/zero `level`
+  or one whole-segment zero `level_rules` is accepted. `is_link` and link subclass
+  are accepted; bridges/tunnels, nonzero z-order and other flags reject. A z-order
+  is never converted into metric elevation.
+- One whole-segment `width_rules`/`road_surface` rule (absent/null or `[0,1]` scope)
+  is supported. Missing width estimates 8 m. Gravel/dirt retain their material;
+  paved/unknown/missing surface estimates asphalt. Other/ambiguous materials,
+  varying/conditional physical rules and unsupported subclasses reject.
+- The chosen Y plane is a reviewed source-reference estimate. Recipe 2+ ground
+  geometry follows terrain; it does not create raised decks or flatten terrain.
+  Review terrain alignment yourself. The adapter never samples DEM or infers
+  metric bridge/tunnel heights. Names/routes/destinations/speed limits stay in the
+  source snapshot and are explicitly not game rules. Nonempty access/turn
+  restrictions or unknown semantic properties reject instead of being erased.
+
+Source SHA-256, release/bbox/plane, version and all source attribution entries,
+connector→node geometry and segment→ordered split-road mappings survive one native
+validated additive command, Undo/Redo, save/reopen/recovery and package export.
+The GDScript boundary rechecks mapping completeness, physical arrays, plane and
+source/output point counts before whole-document native validation. Reimport adds
+a new graph; source and previous package bytes remain unchanged. Selection changes,
+even changed then restored, invalidate acquisition review. Cancel/deadline/owner
+close stop only the owned child; late document/selection results cannot be adopted.
+
+Official contracts consulted 2026-09-10:
+[segment/connector identity](https://docs.overturemaps.org/guides/transportation/segments-and-connectors/),
+[geodetic linear references](https://docs.overturemaps.org/guides/transportation/linear-referencing/),
+[segment schema](https://docs.overturemaps.org/schema/reference/transportation/segment/),
+[road surfaces](https://docs.overturemaps.org/schema/reference/transportation/types/segment/road_surface/),
+[transportation attribution](https://docs.overturemaps.org/attribution/#transportation).
+Theme notice retains ODbL, OpenStreetMap contributors, TomTom and Overture, together
+with the original per-feature source notices. Only synthetic fixtures are tested.
+
+Mac verification: Python transportation tests (7) plus existing Overture tests
+(15); real synthetic Arrow/WKB dual-reader/exclusive capture, whole rejection and
+budgets. Godot compiled PCK on a native display: transportation (67 checks), existing
+buildings/vertical parts, area selection, import-layer, worker lifetime and history
+passed without diagnostics. Includes actual recipe-2 native junction generation,
+source roundtrips, recovery, additive reimport, cancellation and stale responses.
+
+```sh
+rtk proxy /path/to/import-python -B -m unittest discover -s tests -p 'test_overture*.py' -v
+rtk proxy python3.12 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/import-python --script overture_transportation_validator --script overture_validator --script overture_vertical_validator --script area_selection_validator --script import_layer_validator --script import_job_validator --script document_history_validator --resource-pack --rendered --log-dir /new/transportation
+```
+
+The initial tests exposed shared synthetic coordinates, source array order, JSON
+integral floats and a colliding test package filename. Fixtures now mutate the
+intended feature independently/by ID and use an isolated package name; integral
+JSON version numbers are accepted while booleans/fractions reject. The expanded
+form initially exceeded the minimum window; its scrollable content now passes.
+No assertion was relaxed to accept a broken graph or partial source.
+
+Still unimplemented: arbitrary linear-referenced physical rule boundaries,
+conditional restrictions/routing, off-vertex connectors, metric structures,
+rail/water paths, partial graph/large-region acquisition and terrain/datum alignment.
+Next unit is **Overture transportation varying width/surface linear-reference
+normalization**: interval coverage/overlap/unknown-rule rejection, geodetic boundary
+interpolation, preservation of connector identity and per-span provenance require a
+separate geometry unit. This delivery is not whole-I02 or final acceptance.
+Real provider/Internet/accuracy, installed Windows/Linux and Client driving,
+representative performance and full integration remain deferred to their retained
+verification phase. A host PCK does not establish native target distribution.

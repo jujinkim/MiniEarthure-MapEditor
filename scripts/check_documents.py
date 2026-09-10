@@ -62,7 +62,7 @@ def main():
                     ('user-path', [godot, '--headless', '--path', str(project), '--script', 'res://check_user_path.gd'])]
         scripts = ['document_history_validator', 'document_recovery_validator']
         if args.full:
-            scripts += ['editor_ux_validator', 'editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator', 'import_layer_validator', 'import_job_validator', 'projection_validator', 'heightmap_import_validator', 'osm_import_validator', 'osm_structures_validator', 'osm_multipolygon_validator', 'download_validator', 'overture_validator', 'area_selection_validator', 'osm_area_validator', 'overture_geometry_validator', 'overture_vertical_validator', 'dem_validator', 'dem_mosaic_validator']
+            scripts += ['editor_ux_validator', 'editor_validator', 'test_drive_validator', 'workbench_validator', 'authoring_validator', 'authoring_safety_validator', 'preview_export_validator', 'import_layer_validator', 'import_job_validator', 'projection_validator', 'heightmap_import_validator', 'osm_import_validator', 'osm_structures_validator', 'osm_multipolygon_validator', 'download_validator', 'overture_validator', 'area_selection_validator', 'osm_area_validator', 'overture_geometry_validator', 'overture_vertical_validator', 'overture_transportation_validator', 'dem_validator', 'dem_mosaic_validator']
         if args.script:
             scripts = args.script
         pack_args = []

@@ -4,6 +4,7 @@ const MAX_BYTES := 12 * 1024 * 1024
 const FIELDS := ["nodes", "roads", "buildings", "zones"]
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 const OVERTURE_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
+const OVERTURE_TRANSPORTATION_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation"
 var value: Dictionary = {}
 
 static func _hex(text: Variant, length: int) -> bool:
@@ -45,7 +46,7 @@ static func _coordinates(c: Variant, requested: Dictionary) -> String:
 func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -> String:
 	value = {}
 	if raw is not Dictionary or JSON.stringify(raw).to_utf8_buffer().size() > MAX_BYTES: return "Invalid or oversized ImportLayer."
-	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1", "overture-buildings-v1"]: return "Unsupported ImportLayer version/adapter."
+	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1", "overture-buildings-v1", "overture-transportation-v1"]: return "Unsupported ImportLayer version/adapter."
 	if requested.has("adapter") and raw.adapter != requested.adapter: return "Import adapter does not match request."
 	if not _hex(raw.get("layer_id"), 32) or raw.layer_id != expected_id: return "Stale or invalid import identity."
 	var source: Variant = raw.get("source")
@@ -140,6 +141,9 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if patch.field == "nodes": nodes[patch.id] = true
 	for patch in raw.patches:
 		if patch.field == "roads" and (not nodes.has(patch.after.get("from")) or not nodes.has(patch.after.get("to"))): return "Imported roads must reference their own layer nodes."
+	if raw.adapter == "overture-transportation-v1":
+		var transport_error: String = preload("./import_transportation.gd").validate(raw, get_script())
+		if transport_error != "": return transport_error
 	value = raw.duplicate(true)
 	return ""
 
