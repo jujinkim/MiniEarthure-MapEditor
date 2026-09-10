@@ -89,7 +89,9 @@ source accuracy and license (fixed ODbL/contributor notice for OSM), then prepar
 a typed local-metre or WGS84 layer in a Python 3 child process. WGS84 uses an explicit geographic/local
 origin and optional pyproj 3.7.2 from `requirements-import.txt`. Review extent, provenance and estimated values
 before **Adopt new layer**. Discard changes nothing; reimport creates a fresh layer
-and adoption is one Undo command. See [import contracts](docs/IMPORTS.md).
+and adoption is one Undo command. GeoJSON multipart lines become independent ground
+roads with exact source-part mapping; see [multipart road input](docs/IMPORTS.md#local-geojson-multipart-roads--2026-09-10)
+and [import contracts](docs/IMPORTS.md).
 The wizard supports Python executable selection, actual per-stage progress, Cancel
 and Retry last source. Child exit/output/identity budgets protect publication;
 owner shutdown and a parent-EOF watchdog stop helpers. Structural OSM surface checks

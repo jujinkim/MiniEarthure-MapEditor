@@ -9,7 +9,7 @@ import uuid
 import os
 import threading
 import time
-from import_layer import ImportLayer, Source, MAX_INPUT, number, text, strict_json
+from import_layer import ImportLayer, Source, MAX_INPUT, MAX_RECORDS, number, text, strict_json
 from projection import Coordinates
 from polygon_geometry import Budget, group_rings
 
@@ -50,35 +50,53 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 layer.estimate(key)
             return number(properties.get(key, default), key, minimum, maximum)
 
-        if kind == "LineString":
-            if "osm_node_refs" in properties and not osm_graph:
-                raise ValueError("OSM graph metadata requires the OSM conversion path; no silent flattening")
-            explicit = osm_graph and "elevations_m" in properties
-            elevations = properties.get("elevations_m") if explicit else [scalar("elevation_m", 0.2)] * len(coordinates)
-            if not isinstance(elevations, list) or len(elevations) != len(coordinates):
-                raise ValueError("road elevation profile must match coordinates")
-            points = [[p[0], round(number(h, "road elevation", -10000 if explicit else -100000, 10000 if explicit else 100000) * 100), p[1]] for p,h in zip(map(point, coordinates), elevations)]
-            if len(points) < 2:
-                raise ValueError("road requires two points")
-            level = scalar("level", 0, -100, 100)
-            if int(level) != level:
-                raise ValueError("level must be integral")
-            endpoints = []
-            for offset, suffix, p in [(0, "from", points[0]), (-1, "to", points[-1])]:
-                node_id = f"import-{layer.layer_id}-osm-node-{properties['osm_node_refs'][offset]}" if explicit else identity + "-" + suffix
-                record = {"id": node_id, "position": p, "level": int(level)}
-                if node_id in graph_nodes and graph_nodes[node_id] != record:
-                    raise ValueError("OSM shared node has conflicting geometry")
-                if node_id not in graph_nodes:
-                    layer.add("nodes", record)
-                    graph_nodes[node_id] = record
-                endpoints.append(node_id)
-            width = round(scalar("width_m", 8, 0.01, 1000) * 100)
-            surface = text(properties.get("surface", "asphalt"), "surface", 64)
-            if "surface" not in properties: layer.estimate("surface")
-            layer.add("roads", {"id": identity, "from": endpoints[0], "to": endpoints[1], "points": points,
-                "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": properties["road_kind"] if explicit else "ground", "clearance_cm": round(properties["clearance_m"] * 100) if explicit and "clearance_m" in properties else None, "sidewalk_cm": None})
-            if not explicit: layer.warning(f"{index}: disconnected endpoints; connect explicitly in Editor")
+        if kind in ("LineString", "MultiLineString"):
+            lines = [coordinates] if kind == "LineString" else coordinates
+            if not lines:
+                raise ValueError("MultiLineString requires at least one line")
+            if kind == "MultiLineString":
+                # This is authored ground geometry, never an implicit OSM graph.
+                if osm_graph or any(key in properties for key in ("osm_node_refs", "elevations_m", "road_kind", "clearance_m")):
+                    raise ValueError("MultiLineString does not support structural/OSM graph metadata")
+                if len(layer.patches) + 3 * len(lines) > MAX_RECORDS:
+                    raise ValueError("import record budget exceeded by MultiLineString parts")
+                mapping = dict(feature=index, road_ids=[], point_counts=[])
+                layer.coordinates.setdefault("geojson_multilines", dict(profile="disconnected-parts-v1", features=[]))["features"].append(mapping)
+            for part, line in enumerate(lines):
+                if not isinstance(line, list) or len(line) < 2:
+                    raise ValueError("road requires an array of at least two positions")
+                road_id = identity if kind == "LineString" else f"{identity}-part-{part}"
+                if "osm_node_refs" in properties and not osm_graph:
+                    raise ValueError("OSM graph metadata requires the OSM conversion path; no silent flattening")
+                explicit = osm_graph and "elevations_m" in properties
+                elevations = properties.get("elevations_m") if explicit else [scalar("elevation_m", 0.2)] * len(line)
+                if not isinstance(elevations, list) or len(elevations) != len(line):
+                    raise ValueError("road elevation profile must match coordinates")
+                points = [[p[0], round(number(h, "road elevation", -10000 if explicit else -100000, 10000 if explicit else 100000) * 100), p[1]] for p,h in zip(map(point, line), elevations)]
+                level = scalar("level", 0, -100, 100)
+                if int(level) != level:
+                    raise ValueError("level must be integral")
+                endpoints = []
+                for offset, suffix, p in [(0, "from", points[0]), (-1, "to", points[-1])]:
+                    node_id = f"import-{layer.layer_id}-osm-node-{properties['osm_node_refs'][offset]}" if explicit else road_id + "-" + suffix
+                    record = {"id": node_id, "position": p, "level": int(level)}
+                    if node_id in graph_nodes and graph_nodes[node_id] != record:
+                        raise ValueError("OSM shared node has conflicting geometry")
+                    if node_id not in graph_nodes:
+                        layer.add("nodes", record)
+                        graph_nodes[node_id] = record
+                    endpoints.append(node_id)
+                width = round(scalar("width_m", 8, 0.01, 1000) * 100)
+                surface = text(properties.get("surface", "asphalt"), "surface", 64)
+                if "surface" not in properties: layer.estimate("surface")
+                layer.add("roads", {"id": road_id, "from": endpoints[0], "to": endpoints[1], "points": points,
+                    "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": properties["road_kind"] if explicit else "ground", "clearance_cm": round(properties["clearance_m"] * 100) if explicit and "clearance_m" in properties else None, "sidewalk_cm": None})
+                if not explicit:
+                    label = str(index) if kind == "LineString" else f"{index} part {part}"
+                    layer.warning(f"{label}: disconnected endpoints; connect explicitly in Editor")
+                if kind == "MultiLineString":
+                    mapping["road_ids"].append(road_id)
+                    mapping["point_counts"].append(len(points))
         elif kind in ("Polygon", "MultiPolygon"):
             polygons = [coordinates] if kind == "Polygon" else coordinates
             if not polygons:

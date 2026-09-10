@@ -17,7 +17,9 @@ at the end of this document. Select the format explicitly in **Import vector**.
 The [PBF streaming extension](#osm-pbf-selected-area-streaming--2026-09-10)
 adds an explicit local-source profile beyond 32 MiB; earlier whole-source limits
 still apply when streaming is disabled.
-`geojson-v2`: explicit local-metre or WGS84 LineString, Polygon and MultiPolygon input.
+`geojson-v2`: explicit local-metre or WGS84 LineString, MultiLineString, Polygon and
+MultiPolygon input. [Multipart roads](#local-geojson-multipart-roads--2026-09-10)
+retain independent parts and explicit source mapping.
 Forest/orchard polygon holes become existing zone exclusions; recipe-5 building holes
 are supported by the courtyard extension below, which supersedes earlier rejection.
 The local-metre extension is not RFC 7946 geographic GeoJSON. Legacy `crs`, Z, other
@@ -2204,3 +2206,89 @@ synthetic PNGs, actual child/native work, controlled preparation barriers, origi
 mutation, stale UI, malformed/oversized input and IPC, owned cleanup, exact binary
 Undo/Redo, save/reopen and original package/bridge preservation. Installed
 Windows/Linux, real-region accuracy and driving/latency/RSS remain separate gates.
+
+
+## Local GeoJSON multipart roads — 2026-09-10
+
+The local support audit selected `MultiLineString` as one bounded source-geometry
+extension. This explicitly replaces the earlier generic GeoJSON refusal for this
+geometry only. The `geojson-v2` adapter and ImportLayer version 1 remain compatible;
+existing LineString/OSM IDs, records and warnings retain their behavior. No MapKit
+recipe, native ABI, package format or game dependency changes.
+
+**Import vector → GeoJSON** accepts a nonempty array of lines, each containing at
+least two finite 2D positions. Choose local metres or explicit WGS84 origins as
+before. [RFC 7946 §3.1.4–5](https://www.rfc-editor.org/rfc/rfc7946#section-3.1.5)
+defines the coordinate nesting; the local-metre mode and conversion to authored
+roads are Editor conventions. This is geometry input, not inferred navigation.
+
+- Preserve feature order, part order and direction; emit one ground road and two
+  independent endpoints per part. Coincident endpoints remain different nodes.
+  No joining, snapping, graph repair, crop or automatic intersection is performed.
+- A feature's `width_m`, `surface`, `elevation_m` and integral `level` apply uniformly
+  to each part, with the same defaults and admission ranges as LineString.
+  Estimates and disconnected-endpoint warnings count each output part. Ground
+  height/level retain the existing recipe-dependent authored-road meaning; they
+  are not measured terrain elevations or a bridge/tunnel interpretation.
+- Empty/short/malformed parts, Z, nonfinite coordinates and invalid properties
+  reject the entire candidate. Multipart `osm_node_refs`, `elevations_m`,
+  `road_kind`, `clearance_m` and the internal OSM graph path are explicitly refused.
+  Existing MapKit document and geometry checks still reject unsupported/collapsed
+  roads. Point, MultiPoint, GeometryCollection and arbitrary structural inputs
+  remain outside this profile. Other foreign properties are not game rules.
+- IDs are `import-<layer>-<feature-index>-part-<part-index>`; endpoints add `-from`
+  and `-to`. The full source bytes/hash, source name, license and accuracy remain
+  recorded. `feature_count` counts source features; `point_count` counts every
+  position across all parts. Reimport gets a fresh layer namespace.
+- `coordinates.geojson_multilines` has `profile=disconnected-parts-v1` and ordered
+  `features` entries containing `feature`, `road_ids`, `point_counts`. Each
+  zero-based part index maps to one exact output road. Editor validates the profile,
+  feature/part order, IDs, complete mapping, point counts, ground kind and distinct
+  endpoint ownership/positions before native validation. Missing/forged mappings
+  reject. The bounded summary exposes the profile; **Browse exact details** reaches
+  every mapping. The exact mapping is saved in the existing attribution notice.
+- Existing 32 MiB source, 20,000 source features, 200,000 positions, 60,000 records,
+  12 MiB typed result, 50 warning samples and shared 16 MiB Undo budgets remain.
+  Before projecting multipart coordinates, reserve capacity for all `3 × parts`
+  records against the existing record count; at most 20,000 parts fit even in an
+  otherwise empty layer. Native/command budgets can refuse smaller candidates.
+  These bounds do not establish RSS or frame-latency guarantees.
+
+The existing owned Python conversion and owned Godot review/adoption lifetimes
+apply. Cancellation, stale selection/document/source rejection, one-command
+adoption and Undo/Redo, recovery and package preservation remain unchanged.
+Nonstructural review performs native document/file validation; this does not mean
+every affected cell was generated during review. Synthetic tests additionally
+export/open a package and actually generate a cell containing the new roads.
+
+Scoped Mac checks: `tests/test_multilines.py` covers ordered/disconnected parts,
+property defaults, mixed/single-part inputs, projection parity, source preservation,
+exclusive output and whole rejection/budgets. `multilines_validator` exercises the
+actual UI worker→review/details→pointer discard/adopt→Undo/Redo→save/recovery→package
+flow, forged metadata, source mutation, selection restoration, cancellation and
+native collapsed-geometry refusal. It is included in `check_documents.py --full`.
+The same test runs from the compiled standalone PCK and on the native display.
+
+    python3 -B -m unittest discover -s tests -p test_multilines.py -v
+    python3 scripts/check_documents.py --godot /path/to/godot --import-python /path/to/import-python --script multilines_validator --resource-pack --log-dir /new/multilines-checks
+
+Use Python with `requirements-import.txt` for geographic fixtures. Replace
+`--resource-pack` with `--rendered` for display execution; an existing directory in
+`MAPEDITOR_MULTILINES_CAPTURE_DIR` receives review/details captures. Windows/Linux
+installed builds, real-region accuracy, driving and performance are still open.
+
+### Remaining local support after this unit
+
+| Source family | Current capability and independent remaining work |
+| --- | --- |
+| GeoJSON | Multipart lines now join existing LineString and polygon/courtyard support. Arbitrary geometry collections, point semantics and structural profiles remain unsupported. |
+| OSM | Explicit structures, connected junctions, partial crop and local height supplements are delivered. Closed ground highway ways still require explicit segmentation; closed-loop connectivity, native junctions and crop/stream completeness need a separate contract. |
+| Overture | Building parts/courtyards, ground transportation intervals/connectors and land-cover forests are delivered. Bridge/tunnel heights, other flags/classes and larger selected areas remain unsupported. |
+| DEM/PNG | Local COG mosaics and staged full-cell PNGs are delivered. General geoid file preparation, broader raster profiles and larger selections remain separate from this line-geometry adapter. |
+
+Next source unit: bounded **OSM closed ground-road input and explicit connectivity**.
+Start with the closed-road refusal in `osm_extract.parse`, `split_vertical_roads`,
+`osm_area.crop` and `osm_stream.extract`; define original-node identities, incident
+approaches, deterministic segmentation and native acceptance before changing the
+refusal. This is a distinct OSM graph/crop/stream task, not more multipart-line
+normalization. Remote source acquisition remains excluded; do not simply raise caps.

@@ -180,6 +180,8 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if crop is Dictionary and crop.get("policy") in ["geometry-intersection-v2", "geometry-intersection-v3", "geometry-intersection-v4"] and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
 	for patch in raw.patches:
 		if patch.field == "roads" and (not nodes.has(patch.after.get("from")) or not nodes.has(patch.after.get("to"))): return "Imported roads must reference their own layer nodes."
+	var multiline_error: String = preload("./import_multilines.gd").validate(raw, get_script())
+	if multiline_error != "": return multiline_error
 	var connection_error := _structure_connections(raw, prefix)
 	if connection_error != "": return connection_error
 	if crop is Dictionary and crop.get("policy") in ["geometry-intersection-v3", "geometry-intersection-v4"]:
@@ -429,7 +431,7 @@ func summary() -> String:
 	if value.is_empty(): return "No import candidate."
 	var text := preload("./import_review_text.gd")
 	var coordinates := {}
-	for key in ["mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
+	for key in ["mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_multilines", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
 		if value.coordinates.has(key): coordinates[key] = value.coordinates[key]
 	var estimates := ""
 	var count := 0
