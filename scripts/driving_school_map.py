@@ -52,7 +52,7 @@ def box(center, size):
             (x-w,h+t,y-d),(x+w,h+t,y-d),(x+w,h+t,y+d),(x-w,h+t,y+d)]
 
 
-def glb(solids, indexed=False):
+def glb(solids, indexed=False, generator=None):
     """Small static flat-shaded meshes, in glTF metres, with embedded materials."""
     binary, views, accessors, primitives, materials = bytearray(), [], [], [], []
     for solid in solids:
@@ -85,7 +85,8 @@ def glb(solids, indexed=False):
                                   min=[min(p[i] for p in values) for i in range(3)],
                                   max=[max(p[i] for p in values) for i in range(3)]))
             indices.append(len(accessors)-1)
-        materials.append(dict(pbrMetallicRoughness=dict(baseColorFactor=color, metallicFactor=0, roughnessFactor=0.85)))
+        pbr = color if isinstance(color, dict) else dict(baseColorFactor=color, metallicFactor=0, roughnessFactor=0.85)
+        materials.append(dict(pbrMetallicRoughness=pbr))
         primitive = dict(attributes=dict(POSITION=indices[0], NORMAL=indices[1]), material=len(materials)-1, mode=4)
         if indexed:
             offset = len(binary)
@@ -95,7 +96,7 @@ def glb(solids, indexed=False):
             primitive['indices'] = len(accessors)-1
             binary.extend(b"\0" * (-len(binary) % 4))
         primitives.append(primitive)
-    doc = dict(asset=dict(version="2.0", generator=PROFILE), scene=0, scenes=[dict(nodes=[0])],
+    doc = dict(asset=dict(version="2.0", generator=generator or PROFILE), scene=0, scenes=[dict(nodes=[0])],
                nodes=[dict(mesh=0)], meshes=[dict(primitives=primitives)], materials=materials,
                accessors=accessors, bufferViews=views, buffers=[dict(byteLength=len(binary))])
     data = canonical(doc)
@@ -310,6 +311,8 @@ def build():
     compact(t)
     from city_expansion import expand
     expand(t)
+    from shop_block import refine
+    refine(t)
     return t
 
 
@@ -332,7 +335,7 @@ def create(destination):
     from kart_village_courses import REFERENCES
     report["references"] = REFERENCES
     report["world_scale"] = 1.0
-    report["profile"]=PROFILE
+    report["profile"]=t.doc['map_id']
     report["city"]=t.city_report
     report["landmarks"]=dict(city_blocks=41,
         city_buildings=sum(b["id"].startswith("city-block-") for b in t.doc["buildings"]),

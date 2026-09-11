@@ -1,6 +1,6 @@
 {
-  "profile": "driving-school-town-v5",
-  "map_id": "driving-school-town-v5",
+  "profile": "driving-school-town-v4",
+  "map_id": "driving-school-town-v4",
   "bounds_cm": {
     "min": [
       0,
@@ -15,25 +15,25 @@
   "cell_size_cm": 1600,
   "cell_count": 432,
   "counts": {
-    "nodes": 378,
-    "roads": 586,
+    "nodes": 376,
+    "roads": 583,
     "buildings": 786,
     "zones": 37,
-    "assets": 47,
-    "placements": 2436,
+    "assets": 33,
+    "placements": 2428,
     "repetitions": 0,
     "heightmaps": 432
   },
-  "authored_object_count": 4702,
-  "road_centerline_planar_m": 9216.837764,
-  "road_centerline_spatial_m": 9216.942828,
+  "authored_object_count": 4675,
+  "road_centerline_planar_m": 9185.087764,
+  "road_centerline_spatial_m": 9185.192828,
   "terrain": {
     "description": "exact synthetic flat PNG16, 4m grid; compact practice hill, elevated freeway and two vehicle-clearance bridges",
     "spacing_cm": 400,
     "source_accuracy_cm": null
   },
   "source_files": {
-    "document.json": "a336d90c6356e9cf8ff2fe3e7617ac0243e13893b9ef00d8d37c1d7c978fc66d",
+    "document.json": "f3492eb040dbdb99dffc5e6884d1113a65dca90d9ed7b35a4032db9a171b9dba",
     "assets/city-bench.glb": "3689eb6cc7957f86e35f89e5bfc590f74eb6085ae7b187c24edfc3cb96b88eab",
     "assets/city-bin.glb": "396edb1d0c6421cc013a41c2091731b54a92088dcd7f9b3831c953d8d6c1a29b",
     "assets/city-bollard.glb": "9174f47302fca9d2a345e97b4c3fecd3a617ce7eebcc5828f53d0c49b6524c0e",
@@ -58,20 +58,6 @@
     "assets/korea-building-6.glb": "e9c6e51d9265beea5741238509153a722247f9a7a62f6912ac33a6e99e52d0ad",
     "assets/korea-building-7-compact.glb": "f756d32b844a4f9b4847101f920b97a958c1044df72ba245063bc77013a7a008",
     "assets/korea-building-7.glb": "d07fc34b8de7a2debd2736da67760e41704d4fec3a1035f25499744b8e5d1d31",
-    "assets/q01-arrow.glb": "fb1064f983070bc27cc1f12628551103d64002b090195a975485e231bbd878a4",
-    "assets/q01-asphalt-repair.glb": "e9fdf6643098dd4677351d69e63a261256187fd586407588e46342db9f1a0c27",
-    "assets/q01-book.glb": "d97b9940d527a6e9b2a0b7377ac331bb28953da4872e297015b2f8b6bc95d1b7",
-    "assets/q01-cafe-table.glb": "9561e3acdefa49c79ecdac11d4673b6095e62cd9f8623603b3dfb60716385b52",
-    "assets/q01-cafe.glb": "32fd1eb428d2673ce2680f684b3adae2c69c2ddac81e8a3952431686393abc5c",
-    "assets/q01-diner.glb": "f83ec8f7c23c97756ee54eb6feefbcab13d05ac9cbd60e56c61469782372022f",
-    "assets/q01-drain.glb": "a0cfa00aa589851743e92855dbeb1c928da3db62046289c16c12aedbba4d0b30",
-    "assets/q01-manhole.glb": "cf872d054430a0ae65d1604781d038680aa76c28e9dc0ce66aed531f131be96d",
-    "assets/q01-menu.glb": "a0d707aeee7cc55f2b8e298df75b2444d5b20561622a1cc20c0290495f0e316b",
-    "assets/q01-parking.glb": "840a4332d67dfea7784f715adcb593a349cde0612ecf5e05e6f20cc3b0f76ce2",
-    "assets/q01-pharmacy.glb": "3b3f99711c4cf84841d69acb96a4c12e51bb60f3597a44ebbe448a6ec1459d03",
-    "assets/q01-planter.glb": "70b08b00b7263e1eec470b668e111dfce9d5336b74bccad7adf2fc29a41ee857",
-    "assets/q01-stationer.glb": "d04057684378ffaf19744c559293ca4723836fa880faf0123a1d4b6c6a49f60e",
-    "assets/q01-workshop.glb": "4e405d673f8a3b2dda3c8adc816f8f606db61da5ba3ab58b36707819d008c14e",
     "assets/school-pylon.glb": "5ca5a650df08738b432112bc43e4425a44493738c526c02fe070fbdbe70a1858",
     "assets/sky-building-0.glb": "856477f0837241bc56159e5fda8bf72e9079a8550cd0a12aa7cd171b65a4c0b5",
     "assets/sky-building-1.glb": "97d5cd1e19d0a18e0a86df377ec7ea66faef885154b00ba7ffd12b7948ea90b0",
@@ -88,11 +74,6 @@
       "source": "driving-school-town-v4",
       "license": "MIT",
       "notice": "Original driving school, city and static models. Kart circuits study the topology of KartRider Village Freeway and The Glove; dimensions are adapted. No extracted assets or surveyed exam layout."
-    },
-    {
-      "source": "mapeditor-q01-hanbit-block",
-      "license": "MIT",
-      "notice": "Original fictional Hanbit shopping block; buildings, Hangul stroke lettering, street furniture and wall relief authored procedurally. No external models, fonts, textures or surveyed data."
     }
   ],
   "routes": [
@@ -504,13 +485,13 @@
         "blocks": 16
       }
     ],
-    "buildings": 166,
+    "buildings": 164,
     "props": {
-      "city-tree": 237,
-      "city-lamp": 241,
-      "city-bench": 235,
+      "city-tree": 240,
+      "city-lamp": 243,
+      "city-bench": 238,
       "city-bin": 80,
-      "city-bollard": 198,
+      "city-bollard": 200,
       "city-bus-stop": 16
     },
     "lots": [
@@ -588,8 +569,8 @@
           266.55,
           76.3
         ],
-        "buildings": 6,
-        "footprint_m2": 357.15999999999997
+        "buildings": 4,
+        "footprint_m2": 441.0
       },
       {
         "id": "korea-2-1",
@@ -966,113 +947,7 @@
         "footprint_m2": 784
       }
     ],
-    "grass_ground_fraction": 0.0,
-    "quality_block": {
-      "id": "korea-1-1",
-      "name": "한빛 골목",
-      "bounds_m": [
-        238,
-        48,
-        272,
-        80
-      ],
-      "alley": {
-        "center_y_m": 64.5,
-        "clear_width_m": 2.0,
-        "through_x_m": [
-          240,
-          268
-        ]
-      },
-      "shops": [
-        {
-          "id": "book",
-          "title": "한빛서점",
-          "x": 245.4,
-          "y": 57.3,
-          "w": 6.4,
-          "d": 8.6,
-          "h": 6.9,
-          "turn": 2
-        },
-        {
-          "id": "cafe",
-          "title": "골목커피",
-          "x": 253.1,
-          "y": 57.0,
-          "w": 7.0,
-          "d": 7.8,
-          "h": 4.9,
-          "turn": 2
-        },
-        {
-          "id": "pharmacy",
-          "title": "봄약국",
-          "x": 261.7,
-          "y": 57.4,
-          "w": 7.8,
-          "d": 8.4,
-          "h": 5.8,
-          "turn": 2
-        },
-        {
-          "id": "diner",
-          "title": "은하식당",
-          "x": 246.2,
-          "y": 71.4,
-          "w": 8.0,
-          "d": 9.0,
-          "h": 5.6,
-          "turn": 0
-        },
-        {
-          "id": "workshop",
-          "title": "온유공방",
-          "x": 254.9,
-          "y": 72.0,
-          "w": 7.0,
-          "d": 8.0,
-          "h": 7.6,
-          "turn": 0
-        },
-        {
-          "id": "stationer",
-          "title": "다온문구",
-          "x": 262.6,
-          "y": 71.8,
-          "w": 6.0,
-          "d": 9.0,
-          "h": 4.1,
-          "turn": 0
-        }
-      ],
-      "replaced_placements": [
-        "korea-block-1-1-0",
-        "korea-block-1-1-1",
-        "korea-block-1-1-2",
-        "korea-block-1-1-3",
-        "city-lamp-13",
-        "city-bench-13",
-        "city-tree-44",
-        "city-bus-stop-1",
-        "city-bin-13",
-        "city-bollard-26",
-        "city-bollard-27",
-        "city-tree-103",
-        "city-lamp-72",
-        "city-bench-72",
-        "city-lamp-83",
-        "city-bench-83",
-        "city-tree-114"
-      ],
-      "attribution": {
-        "source": "mapeditor-q01-hanbit-block",
-        "license": "MIT",
-        "notice": "Original fictional Hanbit shopping block; buildings, Hangul stroke lettering, street furniture and wall relief authored procedurally. No external models, fonts, textures or surveyed data."
-      },
-      "materials": "Geometry mortar/tile joints and recess shading with glass/metal PBR; no image decode, external textures or baked shadow maps.",
-      "baseline": "driving-school-town-v4"
-    }
+    "grass_ground_fraction": 0.0
   },
   "landmarks": {
     "city_blocks": 41,
