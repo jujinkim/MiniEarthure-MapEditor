@@ -273,6 +273,18 @@ func run() -> void:
 	asset.convex_collision[0].faces.pop_back()
 	check(author.asset(asset) != "" and state() == before, "open convex rejects atomically")
 	check(FILES.read(image_path).bytes == bytes, "asset original bytes preserved")
+	ok(author.recipe(6, "urban"), "explicit urban recipe")
+	author.options.surface = "concrete"
+	await shape("Surface area", [Vector2(5000,5000),Vector2(20000,5000),Vector2(20000,15000),Vector2(5000,15000)])
+	check(ui.store.document.surface_areas.size() == 1, "canvas surface paint authoring")
+	var paint: Dictionary = ui.store.document.surface_areas[0]
+	ok(ui.store.undo(), "undo surface area")
+	check(ui.store.document.get("surface_areas", []).is_empty(), "surface undo removes paint")
+	ok(ui.store.redo(), "redo surface area")
+	check(ui.store.document.surface_areas[0] == paint, "surface redo preserves exact polygon/material")
+	var marked: Dictionary = ui.store.document.roads[0].duplicate(true)
+	marked.markings = {"lanes":2,"center_line":true,"edge_lines":true,"crosswalk_start":true,"crosswalk_end":true}
+	ok(author.apply("Mark road", [{"field":"roads","id":marked.id,"before":ui.store.document.roads[0],"after":marked}]), "persist editable road markings")
 	var destination: String = ui.store.project_path.path_join("authored.memap")
 	ok(ui.store.save_project(ui.store.project_path), "save full authored project")
 	ok(ui.store.autosave(), "authoring recovery")

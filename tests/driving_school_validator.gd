@@ -23,9 +23,9 @@ func run() -> void:
 	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
 	check(JSON.parse_string(bridge.open_package(output)).ok,"exported package opens")
 	var hashes := {}
-	# Full 144-cell generation is retained by check_driving_school.py. Exercise
+	# Full 432-cell generation is retained by check_driving_school.py. Exercise
 	# the binding on each district and both kart courses here, sharing one import.
-	for row: Array in [[1,1],[7,2],[1,4],[2,5],[3,6],[4,6],[2,7],[1,8],[4,10],[7,6],[7,7],[8,6],[10,8],[10,10],[7,10]]:
+	for row: Array in [[1,1],[7,2],[1,4],[2,5],[3,6],[4,6],[2,7],[1,8],[4,10],[7,6],[7,7],[8,6],[10,8],[10,10],[7,10],[12,3],[17,3],[23,3],[24,3],[29,4],[35,10]]:
 		var x: int = row[0]
 		var y: int = row[1]
 		var generated: Dictionary = bridge.generate_chunk_packed(x,y)

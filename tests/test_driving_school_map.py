@@ -46,12 +46,13 @@ class DrivingSchoolTests(unittest.TestCase):
 
     def test_course_scale_turns_and_gradients(self):
         straight = self.roads["two-km-straight"]["points"]
-        self.assertEqual(self.doc['bounds']['max'], [19200,19200])
+        self.assertEqual(self.doc['bounds']['max'], [57600,19200])
         self.assertEqual(math.dist(*straight), 6250)
         original=json.loads((Path(__file__).resolve().parents[1]/'examples/driving-school-v2/document.json').read_text())
         widths={r['id']:max(r['widths_cm']) for r in original['roads']}
         for road in self.doc['roads']:
-            self.assertEqual(max(road['widths_cm']), round(widths[road['id']]/4), road['id'])
+            if road['id'] in widths:
+                self.assertEqual(max(road['widths_cm']), round(widths[road['id']]/4), road['id'])
         for i in range(1,7):
             points = self.roads[f"hairpin-turn-{i}"]["points"]
             first = [b-a for a,b in zip(points[0],points[1])]
@@ -95,6 +96,33 @@ class DrivingSchoolTests(unittest.TestCase):
                 for end,neighbor in ((0,1),(-1,-2)):
                     if r["points"][end][1] == 0:
                         self.assertEqual(r["points"][neighbor][1],0,r["id"])
+
+    def test_city_density_furniture_paving_and_previous_courses(self):
+        report=self.town.city_report
+        self.assertEqual([d['blocks'] for d in report['districts']],[25,16])
+        self.assertEqual(len(self.doc['heightmaps']),432)
+        self.assertEqual(report['buildings'],164)
+        self.assertEqual(report['grass_ground_fraction'],0)
+        for lot in report['lots']:
+            x0,y0,x1,y1=lot['bounds']
+            coverage=lot['footprint_m2']/((x1-x0)*(y1-y0))
+            self.assertGreaterEqual(coverage,0.65,lot['id'])
+            self.assertLessEqual(coverage,0.80,lot['id'])
+        for asset in ['city-tree','city-lamp','city-bench','city-bus-stop','city-bollard','city-bin']:
+            self.assertGreater(report['props'][asset],0,asset)
+        self.assertGreaterEqual(report['props']['city-bus-stop'],8)
+        self.assertEqual(next(a for a in self.doc['surface_areas'] if a['id']=='city-paving')['polygon'],[[19200,0],[57600,0],[57600,19200],[19200,19200]])
+        self.assertGreater(sum('markings' in r for r in self.doc['roads']),100)
+        previous=Path(__file__).resolve().parents[1]/'examples/driving-school-v3'
+        for r in json.loads((previous/'document.json').read_text())['roads']:
+            self.assertEqual(self.roads[r['id']],r,r['id'])
+        locations={p['id']:p for p in self.town.locations}
+        for p in json.loads((previous/'driving.json').read_text())['locations']:
+            if p['id']!='city': self.assertEqual(locations[p['id']],p)
+        self.assertGreater(locations['city']['position_cm'][0],19200)
+        self.assertGreater(locations['city-skyline']['position_cm'][0],38400)
+        lock=json.loads(Path(__file__).with_name('driving_school_v3.lock.json').read_text())
+        self.assertEqual(sha(previous.with_suffix('.memap').read_bytes()),lock['inspection']['package_sha256'])
 
     def test_repeatable_source_assets_and_preserved_existing_output(self):
         with tempfile.TemporaryDirectory() as tmp:

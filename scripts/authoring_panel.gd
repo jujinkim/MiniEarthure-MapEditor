@@ -318,8 +318,8 @@ func fresh() -> bool:
 
 func _setup() -> void:
 	var box := page("Map")
-	hint(box, "Recipe 2: terrain-following roads, bridge/tunnel cuts. Recipe 3: buildings, entrances and repeated props. Recipe 4: custom convex proxies and materials. Changing recipe changes world identity; originals are never migrated on load.")
-	var recipe := choice(box, "Recipe", ["1", "2", "3", "4", "5"], str(int(editor.store.document.recipe_version)))
+	hint(box, "Recipe 2: terrain-following roads, bridge/tunnel cuts. Recipe 3: buildings, entrances and repeated props. Recipe 4: custom convex proxies and materials. Recipe 6: ground paving, road markings and connected sidewalks. Changing recipe changes world identity; originals are never migrated on load.")
+	var recipe := choice(box, "Recipe", ["1", "2", "3", "4", "5", "6"], str(int(editor.store.document.recipe_version)))
 	var theme := choice(box, "Theme", ["default", "urban", "rural"], editor.store.document.theme)
 	button(box, "Apply recipe and theme", func():
 		if fresh(): report(author.recipe(int(recipe.get_item_text(recipe.selected)), theme.get_item_text(theme.selected)))
@@ -359,7 +359,7 @@ func _drawing() -> void:
 	hint(box, "Settings affect the next shape. Click points on the canvas; right-click finishes. Place uses one click. Select a building/zone before drawing an Entrance/Exclusion. Escape cancels. Matching XYZ and level reuse an explicit road node; XY crossings never connect.")
 	opt_choice(box, "Road structure", "kind", ["ground", "elevated", "bridge", "underpass", "tunnel"])
 	opt_number(box, "Road width (m)", "width_cm", 0.2, 100)
-	opt_choice(box, "Road surface", "surface", ["asphalt", "concrete", "dirt", "gravel", "grass"])
+	opt_choice(box, "Road / ground area surface", "surface", ["asphalt", "concrete", "dirt", "gravel", "grass"])
 	opt_number(box, "Start height (m)", "start_cm", -10000, 10000)
 	opt_number(box, "End height (m)", "end_cm", -10000, 10000)
 	opt_number(box, "Start level", "start_level", -100, 100, false)
@@ -527,6 +527,29 @@ func _selected() -> void:
 		var kind := choice(box, "Structure", ["ground", "elevated", "bridge", "underpass", "tunnel"], record.kind)
 		var clearance := number(box, "Clearance (cm)", float(record.clearance_cm) if record.clearance_cm != null else 400, 1, 10000)
 		var sidewalk := number(box, "Sidewalk (cm; 0 none)", float(record.sidewalk_cm) if record.sidewalk_cm != null else 0, 0, 2000)
+		var markings_on := CheckButton.new()
+		markings_on.text = "Road markings (recipe 6)"
+		markings_on.button_pressed = record.has("markings")
+		box.add_child(markings_on)
+		var appearance: Dictionary = record.get("markings", {"lanes":2,"center_line":true,"edge_lines":true,"crosswalk_start":false,"crosswalk_end":false})
+		var lanes := number(box, "Lane count", appearance.lanes, 1, 8)
+		var mark_controls := {}
+		for key in ["center_line", "edge_lines", "crosswalk_start", "crosswalk_end"]:
+			var control := CheckButton.new()
+			control.text = str(key).replace("_", " ").capitalize()
+			control.button_pressed = appearance[key]
+			box.add_child(control)
+			mark_controls[key] = control
+		button(box, "Apply road markings", func():
+			if not fresh(): return
+			var before: Dictionary = editor.store._get_value(editor.store.document, "roads", record.id).duplicate(true)
+			var after := before.duplicate(true)
+			if markings_on.button_pressed:
+				after.markings = {"lanes":int(lanes.value)}
+				for key in mark_controls: after.markings[key] = mark_controls[key].button_pressed
+			else: after.erase("markings")
+			report(author.apply("Edit road markings", [{"field":"roads","id":record.id,"before":before,"after":after}]))
+		)
 		var points: Array = []
 		for i in range(record.points.size()):
 			hint(box, "Point %d (cm)" % i)

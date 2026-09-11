@@ -229,10 +229,14 @@ def compact(t):
 def atlas(t, kind=None):
     """Exact authored metres, with road width and height distinctions to scale."""
     prefix = ('kart-freeway-',) if kind == 'freeway' else ('kart-finger-', 'kart-thumb-') if kind else None
-    box = (100,95,80,48) if kind == 'freeway' else (100,142,80,42) if kind else (0,0,192,192)
+    box = (100,95,80,48) if kind == 'freeway' else (100,142,80,42) if kind else (0,0,t.doc["bounds"]["max"][0]/100,t.doc["bounds"]["max"][1]/100)
     x,y,w,h = box
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="{round(h/w*1200)}" viewBox="{x} {y} {w} {h}">',
         f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="#849879"/>']
+    for area in t.doc.get('surface_areas', []):
+        if prefix: continue
+        points=' '.join(f'{p[0]/100},{p[1]/100}' for p in area['polygon'])
+        parts.append(f'<polygon points="{points}" fill="#b4b5ad"/>')
     for r in t.doc['roads']:
         if prefix and not r['id'].startswith(prefix): continue
         points = ' '.join(f'{p[0]/100},{p[2]/100}' for p in r['points'])
@@ -243,5 +247,12 @@ def atlas(t, kind=None):
         points = ' '.join(f'{p[0]/100},{p[1]/100}' for p in b['footprint'])
         color = '#c49474' if '-rail-' not in b['id'] else '#cad0bd'
         parts.append(f'<polygon points="{points}" fill="{color}"/>')
+    if not prefix:
+        for p in t.doc['placements']:
+            if not p['id'].startswith(('korea-block-', 'sky-block-')):continue
+            w=14 if p['id'].startswith('sky-') else (10.5 if p['asset_id'].endswith('-compact') else 11)
+            x,y=p['position'][0]/100,p['position'][2]/100
+            color='#718a97' if p['id'].startswith('sky-') else '#c49474'
+            parts.append(f'<rect x="{x-w/2}" y="{y-w/2}" width="{w}" height="{w}" fill="{color}"/>')
     parts.append('</svg>')
     return '\n'.join(parts)+'\n'

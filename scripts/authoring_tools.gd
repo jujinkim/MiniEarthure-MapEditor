@@ -39,7 +39,7 @@ func _points(draft: Array[Vector2]) -> Array:
 	return result
 
 func draw(tool: String, draft: Array[Vector2]) -> String:
-	var fields := {"Road": "roads", "Building": "buildings", "Cylinder wall": "buildings", "Forest": "zones", "Orchard": "zones", "Place": "placements", "Repeat": "repetitions", "Entrance": "buildings", "Exclusion": "zones"}
+	var fields := {"Road": "roads", "Surface area": "surface_areas", "Building": "buildings", "Cylinder wall": "buildings", "Forest": "zones", "Orchard": "zones", "Place": "placements", "Repeat": "repetitions", "Entrance": "buildings", "Exclusion": "zones"}
 	var field: String = fields.get(tool, "")
 	if field == "": return "Choose an authoring tool."
 	if not canvas.available({"field": field, "record": {"id": "draft"}}, true): return "Show and unlock the target layer."
@@ -72,6 +72,9 @@ func draw(tool: String, draft: Array[Vector2]) -> String:
 			widths.append(int(options.width_cm))
 			surfaces.append(str(options.surface))
 		record.merge({"from": nodes[0], "to": nodes[1], "points": points, "widths_cm": widths, "surfaces": surfaces, "kind": options.kind, "clearance_cm": int(options.clearance_cm) if options.kind in ["tunnel", "underpass"] else null, "sidewalk_cm": int(options.sidewalk_cm) if int(options.sidewalk_cm) > 0 else null})
+	elif tool == "Surface area":
+		if int(store.document.recipe_version) < 6: return "Surface areas require recipe 6."
+		record.merge({"polygon": polygon, "surface": options.surface})
 	elif tool == "Cylinder wall":
 		if int(store.document.recipe_version) < 3: return "Cylinder walls require recipe 3 or later."
 		if int(options.wall_radius_cm) < 25 or int(options.wall_radius_cm) > 50000: return "Wall radius must be 0.25–500 m."

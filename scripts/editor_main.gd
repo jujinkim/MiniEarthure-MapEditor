@@ -238,7 +238,7 @@ func _build_ui() -> void:
 	var tools := HFlowContainer.new()
 	tool_controls.add_child(tools)
 	var group := ButtonGroup.new()
-	for name in ["Select", "Road", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
+	for name in ["Select", "Road", "Surface area", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
 		var tool_button := _button(tools, name, _set_tool.bind(name))
 		tool_button.toggle_mode = true
 		tool_button.button_group = group

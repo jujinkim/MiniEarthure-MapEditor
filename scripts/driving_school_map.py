@@ -14,7 +14,7 @@ import zlib
 
 from reference_maps import canonical, empty, rectangle, road, sha, summarize
 
-PROFILE = "driving-school-town-v3"
+PROFILE = "driving-school-town-v4"
 SIZE_M = 6144
 TERRAIN_GRID_M = 128
 FACES = [(0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6),
@@ -52,7 +52,7 @@ def box(center, size):
             (x-w,h+t,y-d),(x+w,h+t,y-d),(x+w,h+t,y+d),(x-w,h+t,y+d)]
 
 
-def glb(solids):
+def glb(solids, indexed=False):
     """Small static flat-shaded meshes, in glTF metres, with embedded materials."""
     binary, views, accessors, primitives, materials = bytearray(), [], [], [], []
     for solid in solids:
@@ -67,6 +67,15 @@ def glb(solids):
             length = math.sqrt(sum(x*x for x in n))
             positions.extend((a,b,c))
             normals.extend([tuple(x/length for x in n)]*3)
+        element_indices = []
+        if indexed:
+            unique = {}
+            for position, normal in zip(positions, normals):
+                key = (position, normal)
+                if key not in unique: unique[key] = len(unique)
+                element_indices.append(unique[key])
+            positions = [p for p, _ in unique]
+            normals = [n for _, n in unique]
         indices = []
         for values in (positions, normals):
             offset = len(binary)
@@ -77,7 +86,15 @@ def glb(solids):
                                   max=[max(p[i] for p in values) for i in range(3)]))
             indices.append(len(accessors)-1)
         materials.append(dict(pbrMetallicRoughness=dict(baseColorFactor=color, metallicFactor=0, roughnessFactor=0.85)))
-        primitives.append(dict(attributes=dict(POSITION=indices[0], NORMAL=indices[1]), material=len(materials)-1, mode=4))
+        primitive = dict(attributes=dict(POSITION=indices[0], NORMAL=indices[1]), material=len(materials)-1, mode=4)
+        if indexed:
+            offset = len(binary)
+            binary.extend(b"".join(struct.pack("<H", i) for i in element_indices))
+            views.append(dict(buffer=0, byteOffset=offset, byteLength=len(binary)-offset, target=34963))
+            accessors.append(dict(bufferView=len(views)-1, componentType=5123, count=len(element_indices), type="SCALAR"))
+            primitive['indices'] = len(accessors)-1
+            binary.extend(b"\0" * (-len(binary) % 4))
+        primitives.append(primitive)
     doc = dict(asset=dict(version="2.0", generator=PROFILE), scene=0, scenes=[dict(nodes=[0])],
                nodes=[dict(mesh=0)], meshes=[dict(primitives=primitives)], materials=materials,
                accessors=accessors, bufferViews=views, buffers=[dict(byteLength=len(binary))])
@@ -291,6 +308,8 @@ def build():
     kart(t)
     from compact_town import compact
     compact(t)
+    from city_expansion import expand
+    expand(t)
     return t
 
 
@@ -314,7 +333,8 @@ def create(destination):
     report["references"] = REFERENCES
     report["world_scale"] = 1.0
     report["profile"]=PROFILE
-    report["landmarks"]=dict(city_blocks=100,
+    report["city"]=t.city_report
+    report["landmarks"]=dict(city_blocks=41,
         city_buildings=sum(b["id"].startswith("city-block-") for b in t.doc["buildings"]),
         village_homes=sum(b["id"].startswith("village-home-") for b in t.doc["buildings"]),
         guardrail_sections=sum("-rail-" in b["id"] for b in t.doc["buildings"]),

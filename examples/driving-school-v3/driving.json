@@ -1,0 +1,434 @@
+{
+  "profile": "driving-school-town-v3",
+  "map_id": "driving-school-town-v3",
+  "bounds_cm": {
+    "min": [
+      0,
+      0
+    ],
+    "max": [
+      19200,
+      19200
+    ]
+  },
+  "world_scale": 1.0,
+  "cell_size_cm": 1600,
+  "cell_count": 144,
+  "counts": {
+    "nodes": 304,
+    "roads": 459,
+    "buildings": 786,
+    "zones": 37,
+    "assets": 3,
+    "placements": 1247,
+    "repetitions": 0,
+    "heightmaps": 144
+  },
+  "authored_object_count": 2980,
+  "road_centerline_planar_m": 5141.858186,
+  "road_centerline_spatial_m": 5141.963249,
+  "terrain": {
+    "description": "exact synthetic flat PNG16, 4m grid; compact practice hill, elevated freeway and two vehicle-clearance bridges",
+    "spacing_cm": 400,
+    "source_accuracy_cm": null
+  },
+  "source_files": {
+    "document.json": "5b8d809e898413ee4a36ddeb21c6eff99459908243bd265cd563e99e01f304eb",
+    "assets/compact-tree.glb": "63113d88fa4c2ee572cf46dc87c5b9fbf50b60a309052a8e2332fafebd6d1127",
+    "assets/distance-marker.glb": "9b1c4cacc92a369483e19dfea4a7454426d1c9f4ce6a5ac964a00a1a92befebc",
+    "assets/school-pylon.glb": "085355d57d16d3cda45cc534104eb34ec5815ff5b0d58deaaa2374ff43951a3e",
+    "terrain/flat.png": "7f2194a0699162298f38abd241b1d61e5e1bd3a14a39341708604a3cdef675c7"
+  },
+  "attributions": [
+    {
+      "source": "driving-school-town-v3",
+      "license": "MIT",
+      "notice": "Original driving school, city and static models. Kart circuits study the topology of KartRider Village Freeway and The Glove; dimensions are adapted. No extracted assets or surveyed exam layout."
+    }
+  ],
+  "routes": [
+    {
+      "id": "school-perimeter",
+      "title": "스쿨 외곽",
+      "roads": [
+        "school-loop-00",
+        "school-loop-01",
+        "school-loop-02",
+        "school-loop-03",
+        "school-loop-04",
+        "school-loop-05",
+        "school-loop-06",
+        "school-loop-07",
+        "school-loop-08",
+        "school-loop-09",
+        "school-loop-10"
+      ],
+      "closed": true
+    },
+    {
+      "id": "license",
+      "title": "한국식 기능시험 연습 코스",
+      "roads": [
+        "license-start",
+        "license-hill",
+        "license-stop-00",
+        "license-stop-01",
+        "license-stop-02",
+        "license-right-angle",
+        "license-s",
+        "license-exit",
+        "license-acceleration",
+        "license-return"
+      ],
+      "closed": true
+    },
+    {
+      "id": "technical",
+      "title": "급코너 / 더블 시케인",
+      "roads": [
+        "technical-corners"
+      ],
+      "closed": true
+    },
+    {
+      "id": "slalom",
+      "title": "더블 S자",
+      "roads": [
+        "double-s",
+        "double-s-return"
+      ],
+      "closed": true
+    },
+    {
+      "id": "skidpad",
+      "title": "원선회",
+      "roads": [
+        "skidpad"
+      ],
+      "closed": true
+    },
+    {
+      "id": "straight",
+      "title": "62.5m 가속 / 제동",
+      "roads": [
+        "two-km-straight",
+        "straight-return"
+      ],
+      "closed": true
+    },
+    {
+      "id": "hairpins",
+      "title": "6연속 헤어핀",
+      "roads": [
+        "hairpin-entry",
+        "hairpin-straight-0",
+        "hairpin-turn-1",
+        "hairpin-straight-1",
+        "hairpin-turn-2",
+        "hairpin-straight-2",
+        "hairpin-turn-3",
+        "hairpin-straight-3",
+        "hairpin-turn-4",
+        "hairpin-straight-4",
+        "hairpin-turn-5",
+        "hairpin-straight-5",
+        "hairpin-turn-6",
+        "hairpin-straight-6",
+        "hairpin-return"
+      ],
+      "closed": true
+    },
+    {
+      "id": "sky-kart",
+      "title": "빌리지 고가의 질주 모방 코스",
+      "roads": [
+        "kart-freeway-start",
+        "kart-freeway-first-right",
+        "kart-freeway-plaza",
+        "kart-freeway-round-plaza",
+        "kart-freeway-ramp-approach",
+        "kart-freeway-ramp-entry",
+        "kart-freeway-climb",
+        "kart-freeway-highway-entry",
+        "kart-freeway-highway-kink",
+        "kart-freeway-highway-straight",
+        "kart-freeway-highway-exit",
+        "kart-freeway-upper-approach",
+        "kart-freeway-upper-left",
+        "kart-freeway-upper-link",
+        "kart-freeway-upper-right",
+        "kart-freeway-hairpin-approach",
+        "kart-freeway-upper-hairpin",
+        "kart-freeway-hairpin-exit",
+        "kart-freeway-exit-left",
+        "kart-freeway-exit-link",
+        "kart-freeway-descent-entry",
+        "kart-freeway-descent",
+        "kart-freeway-last-right",
+        "kart-freeway-return-straight",
+        "kart-freeway-z-first",
+        "kart-freeway-z-link",
+        "kart-freeway-z-second",
+        "kart-freeway-home-link",
+        "kart-freeway-home-corner",
+        "kart-freeway-home"
+      ],
+      "closed": true
+    },
+    {
+      "id": "finger-kart",
+      "title": "빌리지 손가락 모방 코스",
+      "roads": [
+        "kart-finger-start-a",
+        "kart-finger-start-b",
+        "kart-finger-tip-1",
+        "kart-finger-finger-1-in-a",
+        "kart-finger-finger-1-in-b",
+        "kart-finger-inside-1",
+        "kart-finger-finger-2-out",
+        "kart-finger-tip-2",
+        "kart-finger-finger-2-in",
+        "kart-finger-inside-2",
+        "kart-finger-finger-3-out-a",
+        "kart-finger-finger-3-out-b",
+        "kart-finger-tip-3",
+        "kart-finger-finger-3-in-a",
+        "kart-finger-finger-3-in-b",
+        "kart-finger-inside-3",
+        "kart-finger-finger-4-out",
+        "kart-finger-tip-4",
+        "kart-finger-finger-4-in",
+        "kart-finger-wrist-entry",
+        "kart-finger-bridge-in",
+        "kart-finger-clock-tower",
+        "kart-finger-bridge-out",
+        "kart-finger-wrist-return",
+        "kart-finger-home"
+      ],
+      "closed": true
+    },
+    {
+      "id": "kart-thumb",
+      "title": "손가락 엄지 원형 구간",
+      "roads": [
+        "kart-thumb-circle"
+      ],
+      "closed": true
+    }
+  ],
+  "locations": [
+    {
+      "id": "boulevard",
+      "title": "중앙 대로",
+      "position_cm": [
+        9375,
+        0,
+        5068
+      ],
+      "surface_id": "central-spine-03",
+      "heading_degrees": -0.0,
+      "purpose": "장거리 자유 주행과 도시/스쿨 연결"
+    },
+    {
+      "id": "city",
+      "title": "신도시 / 100개 블록",
+      "position_cm": [
+        13750,
+        0,
+        5018
+      ],
+      "surface_id": "city-ns-05-05",
+      "heading_degrees": -0.0,
+      "purpose": "68.75 × 68.75m 도시, 큰 교차로와 고층 건물"
+    },
+    {
+      "id": "village",
+      "title": "드라이빙 스쿨 마을",
+      "position_cm": [
+        5625,
+        0,
+        3643
+      ],
+      "surface_id": "village-ns-04-02",
+      "heading_degrees": -0.0,
+      "purpose": "주택가·골목·공원·생활 도로"
+    },
+    {
+      "id": "start",
+      "title": "출발 / 기능시험장",
+      "position_cm": [
+        2500,
+        0,
+        7031
+      ],
+      "surface_id": "license-start",
+      "heading_degrees": -0.0,
+      "purpose": "기본 진행 방향 +Y: 경사로 정지 → 주차 → 직각 → S자"
+    },
+    {
+      "id": "technical",
+      "title": "급코너와 시케인",
+      "position_cm": [
+        5312,
+        0,
+        7549
+      ],
+      "surface_id": "technical-corners",
+      "heading_degrees": -180.0,
+      "purpose": "90도 급회전과 연속 방향 전환"
+    },
+    {
+      "id": "s-curves",
+      "title": "연속 S자",
+      "position_cm": [
+        5815,
+        0,
+        9608
+      ],
+      "surface_id": "double-s",
+      "heading_degrees": -64.502,
+      "purpose": "14.69m, 두 번의 S자와 별도 복귀로"
+    },
+    {
+      "id": "skidpad",
+      "title": "원선회 패드",
+      "position_cm": [
+        6600,
+        0,
+        10066
+      ],
+      "surface_id": "skidpad",
+      "heading_degrees": -145.62,
+      "purpose": "반경 5.31m / 폭 5m"
+    },
+    {
+      "id": "straight",
+      "title": "62.5m 가속 직선",
+      "position_cm": [
+        2205,
+        0,
+        12188
+      ],
+      "surface_id": "two-km-straight",
+      "heading_degrees": -90.0,
+      "purpose": "가속·최고속·제동, 4개 셀 경계"
+    },
+    {
+      "id": "hairpins",
+      "title": "6연속 180° 헤어핀",
+      "position_cm": [
+        2730,
+        0,
+        13438
+      ],
+      "surface_id": "hairpin-straight-0",
+      "heading_degrees": -90.0,
+      "purpose": "반경 2.81m, 폭 3m, 연속 감속과 탈출 가속"
+    },
+    {
+      "id": "kart-entry",
+      "title": "고가의 질주 / 출발",
+      "position_cm": [
+        11845,
+        0,
+        12431
+      ],
+      "surface_id": "kart-freeway-start",
+      "heading_degrees": -149.37,
+      "purpose": "원형 광장 → 진입 램프 → 고가 직선 → 헤어핀 → 내리막 → Z자"
+    },
+    {
+      "id": "kart-highway",
+      "title": "고가의 질주 / 고가 직선",
+      "position_cm": [
+        13635,
+        62,
+        10208
+      ],
+      "surface_id": "kart-freeway-highway-straight",
+      "heading_degrees": -76.675,
+      "purpose": "높이 0.625m, 길이 20.31m의 고가 직선"
+    },
+    {
+      "id": "kart-downhill",
+      "title": "고가의 질주 / 내리막",
+      "position_cm": [
+        17434,
+        41,
+        13228
+      ],
+      "surface_id": "kart-freeway-descent",
+      "heading_degrees": -10.337,
+      "purpose": "6.25% 내리막 뒤 감속과 Z자"
+    },
+    {
+      "id": "kart-finger",
+      "title": "손가락 / 출발",
+      "position_cm": [
+        13438,
+        0,
+        17712
+      ],
+      "surface_id": "kart-finger-start-a",
+      "heading_degrees": -90.0,
+      "purpose": "길이가 다른 네 손가락, 7연속 U턴, 두 지름길"
+    },
+    {
+      "id": "kart-finger-hairpin",
+      "title": "손가락 / 원통형 안쪽 벽",
+      "position_cm": [
+        17005,
+        0,
+        17500
+      ],
+      "surface_id": "kart-finger-tip-1",
+      "heading_degrees": -172.147,
+      "purpose": "확장한 U턴과 원통형 안쪽 벽"
+    },
+    {
+      "id": "kart-finger-clock",
+      "title": "손가락 / 시계탑",
+      "position_cm": [
+        12062,
+        0,
+        16512
+      ],
+      "surface_id": "kart-finger-clock-tower",
+      "heading_degrees": -0.0,
+      "purpose": "교량 → 폭 2.5m 시계탑 통로 → 교량"
+    }
+  ],
+  "start": {
+    "x_cm": 2500,
+    "y_cm": 7031,
+    "surface_id": "license-start",
+    "heading_degrees": 0
+  },
+  "limitations": [
+    "Fictional Korean-style practice layout, not an official examination replica or scoring system.",
+    "Static city; traffic AI, race rules and vehicle selection belong to the consuming application.",
+    "KartRider Village layout studies: adapted dimensions and original models; not extracted game assets.",
+    "Geometry verification is separate from human driving feel and platform performance acceptance."
+  ],
+  "references": [
+    {
+      "title": "빌리지 고가의 질주 / Freeway",
+      "url": "https://kartrider.fandom.com/zh/wiki/城镇_高速公路"
+    },
+    {
+      "title": "빌리지 손가락 / The Glove",
+      "url": "https://kartrider.fandom.com/zh/wiki/城镇_手指"
+    }
+  ],
+  "landmarks": {
+    "city_blocks": 100,
+    "city_buildings": 372,
+    "village_homes": 88,
+    "guardrail_sections": 302,
+    "hairpin_turns": 6,
+    "straight_m": 62.5,
+    "kart_highway_height_m": 0.625,
+    "finger_u_turns": 7,
+    "cylinder_walls": 10
+  }
+}

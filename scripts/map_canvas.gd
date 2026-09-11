@@ -160,7 +160,7 @@ func _draw() -> void:
 		var color := Color("ffe14c") if chosen else Color("e1e3e6")
 		color.a = opacity(entry)
 		if not available(entry, true): color = Color(0.5, 0.52, 0.55, color.a)
-		if entry.field in ["zones", "buildings"]:
+		if entry.field in ["surface_areas", "zones", "buildings"]:
 			if points.size() < 3: continue
 			if record.get("holes", []).is_empty():
 				draw_colored_polygon(points, Color(color, color.a * (0.28 if chosen else 0.12)))
@@ -200,7 +200,7 @@ func _hit(p: Vector2) -> String:
 	for entry in objects:
 		if not available(entry, true): continue
 		var points := EDIT.points(entry.field, entry.record)
-		if entry.field in ["buildings", "zones"]:
+		if entry.field in ["surface_areas", "buildings", "zones"]:
 			if Geometry2D.is_point_in_polygon(p, PackedVector2Array(points)):
 				var courtyard := false
 				for ring: Array in entry.record.get("holes", []):

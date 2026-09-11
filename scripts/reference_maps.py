@@ -141,7 +141,7 @@ def summarize(doc, payloads, extra):
             planar+=math.hypot(b[0]-a[0],b[2]-a[2])/100
             spatial+=math.dist(a,b)/100
     return dict(profile=PROFILE,map_id=doc["map_id"],bounds_cm=doc["bounds"],world_scale=1.0,
-                cell_size_cm=doc["cell_size_cm"],cell_count=math.ceil(doc["bounds"]["max"][0]/doc["cell_size_cm"])**2,
+                cell_size_cm=doc["cell_size_cm"],cell_count=math.prod(math.ceil((doc["bounds"]["max"][i]-doc["bounds"]["min"][i])/doc["cell_size_cm"]) for i in range(2)),
                 counts={f:len(doc[f]) for f in FIELDS},authored_object_count=sum(len(doc[f]) for f in FIELDS),
                 road_centerline_planar_m=round(planar,6),road_centerline_spatial_m=round(spatial,6),
                 terrain=dict(spacing_cm=200 if payloads else None,source_accuracy_cm=None,
