@@ -1,0 +1,93 @@
+{
+  "profile": "fleet-playground-v1",
+  "map_id": "fleet-playground-v1",
+  "bounds_cm": {
+    "min": [
+      0,
+      0
+    ],
+    "max": [
+      12800,
+      12800
+    ]
+  },
+  "world_scale": 1.0,
+  "cell_size_cm": 12800,
+  "cell_count": 1,
+  "counts": {
+    "nodes": 12,
+    "roads": 6,
+    "buildings": 0,
+    "zones": 0,
+    "assets": 2,
+    "placements": 7,
+    "repetitions": 0,
+    "heightmaps": 0
+  },
+  "authored_object_count": 27,
+  "road_centerline_planar_m": 331.0,
+  "road_centerline_spatial_m": 331.224401,
+  "terrain": {
+    "spacing_cm": null,
+    "source_accuracy_cm": null,
+    "description": "Implicit flat terrain beneath elevated ramps"
+  },
+  "source_files": {
+    "document.json": "836ffa68abbaf41ddb4a301451f073b8b5a36f9818f801b0d69a4d5a85dc91a5",
+    "assets/post.glb": "7a5379bdf509b68cff935aa40ab2d72576c1473ce498ec2e8100d8d8e445b02a",
+    "assets/probe.glb": "480f385da0e4cbd4fa33c09a2307300b41f98c61781cccbd632866ac7ce00ed6"
+  },
+  "attributions": [
+    {
+      "source": "fleet-playground-v1",
+      "license": "MIT",
+      "notice": "Original synthetic ramps, obstacles and ground bypass. No external data."
+    }
+  ],
+  "locations": [
+    {
+      "id": "start",
+      "title": "Ramp approach",
+      "position_cm": [
+        600,
+        0,
+        4000
+      ],
+      "surface_id": "launch",
+      "heading_degrees": 270
+    },
+    {
+      "id": "bypass",
+      "title": "Ground bypass",
+      "position_cm": [
+        1600,
+        0,
+        5200
+      ],
+      "surface_id": "bypass",
+      "heading_degrees": 270
+    },
+    {
+      "id": "rough",
+      "title": "Uneven test lane",
+      "position_cm": [
+        1600,
+        0,
+        7600
+      ],
+      "surface_id": "rough",
+      "heading_degrees": 270
+    }
+  ],
+  "routes": [],
+  "start": {
+    "x_cm": 600,
+    "y_cm": 4000,
+    "surface_id": "launch",
+    "heading_degrees": 270
+  },
+  "limitations": [
+    "Synthetic development course, not a calibrated performance benchmark.",
+    "Ground under the 12 m deck gap is a safe return route; this is not an infinite pit."
+  ]
+}
