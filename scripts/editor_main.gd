@@ -7,6 +7,7 @@ const CACHE_CELLS := 4
 const CACHE_BYTES := 256 * 1024 * 1024
 var package_work: RefCounted
 var package_operation := ""
+var regional_grouping: SpinBox
 var package_destination := ""
 var package_cell := Vector2i.ZERO
 var render_job := {}
@@ -197,8 +198,17 @@ func _build_ui() -> void:
 	title_row.add_child(title)
 	var bar := HFlowContainer.new()
 	column.add_child(bar)
-	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Import vector", _import_geojson], ["Export .memap", _export], ["Test Drive", _test_drive]]:
+	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Import vector", _import_geojson], ["Export map", _export], ["Reopen .mkregions", _choose.bind("reopen_regions")], ["Test Drive", _test_drive]]:
 		_button(bar, entry[0], entry[1])
+	var grouping_label := Label.new()
+	grouping_label.text = "Regional export · cells per side"
+	bar.add_child(grouping_label)
+	regional_grouping = SpinBox.new()
+	regional_grouping.min_value = 1
+	regional_grouping.max_value = 128
+	regional_grouping.value = 8
+	regional_grouping.tooltip_text = "Storage grouping only. Execution cell size and map quality stay unchanged."
+	bar.add_child(regional_grouping)
 	var import_work_button := Button.new()
 	import_work_button.text = "Import work"
 	import_work_button.tooltip_text = "Inspect leftover local import work without changing files."
@@ -598,7 +608,7 @@ func _choose(action: String) -> void:
 		dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 	else:
 		dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE if action == "export" else FileDialog.FILE_MODE_OPEN_FILE
-		dialog.filters = PackedStringArray(["*.memap ; Map package"] if action == "export" else ["*.json ; Recovery snapshot"])
+		dialog.filters = PackedStringArray(["*.memap ; Map package", "*.mkregions ; Indexed regional map"] if action == "export" else ["*.json ; Recovery snapshot"])
 		if action == "import":
 			dialog.filters = PackedStringArray(["*.geojson,*.json ; GeoJSON (explicit coordinates)"])
 			if import_source_format.selected == 1: dialog.filters = PackedStringArray(["*.osm.pbf,*.pbf ; OSM PBF snapshot"])
@@ -606,6 +616,9 @@ func _choose(action: String) -> void:
 			if import_source_format.selected == 5: dialog.filters = PackedStringArray(["*.overture-land-cover.json ; Overture land cover snapshot"])
 			if import_source_format.selected == 4: dialog.filters = PackedStringArray(["*.overture-roads.json ; Overture transportation snapshot"])
 			if import_source_format.selected == 2: dialog.filters = PackedStringArray(["*.osm ; OSM XML snapshot"])
+		if action == "reopen_regions":
+			dialog.title = "Reopen regional map into a new adjacent .source directory"
+			dialog.filters = PackedStringArray(["*.mkregions ; Indexed regional map"])
 		if action == "recover":
 			dialog.filters = PackedStringArray(["* ; Recovery, previous or pending document"])
 			dialog.current_dir = ProjectSettings.globalize_path("user://recovery")
@@ -614,6 +627,22 @@ func _choose(action: String) -> void:
 func _path_selected(path: String) -> void:
 	var failure := ""
 	match dialog_action:
+		"reopen_regions":
+			if busy: return
+			var destination := path + ".source"
+			if DirAccess.dir_exists_absolute(destination):
+				_status("Destination already exists: " + destination + ". Open it as a project or choose a different package copy.")
+				return
+			package_work = PACKAGE_WORK.new()
+			var task: RefCounted = package_work
+			worker_generation = generation
+			busy = true
+			var error := worker.start(func(): return {"operation":"reopen_regions","result":task.reopen_regions(path,destination)})
+			if error != OK:
+				busy = false
+				package_work = null
+				_status(error_string(error))
+			return
 		"import":
 			_start_worker("import", path, import_license.text.strip_edges())
 			return
@@ -896,6 +925,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 		_operation_status("Export failed · E_EXPORT_EXISTS", "Choose a new package filename; existing files are preserved.")
 		return
 	package_work = PACKAGE_WORK.new()
+	package_work.regional_side_cells = int(regional_grouping.value) if destination.get_extension().to_lower() == "mkregions" else 0
 	package_operation = operation
 	package_destination = destination
 	package_cell = Vector2i(int(preview_x.value), int(preview_y.value))
@@ -1195,6 +1225,13 @@ func _process(_delta: float) -> void:
 	var output: Dictionary = worker.wait_to_finish()
 	busy = false
 	var result: Dictionary = output.result
+	if output.operation == "reopen_regions":
+		var stale: bool = generation != worker_generation or package_work.stopped()
+		package_work = null
+		if not result.ok: _status(store.reason(result))
+		elif stale: _status("Reopen cancelled; restored project retained at " + str(result.data.path))
+		else: _request_document_action("open", result.data.path)
+		return
 	if output.operation == "package":
 		_package_finished(result)
 		return

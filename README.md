@@ -189,3 +189,9 @@ Existing source heights and the full structural validation remain authoritative.
 Open `examples/world-themes/<profile>.memap` in a consumer or its source directory
 in this editor. Map authoring → Signs supports licensed-font text and prepared
 PNG import as separate map-owned assets. [Authoring, commands and limits](docs/WORLD_THEME_AUTHORING.md).
+
+## Regional packages
+
+[Regional export/reopen](docs/REGIONAL_SOURCE.md) adds explicit `.mkregions` export,
+storage grouping and recovery into a new project directory. Existing `.memap` and
+source projects remain supported and preserved.

@@ -32,6 +32,17 @@ func show_report(value: Dictionary) -> void:
 		data.user_asset_compressed_bytes, data.user_asset_bytes, data.base_data_bytes, data.expanded_bytes,
 		data.validation_peak_bytes, data.retained_memory_bytes,
 		"%d cells checked" % data.full_generation_cells if data.full_generation_cells > 0 else "not requested", data.seconds]
+	if data.get("format") == "mkregions":
+		summary.text = ("Indexed regional map · complete source audit · %d execution cells\n"
+			+ "Complete transfer: %d / 50,000,000 bytes · %s\n"
+			+ "Shared user assets: %d compressed / %d expanded bytes\n"
+			+ "All expanded records (including regional source copies): %d bytes\n"
+			+ "Audit allowance: %d bytes · retained index/overview: %d bytes\n"
+			+ "Largest regional validation allowance: %d bytes (generation is additional)\n"
+			+ "%.3f seconds · Logical allowances are separate from measured RSS.") % [
+			data.cell_count,data.package_bytes,"within goal" if data.base_target_met else "over goal",
+			data.user_asset_compressed_bytes,data.user_asset_bytes,data.expanded_bytes,
+			data.validation_peak_bytes,data.retained_memory_bytes,data.source_peak_bytes,data.seconds]
 	overview.queue_redraw()
 	popup_centered()
 

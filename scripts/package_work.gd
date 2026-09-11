@@ -5,6 +5,7 @@ const PAYLOADS := preload("./authoring_files.gd")
 const INDEX := preload("./preview_index.gd")
 const PREVIEW_BYTES := 256 * 1024 * 1024
 const OVERVIEW_BYTES := 4 * 1024 * 1024
+var regional_side_cells := 0
 var mutex := Mutex.new()
 var cancelled := false
 var progress := "Preparing snapshot"
@@ -93,6 +94,23 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 			report.full_generation_cells += 1
 	if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
 	update("Compressing validated package")
+	if regional_side_cells > 0:
+		var regional: RefCounted = ClassDB.instantiate("MapKitRegionReader")
+		var regional_path: String = staged.path.path_join("result.mkregions")
+		var packed: Dictionary = JSON.parse_string(regional.export_project(staged.path,regional_path,regional_side_cells))
+		if not packed.ok: return packed
+		var opened: Dictionary = JSON.parse_string(regional.open_index(regional_path,1024*1024*1024,""))
+		if not opened.ok: return opened
+		var audited: Dictionary = JSON.parse_string(regional.audit(1024*1024*1024,regional.begin_request()))
+		if not audited.ok: return audited
+		report.merge(audited.data,true)
+		report.erase("overview_json")
+		report.erase("overview_cost")
+		report.base_package_bytes = int(report.package_bytes)
+		report.base_target_bytes = 50000000
+		report.base_target_met = report.package_bytes <= report.base_target_bytes
+		report.path = regional_path
+		return {"ok":true,"data":report}
 	var package_path: String = staged.path.path_join("result.memap")
 	var packed: Dictionary = JSON.parse_string(native.export_project(staged.path, package_path))
 	if not packed.ok: return packed
@@ -135,3 +153,12 @@ func allowance(native: RefCounted, cell: Vector2i) -> Dictionary:
 	var charge := int(cost.data.generation_scratch_bytes) + int(cost.data.triangles) * (256 + int(cost.data.max_object_id_bytes)) + int(cost.data.objects) * 1024 + int(cost.data.presentation_bytes) * 4
 	if charge > PREVIEW_BYTES: return failure("E_PREVIEW_BUDGET", "Cell estimate %d exceeds the %d-byte preview work allowance." % [charge, PREVIEW_BYTES])
 	return {"ok": true, "data": charge}
+
+func reopen_regions(path: String, destination: String) -> Dictionary:
+	if stopped(): return failure("E_CANCELLED", "Reopen cancelled.")
+	var native: RefCounted = ClassDB.instantiate("MapKitRegionReader")
+	var opened: Dictionary = JSON.parse_string(native.open_index(path,1024*1024*1024,""))
+	if not opened.ok: return opened
+	update("Auditing regional source and restoring a new project directory")
+	var result: Dictionary = JSON.parse_string(native.unpack_source(destination,1024*1024*1024,native.begin_request()))
+	return result
