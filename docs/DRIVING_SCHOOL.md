@@ -2,7 +2,8 @@
 
 [패키지](../examples/driving-school.memap) · [편집 원본](../examples/driving-school/) · [전체 지도](../examples/driving-school/overview.svg) · [고가 코스](../examples/driving-school/village-freeway.svg) · [손가락 코스](../examples/driving-school/village-finger.svg)
 
-v6는 Q01 한빛 블록을 보존하면서 나머지 40개 블록을 상점가·주거·시장·오피스·호텔·광장으로 바꾼 Q03이다.
+v6는 Q01 한빛 블록을 보존하면서 나머지 40개 블록을 상점가·주거·시장·오피스·호텔·광장의 용도별 배치로 바꾼 한국 샘플 맵이다.
+전세계 지역/환경 테마 7종의 구현이 아니며, [세계 테마와 맵별 언어 저작 계획](WORLD_THEME_AUTHORING.md)은 별도로 남아 있다.
 [현재 테마·자산·검증 경계](CITY_THEMES.md)와 [Q01 기준](SHOP_BLOCK.md)을 따른다. 기존 코스와 모든 출발점은 보존한다.
 
 실제 크기 **576 × 192m**, 16m 셀 432개다. 서쪽 192m는 기존 주행 코스이며,

@@ -1,5 +1,11 @@
 # Q01 — Hanbit shopping block
 
+The Korean names below are map-specific lettering embedded as mesh strokes,
+not reusable language-neutral base assets or a multilingual texture system.
+The future common/sign separation is described in
+[WORLD_THEME_AUTHORING](WORLD_THEME_AUTHORING.md); this preserved baseline is
+not changed by that plan.
+
 This is the preserved v5 baseline. Q03 keeps this lot intact and expands the
 other neighbourhoods in [town v6](CITY_THEMES.md). Q02's consuming Runtime
 resolved the original single-worker reservation denial; device acceptance is

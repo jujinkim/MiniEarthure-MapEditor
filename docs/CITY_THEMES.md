@@ -1,10 +1,16 @@
 # Q03 — Town v6 neighbourhoods
 
+Scope correction: these six categories are land-use/layout variants in a Korean
+sample town. They do not fulfill the requested worldwide regional/environment
+themes. The initial seven and the language-neutral common asset / map-specific
+sign boundary are planned in [WORLD_THEME_AUTHORING](WORLD_THEME_AUTHORING.md).
+The current models have not yet been refactored into that common library.
+
 `scripts/city_themes.py` expands the Q01 modelling vocabulary to the other 40
 city lots. The Hanbit lot remains byte-identical in layout, assets and collision.
 The map stays 576×192m, with 432 16m cells, Recipe 6 and package format 1.
 
-| Theme | Lots | Shape and use |
+| Land-use variant | Lots | Shape and use |
 | --- | ---: | --- |
 | Shopping | 9 | Five/six shops, frontage setbacks, width-aware spacing, signs, awnings and café yards |
 | Residential | 10 | Five/six homes, two/three floors, recessed four-sided windows, balconies, doors, services and benches |
