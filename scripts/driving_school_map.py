@@ -313,6 +313,8 @@ def build():
     expand(t)
     from shop_block import refine
     refine(t)
+    from city_themes import refine as refine_city
+    refine_city(t)
     return t
 
 

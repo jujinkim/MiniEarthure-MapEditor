@@ -1,5 +1,10 @@
 # Q01 — Hanbit shopping block
 
+This is the preserved v5 baseline. Q03 keeps this lot intact and expands the
+other neighbourhoods in [town v6](CITY_THEMES.md). Q02's consuming Runtime
+resolved the original single-worker reservation denial; device acceptance is
+still separate. The historical measurements below describe Q01 at delivery.
+
 `driving-school-town-v5` replaces only the `korea-1-1` lot (X=238–272m,
 Y=48–80m) with six original shops: 한빛서점, 골목커피, 봄약국, 은하식당,
 온유공방 and 다온문구. The author is [shop_block.py](../scripts/shop_block.py).

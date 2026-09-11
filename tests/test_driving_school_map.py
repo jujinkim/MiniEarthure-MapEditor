@@ -101,12 +101,14 @@ class DrivingSchoolTests(unittest.TestCase):
         report=self.town.city_report
         self.assertEqual([d['blocks'] for d in report['districts']],[25,16])
         self.assertEqual(len(self.doc['heightmaps']),432)
-        self.assertEqual(report['buildings'],166)
+        self.assertEqual(report['buildings'],197)
         self.assertEqual(report['grass_ground_fraction'],0)
         for lot in report['lots']:
             x0,y0,x1,y1=lot['bounds']
             coverage=lot['footprint_m2']/((x1-x0)*(y1-y0))
-            self.assertGreaterEqual(coverage,0.59 if lot['id']=='korea-1-1' else 0.65,lot['id'])
+            # v6 trades the uniform four masses for explicit lanes and plazas.
+            minimum=0.59 if lot['id']=='korea-1-1' else 0.42 if lot['id'].startswith('korea-') else 0.26
+            self.assertGreaterEqual(coverage,minimum,lot['id'])
             self.assertLessEqual(coverage,0.80,lot['id'])
         for asset in ['city-tree','city-lamp','city-bench','city-bus-stop','city-bollard','city-bin']:
             self.assertGreater(report['props'][asset],0,asset)
@@ -134,10 +136,10 @@ class DrivingSchoolTests(unittest.TestCase):
             with self.assertRaises(FileExistsError): maps.create(a)
             self.assertEqual(before,{str(p.relative_to(a)):p.read_bytes() for p in a.rglob("*") if p.is_file()})
 
-    def test_quality_block_preserves_v4_outside_explicit_scope(self):
-        previous=Path(__file__).resolve().parents[1]/'examples/driving-school-v4'
+    def test_themes_preserve_v5_outside_explicit_scope(self):
+        previous=Path(__file__).resolve().parents[1]/'examples/driving-school-v5'
         baseline=json.loads((previous/'document.json').read_text())
-        report=self.town.city_report['quality_block']
+        report=self.town.city_report['themes']
         removed=set(report['replaced_placements'])
         actual={p['id']:p for p in self.doc['placements']}
         for p in baseline['placements']:
@@ -145,24 +147,55 @@ class DrivingSchoolTests(unittest.TestCase):
         for key in ['buildings','heightmaps','zones','surface_areas','repetitions','bounds','cell_size_cm']:
             self.assertEqual(self.doc[key],baseline[key],key)
         for asset in baseline['assets']:
+            if asset['id'] in report['retired_assets']:
+                self.assertFalse(any(p['asset_id']==asset['id'] for p in self.doc['placements']))
+                continue
             self.assertIn(asset,self.doc['assets'])
             self.assertEqual(self.town.payloads[asset['path']],(previous/asset['path']).read_bytes())
-        changed={'korea-ns-1-1','korea-ns-2-1'}
         for road in baseline['roads']:
-            if road['id'] not in changed:
+            pieces=[r for r in self.doc['roads'] if r['id']==road['id'] or r['id'].startswith(road['id']+'-q03-')]
+            if len(pieces)==1:
                 self.assertEqual(self.roads[road['id']],road)
             else:
-                south=self.roads[road['id']]
-                north=self.roads[road['id']+'-q01-north']
-                self.assertEqual(south['points'][0],road['points'][0])
-                self.assertEqual(north['points'][-1],road['points'][-1])
-                self.assertEqual(south['points'][-1],north['points'][0])
-                for key in ['kind','widths_cm','sidewalk_cm','surfaces']:
-                    self.assertEqual(south[key],road[key])
-                    self.assertEqual(north[key],road[key])
+                self.assertTrue(road['id'].startswith('korea-ns-'))
+                pieces.sort(key=lambda r:r['points'][0][2])
+                self.assertEqual(pieces[0]['points'][0],road['points'][0])
+                self.assertEqual(pieces[-1]['points'][-1],road['points'][-1])
+                for a,b in zip(pieces,pieces[1:]):self.assertEqual(a['points'][-1],b['points'][0])
+                for piece in pieces:
+                    for key in ['kind','widths_cm','sidewalk_cm','surfaces']:
+                        self.assertEqual(piece[key],road[key])
         self.assertEqual(self.town.locations,json.loads((previous/'driving.json').read_text())['locations'])
-        lock=json.loads(Path(__file__).with_name('driving_school_v4.lock.json').read_text())
+        self.assertEqual(self.town.city_report['quality_block'],json.loads((previous/'driving.json').read_text())['city']['quality_block'])
+        lock=json.loads(Path(__file__).with_name('driving_school_v5.lock.json').read_text())
         self.assertEqual(sha(previous.with_suffix('.memap').read_bytes()),lock['inspection']['package_sha256'])
+
+    def test_theme_variety_and_physical_lane_clearance(self):
+        from shapely.geometry import box
+        from shapely.affinity import rotate,translate
+        from city_themes import ATTRIBUTION
+        lots=self.town.city_report['themes']['lots']
+        self.assertEqual(len(lots),40)
+        self.assertEqual(set(l['theme'] for l in lots),{'shopping','residential','market','office','hotel','plaza'})
+        self.assertGreaterEqual(len(set(len(l['buildings']) for l in lots)),4)
+        self.assertEqual(sum(l['lane'] is not None for l in lots),15)
+        assets={a['id']:a for a in self.doc['assets']}
+        footprints=[]
+        for p in self.doc['placements']:
+            if not p['id'].startswith('q03-'):continue
+            a=assets[p['asset_id']]
+            self.assertTrue(a.get('collision'),p['id'])
+            for shape in a['collision']:
+                x,_,y=[v/100 for v in shape['center']];w,_,d=[v/100 for v in shape['size_cm']]
+                footprint=translate(rotate(box(x-w/2,y-d/2,x+w/2,y+d/2),90*p['quarter_turns'],origin=(0,0)),p['position'][0]/100,p['position'][2]/100)
+                footprints.append((p['id'],footprint))
+        for lot in lots:
+            if not lot['lane']:continue
+            lane=lot['lane'];corridor=box(lane['x_m'][0],lane['y_m']-1,lane['x_m'][1],lane['y_m']+1)
+            for ident,footprint in footprints:self.assertFalse(footprint.intersects(corridor),(lot['id'],ident))
+        for asset in assets.values():
+            if asset['id'].startswith('q03-'):self.assertEqual(asset['attribution'],ATTRIBUTION)
+        self.assertIn(ATTRIBUTION,self.doc['attributions'])
 
     def test_quality_block_clear_lane_and_original_legible_assets(self):
         from shapely.geometry import box

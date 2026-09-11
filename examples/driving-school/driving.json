@@ -1,39 +1,39 @@
 {
-  "profile": "driving-school-town-v5",
-  "map_id": "driving-school-town-v5",
+  "profile": "driving-school-town-v6",
+  "map_id": "driving-school-town-v6",
   "bounds_cm": {
-    "min": [
-      0,
-      0
-    ],
     "max": [
       57600,
       19200
+    ],
+    "min": [
+      0,
+      0
     ]
   },
   "world_scale": 1.0,
   "cell_size_cm": 1600,
   "cell_count": 432,
   "counts": {
-    "nodes": 378,
-    "roads": 586,
+    "nodes": 399,
+    "roads": 622,
     "buildings": 786,
     "zones": 37,
-    "assets": 47,
-    "placements": 2436,
+    "assets": 32,
+    "placements": 2542,
     "repetitions": 0,
     "heightmaps": 432
   },
-  "authored_object_count": 4702,
-  "road_centerline_planar_m": 9216.837764,
-  "road_centerline_spatial_m": 9216.942828,
+  "authored_object_count": 4850,
+  "road_centerline_planar_m": 9719.337764,
+  "road_centerline_spatial_m": 9719.442828,
   "terrain": {
     "description": "exact synthetic flat PNG16, 4m grid; compact practice hill, elevated freeway and two vehicle-clearance bridges",
     "spacing_cm": 400,
     "source_accuracy_cm": null
   },
   "source_files": {
-    "document.json": "a336d90c6356e9cf8ff2fe3e7617ac0243e13893b9ef00d8d37c1d7c978fc66d",
+    "document.json": "1f41ca1bdf7672f985a10587bd095f6b2fc6f90879188a27f4d5df71ec863289",
     "assets/city-bench.glb": "3689eb6cc7957f86e35f89e5bfc590f74eb6085ae7b187c24edfc3cb96b88eab",
     "assets/city-bin.glb": "396edb1d0c6421cc013a41c2091731b54a92088dcd7f9b3831c953d8d6c1a29b",
     "assets/city-bollard.glb": "9174f47302fca9d2a345e97b4c3fecd3a617ce7eebcc5828f53d0c49b6524c0e",
@@ -42,22 +42,6 @@
     "assets/city-tree.glb": "6015cc8f4456c1b3af701f48ed865738c2e6c7cf576d511452d59dcd5c670d30",
     "assets/compact-tree.glb": "f575e96077903d277322a5391b4410de6ad608e1d992d5c0af0e31b1d20c9240",
     "assets/distance-marker.glb": "01067e07d0566c6c7a4e083f1f1eda54b77df8da9b2faf3e2de8da7e67b74ea0",
-    "assets/korea-building-0-compact.glb": "01b52b49afa5dd59cfe514850de0f49ca43556eb5d7951212e76310773778a55",
-    "assets/korea-building-0.glb": "54f913a49d42f573d3241d0d9e55a0249a2676fdfaa6d18bb192c4fc7f6d1ca9",
-    "assets/korea-building-1-compact.glb": "68f63616eb621957f96bbb5decbe94fd1fb0d9f7cb50942c14a6aa8b25da8d2d",
-    "assets/korea-building-1.glb": "c74c55917ed1b95306c24dd34ae58696a7779de8b0bad3c7035fc3f4d2704241",
-    "assets/korea-building-2-compact.glb": "76db87e4be91ddd273c3ca10f082599e16a00e518206d8c467695527451748e8",
-    "assets/korea-building-2.glb": "f0fdb16d686a7310030e68590fa26237a967317b17530df4fd1ca5ec268f284d",
-    "assets/korea-building-3-compact.glb": "3f7cf7b5f654e67a48950bda2124a4958025062d0ae1e67f80d6b1c2430618e7",
-    "assets/korea-building-3.glb": "693cdd37596bd43defbe0b287065a929bab3e1a657668c507e1bd8b572508bc3",
-    "assets/korea-building-4-compact.glb": "6967dbc15b0b496ccdda832b1f1e2c84d8290e60dbc2375b69bbd430c6c46b20",
-    "assets/korea-building-4.glb": "5b56924e7120ed88ef4266ca58b61c48017cc410df60cfc3c97d4257db71ee6f",
-    "assets/korea-building-5-compact.glb": "cc36d09d49a00995e314b6285a1dafbd638f708646d41bf221b4a0dfe5b5daae",
-    "assets/korea-building-5.glb": "21420f8e5755b69fe6c3b4ac90f3c503dc7ac817cf39ea33ad1c84c6b3c055ee",
-    "assets/korea-building-6-compact.glb": "88035d9d1f4076fce0aa4e7ee80813a1527d23cfd22b24a09c45d0b70c298809",
-    "assets/korea-building-6.glb": "e9c6e51d9265beea5741238509153a722247f9a7a62f6912ac33a6e99e52d0ad",
-    "assets/korea-building-7-compact.glb": "f756d32b844a4f9b4847101f920b97a958c1044df72ba245063bc77013a7a008",
-    "assets/korea-building-7.glb": "d07fc34b8de7a2debd2736da67760e41704d4fec3a1035f25499744b8e5d1d31",
     "assets/q01-arrow.glb": "fb1064f983070bc27cc1f12628551103d64002b090195a975485e231bbd878a4",
     "assets/q01-asphalt-repair.glb": "e9fdf6643098dd4677351d69e63a261256187fd586407588e46342db9f1a0c27",
     "assets/q01-book.glb": "d97b9940d527a6e9b2a0b7377ac331bb28953da4872e297015b2f8b6bc95d1b7",
@@ -72,27 +56,33 @@
     "assets/q01-planter.glb": "70b08b00b7263e1eec470b668e111dfce9d5336b74bccad7adf2fc29a41ee857",
     "assets/q01-stationer.glb": "d04057684378ffaf19744c559293ca4723836fa880faf0123a1d4b6c6a49f60e",
     "assets/q01-workshop.glb": "4e405d673f8a3b2dda3c8adc816f8f606db61da5ba3ab58b36707819d008c14e",
+    "assets/q03-arcade.glb": "5041bab57034fd9575803c8ea77e068f26fd4bd83259035c54e99d283d9959d7",
+    "assets/q03-clock.glb": "a2cc1ec7541a532be42dc616cd5afb29df3c111f7e059e13cb7b9eb07a0abf8c",
+    "assets/q03-fountain.glb": "70b2bdc47382caf4090ae8787c4420e5949f626906194d4c5e33fe0c858922ed",
+    "assets/q03-home-0.glb": "daf1eaf5dc5ef55089c0b18290c46bf3de4dd598fd820620b74b5eedc629381e",
+    "assets/q03-home-1.glb": "4030dc95adf00f9acb2ce39c31b82b9d5fa3e67d570cc5938e7e27b4b47ba99b",
+    "assets/q03-hotel.glb": "0382e93c43186dce6694e0b1b65aa1f0a7634073d107bf77d4bbfdce583f9e4c",
+    "assets/q03-market-hall.glb": "4f2f105b2458a4ca8b08b5b66b2fc0a979e64e57ab7e2f2f745f284d0d54fbd6",
+    "assets/q03-office.glb": "abeb043036d8ef6d010d58043d41ea73d6e1653ca6a432f4c2548fcb33aace0f",
+    "assets/q03-stall.glb": "3ebafb18ea17c19411bce79c05c2263b4b441bce2c2ce0dc18c3d9ab47fe3265",
     "assets/school-pylon.glb": "5ca5a650df08738b432112bc43e4425a44493738c526c02fe070fbdbe70a1858",
-    "assets/sky-building-0.glb": "856477f0837241bc56159e5fda8bf72e9079a8550cd0a12aa7cd171b65a4c0b5",
-    "assets/sky-building-1.glb": "97d5cd1e19d0a18e0a86df377ec7ea66faef885154b00ba7ffd12b7948ea90b0",
-    "assets/sky-building-2.glb": "789fddba2c1cb0dd6d4a8dada6414aff069b63b6aa24cafc38c2cb7ac64743d9",
-    "assets/sky-building-3.glb": "158115860ef2203a772fce2123285474834782cdd97a2b1767cf8ad74aa08fd5",
-    "assets/sky-building-4.glb": "75332191b72ebb41e78aa2a879ad9039b9213825845849ca34b0aa944d6de9aa",
-    "assets/sky-building-5.glb": "3451b9356e445ff9f1ca1d109dd0a59538796d783576b9fad473a02cccc9c4e9",
-    "assets/sky-building-6.glb": "79dc54acf45cfb732fd7a6eb1fa9b37fe464376e42ce94cb9f9fd62c9ac136d5",
-    "assets/sky-building-7.glb": "e56f0f79d0eef7fe244f9026bba9cce8c83459e82251f1dd7a41b0500296f38f",
     "terrain/flat.png": "7f2194a0699162298f38abd241b1d61e5e1bd3a14a39341708604a3cdef675c7"
   },
   "attributions": [
     {
-      "source": "driving-school-town-v4",
       "license": "MIT",
-      "notice": "Original driving school, city and static models. Kart circuits study the topology of KartRider Village Freeway and The Glove; dimensions are adapted. No extracted assets or surveyed exam layout."
+      "notice": "Original driving school, city and static models. Kart circuits study the topology of KartRider Village Freeway and The Glove; dimensions are adapted. No extracted assets or surveyed exam layout.",
+      "source": "driving-school-town-v4"
     },
     {
-      "source": "mapeditor-q01-hanbit-block",
       "license": "MIT",
-      "notice": "Original fictional Hanbit shopping block; buildings, Hangul stroke lettering, street furniture and wall relief authored procedurally. No external models, fonts, textures or surveyed data."
+      "notice": "Original fictional Hanbit shopping block; buildings, Hangul stroke lettering, street furniture and wall relief authored procedurally. No external models, fonts, textures or surveyed data.",
+      "source": "mapeditor-q01-hanbit-block"
+    },
+    {
+      "source": "mapeditor-q03-city-themes",
+      "license": "MIT",
+      "notice": "Original fictional residential lanes, covered market, offices, hotels and civic plazas. Procedural geometry and materials; no external models, fonts, textures or user datasets."
     }
   ],
   "routes": [
@@ -504,11 +494,11 @@
         "blocks": 16
       }
     ],
-    "buildings": 166,
+    "buildings": 197,
     "props": {
       "city-tree": 237,
-      "city-lamp": 241,
-      "city-bench": 235,
+      "city-lamp": 226,
+      "city-bench": 246,
       "city-bin": 80,
       "city-bollard": 198,
       "city-bus-stop": 16
@@ -522,8 +512,9 @@
           234.3,
           43.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 6,
+        "footprint_m2": 357.15999999999997,
+        "theme": "shopping"
       },
       {
         "id": "korea-1-0",
@@ -533,8 +524,9 @@
           266.55,
           43.3
         ],
-        "buildings": 4,
-        "footprint_m2": 441.0
+        "buildings": 5,
+        "footprint_m2": 302.12,
+        "theme": "shopping"
       },
       {
         "id": "korea-2-0",
@@ -544,8 +536,9 @@
           302.3,
           43.3
         ],
-        "buildings": 4,
-        "footprint_m2": 441.0
+        "buildings": 6,
+        "footprint_m2": 357.15999999999997,
+        "theme": "shopping"
       },
       {
         "id": "korea-3-0",
@@ -555,8 +548,9 @@
           336.3,
           43.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 5,
+        "footprint_m2": 291.64,
+        "theme": "shopping"
       },
       {
         "id": "korea-4-0",
@@ -566,8 +560,9 @@
           372.3,
           43.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 6,
+        "footprint_m2": 357.15999999999997,
+        "theme": "shopping"
       },
       {
         "id": "korea-0-1",
@@ -577,8 +572,9 @@
           234.3,
           76.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 6,
+        "footprint_m2": 357.15999999999997,
+        "theme": "shopping"
       },
       {
         "id": "korea-1-1",
@@ -599,8 +595,9 @@
           302.3,
           76.3
         ],
-        "buildings": 4,
-        "footprint_m2": 441.0
+        "buildings": 6,
+        "footprint_m2": 357.15999999999997,
+        "theme": "shopping"
       },
       {
         "id": "korea-3-1",
@@ -610,8 +607,9 @@
           336.3,
           76.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 5,
+        "footprint_m2": 291.64,
+        "theme": "shopping"
       },
       {
         "id": "korea-4-1",
@@ -621,8 +619,9 @@
           372.3,
           76.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 6,
+        "footprint_m2": 357.15999999999997,
+        "theme": "shopping"
       },
       {
         "id": "korea-0-2",
@@ -632,8 +631,9 @@
           234.3,
           108.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 5,
+        "footprint_m2": 311.15999999999997,
+        "theme": "market"
       },
       {
         "id": "korea-1-2",
@@ -643,8 +643,9 @@
           266.55,
           108.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 5,
+        "footprint_m2": 328.12,
+        "theme": "market"
       },
       {
         "id": "korea-2-2",
@@ -654,8 +655,9 @@
           302.3,
           108.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 5,
+        "footprint_m2": 329.52,
+        "theme": "market"
       },
       {
         "id": "korea-3-2",
@@ -665,8 +667,9 @@
           336.3,
           108.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 5,
+        "footprint_m2": 318.0,
+        "theme": "market"
       },
       {
         "id": "korea-4-2",
@@ -676,8 +679,9 @@
           372.3,
           108.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 5,
+        "footprint_m2": 301.04,
+        "theme": "market"
       },
       {
         "id": "korea-0-3",
@@ -687,8 +691,9 @@
           234.3,
           139.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 6,
+        "footprint_m2": 334.32,
+        "theme": "residential"
       },
       {
         "id": "korea-1-3",
@@ -698,8 +703,9 @@
           266.55,
           139.3
         ],
-        "buildings": 4,
-        "footprint_m2": 441.0
+        "buildings": 5,
+        "footprint_m2": 278.88,
+        "theme": "residential"
       },
       {
         "id": "korea-2-3",
@@ -709,8 +715,9 @@
           302.3,
           139.3
         ],
-        "buildings": 4,
-        "footprint_m2": 441.0
+        "buildings": 6,
+        "footprint_m2": 334.32,
+        "theme": "residential"
       },
       {
         "id": "korea-3-3",
@@ -720,8 +727,9 @@
           336.3,
           139.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 5,
+        "footprint_m2": 278.88,
+        "theme": "residential"
       },
       {
         "id": "korea-4-3",
@@ -731,8 +739,9 @@
           372.3,
           139.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 6,
+        "footprint_m2": 334.32,
+        "theme": "residential"
       },
       {
         "id": "korea-0-4",
@@ -742,8 +751,9 @@
           234.3,
           172.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 6,
+        "footprint_m2": 334.32,
+        "theme": "residential"
       },
       {
         "id": "korea-1-4",
@@ -753,8 +763,9 @@
           266.55,
           172.3
         ],
-        "buildings": 4,
-        "footprint_m2": 441.0
+        "buildings": 5,
+        "footprint_m2": 278.88,
+        "theme": "residential"
       },
       {
         "id": "korea-2-4",
@@ -764,8 +775,9 @@
           302.3,
           172.3
         ],
-        "buildings": 4,
-        "footprint_m2": 441.0
+        "buildings": 6,
+        "footprint_m2": 334.32,
+        "theme": "residential"
       },
       {
         "id": "korea-3-4",
@@ -775,8 +787,9 @@
           336.3,
           172.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 5,
+        "footprint_m2": 278.88,
+        "theme": "residential"
       },
       {
         "id": "korea-4-4",
@@ -786,8 +799,9 @@
           372.3,
           172.3
         ],
-        "buildings": 4,
-        "footprint_m2": 484
+        "buildings": 6,
+        "footprint_m2": 334.32,
+        "theme": "residential"
       },
       {
         "id": "sky-0-0",
@@ -798,7 +812,8 @@
           51.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 406.12,
+        "theme": "office"
       },
       {
         "id": "sky-1-0",
@@ -809,7 +824,8 @@
           51.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 348.04,
+        "theme": "hotel"
       },
       {
         "id": "sky-2-0",
@@ -819,8 +835,9 @@
           518.3,
           51.3
         ],
-        "buildings": 4,
-        "footprint_m2": 784
+        "buildings": 3,
+        "footprint_m2": 288.6,
+        "theme": "plaza"
       },
       {
         "id": "sky-3-0",
@@ -831,7 +848,8 @@
           51.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 406.12,
+        "theme": "office"
       },
       {
         "id": "sky-0-1",
@@ -842,7 +860,8 @@
           92.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 348.04,
+        "theme": "hotel"
       },
       {
         "id": "sky-1-1",
@@ -852,8 +871,9 @@
           474.55,
           92.3
         ],
-        "buildings": 4,
-        "footprint_m2": 784
+        "buildings": 3,
+        "footprint_m2": 288.6,
+        "theme": "plaza"
       },
       {
         "id": "sky-2-1",
@@ -864,7 +884,8 @@
           92.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 406.12,
+        "theme": "office"
       },
       {
         "id": "sky-3-1",
@@ -875,7 +896,8 @@
           92.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 348.04,
+        "theme": "hotel"
       },
       {
         "id": "sky-0-2",
@@ -885,8 +907,9 @@
           434.3,
           131.3
         ],
-        "buildings": 4,
-        "footprint_m2": 784
+        "buildings": 3,
+        "footprint_m2": 288.6,
+        "theme": "plaza"
       },
       {
         "id": "sky-1-2",
@@ -897,7 +920,8 @@
           131.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 406.12,
+        "theme": "office"
       },
       {
         "id": "sky-2-2",
@@ -908,7 +932,8 @@
           131.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 348.04,
+        "theme": "hotel"
       },
       {
         "id": "sky-3-2",
@@ -918,8 +943,9 @@
           560.3,
           131.3
         ],
-        "buildings": 4,
-        "footprint_m2": 784
+        "buildings": 3,
+        "footprint_m2": 288.6,
+        "theme": "plaza"
       },
       {
         "id": "sky-0-3",
@@ -930,7 +956,8 @@
           172.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 406.12,
+        "theme": "office"
       },
       {
         "id": "sky-1-3",
@@ -941,7 +968,8 @@
           172.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 348.04,
+        "theme": "hotel"
       },
       {
         "id": "sky-2-3",
@@ -951,8 +979,9 @@
           518.3,
           172.3
         ],
-        "buildings": 4,
-        "footprint_m2": 784
+        "buildings": 3,
+        "footprint_m2": 288.6,
+        "theme": "plaza"
       },
       {
         "id": "sky-3-3",
@@ -963,7 +992,8 @@
           172.3
         ],
         "buildings": 4,
-        "footprint_m2": 784
+        "footprint_m2": 406.12,
+        "theme": "office"
       }
     ],
     "grass_ground_fraction": 0.0,
@@ -1072,6 +1102,3853 @@
       },
       "materials": "Geometry mortar/tile joints and recess shading with glass/metal PBR; no image decode, external textures or baked shadow maps.",
       "baseline": "driving-school-town-v4"
+    },
+    "themes": {
+      "profile": "driving-school-town-v6",
+      "baseline": "driving-school-town-v5",
+      "lots": [
+        {
+          "id": "korea-0-0",
+          "theme": "shopping",
+          "center_m": [
+            221.0,
+            31.5
+          ],
+          "bounds_m": [
+            207.7,
+            19.7,
+            234.3,
+            43.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-0-0-building-0",
+              "asset": "q01-book",
+              "x": 213.05,
+              "y": 24.7,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-0-0-building-1",
+              "asset": "q01-cafe",
+              "x": 220.3,
+              "y": 24.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-0-0-building-2",
+              "asset": "q01-pharmacy",
+              "x": 228.25,
+              "y": 24.7,
+              "turn": 2,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-0-0-building-3",
+              "asset": "q01-diner",
+              "x": 213.95,
+              "y": 38.3,
+              "turn": 0,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-0-0-building-4",
+              "asset": "q01-workshop",
+              "x": 222.0,
+              "y": 38.5,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-0-0-building-5",
+              "asset": "q01-stationer",
+              "x": 229.05,
+              "y": 38.3,
+              "turn": 0,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-0-0-detail-0",
+              "asset": "q01-planter",
+              "x": 218.0,
+              "y": 33.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-0-0-detail-1",
+              "asset": "q01-menu",
+              "x": 224.0,
+              "y": 33.1,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "korea-1-0",
+          "theme": "shopping",
+          "center_m": [
+            254.125,
+            31.5
+          ],
+          "bounds_m": [
+            241.7,
+            19.7,
+            266.55,
+            43.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-1-0-building-0",
+              "asset": "q01-cafe",
+              "x": 245.675,
+              "y": 24.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-1-0-building-1",
+              "asset": "q01-pharmacy",
+              "x": 253.625,
+              "y": 24.5,
+              "turn": 2,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-1-0-building-2",
+              "asset": "q01-diner",
+              "x": 262.075,
+              "y": 24.7,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-1-0-building-3",
+              "asset": "q01-workshop",
+              "x": 250.85,
+              "y": 38.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-1-0-building-4",
+              "asset": "q01-stationer",
+              "x": 257.9,
+              "y": 38.5,
+              "turn": 0,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-1-0-detail-0",
+              "asset": "q01-planter",
+              "x": 251.125,
+              "y": 33.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-1-0-detail-1",
+              "asset": "q01-cafe-table",
+              "x": 243.425,
+              "y": 38.3,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "korea-2-0",
+          "theme": "shopping",
+          "center_m": [
+            289.875,
+            31.5
+          ],
+          "bounds_m": [
+            277.45,
+            19.7,
+            302.3,
+            43.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-2-0-building-0",
+              "asset": "q01-pharmacy",
+              "x": 281.825,
+              "y": 24.7,
+              "turn": 2,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-2-0-building-1",
+              "asset": "q01-diner",
+              "x": 290.275,
+              "y": 24.5,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-2-0-building-2",
+              "asset": "q01-workshop",
+              "x": 298.325,
+              "y": 24.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-2-0-building-3",
+              "asset": "q01-stationer",
+              "x": 282.625,
+              "y": 38.3,
+              "turn": 0,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            },
+            {
+              "id": "q03-korea-2-0-building-4",
+              "asset": "q01-book",
+              "x": 289.375,
+              "y": 38.5,
+              "turn": 0,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-2-0-building-5",
+              "asset": "q01-cafe",
+              "x": 296.625,
+              "y": 38.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-2-0-detail-0",
+              "asset": "q01-planter",
+              "x": 286.875,
+              "y": 33.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-2-0-detail-1",
+              "asset": "q01-menu",
+              "x": 292.875,
+              "y": 33.1,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "korea-3-0",
+          "theme": "shopping",
+          "center_m": [
+            323.0,
+            31.5
+          ],
+          "bounds_m": [
+            309.7,
+            19.7,
+            336.3,
+            43.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-3-0-building-0",
+              "asset": "q01-diner",
+              "x": 315.95,
+              "y": 24.7,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-3-0-building-1",
+              "asset": "q01-workshop",
+              "x": 324.0,
+              "y": 24.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-3-0-building-2",
+              "asset": "q01-stationer",
+              "x": 331.05,
+              "y": 24.7,
+              "turn": 2,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            },
+            {
+              "id": "q03-korea-3-0-building-3",
+              "asset": "q01-book",
+              "x": 319.225,
+              "y": 38.3,
+              "turn": 0,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-3-0-building-4",
+              "asset": "q01-cafe",
+              "x": 326.475,
+              "y": 38.5,
+              "turn": 0,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-3-0-detail-0",
+              "asset": "q01-planter",
+              "x": 320.0,
+              "y": 33.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-3-0-detail-1",
+              "asset": "q01-cafe-table",
+              "x": 312.3,
+              "y": 38.3,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "korea-4-0",
+          "theme": "shopping",
+          "center_m": [
+            358.0,
+            31.5
+          ],
+          "bounds_m": [
+            343.7,
+            19.7,
+            372.3,
+            43.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-4-0-building-0",
+              "asset": "q01-workshop",
+              "x": 351.25,
+              "y": 24.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-4-0-building-1",
+              "asset": "q01-stationer",
+              "x": 358.3,
+              "y": 24.5,
+              "turn": 2,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            },
+            {
+              "id": "q03-korea-4-0-building-2",
+              "asset": "q01-book",
+              "x": 365.05,
+              "y": 24.7,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-4-0-building-3",
+              "asset": "q01-cafe",
+              "x": 349.55,
+              "y": 38.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-4-0-building-4",
+              "asset": "q01-pharmacy",
+              "x": 357.5,
+              "y": 38.5,
+              "turn": 0,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-4-0-building-5",
+              "asset": "q01-diner",
+              "x": 365.95,
+              "y": 38.3,
+              "turn": 0,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-4-0-detail-0",
+              "asset": "q01-planter",
+              "x": 355.0,
+              "y": 33.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-4-0-detail-1",
+              "asset": "q01-menu",
+              "x": 361.0,
+              "y": 33.1,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "korea-0-1",
+          "theme": "shopping",
+          "center_m": [
+            221.0,
+            64.5
+          ],
+          "bounds_m": [
+            207.7,
+            52.7,
+            234.3,
+            76.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-0-1-building-0",
+              "asset": "q01-book",
+              "x": 213.05,
+              "y": 57.7,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-0-1-building-1",
+              "asset": "q01-cafe",
+              "x": 220.3,
+              "y": 57.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-0-1-building-2",
+              "asset": "q01-pharmacy",
+              "x": 228.25,
+              "y": 57.7,
+              "turn": 2,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-0-1-building-3",
+              "asset": "q01-diner",
+              "x": 213.95,
+              "y": 71.3,
+              "turn": 0,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-0-1-building-4",
+              "asset": "q01-workshop",
+              "x": 222.0,
+              "y": 71.5,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-0-1-building-5",
+              "asset": "q01-stationer",
+              "x": 229.05,
+              "y": 71.3,
+              "turn": 0,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-0-1-detail-0",
+              "asset": "q01-planter",
+              "x": 218.0,
+              "y": 66.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-0-1-detail-1",
+              "asset": "q01-menu",
+              "x": 224.0,
+              "y": 66.1,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "korea-2-1",
+          "theme": "shopping",
+          "center_m": [
+            289.875,
+            64.5
+          ],
+          "bounds_m": [
+            277.45,
+            52.7,
+            302.3,
+            76.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-2-1-building-0",
+              "asset": "q01-pharmacy",
+              "x": 281.825,
+              "y": 57.7,
+              "turn": 2,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-2-1-building-1",
+              "asset": "q01-diner",
+              "x": 290.275,
+              "y": 57.5,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-2-1-building-2",
+              "asset": "q01-workshop",
+              "x": 298.325,
+              "y": 57.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-2-1-building-3",
+              "asset": "q01-stationer",
+              "x": 282.625,
+              "y": 71.3,
+              "turn": 0,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            },
+            {
+              "id": "q03-korea-2-1-building-4",
+              "asset": "q01-book",
+              "x": 289.375,
+              "y": 71.5,
+              "turn": 0,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-2-1-building-5",
+              "asset": "q01-cafe",
+              "x": 296.625,
+              "y": 71.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-2-1-detail-0",
+              "asset": "q01-planter",
+              "x": 286.875,
+              "y": 66.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-2-1-detail-1",
+              "asset": "q01-menu",
+              "x": 292.875,
+              "y": 66.1,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "korea-3-1",
+          "theme": "shopping",
+          "center_m": [
+            323.0,
+            64.5
+          ],
+          "bounds_m": [
+            309.7,
+            52.7,
+            336.3,
+            76.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-3-1-building-0",
+              "asset": "q01-diner",
+              "x": 315.95,
+              "y": 57.7,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-3-1-building-1",
+              "asset": "q01-workshop",
+              "x": 324.0,
+              "y": 57.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-3-1-building-2",
+              "asset": "q01-stationer",
+              "x": 331.05,
+              "y": 57.7,
+              "turn": 2,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            },
+            {
+              "id": "q03-korea-3-1-building-3",
+              "asset": "q01-book",
+              "x": 319.225,
+              "y": 71.3,
+              "turn": 0,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-3-1-building-4",
+              "asset": "q01-cafe",
+              "x": 326.475,
+              "y": 71.5,
+              "turn": 0,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-3-1-detail-0",
+              "asset": "q01-planter",
+              "x": 320.0,
+              "y": 66.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-3-1-detail-1",
+              "asset": "q01-cafe-table",
+              "x": 312.3,
+              "y": 71.3,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "korea-4-1",
+          "theme": "shopping",
+          "center_m": [
+            358.0,
+            64.5
+          ],
+          "bounds_m": [
+            343.7,
+            52.7,
+            372.3,
+            76.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-4-1-building-0",
+              "asset": "q01-workshop",
+              "x": 351.25,
+              "y": 57.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-4-1-building-1",
+              "asset": "q01-stationer",
+              "x": 358.3,
+              "y": 57.5,
+              "turn": 2,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            },
+            {
+              "id": "q03-korea-4-1-building-2",
+              "asset": "q01-book",
+              "x": 365.05,
+              "y": 57.7,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-4-1-building-3",
+              "asset": "q01-cafe",
+              "x": 349.55,
+              "y": 71.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-4-1-building-4",
+              "asset": "q01-pharmacy",
+              "x": 357.5,
+              "y": 71.5,
+              "turn": 0,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-4-1-building-5",
+              "asset": "q01-diner",
+              "x": 365.95,
+              "y": 71.3,
+              "turn": 0,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-4-1-detail-0",
+              "asset": "q01-planter",
+              "x": 355.0,
+              "y": 66.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-4-1-detail-1",
+              "asset": "q01-menu",
+              "x": 361.0,
+              "y": 66.1,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "korea-0-2",
+          "theme": "market",
+          "center_m": [
+            221.0,
+            96.0
+          ],
+          "bounds_m": [
+            207.7,
+            83.7,
+            234.3,
+            108.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-0-2-building-0",
+              "asset": "q01-book",
+              "x": 213.05,
+              "y": 89.2,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-0-2-building-1",
+              "asset": "q01-cafe",
+              "x": 220.3,
+              "y": 89.0,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-0-2-building-2",
+              "asset": "q01-pharmacy",
+              "x": 228.25,
+              "y": 89.2,
+              "turn": 2,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-0-2-building-3",
+              "asset": "q03-market-hall",
+              "x": 215.0,
+              "y": 102.5,
+              "turn": 0,
+              "w": 10,
+              "d": 8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-0-2-building-4",
+              "asset": "q01-workshop",
+              "x": 227.0,
+              "y": 102.8,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-0-2-detail-0",
+              "asset": "q03-stall",
+              "x": 212.0,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-0-2-detail-1",
+              "asset": "q03-stall",
+              "x": 215.0,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-0-2-detail-2",
+              "asset": "q03-stall",
+              "x": 218.0,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-0-2-detail-3",
+              "asset": "q01-planter",
+              "x": 229.0,
+              "y": 97.8,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 96.0,
+            "x_m": [
+              204,
+              238
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-1-2",
+          "theme": "market",
+          "center_m": [
+            254.125,
+            96.0
+          ],
+          "bounds_m": [
+            241.7,
+            83.7,
+            266.55,
+            108.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-1-2-building-0",
+              "asset": "q01-cafe",
+              "x": 245.675,
+              "y": 89.2,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-1-2-building-1",
+              "asset": "q01-pharmacy",
+              "x": 253.625,
+              "y": 89.0,
+              "turn": 2,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-1-2-building-2",
+              "asset": "q01-diner",
+              "x": 262.075,
+              "y": 89.2,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-1-2-building-3",
+              "asset": "q03-market-hall",
+              "x": 248.125,
+              "y": 102.5,
+              "turn": 0,
+              "w": 10,
+              "d": 8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-1-2-building-4",
+              "asset": "q01-workshop",
+              "x": 260.125,
+              "y": 102.8,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-1-2-detail-0",
+              "asset": "q03-stall",
+              "x": 245.125,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-1-2-detail-1",
+              "asset": "q03-stall",
+              "x": 248.125,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-1-2-detail-2",
+              "asset": "q03-stall",
+              "x": 251.125,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-1-2-detail-3",
+              "asset": "q01-planter",
+              "x": 262.125,
+              "y": 97.8,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 96.0,
+            "x_m": [
+              238,
+              269.75
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-2-2",
+          "theme": "market",
+          "center_m": [
+            289.875,
+            96.0
+          ],
+          "bounds_m": [
+            277.45,
+            83.7,
+            302.3,
+            108.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-2-2-building-0",
+              "asset": "q01-pharmacy",
+              "x": 281.825,
+              "y": 89.2,
+              "turn": 2,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            },
+            {
+              "id": "q03-korea-2-2-building-1",
+              "asset": "q01-diner",
+              "x": 290.275,
+              "y": 89.0,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-2-2-building-2",
+              "asset": "q01-workshop",
+              "x": 298.325,
+              "y": 89.2,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-2-2-building-3",
+              "asset": "q03-market-hall",
+              "x": 283.875,
+              "y": 102.5,
+              "turn": 0,
+              "w": 10,
+              "d": 8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-2-2-building-4",
+              "asset": "q01-workshop",
+              "x": 295.875,
+              "y": 102.8,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-2-2-detail-0",
+              "asset": "q03-stall",
+              "x": 280.875,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-2-2-detail-1",
+              "asset": "q03-stall",
+              "x": 283.875,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-2-2-detail-2",
+              "asset": "q03-stall",
+              "x": 286.875,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-2-2-detail-3",
+              "asset": "q01-planter",
+              "x": 297.875,
+              "y": 97.8,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 96.0,
+            "x_m": [
+              274.25,
+              306
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-3-2",
+          "theme": "market",
+          "center_m": [
+            323.0,
+            96.0
+          ],
+          "bounds_m": [
+            309.7,
+            83.7,
+            336.3,
+            108.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-3-2-building-0",
+              "asset": "q01-diner",
+              "x": 315.95,
+              "y": 89.2,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            },
+            {
+              "id": "q03-korea-3-2-building-1",
+              "asset": "q01-workshop",
+              "x": 324.0,
+              "y": 89.0,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-3-2-building-2",
+              "asset": "q01-stationer",
+              "x": 331.05,
+              "y": 89.2,
+              "turn": 2,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            },
+            {
+              "id": "q03-korea-3-2-building-3",
+              "asset": "q03-market-hall",
+              "x": 317.0,
+              "y": 102.5,
+              "turn": 0,
+              "w": 10,
+              "d": 8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-3-2-building-4",
+              "asset": "q01-workshop",
+              "x": 329.0,
+              "y": 102.8,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-3-2-detail-0",
+              "asset": "q03-stall",
+              "x": 314.0,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-3-2-detail-1",
+              "asset": "q03-stall",
+              "x": 317.0,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-3-2-detail-2",
+              "asset": "q03-stall",
+              "x": 320.0,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-3-2-detail-3",
+              "asset": "q01-planter",
+              "x": 331.0,
+              "y": 97.8,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 96.0,
+            "x_m": [
+              306,
+              340
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-4-2",
+          "theme": "market",
+          "center_m": [
+            358.0,
+            96.0
+          ],
+          "bounds_m": [
+            343.7,
+            83.7,
+            372.3,
+            108.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-4-2-building-0",
+              "asset": "q01-workshop",
+              "x": 351.25,
+              "y": 89.2,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            },
+            {
+              "id": "q03-korea-4-2-building-1",
+              "asset": "q01-stationer",
+              "x": 358.3,
+              "y": 89.0,
+              "turn": 2,
+              "w": 6.0,
+              "d": 9.0,
+              "h": 4.1
+            },
+            {
+              "id": "q03-korea-4-2-building-2",
+              "asset": "q01-book",
+              "x": 365.05,
+              "y": 89.2,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-korea-4-2-building-3",
+              "asset": "q03-market-hall",
+              "x": 352.0,
+              "y": 102.5,
+              "turn": 0,
+              "w": 10,
+              "d": 8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-korea-4-2-building-4",
+              "asset": "q01-workshop",
+              "x": 364.0,
+              "y": 102.8,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 7.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-4-2-detail-0",
+              "asset": "q03-stall",
+              "x": 349.0,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-4-2-detail-1",
+              "asset": "q03-stall",
+              "x": 352.0,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-4-2-detail-2",
+              "asset": "q03-stall",
+              "x": 355.0,
+              "y": 97.8,
+              "turn": 0,
+              "w": 1.6,
+              "d": 1.1,
+              "h": 2.2
+            },
+            {
+              "id": "q03-korea-4-2-detail-3",
+              "asset": "q01-planter",
+              "x": 366.0,
+              "y": 97.8,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 96.0,
+            "x_m": [
+              340,
+              376
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-0-3",
+          "theme": "residential",
+          "center_m": [
+            221.0,
+            127.5
+          ],
+          "bounds_m": [
+            207.7,
+            115.7,
+            234.3,
+            139.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-0-3-building-0",
+              "asset": "q03-home-0",
+              "x": 213.65,
+              "y": 120.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-0-3-building-1",
+              "asset": "q03-home-1",
+              "x": 221.0,
+              "y": 120.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-0-3-building-2",
+              "asset": "q03-home-0",
+              "x": 228.35,
+              "y": 120.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-0-3-building-3",
+              "asset": "q03-home-1",
+              "x": 213.65,
+              "y": 134.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-0-3-building-4",
+              "asset": "q03-home-0",
+              "x": 221.0,
+              "y": 134.5,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-0-3-building-5",
+              "asset": "q03-home-1",
+              "x": 228.35,
+              "y": 134.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-0-3-detail-0",
+              "asset": "q01-planter",
+              "x": 218.0,
+              "y": 129.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-0-3-detail-1",
+              "asset": "city-bench",
+              "x": 224.0,
+              "y": 129.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 127.5,
+            "x_m": [
+              204,
+              238
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-1-3",
+          "theme": "residential",
+          "center_m": [
+            254.125,
+            127.5
+          ],
+          "bounds_m": [
+            241.7,
+            115.7,
+            266.55,
+            139.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-1-3-building-0",
+              "asset": "q03-home-1",
+              "x": 246.775,
+              "y": 120.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-1-3-building-1",
+              "asset": "q03-home-0",
+              "x": 254.125,
+              "y": 120.5,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-1-3-building-2",
+              "asset": "q03-home-1",
+              "x": 261.475,
+              "y": 120.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-1-3-building-3",
+              "asset": "q03-home-0",
+              "x": 250.35,
+              "y": 134.3,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-1-3-building-4",
+              "asset": "q03-home-1",
+              "x": 257.7,
+              "y": 134.5,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-1-3-detail-0",
+              "asset": "q01-planter",
+              "x": 251.125,
+              "y": 129.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-1-3-detail-1",
+              "asset": "city-bench",
+              "x": 257.125,
+              "y": 129.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 127.5,
+            "x_m": [
+              238,
+              269.75
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-2-3",
+          "theme": "residential",
+          "center_m": [
+            289.875,
+            127.5
+          ],
+          "bounds_m": [
+            277.45,
+            115.7,
+            302.3,
+            139.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-2-3-building-0",
+              "asset": "q03-home-0",
+              "x": 282.525,
+              "y": 120.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-2-3-building-1",
+              "asset": "q03-home-1",
+              "x": 289.875,
+              "y": 120.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-2-3-building-2",
+              "asset": "q03-home-0",
+              "x": 297.225,
+              "y": 120.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-2-3-building-3",
+              "asset": "q03-home-1",
+              "x": 282.525,
+              "y": 134.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-2-3-building-4",
+              "asset": "q03-home-0",
+              "x": 289.875,
+              "y": 134.5,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-2-3-building-5",
+              "asset": "q03-home-1",
+              "x": 297.225,
+              "y": 134.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-2-3-detail-0",
+              "asset": "q01-planter",
+              "x": 286.875,
+              "y": 129.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-2-3-detail-1",
+              "asset": "city-bench",
+              "x": 292.875,
+              "y": 129.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 127.5,
+            "x_m": [
+              274.25,
+              306
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-3-3",
+          "theme": "residential",
+          "center_m": [
+            323.0,
+            127.5
+          ],
+          "bounds_m": [
+            309.7,
+            115.7,
+            336.3,
+            139.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-3-3-building-0",
+              "asset": "q03-home-1",
+              "x": 315.65,
+              "y": 120.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-3-3-building-1",
+              "asset": "q03-home-0",
+              "x": 323.0,
+              "y": 120.5,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-3-3-building-2",
+              "asset": "q03-home-1",
+              "x": 330.35,
+              "y": 120.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-3-3-building-3",
+              "asset": "q03-home-0",
+              "x": 319.225,
+              "y": 134.3,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-3-3-building-4",
+              "asset": "q03-home-1",
+              "x": 326.575,
+              "y": 134.5,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-3-3-detail-0",
+              "asset": "q01-planter",
+              "x": 320.0,
+              "y": 129.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-3-3-detail-1",
+              "asset": "city-bench",
+              "x": 326.0,
+              "y": 129.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 127.5,
+            "x_m": [
+              306,
+              340
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-4-3",
+          "theme": "residential",
+          "center_m": [
+            358.0,
+            127.5
+          ],
+          "bounds_m": [
+            343.7,
+            115.7,
+            372.3,
+            139.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-4-3-building-0",
+              "asset": "q03-home-0",
+              "x": 350.65,
+              "y": 120.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-4-3-building-1",
+              "asset": "q03-home-1",
+              "x": 358.0,
+              "y": 120.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-4-3-building-2",
+              "asset": "q03-home-0",
+              "x": 365.35,
+              "y": 120.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-4-3-building-3",
+              "asset": "q03-home-1",
+              "x": 350.65,
+              "y": 134.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-4-3-building-4",
+              "asset": "q03-home-0",
+              "x": 358.0,
+              "y": 134.5,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-4-3-building-5",
+              "asset": "q03-home-1",
+              "x": 365.35,
+              "y": 134.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-4-3-detail-0",
+              "asset": "q01-planter",
+              "x": 355.0,
+              "y": 129.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-4-3-detail-1",
+              "asset": "city-bench",
+              "x": 361.0,
+              "y": 129.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 127.5,
+            "x_m": [
+              340,
+              376
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-0-4",
+          "theme": "residential",
+          "center_m": [
+            221.0,
+            160.5
+          ],
+          "bounds_m": [
+            207.7,
+            148.7,
+            234.3,
+            172.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-0-4-building-0",
+              "asset": "q03-home-0",
+              "x": 213.65,
+              "y": 153.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-0-4-building-1",
+              "asset": "q03-home-1",
+              "x": 221.0,
+              "y": 153.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-0-4-building-2",
+              "asset": "q03-home-0",
+              "x": 228.35,
+              "y": 153.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-0-4-building-3",
+              "asset": "q03-home-1",
+              "x": 213.65,
+              "y": 167.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-0-4-building-4",
+              "asset": "q03-home-0",
+              "x": 221.0,
+              "y": 167.5,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-0-4-building-5",
+              "asset": "q03-home-1",
+              "x": 228.35,
+              "y": 167.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-0-4-detail-0",
+              "asset": "q01-planter",
+              "x": 218.0,
+              "y": 162.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-0-4-detail-1",
+              "asset": "city-bench",
+              "x": 224.0,
+              "y": 162.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 160.5,
+            "x_m": [
+              204,
+              238
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-1-4",
+          "theme": "residential",
+          "center_m": [
+            254.125,
+            160.5
+          ],
+          "bounds_m": [
+            241.7,
+            148.7,
+            266.55,
+            172.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-1-4-building-0",
+              "asset": "q03-home-1",
+              "x": 246.775,
+              "y": 153.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-1-4-building-1",
+              "asset": "q03-home-0",
+              "x": 254.125,
+              "y": 153.5,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-1-4-building-2",
+              "asset": "q03-home-1",
+              "x": 261.475,
+              "y": 153.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-1-4-building-3",
+              "asset": "q03-home-0",
+              "x": 250.35,
+              "y": 167.3,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-1-4-building-4",
+              "asset": "q03-home-1",
+              "x": 257.7,
+              "y": 167.5,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-1-4-detail-0",
+              "asset": "q01-planter",
+              "x": 251.125,
+              "y": 162.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-1-4-detail-1",
+              "asset": "city-bench",
+              "x": 257.125,
+              "y": 162.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 160.5,
+            "x_m": [
+              238,
+              269.75
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-2-4",
+          "theme": "residential",
+          "center_m": [
+            289.875,
+            160.5
+          ],
+          "bounds_m": [
+            277.45,
+            148.7,
+            302.3,
+            172.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-2-4-building-0",
+              "asset": "q03-home-0",
+              "x": 282.525,
+              "y": 153.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-2-4-building-1",
+              "asset": "q03-home-1",
+              "x": 289.875,
+              "y": 153.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-2-4-building-2",
+              "asset": "q03-home-0",
+              "x": 297.225,
+              "y": 153.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-2-4-building-3",
+              "asset": "q03-home-1",
+              "x": 282.525,
+              "y": 167.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-2-4-building-4",
+              "asset": "q03-home-0",
+              "x": 289.875,
+              "y": 167.5,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-2-4-building-5",
+              "asset": "q03-home-1",
+              "x": 297.225,
+              "y": 167.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-2-4-detail-0",
+              "asset": "q01-planter",
+              "x": 286.875,
+              "y": 162.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-2-4-detail-1",
+              "asset": "city-bench",
+              "x": 292.875,
+              "y": 162.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 160.5,
+            "x_m": [
+              274.25,
+              306
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-3-4",
+          "theme": "residential",
+          "center_m": [
+            323.0,
+            160.5
+          ],
+          "bounds_m": [
+            309.7,
+            148.7,
+            336.3,
+            172.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-3-4-building-0",
+              "asset": "q03-home-1",
+              "x": 315.65,
+              "y": 153.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-3-4-building-1",
+              "asset": "q03-home-0",
+              "x": 323.0,
+              "y": 153.5,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-3-4-building-2",
+              "asset": "q03-home-1",
+              "x": 330.35,
+              "y": 153.7,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-3-4-building-3",
+              "asset": "q03-home-0",
+              "x": 319.225,
+              "y": 167.3,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-3-4-building-4",
+              "asset": "q03-home-1",
+              "x": 326.575,
+              "y": 167.5,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-3-4-detail-0",
+              "asset": "q01-planter",
+              "x": 320.0,
+              "y": 162.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-3-4-detail-1",
+              "asset": "city-bench",
+              "x": 326.0,
+              "y": 162.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 160.5,
+            "x_m": [
+              306,
+              340
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "korea-4-4",
+          "theme": "residential",
+          "center_m": [
+            358.0,
+            160.5
+          ],
+          "bounds_m": [
+            343.7,
+            148.7,
+            372.3,
+            172.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-korea-4-4-building-0",
+              "asset": "q03-home-0",
+              "x": 350.65,
+              "y": 153.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-4-4-building-1",
+              "asset": "q03-home-1",
+              "x": 358.0,
+              "y": 153.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-4-4-building-2",
+              "asset": "q03-home-0",
+              "x": 365.35,
+              "y": 153.7,
+              "turn": 2,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-4-4-building-3",
+              "asset": "q03-home-1",
+              "x": 350.65,
+              "y": 167.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            },
+            {
+              "id": "q03-korea-4-4-building-4",
+              "asset": "q03-home-0",
+              "x": 358.0,
+              "y": 167.5,
+              "turn": 0,
+              "w": 6.6,
+              "d": 8.4,
+              "h": 5.5
+            },
+            {
+              "id": "q03-korea-4-4-building-5",
+              "asset": "q03-home-1",
+              "x": 365.35,
+              "y": 167.3,
+              "turn": 0,
+              "w": 7.0,
+              "d": 8.0,
+              "h": 8.1
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-korea-4-4-detail-0",
+              "asset": "q01-planter",
+              "x": 355.0,
+              "y": 162.1,
+              "turn": 0
+            },
+            {
+              "id": "q03-korea-4-4-detail-1",
+              "asset": "city-bench",
+              "x": 361.0,
+              "y": 162.1,
+              "turn": 0
+            }
+          ],
+          "lane": {
+            "y_m": 160.5,
+            "x_m": [
+              340,
+              376
+            ],
+            "width_m": 2
+          }
+        },
+        {
+          "id": "sky-0-0",
+          "theme": "office",
+          "center_m": [
+            417.0,
+            35.5
+          ],
+          "bounds_m": [
+            399.7,
+            19.7,
+            434.3,
+            51.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-0-0-building-0",
+              "asset": "q03-office",
+              "x": 408.0,
+              "y": 42.0,
+              "turn": 0,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-0-0-building-1",
+              "asset": "q03-office",
+              "x": 425.0,
+              "y": 28.5,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-0-0-building-2",
+              "asset": "q01-cafe",
+              "x": 407.0,
+              "y": 26.0,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-sky-0-0-building-3",
+              "asset": "q01-pharmacy",
+              "x": 426.0,
+              "y": 45.0,
+              "turn": 0,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-0-0-detail-0",
+              "asset": "q03-clock",
+              "x": 417.0,
+              "y": 37.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-0-0-detail-1",
+              "asset": "city-bench",
+              "x": 417.0,
+              "y": 40.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-1-0",
+          "theme": "hotel",
+          "center_m": [
+            458.125,
+            35.5
+          ],
+          "bounds_m": [
+            441.7,
+            19.7,
+            474.55,
+            51.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-1-0-building-0",
+              "asset": "q03-hotel",
+              "x": 449.125,
+              "y": 41.5,
+              "turn": 0,
+              "w": 13,
+              "d": 10,
+              "h": 17
+            },
+            {
+              "id": "q03-sky-1-0-building-1",
+              "asset": "q03-arcade",
+              "x": 464.625,
+              "y": 44.0,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-1-0-building-2",
+              "asset": "q01-book",
+              "x": 449.125,
+              "y": 26.5,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-sky-1-0-building-3",
+              "asset": "q01-diner",
+              "x": 466.125,
+              "y": 26.5,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-1-0-detail-0",
+              "asset": "q03-fountain",
+              "x": 462.125,
+              "y": 35.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-1-0-detail-1",
+              "asset": "q01-planter",
+              "x": 458.125,
+              "y": 37.5,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-1-0-detail-2",
+              "asset": "q01-planter",
+              "x": 466.125,
+              "y": 37.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-2-0",
+          "theme": "plaza",
+          "center_m": [
+            501.875,
+            35.5
+          ],
+          "bounds_m": [
+            485.45,
+            19.7,
+            518.3,
+            51.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-2-0-building-0",
+              "asset": "q03-arcade",
+              "x": 508.875,
+              "y": 45.5,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-2-0-building-1",
+              "asset": "q03-office",
+              "x": 492.875,
+              "y": 30.5,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-2-0-building-2",
+              "asset": "q01-cafe",
+              "x": 510.875,
+              "y": 27.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-2-0-detail-0",
+              "asset": "q03-fountain",
+              "x": 507.875,
+              "y": 38.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-2-0-detail-1",
+              "asset": "q03-clock",
+              "x": 501.875,
+              "y": 40.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-2-0-detail-2",
+              "asset": "city-bench",
+              "x": 504.875,
+              "y": 40.3,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-2-0-detail-3",
+              "asset": "city-bench",
+              "x": 510.875,
+              "y": 40.3,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-3-0",
+          "theme": "office",
+          "center_m": [
+            543.0,
+            35.5
+          ],
+          "bounds_m": [
+            525.7,
+            19.7,
+            560.3,
+            51.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-3-0-building-0",
+              "asset": "q03-office",
+              "x": 534.0,
+              "y": 42.0,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-3-0-building-1",
+              "asset": "q03-office",
+              "x": 551.0,
+              "y": 28.5,
+              "turn": 0,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-3-0-building-2",
+              "asset": "q01-cafe",
+              "x": 533.0,
+              "y": 26.0,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-sky-3-0-building-3",
+              "asset": "q01-pharmacy",
+              "x": 552.0,
+              "y": 45.0,
+              "turn": 0,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-3-0-detail-0",
+              "asset": "q03-clock",
+              "x": 543.0,
+              "y": 37.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-3-0-detail-1",
+              "asset": "city-bench",
+              "x": 543.0,
+              "y": 40.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-0-1",
+          "theme": "hotel",
+          "center_m": [
+            417.0,
+            76.5
+          ],
+          "bounds_m": [
+            399.7,
+            60.7,
+            434.3,
+            92.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-0-1-building-0",
+              "asset": "q03-hotel",
+              "x": 408.0,
+              "y": 82.5,
+              "turn": 0,
+              "w": 13,
+              "d": 10,
+              "h": 17
+            },
+            {
+              "id": "q03-sky-0-1-building-1",
+              "asset": "q03-arcade",
+              "x": 423.5,
+              "y": 85.0,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-0-1-building-2",
+              "asset": "q01-book",
+              "x": 408.0,
+              "y": 67.5,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-sky-0-1-building-3",
+              "asset": "q01-diner",
+              "x": 425.0,
+              "y": 67.5,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-0-1-detail-0",
+              "asset": "q03-fountain",
+              "x": 421.0,
+              "y": 76.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-0-1-detail-1",
+              "asset": "q01-planter",
+              "x": 417.0,
+              "y": 78.5,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-0-1-detail-2",
+              "asset": "q01-planter",
+              "x": 425.0,
+              "y": 78.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-1-1",
+          "theme": "plaza",
+          "center_m": [
+            458.125,
+            76.5
+          ],
+          "bounds_m": [
+            441.7,
+            60.7,
+            474.55,
+            92.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-1-1-building-0",
+              "asset": "q03-arcade",
+              "x": 465.125,
+              "y": 86.5,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-1-1-building-1",
+              "asset": "q03-office",
+              "x": 449.125,
+              "y": 71.5,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-1-1-building-2",
+              "asset": "q01-cafe",
+              "x": 467.125,
+              "y": 68.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-1-1-detail-0",
+              "asset": "q03-fountain",
+              "x": 464.125,
+              "y": 79.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-1-1-detail-1",
+              "asset": "q03-clock",
+              "x": 458.125,
+              "y": 81.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-1-1-detail-2",
+              "asset": "city-bench",
+              "x": 461.125,
+              "y": 81.3,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-1-1-detail-3",
+              "asset": "city-bench",
+              "x": 467.125,
+              "y": 81.3,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-2-1",
+          "theme": "office",
+          "center_m": [
+            501.875,
+            76.5
+          ],
+          "bounds_m": [
+            485.45,
+            60.7,
+            518.3,
+            92.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-2-1-building-0",
+              "asset": "q03-office",
+              "x": 492.875,
+              "y": 83.0,
+              "turn": 0,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-2-1-building-1",
+              "asset": "q03-office",
+              "x": 509.875,
+              "y": 69.5,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-2-1-building-2",
+              "asset": "q01-cafe",
+              "x": 491.875,
+              "y": 67.0,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-sky-2-1-building-3",
+              "asset": "q01-pharmacy",
+              "x": 510.875,
+              "y": 86.0,
+              "turn": 0,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-2-1-detail-0",
+              "asset": "q03-clock",
+              "x": 501.875,
+              "y": 78.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-2-1-detail-1",
+              "asset": "city-bench",
+              "x": 501.875,
+              "y": 81.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-3-1",
+          "theme": "hotel",
+          "center_m": [
+            543.0,
+            76.5
+          ],
+          "bounds_m": [
+            525.7,
+            60.7,
+            560.3,
+            92.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-3-1-building-0",
+              "asset": "q03-hotel",
+              "x": 534.0,
+              "y": 82.5,
+              "turn": 0,
+              "w": 13,
+              "d": 10,
+              "h": 17
+            },
+            {
+              "id": "q03-sky-3-1-building-1",
+              "asset": "q03-arcade",
+              "x": 549.5,
+              "y": 85.0,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-3-1-building-2",
+              "asset": "q01-book",
+              "x": 534.0,
+              "y": 67.5,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-sky-3-1-building-3",
+              "asset": "q01-diner",
+              "x": 551.0,
+              "y": 67.5,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-3-1-detail-0",
+              "asset": "q03-fountain",
+              "x": 547.0,
+              "y": 76.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-3-1-detail-1",
+              "asset": "q01-planter",
+              "x": 543.0,
+              "y": 78.5,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-3-1-detail-2",
+              "asset": "q01-planter",
+              "x": 551.0,
+              "y": 78.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-0-2",
+          "theme": "plaza",
+          "center_m": [
+            417.0,
+            115.5
+          ],
+          "bounds_m": [
+            399.7,
+            99.7,
+            434.3,
+            131.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-0-2-building-0",
+              "asset": "q03-arcade",
+              "x": 424.0,
+              "y": 125.5,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-0-2-building-1",
+              "asset": "q03-office",
+              "x": 408.0,
+              "y": 110.5,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-0-2-building-2",
+              "asset": "q01-cafe",
+              "x": 426.0,
+              "y": 107.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-0-2-detail-0",
+              "asset": "q03-fountain",
+              "x": 423.0,
+              "y": 118.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-0-2-detail-1",
+              "asset": "q03-clock",
+              "x": 417.0,
+              "y": 120.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-0-2-detail-2",
+              "asset": "city-bench",
+              "x": 420.0,
+              "y": 120.3,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-0-2-detail-3",
+              "asset": "city-bench",
+              "x": 426.0,
+              "y": 120.3,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-1-2",
+          "theme": "office",
+          "center_m": [
+            458.125,
+            115.5
+          ],
+          "bounds_m": [
+            441.7,
+            99.7,
+            474.55,
+            131.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-1-2-building-0",
+              "asset": "q03-office",
+              "x": 449.125,
+              "y": 122.0,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-1-2-building-1",
+              "asset": "q03-office",
+              "x": 466.125,
+              "y": 108.5,
+              "turn": 0,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-1-2-building-2",
+              "asset": "q01-cafe",
+              "x": 448.125,
+              "y": 106.0,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-sky-1-2-building-3",
+              "asset": "q01-pharmacy",
+              "x": 467.125,
+              "y": 125.0,
+              "turn": 0,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-1-2-detail-0",
+              "asset": "q03-clock",
+              "x": 458.125,
+              "y": 117.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-1-2-detail-1",
+              "asset": "city-bench",
+              "x": 458.125,
+              "y": 120.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-2-2",
+          "theme": "hotel",
+          "center_m": [
+            501.875,
+            115.5
+          ],
+          "bounds_m": [
+            485.45,
+            99.7,
+            518.3,
+            131.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-2-2-building-0",
+              "asset": "q03-hotel",
+              "x": 492.875,
+              "y": 121.5,
+              "turn": 0,
+              "w": 13,
+              "d": 10,
+              "h": 17
+            },
+            {
+              "id": "q03-sky-2-2-building-1",
+              "asset": "q03-arcade",
+              "x": 508.375,
+              "y": 124.0,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-2-2-building-2",
+              "asset": "q01-book",
+              "x": 492.875,
+              "y": 106.5,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-sky-2-2-building-3",
+              "asset": "q01-diner",
+              "x": 509.875,
+              "y": 106.5,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-2-2-detail-0",
+              "asset": "q03-fountain",
+              "x": 505.875,
+              "y": 115.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-2-2-detail-1",
+              "asset": "q01-planter",
+              "x": 501.875,
+              "y": 117.5,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-2-2-detail-2",
+              "asset": "q01-planter",
+              "x": 509.875,
+              "y": 117.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-3-2",
+          "theme": "plaza",
+          "center_m": [
+            543.0,
+            115.5
+          ],
+          "bounds_m": [
+            525.7,
+            99.7,
+            560.3,
+            131.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-3-2-building-0",
+              "asset": "q03-arcade",
+              "x": 550.0,
+              "y": 125.5,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-3-2-building-1",
+              "asset": "q03-office",
+              "x": 534.0,
+              "y": 110.5,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-3-2-building-2",
+              "asset": "q01-cafe",
+              "x": 552.0,
+              "y": 107.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-3-2-detail-0",
+              "asset": "q03-fountain",
+              "x": 549.0,
+              "y": 118.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-3-2-detail-1",
+              "asset": "q03-clock",
+              "x": 543.0,
+              "y": 120.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-3-2-detail-2",
+              "asset": "city-bench",
+              "x": 546.0,
+              "y": 120.3,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-3-2-detail-3",
+              "asset": "city-bench",
+              "x": 552.0,
+              "y": 120.3,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-0-3",
+          "theme": "office",
+          "center_m": [
+            417.0,
+            156.5
+          ],
+          "bounds_m": [
+            399.7,
+            140.7,
+            434.3,
+            172.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-0-3-building-0",
+              "asset": "q03-office",
+              "x": 408.0,
+              "y": 163.0,
+              "turn": 0,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-0-3-building-1",
+              "asset": "q03-office",
+              "x": 425.0,
+              "y": 149.5,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-0-3-building-2",
+              "asset": "q01-cafe",
+              "x": 407.0,
+              "y": 147.0,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-sky-0-3-building-3",
+              "asset": "q01-pharmacy",
+              "x": 426.0,
+              "y": 166.0,
+              "turn": 0,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-0-3-detail-0",
+              "asset": "q03-clock",
+              "x": 417.0,
+              "y": 158.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-0-3-detail-1",
+              "asset": "city-bench",
+              "x": 417.0,
+              "y": 161.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-1-3",
+          "theme": "hotel",
+          "center_m": [
+            458.125,
+            156.5
+          ],
+          "bounds_m": [
+            441.7,
+            140.7,
+            474.55,
+            172.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-1-3-building-0",
+              "asset": "q03-hotel",
+              "x": 449.125,
+              "y": 162.5,
+              "turn": 0,
+              "w": 13,
+              "d": 10,
+              "h": 17
+            },
+            {
+              "id": "q03-sky-1-3-building-1",
+              "asset": "q03-arcade",
+              "x": 464.625,
+              "y": 165.0,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-1-3-building-2",
+              "asset": "q01-book",
+              "x": 449.125,
+              "y": 147.5,
+              "turn": 2,
+              "w": 6.4,
+              "d": 8.6,
+              "h": 6.9
+            },
+            {
+              "id": "q03-sky-1-3-building-3",
+              "asset": "q01-diner",
+              "x": 466.125,
+              "y": 147.5,
+              "turn": 2,
+              "w": 8.0,
+              "d": 9.0,
+              "h": 5.6
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-1-3-detail-0",
+              "asset": "q03-fountain",
+              "x": 462.125,
+              "y": 156.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-1-3-detail-1",
+              "asset": "q01-planter",
+              "x": 458.125,
+              "y": 158.5,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-1-3-detail-2",
+              "asset": "q01-planter",
+              "x": 466.125,
+              "y": 158.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-2-3",
+          "theme": "plaza",
+          "center_m": [
+            501.875,
+            156.5
+          ],
+          "bounds_m": [
+            485.45,
+            140.7,
+            518.3,
+            172.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-2-3-building-0",
+              "asset": "q03-arcade",
+              "x": 508.875,
+              "y": 166.5,
+              "turn": 0,
+              "w": 13,
+              "d": 7,
+              "h": 5.9
+            },
+            {
+              "id": "q03-sky-2-3-building-1",
+              "asset": "q03-office",
+              "x": 492.875,
+              "y": 151.5,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-2-3-building-2",
+              "asset": "q01-cafe",
+              "x": 510.875,
+              "y": 148.5,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-2-3-detail-0",
+              "asset": "q03-fountain",
+              "x": 507.875,
+              "y": 159.5,
+              "turn": 0,
+              "w": 3.6,
+              "d": 2.6,
+              "h": 1.75
+            },
+            {
+              "id": "q03-sky-2-3-detail-1",
+              "asset": "q03-clock",
+              "x": 501.875,
+              "y": 161.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-2-3-detail-2",
+              "asset": "city-bench",
+              "x": 504.875,
+              "y": 161.3,
+              "turn": 0
+            },
+            {
+              "id": "q03-sky-2-3-detail-3",
+              "asset": "city-bench",
+              "x": 510.875,
+              "y": 161.3,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        },
+        {
+          "id": "sky-3-3",
+          "theme": "office",
+          "center_m": [
+            543.0,
+            156.5
+          ],
+          "bounds_m": [
+            525.7,
+            140.7,
+            560.3,
+            172.3
+          ],
+          "buildings": [
+            {
+              "id": "q03-sky-3-3-building-0",
+              "asset": "q03-office",
+              "x": 534.0,
+              "y": 163.0,
+              "turn": 2,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-3-3-building-1",
+              "asset": "q03-office",
+              "x": 551.0,
+              "y": 149.5,
+              "turn": 0,
+              "w": 13,
+              "d": 11,
+              "h": 21
+            },
+            {
+              "id": "q03-sky-3-3-building-2",
+              "asset": "q01-cafe",
+              "x": 533.0,
+              "y": 147.0,
+              "turn": 2,
+              "w": 7.0,
+              "d": 7.8,
+              "h": 4.9
+            },
+            {
+              "id": "q03-sky-3-3-building-3",
+              "asset": "q01-pharmacy",
+              "x": 552.0,
+              "y": 166.0,
+              "turn": 0,
+              "w": 7.8,
+              "d": 8.4,
+              "h": 5.8
+            }
+          ],
+          "details": [
+            {
+              "id": "q03-sky-3-3-detail-0",
+              "asset": "q03-clock",
+              "x": 543.0,
+              "y": 158.5,
+              "turn": 0,
+              "w": 1.5,
+              "d": 1.5,
+              "h": 5
+            },
+            {
+              "id": "q03-sky-3-3-detail-1",
+              "asset": "city-bench",
+              "x": 543.0,
+              "y": 161.5,
+              "turn": 0
+            }
+          ],
+          "lane": null
+        }
+      ],
+      "replaced_placements": [
+        "korea-block-0-0-0",
+        "korea-block-0-0-1",
+        "korea-block-0-0-2",
+        "korea-block-0-0-3",
+        "korea-block-1-0-0",
+        "korea-block-1-0-1",
+        "korea-block-1-0-2",
+        "korea-block-1-0-3",
+        "korea-block-2-0-0",
+        "korea-block-2-0-1",
+        "korea-block-2-0-2",
+        "korea-block-2-0-3",
+        "korea-block-3-0-0",
+        "korea-block-3-0-1",
+        "korea-block-3-0-2",
+        "korea-block-3-0-3",
+        "korea-block-4-0-0",
+        "korea-block-4-0-1",
+        "korea-block-4-0-2",
+        "korea-block-4-0-3",
+        "korea-block-0-1-0",
+        "korea-block-0-1-1",
+        "korea-block-0-1-2",
+        "korea-block-0-1-3",
+        "korea-block-2-1-0",
+        "korea-block-2-1-1",
+        "korea-block-2-1-2",
+        "korea-block-2-1-3",
+        "korea-block-3-1-0",
+        "korea-block-3-1-1",
+        "korea-block-3-1-2",
+        "korea-block-3-1-3",
+        "korea-block-4-1-0",
+        "korea-block-4-1-1",
+        "korea-block-4-1-2",
+        "korea-block-4-1-3",
+        "korea-block-0-2-0",
+        "korea-block-0-2-1",
+        "korea-block-0-2-2",
+        "korea-block-0-2-3",
+        "korea-block-1-2-0",
+        "korea-block-1-2-1",
+        "korea-block-1-2-2",
+        "korea-block-1-2-3",
+        "korea-block-2-2-0",
+        "korea-block-2-2-1",
+        "korea-block-2-2-2",
+        "korea-block-2-2-3",
+        "korea-block-3-2-0",
+        "korea-block-3-2-1",
+        "korea-block-3-2-2",
+        "korea-block-3-2-3",
+        "korea-block-4-2-0",
+        "korea-block-4-2-1",
+        "korea-block-4-2-2",
+        "korea-block-4-2-3",
+        "korea-block-0-3-0",
+        "korea-block-0-3-1",
+        "korea-block-0-3-2",
+        "korea-block-0-3-3",
+        "korea-block-1-3-0",
+        "korea-block-1-3-1",
+        "korea-block-1-3-2",
+        "korea-block-1-3-3",
+        "korea-block-2-3-0",
+        "korea-block-2-3-1",
+        "korea-block-2-3-2",
+        "korea-block-2-3-3",
+        "korea-block-3-3-0",
+        "korea-block-3-3-1",
+        "korea-block-3-3-2",
+        "korea-block-3-3-3",
+        "korea-block-4-3-0",
+        "korea-block-4-3-1",
+        "korea-block-4-3-2",
+        "korea-block-4-3-3",
+        "korea-block-0-4-0",
+        "korea-block-0-4-1",
+        "korea-block-0-4-2",
+        "korea-block-0-4-3",
+        "korea-block-1-4-0",
+        "korea-block-1-4-1",
+        "korea-block-1-4-2",
+        "korea-block-1-4-3",
+        "korea-block-2-4-0",
+        "korea-block-2-4-1",
+        "korea-block-2-4-2",
+        "korea-block-2-4-3",
+        "korea-block-3-4-0",
+        "korea-block-3-4-1",
+        "korea-block-3-4-2",
+        "korea-block-3-4-3",
+        "korea-block-4-4-0",
+        "korea-block-4-4-1",
+        "korea-block-4-4-2",
+        "korea-block-4-4-3",
+        "sky-block-0-0-0",
+        "sky-block-0-0-1",
+        "sky-block-0-0-2",
+        "sky-block-0-0-3",
+        "sky-block-1-0-0",
+        "sky-block-1-0-1",
+        "sky-block-1-0-2",
+        "sky-block-1-0-3",
+        "sky-block-2-0-0",
+        "sky-block-2-0-1",
+        "sky-block-2-0-2",
+        "sky-block-2-0-3",
+        "sky-block-3-0-0",
+        "sky-block-3-0-1",
+        "sky-block-3-0-2",
+        "sky-block-3-0-3",
+        "sky-block-0-1-0",
+        "sky-block-0-1-1",
+        "sky-block-0-1-2",
+        "sky-block-0-1-3",
+        "sky-block-1-1-0",
+        "sky-block-1-1-1",
+        "sky-block-1-1-2",
+        "sky-block-1-1-3",
+        "sky-block-2-1-0",
+        "sky-block-2-1-1",
+        "sky-block-2-1-2",
+        "sky-block-2-1-3",
+        "sky-block-3-1-0",
+        "sky-block-3-1-1",
+        "sky-block-3-1-2",
+        "sky-block-3-1-3",
+        "sky-block-0-2-0",
+        "sky-block-0-2-1",
+        "sky-block-0-2-2",
+        "sky-block-0-2-3",
+        "sky-block-1-2-0",
+        "sky-block-1-2-1",
+        "sky-block-1-2-2",
+        "sky-block-1-2-3",
+        "sky-block-2-2-0",
+        "sky-block-2-2-1",
+        "sky-block-2-2-2",
+        "sky-block-2-2-3",
+        "sky-block-3-2-0",
+        "sky-block-3-2-1",
+        "sky-block-3-2-2",
+        "sky-block-3-2-3",
+        "sky-block-0-3-0",
+        "sky-block-0-3-1",
+        "sky-block-0-3-2",
+        "sky-block-0-3-3",
+        "sky-block-1-3-0",
+        "sky-block-1-3-1",
+        "sky-block-1-3-2",
+        "sky-block-1-3-3",
+        "sky-block-2-3-0",
+        "sky-block-2-3-1",
+        "sky-block-2-3-2",
+        "sky-block-2-3-3",
+        "sky-block-3-3-0",
+        "sky-block-3-3-1",
+        "sky-block-3-3-2",
+        "sky-block-3-3-3",
+        "city-lamp-64",
+        "city-lamp-66",
+        "city-lamp-68",
+        "city-lamp-74",
+        "city-bench-75",
+        "city-lamp-76",
+        "city-bench-77",
+        "city-lamp-78",
+        "city-bench-79",
+        "city-bench-85",
+        "city-bench-87",
+        "city-bench-89",
+        "city-lamp-92",
+        "city-lamp-93",
+        "city-lamp-94",
+        "city-lamp-99",
+        "city-bench-100",
+        "city-lamp-101",
+        "city-bench-102",
+        "city-lamp-103",
+        "city-bench-104",
+        "city-lamp-109",
+        "city-bench-110",
+        "city-lamp-111",
+        "city-bench-112",
+        "city-lamp-113",
+        "city-bench-114",
+        "city-bench-120",
+        "city-bench-122",
+        "city-bench-124"
+      ],
+      "retired_assets": [
+        "korea-building-0",
+        "korea-building-1",
+        "korea-building-2",
+        "korea-building-3",
+        "korea-building-4",
+        "korea-building-5",
+        "korea-building-6",
+        "korea-building-7",
+        "sky-building-0",
+        "sky-building-1",
+        "sky-building-2",
+        "sky-building-3",
+        "sky-building-4",
+        "sky-building-5",
+        "sky-building-6",
+        "sky-building-7",
+        "korea-building-0-compact",
+        "korea-building-1-compact",
+        "korea-building-2-compact",
+        "korea-building-3-compact",
+        "korea-building-4-compact",
+        "korea-building-5-compact",
+        "korea-building-6-compact",
+        "korea-building-7-compact"
+      ],
+      "attribution": {
+        "source": "mapeditor-q03-city-themes",
+        "license": "MIT",
+        "notice": "Original fictional residential lanes, covered market, offices, hotels and civic plazas. Procedural geometry and materials; no external models, fonts, textures or user datasets."
+      }
     }
   },
   "landmarks": {
