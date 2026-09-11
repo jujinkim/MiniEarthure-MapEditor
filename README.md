@@ -183,3 +183,9 @@ for missing elevations. Select it in **Import vector → OSM height reference…
 review retains its exact bytes, source/license/accuracy and the bound OSM hash.
 See [the bounded local height contract](docs/IMPORTS.md#local-supplements-for-missing-osm-structural-heights--2026-09-10).
 Existing source heights and the full structural validation remain authoritative.
+
+### Seven world-theme examples and signs
+
+Open `examples/world-themes/<profile>.memap` in a consumer or its source directory
+in this editor. Map authoring → Signs supports licensed-font text and prepared
+PNG import as separate map-owned assets. [Authoring, commands and limits](docs/WORLD_THEME_AUTHORING.md).

@@ -1,0 +1,94 @@
+{
+  "arabic": {
+    "bytes": 12719,
+    "glyph_count": 10,
+    "metadata": {
+      "alignment": "center",
+      "direction": "rtl",
+      "font_license": "OFL-1.1",
+      "font_sha256": "ceea25b464a656dc3b26849bab9356740401af62aedf1bfa8b7f0d9b75925b1b",
+      "font_size": 100,
+      "font_source": "Noto / https://github.com/notofonts/noto-fonts",
+      "glb_sha256": "aa22525450639e899ccc85d2bf7f5e2b53e9afc05d0acd478f6b2ef6fd5284c3",
+      "image_sha256": "229857bac07d57b72bb211d6ccf9d154ca88d11fd15e0e32610bf875c80f0322",
+      "kind": "text-sign-v1",
+      "language": "ar",
+      "pixels": [
+        1024,
+        256
+      ],
+      "shaper": "Godot TextServer Advanced",
+      "text": "سُوق النور"
+    },
+    "rtl_glyphs": 9
+  },
+  "korean": {
+    "bytes": 13213,
+    "glyph_count": 8,
+    "metadata": {
+      "alignment": "center",
+      "direction": "ltr",
+      "font_license": "OFL-1.1",
+      "font_sha256": "6bcb2a0703aa137e874fc2dffa85f6c21ba9a67fa329e81b8c801663af7e992a",
+      "font_size": 104,
+      "font_source": "Noto / https://github.com/notofonts/noto-cjk",
+      "glb_sha256": "da62c4be8152de3afce511db5306369b11800c5be5f111ae9f96517d9af36260",
+      "image_sha256": "ca4946ea9f0a01439f3abec0e13c91c2f0bb5c155e8ff5513dac74f2a47cb35e",
+      "kind": "text-sign-v1",
+      "language": "ko",
+      "pixels": [
+        1024,
+        256
+      ],
+      "shaper": "Godot TextServer Advanced",
+      "text": "한빛 Café"
+    },
+    "rtl_glyphs": 0
+  },
+  "latin": {
+    "bytes": 13623,
+    "glyph_count": 20,
+    "metadata": {
+      "alignment": "center",
+      "direction": "ltr",
+      "font_license": "OFL-1.1",
+      "font_sha256": "b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5",
+      "font_size": 76,
+      "font_source": "Noto / https://github.com/notofonts/noto-fonts",
+      "glb_sha256": "261c39a22b276293f53fbd7c9074e7c57d6b50527f3fdfcff9c6247c11040748",
+      "image_sha256": "6f9222ef37fb85f10cca592c5f045995956e1adaba6099133525258fafd6276c",
+      "kind": "text-sign-v1",
+      "language": "en",
+      "pixels": [
+        1024,
+        256
+      ],
+      "shaper": "Godot TextServer Advanced",
+      "text": "Café · Field Station"
+    },
+    "rtl_glyphs": 0
+  },
+  "thai": {
+    "bytes": 13690,
+    "glyph_count": 13,
+    "metadata": {
+      "alignment": "center",
+      "direction": "ltr",
+      "font_license": "OFL-1.1",
+      "font_sha256": "404ddfb5ed0aaa6b6ec8a85700d682978992062d67da93903967b56cbd9a4acc",
+      "font_size": 104,
+      "font_source": "Noto / https://github.com/notofonts/noto-fonts",
+      "glb_sha256": "4778992dabe7787223f670e1ce01ddb7b3853bf483ec9086afab5944d30b47a5",
+      "image_sha256": "10cfebb8590e21c310fe7d521c824f43bc969a137eeebbdb71b63b2b0a5c8c60",
+      "kind": "text-sign-v1",
+      "language": "th",
+      "pixels": [
+        1024,
+        256
+      ],
+      "shaper": "Godot TextServer Advanced",
+      "text": "ร้านริมคลอง"
+    },
+    "rtl_glyphs": 0
+  }
+}

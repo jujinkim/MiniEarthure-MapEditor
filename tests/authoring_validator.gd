@@ -118,7 +118,7 @@ func run() -> void:
 	var project := ProjectSettings.globalize_path("user://e03-project")
 	ok(ui.store.save_project(project), "save before file authoring")
 	await click_button("Authoring settings…")
-	check(ui.author_panel.visible and ui.author_panel.tabs.get_tab_count() == 5, "real authoring tabs")
+	check(ui.author_panel.visible and ui.author_panel.tabs.get_tab_count() == 6, "real authoring tabs")
 	ui.author_panel.hide()
 	ok(ui.canvas.author.recipe(4, "rural"), "explicit recipe4/theme")
 	var author: RefCounted = ui.canvas.author

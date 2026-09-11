@@ -1,0 +1,62 @@
+{
+  "profile": "southeast-asian",
+  "axes": {
+    "architecture": "veranda",
+    "climate": "tropical",
+    "settlement": "village",
+    "reference": "Fictional central Thai canal-side shop verandas",
+    "sign": "thai"
+  },
+  "common_assets": {
+    "world-plot-tropical": "ff1a3d3fd5161ad5aedb92eb9a5ea34f2bb6b13091b2532c526dcc5c81592fe1",
+    "world-deep-veranda": "775f154fc213d4091baf4ef7592f1cc926cca9303065935c43f2847f1f3dbd81",
+    "world-blank-signboard": "e2d566890226fdb550548a0e86b349f1d28e7cbd93ade6f9b9ec910b7101f0b8",
+    "world-drain-channel": "b2cee40ae0b108a0c578abdd89d27e8b7301e765974bd20a19fa98c4fa9fdb2f",
+    "world-street-lamp": "cf4f531baa4515a5658afa43042464b7423db7415295026f6e121541bd240166"
+  },
+  "source_bytes": 70088,
+  "image_decoded_bytes": 1048576,
+  "spawn": {
+    "x": 1200,
+    "y": 3200,
+    "surface": "traverse",
+    "yaw": -1.5707963267948966
+  },
+  "view_center_m": [
+    32,
+    26
+  ],
+  "wall": {
+    "x": 18,
+    "y": 22.5,
+    "height": 2.1,
+    "asset": "world-deep-veranda"
+  },
+  "limits": "Existing runtime caps. Road traction is unchanged; visual snow/ice/wetness does not define new physics.",
+  "sign": {
+    "alignment": "center",
+    "direction": "ltr",
+    "font_license": "OFL-1.1",
+    "font_sha256": "404ddfb5ed0aaa6b6ec8a85700d682978992062d67da93903967b56cbd9a4acc",
+    "font_size": 104,
+    "font_source": "Noto / https://github.com/notofonts/noto-fonts",
+    "glb_sha256": "4778992dabe7787223f670e1ce01ddb7b3853bf483ec9086afab5944d30b47a5",
+    "image_sha256": "10cfebb8590e21c310fe7d521c824f43bc969a137eeebbdb71b63b2b0a5c8c60",
+    "kind": "text-sign-v1",
+    "language": "th",
+    "pixels": [
+      1024,
+      256
+    ],
+    "shaper": "Godot TextServer Advanced",
+    "text": "ร้านริมคลอง"
+  },
+  "source_hashes": {
+    "assets/plot-tropical.glb": "ff1a3d3fd5161ad5aedb92eb9a5ea34f2bb6b13091b2532c526dcc5c81592fe1",
+    "assets/deep-veranda.glb": "775f154fc213d4091baf4ef7592f1cc926cca9303065935c43f2847f1f3dbd81",
+    "assets/blank-signboard.glb": "e2d566890226fdb550548a0e86b349f1d28e7cbd93ade6f9b9ec910b7101f0b8",
+    "signs/4778992dabe7787223f670e1ce01ddb7b3853bf483ec9086afab5944d30b47a5.glb": "4778992dabe7787223f670e1ce01ddb7b3853bf483ec9086afab5944d30b47a5",
+    "assets/drain-channel.glb": "b2cee40ae0b108a0c578abdd89d27e8b7301e765974bd20a19fa98c4fa9fdb2f",
+    "assets/street-lamp.glb": "cf4f531baa4515a5658afa43042464b7423db7415295026f6e121541bd240166"
+  }
+}

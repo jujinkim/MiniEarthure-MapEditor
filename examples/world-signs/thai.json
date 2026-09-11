@@ -1,0 +1,18 @@
+{
+  "alignment": "center",
+  "direction": "ltr",
+  "font_license": "OFL-1.1",
+  "font_sha256": "404ddfb5ed0aaa6b6ec8a85700d682978992062d67da93903967b56cbd9a4acc",
+  "font_size": 104,
+  "font_source": "Noto / https://github.com/notofonts/noto-fonts",
+  "glb_sha256": "4778992dabe7787223f670e1ce01ddb7b3853bf483ec9086afab5944d30b47a5",
+  "image_sha256": "10cfebb8590e21c310fe7d521c824f43bc969a137eeebbdb71b63b2b0a5c8c60",
+  "kind": "text-sign-v1",
+  "language": "th",
+  "pixels": [
+    1024,
+    256
+  ],
+  "shaper": "Godot TextServer Advanced",
+  "text": "ร้านริมคลอง"
+}

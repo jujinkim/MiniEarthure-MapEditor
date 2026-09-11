@@ -1,96 +1,123 @@
-# World theme authoring — planned scope
+# World themes and map-owned writing — Q03-G
 
-The requested themes describe places around the world, not building uses within
-one Korean town. The initial seven are polar, metropolis, countryside, Middle
-Eastern, desert, jungle and Southeast Asian. They are starting profiles, not an
-exhaustive classification of countries or a claim that a whole region has one
-architectural style. These profiles and the sign workflow below are **not yet
-implemented**.
+Seven authored representative scenes are implemented in `examples/world-themes/`:
+polar, metropolis, countryside, middle-eastern, desert, jungle and southeast-asian.
+Each source directory has `document.json`, all required GLBs, and `world.json`
+with its axes, fictional reference region, spawn, wall probe, hashes and costs.
+The adjacent `.memap` files are ready to open in a consumer's map chooser. Existing
+Korean town v3–v6, Hanbit, driving courses, spawns and intentional burial are unchanged.
 
-## Initial profiles
-
-| Profile | Authoring identity | Representative differences |
+| Profile | Architecture / climate / settlement | Visible vocabulary |
 | --- | --- | --- |
-| Polar | Snow/ice, exposed rock, sparse settlement | Snow banks, ice forms, compact utility buildings, wind shelters and sparse vegetation |
-| Metropolis | Dense contemporary city | Towers and podiums, transit frontage, broad paved streets, plazas and service alleys |
-| Countryside | Low-density agricultural settlement | Fields, farm buildings, fences, ditches, local roads and scattered homes |
-| Middle Eastern | Selected regional built environments | Courtyard compounds, shaded streets, arcades, plaster/stone surfaces and market structures |
-| Desert | Arid natural terrain | Dunes or rocky ground, dry channels, sparse plants and occasional road/service structures |
-| Jungle | Dense humid forest | Layered canopy, undergrowth, roots, wet ground and narrow clearings |
-| Southeast Asian | Selected tropical built environments | Deep eaves, shaded shopfronts, verandas, raised floors where appropriate, dense planting and drainage |
+| Polar | Utility / polar / outpost | Raised utility cabins, white pitched roofs, snow banks, ice ridges, shelter |
+| Metropolis | Contemporary / temperate / dense | Podium towers, glazing and mullions, paved frontage, sidewalks, lamps |
+| Countryside | Farm / temperate / farmstead | Gabled barns, doors and wood trim, crop beds, fences and scattered buildings |
+| Middle Eastern | Courtyard / temperate / village | Open U-shaped stone courts, lattice shade, parapets and market shelters |
+| Desert | Utility / arid / sparse | Dune ridges, rocks, sparse arid plants, gravel track and service cabin |
+| Jungle | Veranda / humid / sparse | Layered canopy, roots, undergrowth, earth beds, clearing and drainage |
+| Southeast Asian | Veranda / tropical / village | Deep eaves, raised floors, shutters, palms, drainage and paved shop frontage |
 
-Climate/terrain, regional architecture and settlement type are separate authoring
-choices. A Southeast Asian metropolis or a Middle Eastern countryside is a valid
-combination; choosing Middle Eastern must not automatically mean desert, nor
-must Southeast Asian mean jungle. Each concrete sample records which local
-references it uses. Additional temperate forest, alpine or coastal profiles can
-be evaluated later; they are not part of the initial seven's completion claim.
+These are miniature fictional samples, not surveyed locations or universal regional
+styles. `world.json` records the reference region. They are not final human art
+acceptance or broad biome simulation: implicit grass remains between landscaped
+plots, no ice/wet-ground traction is added, and distant cells are still streamed.
+Shopping/residential/market/office/hotel/plaza in town v6 remain land-use variants.
 
-Shopping, residential, market, office, hotel and plaza remain **land-use/layout
-variants** within these profiles. The current [town v6](CITY_THEMES.md) is a
-Korean-themed sample with six such variants, not the world theme library.
+## Compose independent axes
 
-## Common assets and map-specific writing
+The public MapKit library owns 31 original MIT, language-neutral assets and their
+source generator (`addons/mapkit/scripts/world_assets.py`). MapEditor owns their
+placement and profile choices. Common building meshes do not contain shop names;
+map signs are separate placements. Library reuse means identical source bytes;
+it does not promise GPU instancing or an installed shared-pack download system.
+Every package includes all of its used common and map-specific assets.
 
-The planned common library uses language-neutral building bodies, materials,
-signboards and pictograms. This is not an English-only default. Reusable base
-meshes/textures must not permanently embed a shop name or other language text.
-Visual identity comes from geometry, surfaces, vegetation, street structure and
-props rather than lettering alone.
+Generate into a **new** output directory with the standalone editor checkout:
 
-A map author can attach a map-specific sign image or other explicit sign asset
-to a designated facade surface. The reusable body stays unchanged; the map owns
-the sign's content, language(s), location and dependencies. Its source records
-the editable text when authored as text, font/image provenance and license,
-layout/direction, and the resulting asset identity. Exact fields and supported
-rendering/import formats belong to subsequent implementation, not this document.
+```sh
+rtk proxy python3 scripts/world_themes.py /tmp/world-new --signs examples/world-signs
+rtk proxy python3 scripts/world_themes.py /tmp/tropical-city-new --signs examples/world-signs --profile southeast-asian --architecture contemporary --settlement dense --sign arabic
+rtk proxy python3 scripts/world_themes.py /tmp/courtyard-farm-new --signs examples/world-signs --profile middle-eastern --settlement farmstead --sign thai
+```
 
-Authoring must allow both importing an already prepared sign image and producing
-one from text with a suitable licensed font. The latter must correctly shape
-and lay out the supported scripts, including right-to-left and combining text
-where applicable, and report missing glyphs. Do not silently draw arbitrary
-Unicode with the current small Hangul stroke table. Font choice, sizing and
-layout belong to the map authoring step. Recipient machines must not need an
-installed font or network service to reproduce the exported map.
+`--architecture`, `--climate`, `--settlement` and `--sign` are independent choices.
+The two combinations above passed native packaging. Other combinations still go
+through native bounds/overlap/road admission; composition is not an unconditional
+promise that any density/asset layout fits. Runtime generation and packaging
+remain MapKit's responsibility. Use `mapkit pack PROJECT NEW.memap`, then
+`mapkit validate-cells NEW.memap` after editing.
 
-An exported map includes every required sign image/asset with its hashes and
-license metadata. Save As, reopen and export preserve them. Map-specific data
-participates in existing package validation, bounds and memory accounting; it
-does not justify raising limits or omitting image-decoder costs. A blank or
-pictogram sign is an explicit author choice, not a silent replacement for a
-missing dependency. A fully baked localized GLB is still a map-specific variant,
-not a language-neutral common asset.
+## Author a sign in the editor
 
-Map writing and the application's UI language are independent. Opening a map
-with another UI locale must not change its signs, asset hashes or world content.
-Korean, Arabic, Thai or mixed-language signs are allowed when deliberately
-authored for that map; region selection does not force one language.
+Save a project, open **Map authoring → Signs**, choose an asset ID and enter either:
 
-## Current implementation and required evidence
+- A local licensed TTF/OTF, text, font source/license, language, direction,
+  alignment, colors and size; press **Create text sign**.
+- A prepared PNG with image source/license and language; press **Import prepared
+  sign image**. Its existing layout is retained; it is not editable text shaping.
 
-`scripts/shop_block.py` embeds the six Hanbit names as mesh strokes;
-`scripts/city_themes.py` embeds `한빛시장` and reuses the Hanbit shops elsewhere
-in the same town. These are existing map-specific examples, **not image textures
-or a general multilingual sign authoring API**. Merely documenting this scope
-does not separate the meshes or add sign attachment support. Keep the v3/v4/v5
-baselines and current v6 package/lock as historical comparison evidence.
+The sign is a separate asset. Select it in Drawing and place it with the desired
+height and quarter turn beside a blank board or facade; original buildings stay
+unchanged. The local surface faces source -Y; 2 quarter turns face +Y. Default size
+is 3 × 1.1 m. The source origin is the bottom center. Its 2 cm collision proxy is
+explicit and must not overlap another placement's footprint or a road. The sample
+board and sign have separate, non-overlapping footprints. Existing native checks
+reject invalid attachment/placement instead of ignoring it.
 
-MapEditor owns the authoring choices, per-map sign creation/import and sample
-layouts. MapKit owns reusable common assets/rendering and public package
-validation. The standalone public editor must not depend on game repositories.
+Text uses Godot TextServer Advanced shaping and a **single explicitly selected
+font**, with system fallback disabled. Korean/Latin, combining Latin, Arabic RTL
+with marks and Thai were exercised. Other scripts/mixed text work only when the
+selected font and shaper support every character; no universal-language claim is
+made. Missing codepoints/clusters and text overflow produce diagnostics. This
+version supports one line of 1–128 characters, 12–160 px, a 1024×256 raster, and
+TTF/OTF inputs up to 32 MiB. It does not silently shrink or clip text. A rendering
+display is required for text rasterization; prepared PNG import also works headless.
 
-Implementation evidence must include:
+The MapKit `godot/sign_asset.gd` wrapper gives the sign one normalized UV rectangle
+and embeds its PNG in a static GLB. A generic PNG collision-box texture tiles and
+is not the sign surface. All resulting GLBs pass the existing native PNG/glTF
+validator, decoder limits, 16 MiB binary Undo budget and runtime memory accounting.
+Creation uses the existing cancellable detached asset worker for candidate
+validation and adoption. Changes/restored controls, closed panels, document
+changes and stale workers prevent adoption. Invalid input never substitutes a
+blank sign. Temporary content-addressed sign bakes live in `user://sign-bakes/`;
+no original input is overwritten. They are not needed by exported maps.
 
-- Seven visibly distinct representative scenes, each with terrain, structures,
-  vegetation and props appropriate to its scope; a palette swap is insufficient.
-- Language-neutral common assets reused by maps with different writing, without
-  changing the common body or its collision. Explicit map-specific variants
-  must not be counted as new common base assets.
-- At least Korean, a Latin-script example and relevant Arabic/Thai shaping or
-  prepared-image examples; distinguish imported-image support from editable text
-  generation and never claim all languages from a few sample strings.
-- Save As → reopen → export → offline consumer display, unchanged signs across
-  UI locales, missing-dependency diagnostics and complete byte/license accounting.
-- Actual traversable routes, matching collision, cell transitions and retirement
-  under the existing budgets. No new snow/ice/wet-ground physics is implied by
-  visual theme selection; any such gameplay change is a separate runtime task.
+## Save, reopen and share
+
+`attribution.notice` stores a JSON `text-sign-v1` or `image-sign-v1` descriptor:
+text when applicable, language, direction/layout, font/image source and license,
+font SHA-256, baked image SHA-256, dimensions and shaper identification. Local font
+paths are not exported. Select the existing sign asset and reopen Signs to restore
+its text/provenance and physical dimensions. Reselect a licensed font to regenerate
+text; the authoring font itself is not a package dependency or bundled font editor.
+
+Save As copies the GLB and binary Undo/Redo dependencies. Reopening and export
+preserve exact package bytes for all seven samples. A missing sign file blocks
+export. Consumers need neither fonts nor a network connection. MapKit includes
+asset hashes and license notices in package identity/inventory. Changing the
+application's UI language changes neither the map's text pixels nor its hashes.
+
+`examples/world-signs/` contains the four baked PNG/GLB examples, editable metadata,
+font source URLs/SHA-256 and OFL notices. The original fonts are not redistributed.
+To reproduce text, supply matching fonts in `WORLD_SIGN_FONTS` and run
+`tests/sign_bake_validator.gd` in a rendered Godot project with a new
+`WORLD_SIGN_OUTPUT` directory. API references: [TextLine](https://docs.godotengine.org/en/stable/classes/class_textline.html),
+[TextServer glyph flags](https://docs.godotengine.org/en/stable/classes/class_textserver.html#enum-textserver-graphemeflag).
+
+## Verification and remaining acceptance
+
+`tests/test_world_themes.py` checks independent axes, clear routes, language-only
+variants, normalized UV/embedded image contracts, missing/hash-invalid dependencies
+and deterministic non-overwriting authoring. `tests/world_theme_validator.gd`
+checks seven Save As/reopen/export paths, missing files, the real Signs UI,
+text creation, prepared Arabic import, binary Undo/Redo and stale controls.
+The existing `asset_native_validator.gd` fault/cancel/late-response suite passed.
+
+macOS arm64/Godot 4.7.2 consumer evidence confirms all seven scenes rendered and
+moved 20.84–21.63 m with real vehicle input, new committed cells, four-wheel support,
+wall contact and exact retirement under 512 MiB. The baked image pixel hashes were
+matched to actual GLB materials and preserved across English/Korean/Japanese UI.
+These small 96×64 m fixtures have 24 cells each. They do not resolve the separate
+known dense Korean town v6 512 MiB transition refusal. Human art/direct driving,
+other target devices, sustained performance and final release acceptance remain.

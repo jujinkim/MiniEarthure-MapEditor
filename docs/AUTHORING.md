@@ -211,3 +211,9 @@ irregular polygon remains editable as ordinary geometry instead of being silentl
 rounded. Locked layers, invalid bounds and road/obstacle overlaps reject atomically.
 See [Driving School Town](DRIVING_SCHOOL.md) for two ready-to-drive kart courses
 using these round inside-corner walls.
+
+## World themes and map writing
+
+The Signs tab creates text with an explicit licensed font or imports a prepared PNG,
+then adopts a separate UV-mapped GLB through native asset validation. See
+[world profiles, language separation and limits](WORLD_THEME_AUTHORING.md).

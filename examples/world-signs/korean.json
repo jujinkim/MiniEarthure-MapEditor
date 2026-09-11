@@ -1,0 +1,18 @@
+{
+  "alignment": "center",
+  "direction": "ltr",
+  "font_license": "OFL-1.1",
+  "font_sha256": "6bcb2a0703aa137e874fc2dffa85f6c21ba9a67fa329e81b8c801663af7e992a",
+  "font_size": 104,
+  "font_source": "Noto / https://github.com/notofonts/noto-cjk",
+  "glb_sha256": "da62c4be8152de3afce511db5306369b11800c5be5f111ae9f96517d9af36260",
+  "image_sha256": "ca4946ea9f0a01439f3abec0e13c91c2f0bb5c155e8ff5513dac74f2a47cb35e",
+  "kind": "text-sign-v1",
+  "language": "ko",
+  "pixels": [
+    1024,
+    256
+  ],
+  "shaper": "Godot TextServer Advanced",
+  "text": "한빛 Café"
+}

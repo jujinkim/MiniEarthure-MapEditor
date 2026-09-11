@@ -27,6 +27,7 @@ var fields := {}
 var asset_fields := {}
 var asset_before := {}
 var session_signature := ""
+var sign_panel: RefCounted
 
 func _ready() -> void:
 	title = "Map authoring"
@@ -95,7 +96,7 @@ func asset_selection() -> String:
 		elif control is ColorPickerButton: controls[key] = control.color.to_html()
 		elif control is CheckButton: controls[key] = control.button_pressed
 		else: controls[key] = control.text
-	return JSON.stringify([asset_revision, asset_request, asset_before, controls, editor.canvas.layer_state]).sha256_text()
+	return JSON.stringify([asset_revision, asset_request, asset_before, controls, editor.canvas.layer_state, [sign_panel.revision, sign_panel.selection()] if sign_panel != null else []]).sha256_text()
 
 func _start_asset(record: Dictionary, source: String) -> void:
 	if editor.busy or not fresh(): return
@@ -244,6 +245,9 @@ func open() -> void:
 	_terrain()
 	_assets()
 	_selected()
+	if sign_panel != null: sign_panel.teardown()
+	sign_panel = preload("./sign_panel.gd").new()
+	sign_panel.setup(self)
 	popup_centered(Vector2i(800, 650))
 
 func page(name: String) -> VBoxContainer:
