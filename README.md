@@ -158,6 +158,10 @@ installed-Client authoring acceptance remain open.
 
 Reproducible offline synthetic reference projects, frozen source/generated hashes,
 capacity accounting and scoped validation: [REFERENCE_MAPS.md](docs/REFERENCE_MAPS.md).
+
+Fixed-density 2km mixed/dense experiments and smaller controls, preserving the
+Hanbit quality block: [SCALE_MAPS.md](docs/SCALE_MAPS.md). These measure actual
+regional transfer/audit limits; authored area alone is not supported gameplay.
 These development fixtures do not establish representative-map performance acceptance.
 
 OSM import now assembles bounded split-way multipolygons, multiple building/zone
