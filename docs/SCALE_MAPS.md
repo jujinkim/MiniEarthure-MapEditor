@@ -1,5 +1,8 @@
 # L02 area and density experiments
 
+Explicit road-route sidecars and their source/package/obstacle checks are
+documented in [SCALE_ROUTES](SCALE_ROUTES.md). They preserve these original maps.
+
 `scripts/scale_maps.py` creates a **new**, original synthetic source directory.
 It uses only this public repository's versioned driving-school source and MIT
 assets. It needs Python's standard library; rebuilding the unrelated town/kart
