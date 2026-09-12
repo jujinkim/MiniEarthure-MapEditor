@@ -285,6 +285,19 @@ func run() -> void:
 	var marked: Dictionary = ui.store.document.roads[0].duplicate(true)
 	marked.markings = {"lanes":2,"center_line":true,"edge_lines":true,"crosswalk_start":true,"crosswalk_end":true}
 	ok(author.apply("Mark road", [{"field":"roads","id":marked.id,"before":ui.store.document.roads[0],"after":marked}]), "persist editable road markings")
+	var tree_asset := {"id":"garden-tree", "path":"", "attribution":{"source":"MapEditor synthetic city tree", "license":"MIT", "notice":"Original procedural tree"}, "collision":[{"center":[0,12,0],"size_cm":[65,24,65]},{"center":[0,115,0],"size_cm":[16,180,16]}]}
+	ok(author.asset(tree_asset,"res://examples/driving-school/assets/city-tree.glb"), "import shared planting GLB")
+	ok(author.recipe(7, "urban"), "explicit custom vegetation recipe")
+	author.options.tree_asset_id = "garden-tree"
+	author.options.tree_radius_cm = 58
+	author.options.tree_clearance_cm = 5
+	await shape("Orchard", [Vector2(85000,20000),Vector2(90000,20000),Vector2(90000,25000),Vector2(85000,25000)])
+	var planted: Dictionary = ui.store.document.zones[-1].duplicate(true)
+	check(planted.tree.asset_id == "garden-tree" and int(planted.tree.radius_cm) == 58 and int(planted.tree.clearance_cm) == 5, "planting stores the shared model and actual footprint: " + JSON.stringify(planted.tree))
+	ok(ui.store.undo(), "undo custom planting")
+	check(ui.store.document.zones.size() == 1, "custom planting undo retains original forest")
+	ok(ui.store.redo(), "redo custom planting")
+	check(ui.store.document.zones[-1] == planted, "planting redo preserves recipe inputs")
 	var destination: String = ui.store.project_path.path_join("authored.memap")
 	ok(ui.store.save_project(ui.store.project_path), "save full authored project")
 	ok(ui.store.autosave(), "authoring recovery")
@@ -320,7 +333,7 @@ func run() -> void:
 	var asset_deadline := Time.get_ticks_msec() + 20000
 	while ui.busy and Time.get_ticks_msec() < asset_deadline: await process_frame
 	check(not ui.busy, "asynchronous asset job finishes: " + ui.author_panel.feedback.text)
-	check(ui.store.document.assets.size() == 2, "real authoring panel Apply imports an asset: " + ui.author_panel.feedback.text)
+	check(ui.store.document.assets.size() == 3 and ui.store.document.assets.any(func(record: Dictionary): return record.id == "ui-asset"), "real authoring panel Apply imports an asset: " + ui.author_panel.feedback.text)
 	before = state()
 	controls.boxes.text = "[invalid"
 	await click(apply.get_global_rect().get_center() + Vector2(ui.author_panel.position))

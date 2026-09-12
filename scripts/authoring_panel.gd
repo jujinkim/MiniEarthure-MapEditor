@@ -323,7 +323,7 @@ func fresh() -> bool:
 func _setup() -> void:
 	var box := page("Map")
 	hint(box, "Recipe 2: terrain-following roads, bridge/tunnel cuts. Recipe 3: buildings, entrances and repeated props. Recipe 4: custom convex proxies and materials. Recipe 6: ground paving, road markings and connected sidewalks. Changing recipe changes world identity; originals are never migrated on load.")
-	var recipe := choice(box, "Recipe", ["1", "2", "3", "4", "5", "6"], str(int(editor.store.document.recipe_version)))
+	var recipe := choice(box, "Recipe", ["1", "2", "3", "4", "5", "6", "7"], str(int(editor.store.document.recipe_version)))
 	var theme := choice(box, "Theme", ["default", "urban", "rural"], editor.store.document.theme)
 	button(box, "Apply recipe and theme", func():
 		if fresh(): report(author.recipe(int(recipe.get_item_text(recipe.selected)), theme.get_item_text(theme.selected)))
@@ -384,6 +384,13 @@ func _drawing() -> void:
 	var assets: Array = ["builtin:tree", "builtin:fence", "builtin:streetlight"]
 	for asset: Dictionary in editor.store.document.assets: assets.append(str(asset.id))
 	opt_choice(box, "Placement / repetition asset", "asset_id", assets)
+	var trees: Array = ["builtin:tree"]
+	for asset: Dictionary in editor.store.document.assets:
+		if str(asset.path).ends_with(".glb"): trees.append(str(asset.id))
+	opt_choice(box, "Planting tree", "tree_asset_id", trees)
+	opt_number(box, "Tree canopy half-width (m)", "tree_radius_cm", 0.01, 2)
+	opt_number(box, "Tree clearance (m)", "tree_clearance_cm", 0, 1000)
+	hint(box, "For custom planting, choose a GLB in recipe 7 and declare a canopy footprint enclosing its collision. Candidates outside the zone or overlapping obstacles are skipped; the count follows spacing and density.")
 	opt_number(box, "Quarter turns", "quarter_turns", 0, 3, false)
 	hint(box, "Repetition supports builtin fence or streetlight; fence paths are cardinal. Gables require an axis-aligned rectangular footprint. Native overlap and clearance rules apply.")
 

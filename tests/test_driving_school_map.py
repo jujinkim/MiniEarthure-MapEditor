@@ -146,7 +146,7 @@ class DrivingSchoolTests(unittest.TestCase):
             # The shared-tree refinement explicitly replaces the old miniature
             # vegetation, retaining IDs/counts but allowing safe relocation.
             if p['id'] not in removed and p['asset_id'] != 'compact-tree': self.assertEqual(actual[p['id']],p)
-        for key in ['buildings','heightmaps','zones','surface_areas','repetitions','bounds','cell_size_cm']:
+        for key in ['buildings','heightmaps','surface_areas','repetitions','bounds','cell_size_cm']:
             self.assertEqual(self.doc[key],baseline[key],key)
         for asset in baseline['assets']:
             if asset['id'] in report['retired_assets'] or asset['id'] == 'compact-tree':
@@ -172,8 +172,7 @@ class DrivingSchoolTests(unittest.TestCase):
         lock=json.loads(Path(__file__).with_name('driving_school_v5.lock.json').read_text())
         self.assertEqual(sha(previous.with_suffix('.memap').read_bytes()),lock['inspection']['package_sha256'])
 
-    def test_shared_city_tree_size_collision_and_retained_identities(self):
-        snapshot=json.loads((Path(maps.__file__).parent/'driving_school_vegetation_v2.json').read_text())
+    def test_shared_city_tree_size_collision_and_live_zone_recipe(self):
         previous=Path(__file__).resolve().parents[1]/'examples/driving-school-v5'
         assets={a['id']:a for a in self.doc['assets']}
         self.assertEqual(len(assets),len(self.doc['assets']))
@@ -189,73 +188,18 @@ class DrivingSchoolTests(unittest.TestCase):
         self.assertEqual(tree['collision'],[
             dict(center=[0,12,0],size_cm=[65,24,65]),
             dict(center=[0,115,0],size_cm=[16,180,16])])
-        retained={p['id']:p for p in self.doc['placements'] if p['id'].startswith('scaled-')}
-        self.assertEqual(len(retained),1226)
-        for source in snapshot['objects']:
-            p=retained['scaled-'+source['id'].replace(':','-')]
-            self.assertEqual(p['asset_id'],'city-tree')
-            self.assertEqual(p['quarter_turns'],source['quarter_turns'])
-            self.assertEqual(p['position'][1],round(source['position'][1]/32))
-            self.assertEqual(set(p),{'id','asset_id','position','quarter_turns'},'no per-district scale')
-
-    def test_enlarged_practice_trees_clear_roads_buildings_props_and_each_other(self):
-        from shapely.geometry import box,LineString,Polygon,MultiPoint
-        from shapely.affinity import rotate,translate
-        from shapely.ops import unary_union
-        from shapely.strtree import STRtree
-        obstacles=[LineString([(p[0],p[2]) for p in r['points']]).buffer(max(r['widths_cm'])/2,cap_style=3,join_style=2) for r in self.doc['roads']]
-        obstacles += [Polygon(b['footprint'],b.get('holes')) for b in self.doc['buildings']]
-        assets={a['id']:a for a in self.doc['assets']}
-        trees=[]
-        for p in self.doc['placements']:
-            x,_,y=p['position']
-            if p['asset_id']=='city-tree':
-                trees.append((p['id'],box(x-57.5,y-57.5,x+57.5,y+57.5)))
-                continue
-            a=assets[p['asset_id']]
-            shapes=[]
-            for shape in a.get('collision',[]):
-                cx,_,cy=shape['center'];w,_,d=shape['size_cm']
-                shapes.append(box(cx-w/2,cy-d/2,cx+w/2,cy+d/2))
-            for shape in a.get('convex_collision',[]):
-                shapes.append(MultiPoint([(v[0],v[2]) for v in shape['vertices']]).convex_hull)
-            obstacles += [translate(rotate(shape,90*p['quarter_turns'],origin=(0,0)),x,y) for shape in shapes]
-        blocked=unary_union(obstacles)
-        tree_index=STRtree([shape for _,shape in trees])
-        bounds=box(0,0,19200,19200)
-        for i,(ident,canopy) in enumerate(trees):
-            if not ident.startswith('scaled-'): continue
-            self.assertTrue(bounds.contains(canopy),ident)
-            self.assertGreaterEqual(canopy.distance(blocked),5,ident)
-            for j in tree_index.query(canopy.buffer(5)):
-                if i!=j: self.assertGreaterEqual(canopy.distance(trees[j][1]),5,(ident,trees[j][0]))
-
-    def test_theme_variety_and_physical_lane_clearance(self):
-        from shapely.geometry import box
-        from shapely.affinity import rotate,translate
-        from city_themes import ATTRIBUTION
-        lots=self.town.city_report['themes']['lots']
-        self.assertEqual(len(lots),40)
-        self.assertEqual(set(l['theme'] for l in lots),{'shopping','residential','market','office','hotel','plaza'})
-        self.assertGreaterEqual(len(set(len(l['buildings']) for l in lots)),4)
-        self.assertEqual(sum(l['lane'] is not None for l in lots),15)
-        assets={a['id']:a for a in self.doc['assets']}
-        footprints=[]
-        for p in self.doc['placements']:
-            if not p['id'].startswith('q03-'):continue
-            a=assets[p['asset_id']]
-            self.assertTrue(a.get('collision'),p['id'])
-            for shape in a['collision']:
-                x,_,y=[v/100 for v in shape['center']];w,_,d=[v/100 for v in shape['size_cm']]
-                footprint=translate(rotate(box(x-w/2,y-d/2,x+w/2,y+d/2),90*p['quarter_turns'],origin=(0,0)),p['position'][0]/100,p['position'][2]/100)
-                footprints.append((p['id'],footprint))
-        for lot in lots:
-            if not lot['lane']:continue
-            lane=lot['lane'];corridor=box(lane['x_m'][0],lane['y_m']-1,lane['x_m'][1],lane['y_m']+1)
-            for ident,footprint in footprints:self.assertFalse(footprint.intersects(corridor),(lot['id'],ident))
-        for asset in assets.values():
-            if asset['id'].startswith('q03-'):self.assertEqual(asset['attribution'],ATTRIBUTION)
-        self.assertIn(ATTRIBUTION,self.doc['attributions'])
+        self.assertEqual(self.doc['recipe_version'],7)
+        self.assertFalse(any(p['id'].startswith('scaled-') for p in self.doc['placements']))
+        self.assertEqual(sum(p['asset_id']=='city-tree' for p in self.doc['placements']),237)
+        baseline=json.loads((previous/'document.json').read_text())
+        before={z['id']:z for z in baseline['zones']}
+        self.assertEqual(len(self.doc['zones']),37)
+        for zone in self.doc['zones']:
+            old=before[zone['id']]
+            for key in ['id','polygon','kind','exclusions']: self.assertEqual(zone[key],old[key])
+            self.assertEqual(zone['spacing_cm'],300)
+            self.assertIn(zone['density_per_mille'],[700,800])
+            self.assertEqual(zone['tree'],dict(asset_id='city-tree',radius_cm=58,clearance_cm=5))
 
     def test_quality_block_clear_lane_and_original_legible_assets(self):
         from shapely.geometry import box

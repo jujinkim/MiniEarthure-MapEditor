@@ -20,11 +20,11 @@
     "buildings": 786,
     "zones": 37,
     "assets": 31,
-    "placements": 2542,
+    "placements": 1316,
     "repetitions": 0,
     "heightmaps": 432
   },
-  "authored_object_count": 4849,
+  "authored_object_count": 3623,
   "road_centerline_planar_m": 9719.337764,
   "road_centerline_spatial_m": 9719.442828,
   "terrain": {
@@ -33,7 +33,7 @@
     "source_accuracy_cm": null
   },
   "source_files": {
-    "document.json": "60fb15beccc53c4061b863675f88f7265409f114bca3d4f47dd35ae109465d04",
+    "document.json": "b7c751ec2fd85282f310fd75e65cc7adb9ea6d00844a0518e67145a3b2b5856d",
     "assets/city-bench.glb": "3689eb6cc7957f86e35f89e5bfc590f74eb6085ae7b187c24edfc3cb96b88eab",
     "assets/city-bin.glb": "396edb1d0c6421cc013a41c2091731b54a92088dcd7f9b3831c953d8d6c1a29b",
     "assets/city-bollard.glb": "9174f47302fca9d2a345e97b4c3fecd3a617ce7eebcc5828f53d0c49b6524c0e",
@@ -495,7 +495,7 @@
     ],
     "buildings": 197,
     "props": {
-      "city-tree": 1463,
+      "city-tree": 237,
       "city-lamp": 226,
       "city-bench": 246,
       "city-bin": 80,

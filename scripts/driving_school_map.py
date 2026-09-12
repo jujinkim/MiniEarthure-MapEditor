@@ -315,6 +315,8 @@ def build():
     refine(t)
     from city_themes import refine as refine_city
     refine_city(t)
+    from compact_vegetation import configure_vegetation
+    configure_vegetation(t)
     return t
 
 

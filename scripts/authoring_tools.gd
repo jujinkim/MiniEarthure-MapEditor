@@ -12,6 +12,7 @@ var options := {
 	"height_cm": 1200, "base_cm": 0, "usage": "residential", "material": "concrete", "roof": "flat",
 	"wall_radius_cm": 1200, "wall_height_cm": 250,
 	"spacing_cm": 800, "density_per_mille": 750, "asset_id": "builtin:tree", "quarter_turns": 0,
+	"tree_asset_id": "builtin:tree", "tree_radius_cm": 58, "tree_clearance_cm": 5,
 	"mode": "raise", "radius_cm": 6400, "amount_cm": 100, "target_cm": 0, "grid_cm": 3200,
 }
 
@@ -80,7 +81,11 @@ func draw(tool: String, draft: Array[Vector2]) -> String:
 		if int(options.wall_radius_cm) < 25 or int(options.wall_radius_cm) > 50000: return "Wall radius must be 0.25–500 m."
 		record = CYLINDER.create(id, draft[0], int(options.wall_radius_cm), int(options.base_cm), int(options.wall_height_cm), options.material)
 	elif tool == "Building": record.merge({"footprint": polygon, "base_cm": int(options.base_cm), "height_cm": int(options.height_cm), "usage": options.usage, "material": options.material, "roof": options.roof})
-	elif tool in ["Forest", "Orchard"]: record.merge({"polygon": polygon, "kind": tool.to_lower(), "spacing_cm": int(options.spacing_cm), "density_per_mille": int(options.density_per_mille), "exclusions": []})
+	elif tool in ["Forest", "Orchard"]:
+		record.merge({"polygon": polygon, "kind": tool.to_lower(), "spacing_cm": int(options.spacing_cm), "density_per_mille": int(options.density_per_mille), "exclusions": []})
+		if options.tree_asset_id != "builtin:tree":
+			if int(store.document.recipe_version) < 7: return "Custom planting assets require recipe 7."
+			record.tree = {"asset_id": options.tree_asset_id, "radius_cm": int(options.tree_radius_cm), "clearance_cm": int(options.tree_clearance_cm)}
 	elif tool == "Place": record.merge({"asset_id": options.asset_id, "position": [polygon[0][0], int(options.base_cm), polygon[0][1]], "quarter_turns": int(options.quarter_turns)})
 	elif tool == "Repeat": record.merge({"asset_id": options.asset_id, "points": _points(draft), "spacing_cm": int(options.spacing_cm)})
 	else:

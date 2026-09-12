@@ -183,9 +183,6 @@ def compact(t):
     for z in d['zones']:
         z['polygon'] = [[round(x/32), round(y/32)] for x,y in z['polygon']]
         z['spacing_cm'] = max(25, round(z['spacing_cm']/32))
-        # Preserve the original tree identities as shared city-tree placements
-        # below. Empty editable zones must not generate a second set of trees.
-        z['density_per_mille'] = 0
     # Scale both glTF meshes and their authored convex collision together.
     from driving_school_map import glb, box, oriented_faces
     for asset in d['assets']:
@@ -203,8 +200,6 @@ def compact(t):
             x,y = nearest_points(spot, free)[1].coords[0]
             p[0],p[2] = round(x),round(y)
         placement['position'] = p
-    from compact_vegetation import place_vegetation
-    place_vegetation(t, bounds, occupied)
     for location in t.locations:
         location['position_cm'] = point(location['position_cm'], location['surface_id'])
         road = next(r for r in d['roads'] if r['id'] == location['surface_id'])
