@@ -112,3 +112,20 @@ integration reports own consumer runs, actual frame/CPU/RSS/GPU and deferred
 device/human acceptance. Source sharding/global dependency and audit-cost work
 is a separate implementation decision; this experiment does not change MapKit's
 format, transport, validation limits or generation contracts.
+
+## L01-C same-source storage comparison (2026-09-12)
+
+The existing sources, lock, lot density, terrain and all asset hashes are unchanged.
+With MapKit index v2, mixed 2km packages are 1,481,432/781,915B at 128/256m storage;
+dense 2km packages are 2,293,070/1,375,142B. Expanded records are respectively
+13,025,027/8,022,910B and 23,790,760/16,775,740B, including all original payloads.
+Complete native audit passes 512MiB for mixed and 1GiB for dense. Dense still
+refuses 512MiB. The 288m controls and 1,056m dense control pass native 512MiB.
+Native admission does not include the game screen's existing memory reservations.
+
+The compiled Editor runs 387 scale checks plus export/reopen and preview/export
+regressions using the matching v2 native build. Across all 12 old/new artifact
+pairs, 126 sampled cells preserve generated geometry and occupied solids. The
+old v1 artifacts and original failures remain comparison evidence. This storage
+improvement does not authorize 5/10km expansion or complete L02 performance/device
+acceptance; use the same reproduction commands with fresh output directories.
