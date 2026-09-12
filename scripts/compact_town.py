@@ -183,8 +183,8 @@ def compact(t):
     for z in d['zones']:
         z['polygon'] = [[round(x/32), round(y/32)] for x,y in z['polygon']]
         z['spacing_cm'] = max(25, round(z['spacing_cm']/32))
-        # Preserve the original generated trees as scaled authored models below.
-        # A default built-in tree is 4 m tall in actual-metre custom documents.
+        # Preserve the original tree identities as shared city-tree placements
+        # below. Empty editable zones must not generate a second set of trees.
         z['density_per_mille'] = 0
     # Scale both glTF meshes and their authored convex collision together.
     from driving_school_map import glb, box, oriented_faces

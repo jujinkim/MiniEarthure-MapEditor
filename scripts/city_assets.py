@@ -11,6 +11,7 @@ GLASS = [(0.25,0.42,0.52,1),(0.35,0.52,0.62,1),(0.49,0.63,0.69,1)]
 DARK=(0.15,0.19,0.22,1)
 WHITE=(0.86,0.87,0.83,1)
 GREEN=(0.30,0.46,0.23,1)
+TREE_CANOPY_WIDTH_M = 1.15
 
 class Model:
     def __init__(self): self.groups=defaultdict(lambda:[[],[]]); self.collision=[]
@@ -81,12 +82,19 @@ def building(t,index,tower=False,compact=False):
     m.publish(t,name)
     return name
 
-def props(t):
+def tree(t):
+    """One shared tree model for the practice grounds and city districts."""
+    if any(a['id'] == 'city-tree' for a in t.doc['assets']):
+        return 'city-tree'
     m=Model();m.solid((0,0.12,0),(0.65,0.24,0.65),(0.55,0.56,0.51,1),True)
     m.solid((0,0.25,0),(0.59,0.02,0.59),GREEN)
     m.solid((0,1.15,0),(0.16,1.8,0.16),(0.38,0.28,0.18,1),True)
-    for h,w in [(2.0,1.15),(2.5,0.95),(2.9,0.6)]: m.solid((0,h,0),(w,0.7,w),GREEN)
+    for h,w in [(2.0,TREE_CANOPY_WIDTH_M),(2.5,0.95),(2.9,0.6)]: m.solid((0,h,0),(w,0.7,w),GREEN)
     m.publish(t,'city-tree')
+    return 'city-tree'
+
+def props(t):
+    tree(t)
     m=Model();m.solid((0,0.4,0),(1.3,0.12,0.44),(0.58,0.37,0.20,1),True)
     m.solid((0,0.64,0.18),(1.3,0.45,0.08),(0.58,0.37,0.20,1),True)
     for x in [-0.5,0.5]:m.solid((x,0.2,0),(0.1,0.4,0.4),DARK,True)

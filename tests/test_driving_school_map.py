@@ -2,6 +2,7 @@
 import collections
 import json
 import math
+import struct
 from pathlib import Path
 import sys
 import tempfile
@@ -85,7 +86,6 @@ class DrivingSchoolTests(unittest.TestCase):
         self.assertEqual(len(cylinders),10)
         self.assertTrue(all(len(b["footprint"])==48 and b["roof"]=="flat" for b in cylinders))
         self.assertFalse(any(r["id"].startswith("kart-quarter") for r in self.doc["roads"]))
-        self.assertEqual(sum(p['asset_id']=='compact-tree' for p in self.doc['placements']),1226)
         for r in self.doc["roads"]:
             if r["id"].startswith("kart-") and r["kind"] != "tunnel":
                 self.assertEqual(r["kind"], "elevated" if any(p[1] for p in r["points"]) else "ground", r["id"])
@@ -143,11 +143,13 @@ class DrivingSchoolTests(unittest.TestCase):
         removed=set(report['replaced_placements'])
         actual={p['id']:p for p in self.doc['placements']}
         for p in baseline['placements']:
-            if p['id'] not in removed: self.assertEqual(actual[p['id']],p)
+            # The shared-tree refinement explicitly replaces the old miniature
+            # vegetation, retaining IDs/counts but allowing safe relocation.
+            if p['id'] not in removed and p['asset_id'] != 'compact-tree': self.assertEqual(actual[p['id']],p)
         for key in ['buildings','heightmaps','zones','surface_areas','repetitions','bounds','cell_size_cm']:
             self.assertEqual(self.doc[key],baseline[key],key)
         for asset in baseline['assets']:
-            if asset['id'] in report['retired_assets']:
+            if asset['id'] in report['retired_assets'] or asset['id'] == 'compact-tree':
                 self.assertFalse(any(p['asset_id']==asset['id'] for p in self.doc['placements']))
                 continue
             self.assertIn(asset,self.doc['assets'])
@@ -169,6 +171,64 @@ class DrivingSchoolTests(unittest.TestCase):
         self.assertEqual(self.town.city_report['quality_block'],json.loads((previous/'driving.json').read_text())['city']['quality_block'])
         lock=json.loads(Path(__file__).with_name('driving_school_v5.lock.json').read_text())
         self.assertEqual(sha(previous.with_suffix('.memap').read_bytes()),lock['inspection']['package_sha256'])
+
+    def test_shared_city_tree_size_collision_and_retained_identities(self):
+        snapshot=json.loads((Path(maps.__file__).parent/'driving_school_vegetation_v2.json').read_text())
+        previous=Path(__file__).resolve().parents[1]/'examples/driving-school-v5'
+        assets={a['id']:a for a in self.doc['assets']}
+        self.assertEqual(len(assets),len(self.doc['assets']))
+        self.assertNotIn('compact-tree',assets)
+        tree=assets['city-tree']
+        data=self.town.payloads[tree['path']]
+        self.assertEqual(data,(previous/tree['path']).read_bytes(),'keep the accepted city model exactly')
+        length=struct.unpack_from('<I',data,12)[0]
+        gltf=json.loads(data[20:20+length])
+        positions=[gltf['accessors'][p['attributes']['POSITION']] for m in gltf['meshes'] for p in m['primitives']]
+        size=[max(a['max'][i] for a in positions)-min(a['min'][i] for a in positions) for i in range(3)]
+        self.assertEqual(size,[1.15,3.25,1.15])
+        self.assertEqual(tree['collision'],[
+            dict(center=[0,12,0],size_cm=[65,24,65]),
+            dict(center=[0,115,0],size_cm=[16,180,16])])
+        retained={p['id']:p for p in self.doc['placements'] if p['id'].startswith('scaled-')}
+        self.assertEqual(len(retained),1226)
+        for source in snapshot['objects']:
+            p=retained['scaled-'+source['id'].replace(':','-')]
+            self.assertEqual(p['asset_id'],'city-tree')
+            self.assertEqual(p['quarter_turns'],source['quarter_turns'])
+            self.assertEqual(p['position'][1],round(source['position'][1]/32))
+            self.assertEqual(set(p),{'id','asset_id','position','quarter_turns'},'no per-district scale')
+
+    def test_enlarged_practice_trees_clear_roads_buildings_props_and_each_other(self):
+        from shapely.geometry import box,LineString,Polygon,MultiPoint
+        from shapely.affinity import rotate,translate
+        from shapely.ops import unary_union
+        from shapely.strtree import STRtree
+        obstacles=[LineString([(p[0],p[2]) for p in r['points']]).buffer(max(r['widths_cm'])/2,cap_style=3,join_style=2) for r in self.doc['roads']]
+        obstacles += [Polygon(b['footprint'],b.get('holes')) for b in self.doc['buildings']]
+        assets={a['id']:a for a in self.doc['assets']}
+        trees=[]
+        for p in self.doc['placements']:
+            x,_,y=p['position']
+            if p['asset_id']=='city-tree':
+                trees.append((p['id'],box(x-57.5,y-57.5,x+57.5,y+57.5)))
+                continue
+            a=assets[p['asset_id']]
+            shapes=[]
+            for shape in a.get('collision',[]):
+                cx,_,cy=shape['center'];w,_,d=shape['size_cm']
+                shapes.append(box(cx-w/2,cy-d/2,cx+w/2,cy+d/2))
+            for shape in a.get('convex_collision',[]):
+                shapes.append(MultiPoint([(v[0],v[2]) for v in shape['vertices']]).convex_hull)
+            obstacles += [translate(rotate(shape,90*p['quarter_turns'],origin=(0,0)),x,y) for shape in shapes]
+        blocked=unary_union(obstacles)
+        tree_index=STRtree([shape for _,shape in trees])
+        bounds=box(0,0,19200,19200)
+        for i,(ident,canopy) in enumerate(trees):
+            if not ident.startswith('scaled-'): continue
+            self.assertTrue(bounds.contains(canopy),ident)
+            self.assertGreaterEqual(canopy.distance(blocked),5,ident)
+            for j in tree_index.query(canopy.buffer(5)):
+                if i!=j: self.assertGreaterEqual(canopy.distance(trees[j][1]),5,(ident,trees[j][0]))
 
     def test_theme_variety_and_physical_lane_clearance(self):
         from shapely.geometry import box
