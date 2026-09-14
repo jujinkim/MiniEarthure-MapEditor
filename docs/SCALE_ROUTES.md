@@ -39,8 +39,9 @@ and kinds are retained in each segment. The grid road ends are trimmed by 8 m fo
 uses its ground ramp endpoints 16 m from each map edge, retaining both full
 grades and additional braking room. A 2 km map yields 944 m single-density
 corridors, 1,904 m transition corridors and a 1,968 m bridge route. These are straight
-ordered waypoints, including changes of grade; arbitrary turns, reverse
-shuttles and general routing/access semantics are unsupported and rejected.
+ordered waypoints, including changes of grade. Arbitrary turns and general
+routing/access semantics are unsupported; flat reverse shuttles use the
+additional source audit below.
 
 The source audit requires at least a 4 m road width and checks a 2 m corridor
 against transformed static collision boxes, building/vegetation envelopes and
@@ -58,3 +59,21 @@ acceptance. Small-prefix runs must not claim complete corridor coverage.
 Source and package bytes remain fixed. See [SCALE_MAPS](SCALE_MAPS.md) for the
 original density/quality contract; the superproject's L02 route report owns
 execution results, revisions, failed attempts and deferred acceptance.
+
+## L02-RS stopping-room audit (2026-09-14)
+
+New sidecars add `shuttle.format: l02-flat-shuttle-v1` to the six flat ground
+asphalt corridors. Four metres outside each trimmed endpoint must remain on
+the existing connected road. The same conservative obstacle audit extends its
+bounds by four metres at both ends, preserving its one-metre half-width and
+end padding. Any intersecting static object, vegetation or terrain envelope
+rejects the sidecar. `stopping_margin_m`, audited `bounds_cm` and empty
+`overlaps` accompany the capability. The tool never changes source/package
+bytes to create space. Existing v1 sidecars without this field remain
+forward-only; create a new destination to use timed reverse evidence.
+
+Client independently checks the full corridor in each direction, actual
+support, stopping positions and the unchanged native admission. This is
+forward/reverse input along the same heading, not a 180-degree turn. Bridge
+ramps have no shuttle capability; graded braking/turns and forest-interior
+hill routes still need separate authoring and validation.

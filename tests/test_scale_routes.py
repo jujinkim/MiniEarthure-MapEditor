@@ -32,7 +32,22 @@ class ScaleRoutesTests(unittest.TestCase):
         self.assertEqual(routes[-1]['expected_height_range_m'],3)
         self.assertEqual(routes[-1]['start_cm'],[1600,0,800])
         self.assertEqual(routes[-1]['end_cm'],[27200,0,800])
+        self.assertNotIn('shuttle',routes[-1], 'grades still require a separate stopping profile')
+        for route in routes[:-1]:
+            self.assertEqual(route['shuttle']['format'],'l02-flat-shuttle-v1')
+            self.assertEqual(route['shuttle']['stopping_margin_m'],4)
         self.assertEqual((self.doc,self.metadata),before)
+
+    def test_shuttle_runway_obstacles_are_not_hidden_by_trimmed_endpoints(self):
+        doc = copy.deepcopy(self.doc)
+        road = next(r for r in doc['roads'] if r['id']=='grid-ns-3-0')
+        x,_,z = road['points'][0]
+        # Outside the old route bounds (start + 8m minus 1m), but within
+        # the newly audited four-metre stopping extension.
+        doc['zones'].append(dict(id='stop-obstacle',polygon=[
+            [x-20,z+450],[x+20,z+450],[x+20,z+500],[x-20,z+500]]))
+        with self.assertRaisesRegex(ValueError,'shuttle stopping obstacle'):
+            scale_routes.routes(doc,self.metadata)
 
     def test_disconnected_node_and_road_gap_are_rejected(self):
         doc = copy.deepcopy(self.doc)

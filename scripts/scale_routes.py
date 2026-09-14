@@ -126,12 +126,30 @@ def corridor(doc, metadata, ident, road_ids, trim_cm=800):
         if a['end_cm'] != b['start_cm']:
             raise ValueError('route segment gap')
     heights = [p[1] for s in segments for p in [s['start_cm'],s['end_cm']]]
-    return dict(id=ident, start_cm=first, end_cm=last, spawn_surface=segments[0]['road_id'],
+    result = dict(id=ident, start_cm=first, end_cm=last, spawn_surface=segments[0]['road_id'],
                 heading_degrees=-90 if axis == 0 else 0, axis=axis,
                 distance_m=(high-low)/100, lateral_tolerance_m=0.75,
                 expected_height_range_m=(max(heights)-min(heights))/100,
                 segments=segments, source_obstacles=dict(corridor_half_width_m=1, overlaps=[]),
                 scope='road corridor next to authored lots; not lot-interior, visibility or forest-hill acceptance')
+    # Timed reverse shuttles need audited stopping room beyond both endpoints.
+    # Keep grades forward-only until their braking/support profile is authored.
+    if all(r['kind'] == 'ground' and all(p[1] == 0 for p in r['points'])
+           and all(s == 'asphalt' for s in r['surfaces']) for r in chain):
+        runway_cm = 400
+        if low-runway_cm < start[axis] or high+runway_cm > end[axis]:
+            raise ValueError('shuttle stopping room outside authored road')
+        stopping_bounds = list(bounds)
+        bounds_axis = 0 if axis == 0 else 1
+        stopping_bounds[bounds_axis] -= runway_cm
+        stopping_bounds[bounds_axis+2] += runway_cm
+        blocked = [name for name, box in obstacle_boxes(doc) if overlap(stopping_bounds, box)]
+        if blocked:
+            raise ValueError('shuttle stopping obstacle envelope: '+','.join(blocked[:8]))
+        result['shuttle'] = dict(format='l02-flat-shuttle-v1', stopping_margin_m=4,
+            bounds_cm=stopping_bounds, overlaps=[],
+            scope='flat straight full-corridor forward/reverse input; no heading turn')
+    return result
 
 
 def routes(doc, metadata):
