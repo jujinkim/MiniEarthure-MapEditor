@@ -213,3 +213,58 @@ stale local CLI producing v1 is rejected before native reference generation.
 Rebuild the CLI from the pinned MapKit checkout when necessary; file location
 alone does not establish that a retained binary matches the source. Existing
 non-hill corridor/turn profiles retain their earlier package compatibility.
+
+## L02-BR-A: bridge route and stopping-area audit (2026-09-14)
+
+The `bridge-shuttle` profile reads the original synthetic scale source and its
+matching indexed v2 package. It preserves source, payloads, packages and the
+existing forward-only `bridge-grades` route. It requires the explicit 6 m wide
+asphalt `speed-bridge`, connected endpoint nodes, both 32 m ramps with 3 m
+relief, and the recorded world bounds. It does not infer a route from overlap.
+
+On the 288 m fixture it emits `bridge-full-shuttle` (256 m, both ramps) and
+`bridge-east-ramp-shuttle` (160 m, plateau and east ramp). Larger fixtures emit
+only the separately named 160 m east route. That route has its own complete
+segments and endpoints; it is not a distance override of the 1,968 m bridge.
+Forward and reverse must later cover every segment in the appropriate order.
+
+Each route uses `mode: l02-bridge-shuttle-v1` and
+`shuttle.format: l02-graded-shuttle-v1`. The source audit covers 12 m beyond
+both endpoints and a 1.10 m half-width (0.75 m centre tolerance plus 0.35 m
+vehicle radius). The resulting rectangle, including its longitudinal padding,
+must fit the original road and avoid conservative source obstacle envelopes.
+The separate forward downhill stop begins 8 m into the descending ramp and
+must stop within the following 12 m on that ramp. The contract records a
+0.5 m maximum start lateness, maximum target 11 m/s, and 5 s target duration
+for the later, separately selected high-speed observation. These are proposed
+test limits, not measured stopping performance or a Runtime speed-policy change.
+
+The matching native CLI performs complete-source audit and generates the swept
+execution cells plus a one-cell ownership halo, bounded to 64 cells. At world
+edges, only cells outside the verified source world are excluded; the exact
+count is recorded. In-world native errors still fail the audit. All generated
+non-terrain/non-bridge obstacle envelopes must remain clear. Up to 2,048 native
+bridge triangles retain surface IDs, heights and normals with package/CLI/cell
+hashes and command logs.
+
+Diagnostic probes sample the centre and both sweep edges at stations no more
+than 25 cm apart, including every waypoint, stopping limit and braking limit.
+At most 4,096 probes must have support, upward normal >0.9, source-profile
+height error ≤10 cm and ≥285 cm relief. All braking-interval probes must remain
+downhill (x grade <−0.05). Native crossfall is retained. This sampling supplements
+the source envelope and full native audit; it does not prove continuous wheel
+contacts, braking distance, return driving or game acceptance. The later Client
+observer must use the complete native faces for actual per-wheel observations.
+
+```sh
+rtk proxy addons/mapkit/target/debug/mapkit unpack-regions /existing/mixed.mkregions /new/bridge-restored 1073741824
+rtk proxy python3 -B scripts/scale_routes.py /existing/mixed-source /existing/mixed.mkregions /new/bridge-routes.json --restored /new/bridge-restored --profile bridge-shuttle --mapkit addons/mapkit/target/debug/mapkit --native-output /new/bridge-native
+rtk proxy python3 -B -m unittest discover -s tests -p 'test_scale_*.py' -v
+```
+
+Every output must be new. Source/package/restored identity, stale index, missing
+native CLI, obstacles or native probe failures prevent sidecar publication;
+failed command logs remain available. BR-A implementation and scoped native
+verification are delivered. BR-B driving is unimplemented, and current game
+validators reject this mode instead of treating it as a forward-only corridor
+or flat shuttle. Public MapEditor has no dependency on that game implementation.

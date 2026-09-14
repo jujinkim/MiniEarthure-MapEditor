@@ -231,11 +231,13 @@ def document_semantics(doc):
 def create(source, package, output, restored, profile='full', mapkit=None, native_output=None):
     from scale_turn_routes import turn_routes
     from scale_hill_routes import hill_routes
+    from scale_bridge_routes import bridge_routes
     builders = {'full': routes, 'shuttle-240': shuttle_routes, 'turns': turn_routes}
-    if profile == 'forest-hill':
+    if profile in ['forest-hill','bridge-shuttle']:
         if mapkit is None or native_output is None:
-            raise ValueError('hill profile requires matching --mapkit and new --native-output')
-        builders[profile] = lambda doc, metadata: hill_routes(doc, metadata, package, mapkit, native_output)
+            raise ValueError('native route profile requires matching --mapkit and new --native-output')
+        builder = hill_routes if profile == 'forest-hill' else bridge_routes
+        builders[profile] = lambda doc, metadata: builder(doc, metadata, package, mapkit, native_output)
     if profile not in builders:
         raise ValueError('unknown route profile: '+profile)
     source, package, output = Path(source), Path(package), Path(output)
@@ -251,8 +253,8 @@ def create(source, package, output, restored, profile='full', mapkit=None, nativ
     if document_semantics(doc) != document_semantics(restored_doc):
         raise ValueError('restored package/source semantics mismatch')
     identity = package_identity(package,metadata['source_hashes'],restored)
-    if profile == 'forest-hill' and identity['index_version'] != 2:
-        raise ValueError('forest hill requires current index v2; rebuild the matching MapKit CLI')
+    if profile in ['forest-hill','bridge-shuttle'] and identity['index_version'] != 2:
+        raise ValueError('native route requires current index v2; rebuild the matching MapKit CLI')
     result = dict(format='l02-road-routes-v1', metadata_sha256=digest(source/'scale.json'),
                   source_sha256=metadata['source_hashes']['document.json'],
                   package=identity,
@@ -269,10 +271,10 @@ if __name__ == '__main__':
     parser.add_argument('package',type=Path)
     parser.add_argument('output',type=Path)
     parser.add_argument('--restored',type=Path,required=True,help='new directory from native mapkit unpack-regions')
-    parser.add_argument('--profile',choices=['full','shuttle-240','turns','forest-hill'],default='full',
-                        help='original corridors, short shuttles, turns or separately authored forest hill')
-    parser.add_argument('--mapkit',type=Path,help='matching native CLI; required for forest-hill')
-    parser.add_argument('--native-output',type=Path,help='new directory for hill native audit/generation evidence')
+    parser.add_argument('--profile',choices=['full','shuttle-240','turns','forest-hill','bridge-shuttle'],default='full',
+                        help='original corridors, short flat shuttles, turns, forest hill or audited bridge shuttles')
+    parser.add_argument('--mapkit',type=Path,help='matching native CLI; required for forest-hill/bridge-shuttle')
+    parser.add_argument('--native-output',type=Path,help='new directory for native route audit/generation evidence')
     args = parser.parse_args()
     result = create(args.source,args.package,args.output,args.restored,args.profile,args.mapkit,args.native_output)
     print(json.dumps({'routes':[r['id'] for r in result['routes']], 'package':result['package']},indent=2))

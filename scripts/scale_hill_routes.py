@@ -76,7 +76,27 @@ def source_route(doc, metadata):
                 strip=strip, connections=connections, terrain=terrain[0], lot=lot, zone=zone)
 
 
-def native_reference(package, mapkit, output, source):
+def reference_cells(source):
+    box = [min(b[0] for b in source['sweep']), min(b[1] for b in source['sweep']),
+           max(b[2] for b in source['sweep']), max(b[3] for b in source['sweep'])]
+    cells = [(x, z) for x in range(math.floor(box[0]/1600)-1, math.floor(box[2]/1600)+2)
+             for z in range(math.floor(box[1]/1600)-1, math.floor(box[3]/1600)+2)]
+    excluded = 0
+    if 'world_bounds' in source:
+        world = source['world_bounds']
+        if any(box[i] < world['min'][i] or box[i+2] > world['max'][i] for i in range(2)):
+            raise ValueError('native route sweep outside source world')
+        inside = [(x,z) for x,z in cells if all(
+            math.floor(world['min'][i]/1600) <= value < math.ceil(world['max'][i]/1600)
+            for i,value in enumerate([x,z]))]
+        excluded = len(cells)-len(inside)
+        cells = inside
+    if not cells or len(cells) > 64:
+        raise ValueError('bounded native route reference cells required')
+    return box,cells,excluded
+
+
+def native_reference(package, mapkit, output, source, minimum_height_cm=200, label='hill'):
     """Use existing public CLI to audit and generate; keep exact command/hash evidence."""
     package, mapkit, output = Path(package).resolve(), Path(mapkit).resolve(), Path(output)
     output.mkdir(parents=True, exist_ok=False)
@@ -91,19 +111,16 @@ def native_reference(package, mapkit, output, source):
         commands.append(dict(command=command, exit_code=result.returncode, elapsed_s=time.monotonic()-started))
         (output/'commands.json').write_text(json.dumps(commands, indent=2)+'\n')
         if result.returncode:
-            raise ValueError('native hill '+name+' failed: '+result.stderr[:500])
+            raise ValueError('native '+label+' '+name+' failed: '+result.stderr[:500])
         return json.loads(result.stdout)
 
     audit = run('audit', ['audit-regions', package, 1073741824])
     if audit.get('verification') != 'complete-source':
         raise ValueError('complete native source audit required')
-    box = [min(b[0] for b in source['sweep']), min(b[1] for b in source['sweep']),
-           max(b[2] for b in source['sweep']), max(b[3] for b in source['sweep'])]
     # Include adjacent ownership cells when testing native obstacle envelopes.
-    cells = [(x, z) for x in range(math.floor(box[0]/1600)-1, math.floor(box[2]/1600)+2)
-             for z in range(math.floor(box[1]/1600)-1, math.floor(box[3]/1600)+2)]
-    if len(cells) > 64:
-        raise ValueError('bounded hill reference cells required')
+    # At a world edge only, clip the halo to source bounds verified against the
+    # restored package. Never swallow E_CELL or omit an in-world ownership cell.
+    box,cells,excluded = reference_cells(source)
     references, floors, obstacles = [], [], {}
     for x, z in cells:
         target = output/f'cell-{x}-{z}.json'
@@ -118,7 +135,7 @@ def native_reference(package, mapkit, output, source):
             xs, heights, zs = zip(*vertices)
             if ident in {r['road_id'] for r in source['supports']}:
                 if triangle['surface'] != 'asphalt' or not triangle['spawnable']:
-                    raise ValueError('native ground road support identity mismatch')
+                    raise ValueError('native '+label+' road support identity mismatch')
                 if overlap([min(xs), min(zs), max(xs), max(zs)], box):
                     floors.append(dict(road_id=ident, vertices_cm=vertices))
             elif ident != 'terrain':
@@ -127,13 +144,14 @@ def native_reference(package, mapkit, output, source):
                                    max(old[2], max(xs)), max(old[3], max(zs))]
     blocked = [ident for ident, obstacle in obstacles.items() if any(overlap(obstacle, b) for b in source['sweep'])]
     if blocked:
-        raise ValueError('native obstacle intersects hill sweep: '+','.join(blocked[:8]))
-    if not 1 <= len(floors) <= 2048 or max(v[1] for t in floors for v in t['vertices_cm']) < 200:
-        raise ValueError('bounded native two metre hill floors required')
+        raise ValueError('native obstacle intersects '+label+' sweep: '+','.join(blocked[:8]))
+    if not 1 <= len(floors) <= 2048 or max(v[1] for t in floors for v in t['vertices_cm']) < minimum_height_cm:
+        raise ValueError('bounded native '+label+' floors with required elevation required')
     if before != digest(package):
-        raise ValueError('package changed during native hill reference')
+        raise ValueError('package changed during native '+label+' reference')
     return dict(package_sha256=before, cli_sha256=digest(mapkit), audit=audit,
                 cells=references, road_id=source['road']['id'], floor_triangles_cm=floors,
+                excluded_outside_world_cells=excluded,
                 obstacle_overlaps=[], obstacle_objects_checked=len(obstacles))
 
 
