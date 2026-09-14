@@ -176,6 +176,47 @@ def routes(doc, metadata):
     return result
 
 
+def shuttle_routes(doc, metadata):
+    """Explicit four-lot routes, independently audited rather than run prefixes."""
+    n = metadata['tiles_per_side']
+    condition = metadata['condition']
+    if condition not in ('mixed', 'dense') or n < 8 or n % 2:
+        raise ValueError('short shuttles require mixed/dense even grid >=8')
+    half = n // 2
+    north = half // 2 - 2
+    south = half + half // 2 - 2
+    transition = half - 2
+
+    def ns(x, first):
+        return [f'grid-ns-{x}-{y}' for y in range(first, first+4)]
+
+    specs = [('urban', ns(1, north))]
+    if condition == 'mixed':
+        specs.extend([
+            ('residential', ns(half+1, north)),
+            ('rural', ns(1, south)),
+            ('forest', ns(half+1, south)),
+            ('residential-forest', ns(half+1, transition)),
+            ('urban-rural', ns(1, transition)),
+            ('rural-forest', [f'grid-ew-{x}-{half+1}-{arm}'
+                              for x in range(transition, transition+4) for arm in ['a', 'b']]),
+        ])
+    result = []
+    for coverage, ids in specs:
+        route = corridor(doc, metadata, coverage+'-shuttle', ids)
+        actual = {kind for segment in route['segments'] for kind in segment['adjacent_kinds']}
+        if actual != set(coverage.split('-')):
+            raise ValueError('authored density coverage mismatch: '+route['id'])
+        if route['distance_m'] != 240 or 'shuttle' not in route:
+            raise ValueError('short shuttle requires four 64m lots and audited flat stopping room')
+        route['authored_extent'] = dict(
+            profile='l02-shuttle-240-v1', road_ids=ids, endpoint_trim_m=8,
+            source_condition=condition, source_size_m=metadata['size_m'],
+            scope='complete named 240m route only; not the original full-map corridor')
+        result.append(route)
+    return result
+
+
 def document_semantics(doc):
     result = dict(doc)
     # Native packing sorts top-level record collections and omits empty optional
@@ -186,7 +227,10 @@ def document_semantics(doc):
     return result
 
 
-def create(source, package, output, restored):
+def create(source, package, output, restored, profile='full'):
+    builders = {'full': routes, 'shuttle-240': shuttle_routes}
+    if profile not in builders:
+        raise ValueError('unknown route profile: '+profile)
     source, package, output = Path(source), Path(package), Path(output)
     metadata = json.loads((source/'scale.json').read_text())
     for name, expected in metadata['source_hashes'].items():
@@ -199,7 +243,8 @@ def create(source, package, output, restored):
         raise ValueError('restored package/source semantics mismatch')
     result = dict(format='l02-road-routes-v1', metadata_sha256=digest(source/'scale.json'),
                   source_sha256=metadata['source_hashes']['document.json'],
-                  package=package_identity(package,metadata['source_hashes'],restored),routes=routes(doc,metadata))
+                  package=package_identity(package,metadata['source_hashes'],restored),
+                  routes=builders[profile](doc,metadata))
     with output.open('x') as stream:
         json.dump(result,stream,indent=2)
         stream.write('\n')
@@ -212,6 +257,8 @@ if __name__ == '__main__':
     parser.add_argument('package',type=Path)
     parser.add_argument('output',type=Path)
     parser.add_argument('--restored',type=Path,required=True,help='new directory from native mapkit unpack-regions')
+    parser.add_argument('--profile',choices=['full','shuttle-240'],default='full',
+                        help='full original corridors or separately named audited 240m shuttles')
     args = parser.parse_args()
-    result = create(args.source,args.package,args.output,args.restored)
+    result = create(args.source,args.package,args.output,args.restored,args.profile)
     print(json.dumps({'routes':[r['id'] for r in result['routes']], 'package':result['package']},indent=2))

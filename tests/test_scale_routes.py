@@ -98,5 +98,70 @@ class ScaleRoutesTests(unittest.TestCase):
             altered['roads'][0]['points'].reverse()
             self.assertNotEqual(scale_routes.document_semantics(self.doc),scale_routes.document_semantics(altered))
 
+    def test_short_shuttles_preserve_fixed_sources_and_exact_coverage(self):
+        for condition in ['mixed', 'dense']:
+            doc, _, metadata = scale_maps.make(condition, 2000)
+            before = copy.deepcopy((doc, metadata))
+            routes = scale_routes.shuttle_routes(doc, metadata)
+            self.assertEqual(len(routes), 7 if condition == 'mixed' else 1)
+            for route in routes:
+                self.assertEqual(route['distance_m'], 240)
+                self.assertEqual(route['shuttle']['stopping_margin_m'], 4)
+                self.assertEqual(route['shuttle']['overlaps'], [])
+                self.assertEqual(route['authored_extent']['profile'], 'l02-shuttle-240-v1')
+                kinds = set(route['id'].removesuffix('-shuttle').split('-'))
+                self.assertEqual({k for s in route['segments'] for k in s['adjacent_kinds']}, kinds)
+                for a, b in zip(route['segments'], route['segments'][1:]):
+                    self.assertEqual(a['end_cm'], b['start_cm'])
+                if len(kinds) == 2:
+                    self.assertNotEqual(route['segments'][0]['adjacent_kinds'],
+                                        route['segments'][-1]['adjacent_kinds'])
+                road_ids = {s['road_id'] for s in route['segments']}
+                self.assertEqual(road_ids, set(route['authored_extent']['road_ids']))
+            self.assertEqual((doc, metadata), before)
+            if condition == 'mixed':
+                original = scale_routes.routes(doc, metadata)
+                self.assertEqual(original[0]['distance_m'], 944)
+                self.assertTrue({r['id'] for r in original}.isdisjoint(r['id'] for r in routes))
+
+    def test_short_shuttle_internal_stopping_obstacle_and_graph_gap_reject(self):
+        doc, _, metadata = scale_maps.make('dense', 1056)
+        route = scale_routes.shuttle_routes(doc, metadata)[0]
+        x, _, z = route['start_cm']
+        blocked = copy.deepcopy(doc)
+        blocked['zones'].append(dict(id='internal-stop-obstacle', polygon=[
+            [x-20,z-350],[x+20,z-350],[x+20,z-300],[x-20,z-300]]))
+        with self.assertRaisesRegex(ValueError, 'shuttle stopping obstacle'):
+            scale_routes.shuttle_routes(blocked, metadata)
+        road = next(r for r in doc['roads'] if r['id'] == route['segments'][1]['road_id'])
+        road['from'] = road['to']
+        with self.assertRaisesRegex(ValueError, 'endpoint'):
+            scale_routes.shuttle_routes(doc, metadata)
+        with self.assertRaisesRegex(ValueError, 'even grid >=8'):
+            scale_routes.shuttle_routes(self.doc, self.metadata)
+
+    def test_short_profile_package_binding_and_exclusive_output(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root/'source'
+            scale_maps.create(source, 'dense', 1056)
+            metadata = json.loads((source/'scale.json').read_text())
+            names = list(metadata['source_hashes'])
+            index = dict(authoring_source=0, side_cells=8, world_content_hash='identity-only',
+                         records=[dict(sha256=metadata['source_hashes'][n]) for n in names],
+                         payloads={name:i for i,name in enumerate(names) if i})
+            raw = json.dumps(index).encode()
+            package = root/'fixture.mkregions'
+            package.write_bytes(b'MKREGN01'+struct.pack('<Q',len(raw))+hashlib.sha256(raw).digest()+raw)
+            output = root/'short.json'
+            result = scale_routes.create(source, package, output, source, 'shuttle-240')
+            self.assertEqual(result['package']['storage_m'], 128)
+            self.assertEqual(result['package']['sha256'], scale_routes.digest(package))
+            self.assertEqual([r['id'] for r in result['routes']], ['urban-shuttle'])
+            with self.assertRaises(FileExistsError):
+                scale_routes.create(source, package, output, source, 'shuttle-240')
+            with self.assertRaisesRegex(ValueError, 'unknown route profile'):
+                scale_routes.create(source, package, root/'bad.json', source, 'unknown')
+
 
 if __name__=='__main__':unittest.main()

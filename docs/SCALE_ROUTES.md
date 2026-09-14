@@ -77,3 +77,39 @@ support, stopping positions and the unchanged native admission. This is
 forward/reverse input along the same heading, not a 180-degree turn. Bridge
 ramps have no shuttle capability; graded braking/turns and forest-interior
 hill routes still need separate authoring and validation.
+
+## L02-VR: separately authored 240 m shuttles (2026-09-14)
+
+Use `--profile shuttle-240` with an existing mixed or dense source with an even
+grid of at least eight lots. The default `full` profile and its original route
+IDs/extents are unchanged. The new profile uses four connected 64 m lots with
+8 m trimmed from each end, yielding a complete **240 m** route. It reuses the
+same source/package/native-restoration identity, graph, obstacle and 4 m
+stopping-room checks. Sources, packages, physics and speed/time limits stay fixed.
+
+```sh
+rtk proxy python3 scripts/scale_routes.py /existing/mixed-2000 /existing/mixed-256.mkregions /new/mixed-256-shuttles.json --restored /new/restored --profile shuttle-240
+```
+
+Mixed maps produce `urban-shuttle`, `residential-shuttle`, `rural-shuttle`,
+`forest-shuttle`, `residential-forest-shuttle`, `urban-rural-shuttle` and
+`rural-forest-shuttle`. Dense maps produce `urban-shuttle`. The four single-kind
+routes are centered inside their quadrant; transitions span two lots on either
+side of the original boundary. Exact source road IDs, endpoint trim, source
+condition/size and `l02-shuttle-240-v1` profile are recorded in `authored_extent`.
+Every segment retains its source height/surface and adjacent lot IDs/kinds.
+Coverage is checked against the name, including both sides of each transition.
+
+Select the new ID and `distance_m: 240` with `duration_s: 600` in the existing
+Client runner. The current RC reverse cap permits a 240 m return in roughly
+154 seconds before acceleration/stopping overhead. This makes a complete
+round trip feasible; it is not an acceptance shortcut. Actual complete legs
+in both directions, normal delta, four contacts/floor rays, zero rollback,
+budget/retirement and stress speed/boundary evidence must still pass. Repeated
+crossings of the same storage boundary do not demonstrate three distinct
+storage regions or the entire 944/1,904 m original corridor.
+
+No turns, bridge shuttles or forest-interior hill coverage is added. Short-route
+sidecars are not native audit receipts, new public map formats or an assertion
+that all source lots have been driven. Root L02-VR evidence owns measured scope;
+the separate L02-V matrix owns remaining combinations and target-device gates.
