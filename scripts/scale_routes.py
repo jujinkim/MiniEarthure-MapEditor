@@ -2,7 +2,7 @@
 """Create read-only L02 route evidence beside an unchanged synthetic source/package.
 
 The sidecar is test metadata, never a map contract or a native audit receipt.
-Only straight connected road corridors are supported; no pathfinding is inferred.
+Straight corridors and explicit orthogonal turns are supported; no routing is inferred.
 """
 import argparse
 import hashlib
@@ -228,7 +228,8 @@ def document_semantics(doc):
 
 
 def create(source, package, output, restored, profile='full'):
-    builders = {'full': routes, 'shuttle-240': shuttle_routes}
+    from scale_turn_routes import turn_routes
+    builders = {'full': routes, 'shuttle-240': shuttle_routes, 'turns': turn_routes}
     if profile not in builders:
         raise ValueError('unknown route profile: '+profile)
     source, package, output = Path(source), Path(package), Path(output)
@@ -257,8 +258,8 @@ if __name__ == '__main__':
     parser.add_argument('package',type=Path)
     parser.add_argument('output',type=Path)
     parser.add_argument('--restored',type=Path,required=True,help='new directory from native mapkit unpack-regions')
-    parser.add_argument('--profile',choices=['full','shuttle-240'],default='full',
-                        help='full original corridors or separately named audited 240m shuttles')
+    parser.add_argument('--profile',choices=['full','shuttle-240','turns'],default='full',
+                        help='original corridors, audited 240m shuttles or explicit connected turns')
     args = parser.parse_args()
     result = create(args.source,args.package,args.output,args.restored,args.profile)
     print(json.dumps({'routes':[r['id'] for r in result['routes']], 'package':result['package']},indent=2))

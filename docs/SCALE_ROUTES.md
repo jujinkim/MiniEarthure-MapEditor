@@ -1,6 +1,6 @@
 # L02 explicit road route evidence
 
-`scripts/scale_routes.py` reads an existing mixed `scale_maps.py` source and
+`scripts/scale_routes.py` reads an existing synthetic `scale_maps.py` source and
 its unchanged indexed package. It writes a **new** `l02-road-routes-v1` test
 sidecar. It does not modify `scale.json`, source geometry, packages, generation,
 assets or any public MapKit contract. Normal MapKit/Runtime validation still
@@ -39,8 +39,8 @@ and kinds are retained in each segment. The grid road ends are trimmed by 8 m fo
 uses its ground ramp endpoints 16 m from each map edge, retaining both full
 grades and additional braking room. A 2 km map yields 944 m single-density
 corridors, 1,904 m transition corridors and a 1,968 m bridge route. These are straight
-ordered waypoints, including changes of grade. Arbitrary turns and general
-routing/access semantics are unsupported; flat reverse shuttles use the
+ordered waypoints, including changes of grade. These original corridors do not
+support turns or general routing/access semantics; flat reverse shuttles use the
 additional source audit below.
 
 The source audit requires at least a 4 m road width and checks a 2 m corridor
@@ -109,7 +109,56 @@ budget/retirement and stress speed/boundary evidence must still pass. Repeated
 crossings of the same storage boundary do not demonstrate three distinct
 storage regions or the entire 944/1,904 m original corridor.
 
-No turns, bridge shuttles or forest-interior hill coverage is added. Short-route
+This short-shuttle profile adds no turns, bridge shuttles or forest-interior hill coverage. Short-route
 sidecars are not native audit receipts, new public map formats or an assertion
 that all source lots have been driven. Root L02-VR evidence owns measured scope;
 the separate L02-V matrix owns remaining combinations and target-device gates.
+
+## L02-T: explicit connected turns (2026-09-14)
+
+`--profile turns` creates two separate routes, `connected-turns-outbound` and
+`connected-turns-return`, from an unchanged mixed/dense even grid of at least
+four lots. `scripts/scale_turn_routes.py` owns this bounded test profile. The
+return route drives forward along the reversed graph, with its own initial
+heading; it is not a timed reverse-input shuttle or an automatic U-turn.
+
+The four explicit edges are a north/south road, both split arms of the adjoining
+east/west road, and the next north/south road. Every edge records its source ID,
+direction (+1/-1), directed graph node IDs, exact endpoints and adjacent lots.
+Connections require shared node identity and position, never coordinate overlap
+alone. Only flat orthogonal ground asphalt edges at least 4 m wide and 16 m long
+are supported. Repeated edges, gaps, U-turns, unsupported grades and materials
+reject. There are at most 32 selected edges and 128 incident support roads.
+
+Each 90-degree junction uses a 2 m radius target arc represented by eight
+chords. These points are a driving target, not new road geometry. Both route
+directions contain a left and a right turn, 20 ordered target segments, 8 m
+endpoint trims, and about 174.273 m of complete path. The full length is the
+sum of the target chords; endpoints alone cannot establish distance or coverage.
+Road adjacency on junction chords is left empty, avoiding inferred lot visits.
+
+The audit expands every target chord's entire axis-aligned box by 1.10 m:
+0.75 m centre tracking tolerance plus a 0.35 m vehicle radius for all orientations.
+It extends both trimmed endpoints by four metres for stopping. Every expanded
+box must fit the exact union of source road strips and avoid all existing
+placement/building/vegetation/terrain envelopes. Union containment checks every
+rectangle subdivision, including narrow gaps, not merely corners or samples.
+Incident support roads are selected by explicit shared graph node IDs. No
+generator tessellation or junction face ownership is reimplemented.
+
+The sidecar retains `l02-road-routes-v1`; each new route has
+`mode: l02-directed-turns-v1`, directed `edges`, `support_roads`, `segments`,
+`turns`, audited swept boxes and `stopping`. The existing source/payload,
+metadata/package, native-restoration identity and exclusive-output checks apply.
+The original corridor/shuttle profiles and saved sidecars remain usable.
+
+```sh
+rtk proxy python3 scripts/scale_routes.py /existing/mixed-source /existing/mixed.mkregions /new/turns.json --restored /existing/restored --profile turns
+rtk proxy python3 -B -m unittest discover -s tests -p 'test_scale_*.py' -v
+```
+
+Use Python 3.11+ for `hashlib.file_digest`. Actual Client steering, headings,
+named-road traversal, every waypoint, four wheel/floor contacts, native admission,
+normal time, zero rollback, budget and retirement still require measured evidence.
+This does not add public MapKit routing/access semantics, turn stress acceptance,
+forest-interior hills or bridge return trips. Native audit remains authoritative.

@@ -89,6 +89,11 @@ class ScaleRoutesTests(unittest.TestCase):
             output=root/'routes.json'
             scale_routes.create(source,package,output,source)
             with self.assertRaises(FileExistsError):scale_routes.create(source,package,output,source)
+            turn_output = root/'turns.json'
+            turn_result = scale_routes.create(source,package,turn_output,source,'turns')
+            self.assertEqual(len(turn_result['routes']),2)
+            self.assertEqual(turn_result['package']['sha256'],scale_routes.digest(package))
+            with self.assertRaises(FileExistsError):scale_routes.create(source,package,turn_output,source,'turns')
             (source/'document.json').write_text('{}')
             with self.assertRaisesRegex(ValueError,'source identity'):
                 scale_routes.create(source,package,root/'bad.json',source)
