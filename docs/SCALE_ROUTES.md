@@ -162,3 +162,54 @@ named-road traversal, every waypoint, four wheel/floor contacts, native admissio
 normal time, zero rollback, budget and retirement still require measured evidence.
 This does not add public MapKit routing/access semantics, turn stress acceptance,
 forest-interior hills or bridge return trips. Native audit remains authoritative.
+
+## L02-H: forest-interior hill contract (2026-09-14)
+
+`scale_hill_maps.py` derives a new synthetic source from a hash-verified mixed
+L02 source. It preserves every model/payload, lot, hill PNG, terrain descriptor,
+vegetation density/spacing and seed. One forest lot receives a 4 m ground road
+through its existing 2 m hill, a 6 m explicit vegetation exclusion and shared
+nodes created by splitting the two adjacent grid arms. The original source and
+packages remain byte-identical. Metadata records the exact changed records,
+excluded area and baseline identities; no whole-forest thinning is allowed.
+
+The independent `forest-hill` sidecar profile audits the connected source graph,
+1.10 m vehicle sweep, 4 m stopping space, selected terrain/zone identity and all
+other obstacle envelopes. A matching MapKit CLI must perform full native audit
+and generate the bounded swept cells. Native road triangles supply the explicit
+height/normal reference, including crossfall; native obstacle envelopes must
+remain outside the sweep. Client does not implement terrain generation. Package,
+restored source, payloads, CLI and generated hashes remain recorded separately.
+
+Two complete forward-input legs (`forest-hill-outbound`/`forest-hill-return`)
+start independently at opposite ends. They must enter the forest interior,
+climb and descend the actual hill, then exit and brake on the audited flat
+runway. This is not a reverse-input shuttle or a U-turn. Base performance only;
+high-speed slopes and bridge return driving belong to L02-BR.
+
+The road centreline is 0.40 m beside the point apex, crossing a 0.80 m long
+crown at 1.90 m. This keeps the original hill PNG/terrain intact and provides
+room for the four-wheel footprint; it is not a neighboring flat-road substitute.
+Native road/incident-junction triangles are retained with their surface IDs,
+while generated non-road obstacle envelopes from the swept cells and their
+one-cell ownership halo must be clear. These diagnostic triangles are not assets
+or accelerators shipped in the map. Their size and native command/hash evidence
+are reported separately from the complete map transfer bytes.
+
+```sh
+rtk proxy python3 scripts/scale_hill_maps.py /existing/mixed-source /new/hill-source
+rtk proxy addons/mapkit/target/release/mapkit pack-regions /new/hill-source /new/hill.mkregions 4
+rtk proxy addons/mapkit/target/release/mapkit unpack-regions /new/hill.mkregions /new/hill-restored 1073741824
+rtk proxy python3 scripts/scale_routes.py /new/hill-source /new/hill.mkregions /new/hill-routes.json --restored /new/hill-restored --profile forest-hill --mapkit addons/mapkit/target/release/mapkit --native-output /new/hill-native
+```
+
+All output destinations must be new. Use storage side 8 or 16 for separate
+128/256 m measurements. `forest-hill` requires its derivative metadata and the
+matching native CLI; it cannot reinterpret the original `forest` corridor.
+A failed native stage preserves logs and cannot produce an accepted sidecar.
+
+New hill sidecars require index v2 and record the exact index version/hash. A
+stale local CLI producing v1 is rejected before native reference generation.
+Rebuild the CLI from the pinned MapKit checkout when necessary; file location
+alone does not establish that a retained binary matches the source. Existing
+non-hill corridor/turn profiles retain their earlier package compatibility.
