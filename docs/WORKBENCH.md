@@ -142,8 +142,9 @@ the current vector queries scan document objects and are not a spatial index.
 
 E03 authoring is now implemented; see [AUTHORING.md](AUTHORING.md). E04 preview/export and file-copy Save As are implemented in
 [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md). The vector planner and atomic record/payload
-boundaries are preserved. Complete platform/performance/installed-Client acceptance
-remains separate work.
+boundaries are preserved. Complete platform-specific function/installed-Client
+acceptance remains separate work. Representative-map primary performance remains
+required where unmeasured; cross-platform repetition is unscheduled under root §44.159.
 
 UX02 scoped Mac validation (2026-09-09): `editor_ux_validator` routes real
 pointer presses through the unsaved and import dialogs, tests save/export failure,

@@ -97,8 +97,10 @@ is one Undo command. Sources and existing packages remain untouched.
 The [local input contracts and remaining support audit](docs/IMPORTS.md) distinguish
 implemented profiles from generic points/structures, additional source semantics,
 geoid-model preparation and raster/large-area work that needs further contracts.
-Full platform, representative-map performance and installed-Client authoring acceptance
-remain open; this is not the completed transition plan.
+Platform-specific function and installed-Client authoring acceptance remain open.
+Representative-map primary performance remains open where it has not been measured;
+cross-platform repetition is unscheduled under root §44.159. This is not the
+completed transition plan.
 
 **Import vector** selects GeoJSON or bounded local OSM PBF/XML snapshots, with
 source accuracy and license (fixed ODbL/contributor notice for OSM), then prepares
@@ -152,8 +154,9 @@ resource cleanup without installing the private game.
 
 Authoring tools (terrain strokes/PNG16, structural roads, buildings/zones, assets/proxies):
 [AUTHORING.md](docs/AUTHORING.md). Incremental preview/file-copy Save As/export:
-[PREVIEW_EXPORT.md](docs/PREVIEW_EXPORT.md). Final native-platform/performance and E05
-installed-Client authoring acceptance remain open.
+[PREVIEW_EXPORT.md](docs/PREVIEW_EXPORT.md). Final native-platform-specific function
+and E05 installed-Client authoring acceptance remain open. Cross-platform repeat
+performance is unscheduled and non-blocking under root architecture §44.159.
 
 
 Reproducible offline synthetic reference projects, frozen source/generated hashes,

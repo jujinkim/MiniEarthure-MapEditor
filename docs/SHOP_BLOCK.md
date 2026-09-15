@@ -64,5 +64,6 @@ The consuming Client's actual PC driving/visual and memory observations are
 separate from public authoring validation. A 512MiB forced-pressure scenario
 can reject a subsequent region while preserving current collision; removing
 that limitation is Q02 implementation work, not merely device verification.
-Android, other OSs, sustained performance and human art/driving acceptance remain
-unaccepted. This is a representative block, not a city-wide quality rollout.
+Android/other-OS platform-specific functions and human art/driving acceptance remain
+unaccepted. Sustained performance on another platform is unscheduled and non-blocking;
+this is a representative block, not a city-wide quality rollout.

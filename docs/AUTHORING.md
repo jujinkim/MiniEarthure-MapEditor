@@ -184,7 +184,9 @@ Representative-map p95/RSS and E05 installed-Client driving remain separate gate
 **E04 preview/export** is implemented in [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md):
 affected-cell invalidation, frame-budgeted preview attachment, file-copy Save As
 and capacity/error presentation preserve these command/payload boundaries.
-E05 installed-Client authoring and final platform/performance acceptance remain open.
+E05 installed-Client authoring and final platform-specific function/install
+acceptance remain open. Cross-platform repeat performance is unscheduled and
+non-blocking under root architecture §44.159.
 
 The PNG UI uses staged asynchronous review/adoption, with progress and Cancel in
 the Authoring window. The original PNG must remain unchanged until adoption;

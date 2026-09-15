@@ -120,4 +120,5 @@ wall contact and exact retirement under 512 MiB. The baked image pixel hashes we
 matched to actual GLB materials and preserved across English/Korean/Japanese UI.
 These small 96×64 m fixtures have 24 cells each. They do not resolve the separate
 known dense Korean town v6 512 MiB transition refusal. Human art/direct driving,
-other target devices, sustained performance and final release acceptance remain.
+other target devices' platform-specific functions and final release acceptance remain.
+Cross-platform sustained-performance repetition is unscheduled and non-blocking.
