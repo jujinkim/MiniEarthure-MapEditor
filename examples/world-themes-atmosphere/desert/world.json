@@ -1,0 +1,62 @@
+{
+  "profile": "desert",
+  "axes": {
+    "architecture": "utility",
+    "climate": "arid",
+    "settlement": "sparse",
+    "reference": "Fictional Wadi Rum inspired sandstone service track",
+    "sign": "latin"
+  },
+  "common_assets": {
+    "world-plot-arid": "334d4d95ec6c9a9504f952cad40654514e76c3edc59ce1eca31efbbca42c05d7",
+    "world-utility-cabin": "90c287b0b97f78e6e28e8f6758dd3c59b43e279577fcd2ce12df8bc89e2147f8",
+    "world-blank-signboard": "e2d566890226fdb550548a0e86b349f1d28e7cbd93ade6f9b9ec910b7101f0b8",
+    "world-arid-shrub": "b8c35c5d4b668836b42a7993954481a6103376f13010c9d463865ba3c13baca2",
+    "world-rock-outcrop": "2496c54f2e62bb2a3542371e0738b04d74ee6046ff497bf623475a4f866edbdf"
+  },
+  "source_bytes": 47788,
+  "image_decoded_bytes": 1048576,
+  "spawn": {
+    "x": 4600,
+    "y": 3200,
+    "surface": "traverse",
+    "yaw": -1.5707963267948966
+  },
+  "view_center_m": [
+    32,
+    26
+  ],
+  "wall": {
+    "x": 58,
+    "y": 23.0,
+    "height": 2.1,
+    "asset": "world-utility-cabin"
+  },
+  "limits": "Existing runtime caps. Road traction is unchanged; visual snow/ice/wetness does not define new physics.",
+  "sign": {
+    "alignment": "center",
+    "direction": "ltr",
+    "font_license": "OFL-1.1",
+    "font_sha256": "b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5",
+    "font_size": 76,
+    "font_source": "Noto / https://github.com/notofonts/noto-fonts",
+    "glb_sha256": "261c39a22b276293f53fbd7c9074e7c57d6b50527f3fdfcff9c6247c11040748",
+    "image_sha256": "6f9222ef37fb85f10cca592c5f045995956e1adaba6099133525258fafd6276c",
+    "kind": "text-sign-v1",
+    "language": "en",
+    "pixels": [
+      1024,
+      256
+    ],
+    "shaper": "Godot TextServer Advanced",
+    "text": "Café · Field Station"
+  },
+  "source_hashes": {
+    "assets/plot-arid.glb": "334d4d95ec6c9a9504f952cad40654514e76c3edc59ce1eca31efbbca42c05d7",
+    "assets/utility-cabin.glb": "90c287b0b97f78e6e28e8f6758dd3c59b43e279577fcd2ce12df8bc89e2147f8",
+    "assets/blank-signboard.glb": "e2d566890226fdb550548a0e86b349f1d28e7cbd93ade6f9b9ec910b7101f0b8",
+    "signs/261c39a22b276293f53fbd7c9074e7c57d6b50527f3fdfcff9c6247c11040748.glb": "261c39a22b276293f53fbd7c9074e7c57d6b50527f3fdfcff9c6247c11040748",
+    "assets/arid-shrub.glb": "b8c35c5d4b668836b42a7993954481a6103376f13010c9d463865ba3c13baca2",
+    "assets/rock-outcrop.glb": "2496c54f2e62bb2a3542371e0738b04d74ee6046ff497bf623475a4f866edbdf"
+  }
+}

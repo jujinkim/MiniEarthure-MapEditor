@@ -1,0 +1,14 @@
+{
+  "source_sha256": "e13340300d4d6d3696b8f8c32c27d7eeafeda66ba0a1c282e8e7dee48e5c9021",
+  "inspection": {
+    "base_data_bytes": 13523,
+    "cell_count": 24,
+    "expanded_bytes": 225211,
+    "package_bytes": 157957,
+    "package_sha256": "1c9fb024c380cee8008d19d433696190977a80167351c6f525be3acca2cf4f13",
+    "retained_memory_bytes": 12909998,
+    "user_asset_bytes": 211688,
+    "validation_peak_bytes": 303281624,
+    "world_content_hash": "83ace65c269966966436e0d6572e724af23d4345f88eb59f41fb5d0b4158280a"
+  }
+}

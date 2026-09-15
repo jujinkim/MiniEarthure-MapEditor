@@ -1,0 +1,60 @@
+{
+  "profile": "countryside",
+  "axes": {
+    "architecture": "farm",
+    "climate": "temperate",
+    "settlement": "farmstead",
+    "reference": "Fictional northern French farm lane",
+    "sign": "latin"
+  },
+  "common_assets": {
+    "world-plot-farm": "2c14cc03a97557420cd860019357feddb3756ae34549e05434c75af6e4173956",
+    "world-gable-barn": "89934ff8b6636f5442fb5de025df1c7d3fd6fc11c39ad05de5507e6240f70470",
+    "world-blank-signboard": "e2d566890226fdb550548a0e86b349f1d28e7cbd93ade6f9b9ec910b7101f0b8",
+    "world-farm-fence": "a295e7cb89786763948a0d482a20251269d95cb008a26e910b7bfce7d0ea7047"
+  },
+  "source_bytes": 67828,
+  "image_decoded_bytes": 1048576,
+  "spawn": {
+    "x": 1200,
+    "y": 3200,
+    "surface": "traverse",
+    "yaw": -1.5707963267948966
+  },
+  "view_center_m": [
+    32,
+    26
+  ],
+  "wall": {
+    "x": 24,
+    "y": 24.0,
+    "height": 2.1,
+    "asset": "world-gable-barn"
+  },
+  "limits": "Existing runtime caps. Road traction is unchanged; visual snow/ice/wetness does not define new physics.",
+  "sign": {
+    "alignment": "center",
+    "direction": "ltr",
+    "font_license": "OFL-1.1",
+    "font_sha256": "b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5",
+    "font_size": 76,
+    "font_source": "Noto / https://github.com/notofonts/noto-fonts",
+    "glb_sha256": "261c39a22b276293f53fbd7c9074e7c57d6b50527f3fdfcff9c6247c11040748",
+    "image_sha256": "6f9222ef37fb85f10cca592c5f045995956e1adaba6099133525258fafd6276c",
+    "kind": "text-sign-v1",
+    "language": "en",
+    "pixels": [
+      1024,
+      256
+    ],
+    "shaper": "Godot TextServer Advanced",
+    "text": "Café · Field Station"
+  },
+  "source_hashes": {
+    "assets/plot-farm.glb": "2c14cc03a97557420cd860019357feddb3756ae34549e05434c75af6e4173956",
+    "assets/gable-barn.glb": "89934ff8b6636f5442fb5de025df1c7d3fd6fc11c39ad05de5507e6240f70470",
+    "assets/blank-signboard.glb": "e2d566890226fdb550548a0e86b349f1d28e7cbd93ade6f9b9ec910b7101f0b8",
+    "signs/261c39a22b276293f53fbd7c9074e7c57d6b50527f3fdfcff9c6247c11040748.glb": "261c39a22b276293f53fbd7c9074e7c57d6b50527f3fdfcff9c6247c11040748",
+    "assets/farm-fence.glb": "a295e7cb89786763948a0d482a20251269d95cb008a26e910b7bfce7d0ea7047"
+  }
+}

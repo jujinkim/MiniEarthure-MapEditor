@@ -7,7 +7,7 @@ const FILES := preload("./document_files.gd")
 const HISTORY_BYTES := 16 * 1024 * 1024
 const HISTORY_COMMANDS := 200
 const RECORD_FIELDS := ["nodes", "roads", "buildings", "surface_areas", "zones", "assets", "placements", "repetitions", "heightmaps", "attributions"]
-const VALUE_FIELDS := ["bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm"]
+const VALUE_FIELDS := ["bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment"]
 var document: Dictionary = {}
 var project_path := ""
 var undo_stack: Array[Dictionary] = []
@@ -99,7 +99,7 @@ func record_id(field: String, record: Dictionary) -> String:
 
 func _get_value(target: Dictionary, field: String, id: String) -> Variant:
 	if field in VALUE_FIELDS:
-		return target[field]
+		return target.get(field)
 	for record: Dictionary in target.get(field, []):
 		if record_id(field, record) == id:
 			return record
@@ -112,6 +112,7 @@ func _patch_error(patch: Variant) -> String:
 	if field in VALUE_FIELDS:
 		if patch.get("id", "") != "":
 			return "Map-value commands have no record ID."
+		if field == "environment": return "" # Optional profile: undo restores absence on legacy recipes.
 		return "Map values cannot be removed." if patch.before == null or patch.after == null else ""
 	if field not in RECORD_FIELDS:
 		return "Unsupported command field: " + field
@@ -137,7 +138,8 @@ func _apply(target: Dictionary, patches: Array, reverse: bool) -> String:
 		if _json_copy(_get_value(target, field, id)) != _json_copy(before):
 			return "Document changed since command creation."
 		if field in VALUE_FIELDS:
-			target[field] = _json_copy(after)
+			if field == "environment" and after == null: target.erase(field)
+			else: target[field] = _json_copy(after)
 			continue
 		var records: Array = target.get(field, [])
 		var matches := 0

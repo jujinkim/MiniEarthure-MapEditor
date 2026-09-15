@@ -28,6 +28,7 @@ var asset_fields := {}
 var asset_before := {}
 var session_signature := ""
 var sign_panel: RefCounted
+var environment_panel: RefCounted
 
 func _ready() -> void:
 	title = "Map authoring"
@@ -248,6 +249,8 @@ func open() -> void:
 	if sign_panel != null: sign_panel.teardown()
 	sign_panel = preload("./sign_panel.gd").new()
 	sign_panel.setup(self)
+	environment_panel = preload("./environment_panel.gd").new()
+	environment_panel.setup(self)
 	popup_centered(Vector2i(800, 650))
 
 func page(name: String) -> VBoxContainer:
@@ -323,7 +326,7 @@ func fresh() -> bool:
 func _setup() -> void:
 	var box := page("Map")
 	hint(box, "Recipe 2: terrain-following roads, bridge/tunnel cuts. Recipe 3: buildings, entrances and repeated props. Recipe 4: custom convex proxies and materials. Recipe 6: ground paving, road markings and connected sidewalks. Changing recipe changes world identity; originals are never migrated on load.")
-	var recipe := choice(box, "Recipe", ["1", "2", "3", "4", "5", "6", "7"], str(int(editor.store.document.recipe_version)))
+	var recipe := choice(box, "Recipe", ["1", "2", "3", "4", "5", "6", "7", "8"], str(int(editor.store.document.recipe_version)))
 	var theme := choice(box, "Theme", ["default", "urban", "rural"], editor.store.document.theme)
 	button(box, "Apply recipe and theme", func():
 		if fresh(): report(author.recipe(int(recipe.get_item_text(recipe.selected)), theme.get_item_text(theme.selected)))

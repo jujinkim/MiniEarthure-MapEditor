@@ -61,6 +61,9 @@ var snap_toggle: CheckButton
 var snap_size: SpinBox
 var view_settings := ConfigFile.new()
 var viewport: SubViewport
+var environment_preview := preload("./environment_preview.gd").new()
+var environment_renderer: Node3D
+var preview_resources := preload("res://addons/mapkit/godot/render_resource_cache.gd").new()
 var preview_world: Node3D
 var preview_x: SpinBox
 var preview_y: SpinBox
@@ -366,6 +369,27 @@ func _build_ui() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -25, 0)
 	preview_world.add_child(sun)
+	var world_environment := WorldEnvironment.new()
+	world_environment.environment = Environment.new()
+	preview_world.add_child(world_environment)
+	environment_renderer = preload("res://addons/mapkit/godot/environment_renderer.gd").new()
+	environment_renderer.configure(world_environment.environment,sun,true)
+	preview_world.add_child(environment_renderer)
+	var time := SpinBox.new()
+	time.max_value = 23.99
+	time.step = 0.25
+	time.value = 12
+	time.prefix = "Preview hour "
+	controls.add_child(time)
+	time.value_changed.connect(func(value: float): environment_preview.seconds = value*3600.0)
+	var weather := OptionButton.new()
+	for value in ["Clear","Cloudy","Rain","Snow"]: weather.add_item(value)
+	controls.add_child(weather)
+	weather.item_selected.connect(func(index: int):
+		environment_preview.weather = ["clear","cloudy","rain","snow"][index]
+		environment_preview.previous_weather = environment_preview.weather
+		environment_preview.wet = 2 if index == 2 else 0
+		environment_preview.snow = 2 if index == 3 else 0)
 	var view_bar := HFlowContainer.new()
 	column.add_child(view_bar)
 	cancel_button = _button(view_bar, "Cancel operation", _cancel_operation)
@@ -1014,7 +1038,7 @@ func _package_finished(result: Dictionary) -> void:
 	render_staged = Node3D.new()
 	render_staged.visible = false
 	preview_world.add_child(render_staged)
-	render_job = RENDERER.begin(result.data.chunk, render_staged)
+	render_job = RENDERER.begin(result.data.chunk, render_staged, Callable(), 0, preview_resources)
 	busy = true
 
 func _publish_package(source: String, destination: String) -> String:
@@ -1049,6 +1073,8 @@ func _advance_attachment() -> void:
 			# Publish once; keep the old root visible throughout candidate attachment.
 			if preview_cache.has(package_cell): preview_cache[package_cell].root.queue_free()
 			preview_cache[package_cell] = {"root": render_staged, "signature": render_data.signature, "charge": render_data.charge, "used": cache_clock + 1}
+			RENDERER.dispose(render_job)
+			preview_resources.trim()
 			render_job = {}
 			render_staged = null
 			render_data = {}
@@ -1561,3 +1587,11 @@ func _finish_dem(result: Dictionary) -> void:
 	var mode := dem_mode
 	dem_mode = ""
 	dem_panel.finish(mode, result)
+
+func _physics_process(delta: float) -> void:
+	if not is_instance_valid(environment_renderer): return
+	environment_preview.elapsed += delta
+	environment_preview.profile = store.document.get("environment",{})
+	for key in ["sunrise_minutes","sunset_minutes","latitude_mdeg","longitude_mdeg","utc_offset_minutes"]:
+		if environment_preview.profile.has(key): environment_preview.config[key] = environment_preview.profile[key]
+	environment_renderer.update_environment(environment_preview,preview_world.get_node("PreviewCamera").global_position,[],preview_resources)
