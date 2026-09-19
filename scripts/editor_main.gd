@@ -8,6 +8,7 @@ const CACHE_BYTES := 256 * 1024 * 1024
 var package_work: RefCounted
 var density_panel: VBoxContainer
 var density_deferred_package := {}
+var package_started_usec := 0
 var package_operation := ""
 var regional_grouping: SpinBox
 var package_destination := ""
@@ -965,6 +966,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 	package_work = PACKAGE_WORK.new()
 	package_work.regional_side_cells = int(regional_grouping.value) if destination.get_extension().to_lower() == "mkregions" else 0
 	package_operation = operation
+	package_started_usec = Time.get_ticks_usec()
 	package_destination = destination
 	package_cell = Vector2i(int(preview_x.value), int(preview_y.value))
 	worker_generation = generation
@@ -1052,7 +1054,6 @@ func _package_finished(result: Dictionary) -> void:
 		_show_cached(package_cell)
 		return
 	preview_stats.generated += 1
-	density_panel.record_preview(package_cell,result.data.signature,float(result.data.get("generation_seconds",0.0)))
 	render_data = result.data
 	render_batch_estimate = 1000
 	render_staged = Node3D.new()
@@ -1093,6 +1094,7 @@ func _advance_attachment() -> void:
 			# Publish once; keep the old root visible throughout candidate attachment.
 			if preview_cache.has(package_cell): preview_cache[package_cell].root.queue_free()
 			preview_cache[package_cell] = {"root": render_staged, "signature": render_data.signature, "charge": render_data.charge, "used": cache_clock + 1}
+			density_panel.record_preview(package_cell,render_data.signature,(Time.get_ticks_usec()-package_started_usec)/1000000.0)
 			RENDERER.dispose(render_job)
 			preview_resources.trim()
 			render_job = {}

@@ -13,7 +13,7 @@ a cancelled analysis worker to retire before allocating another package snapshot
 
 Validate and Export include per-cell estimates. Density warnings do not block
 Save/Export; existing native validation and preview limits still apply. Preview
-generation taking more than5s is recorded separately as measured elapsed time,
+preparation through completed scene attachment taking more than5s is recorded separately as measured elapsed time,
 with its source signature. Stale measurements are not carried across edits.
 
 Automated density and preview/export checks pass on Windows Godot4.7.2. Final UI

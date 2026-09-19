@@ -42,6 +42,9 @@ func run() -> void:
 	check(panel.details.text.contains("estimates"), "cost details distinguish estimates")
 	panel.record_preview(Vector2i.ZERO,report.data["0/0"].signature,5.01)
 	check(panel.measured_delays.has("0/0") and panel.details.text.contains("measured"), "slow preview is a separate measured warning")
+	panel.record_preview(Vector2i.ZERO,report.data["0/0"].signature,4.0)
+	check(not panel.measured_delays.has("0/0") and not panel.details.text.contains("Slow preview"), "a faster completed preview clears the previous delay warning")
+	panel.record_preview(Vector2i.ZERO,report.data["0/0"].signature,5.01)
 	var epoch: int = panel.generation
 	check(ui.store.apply_command("Seed",[{"field":"seed","before":ui.store.document.seed,"after":43}]).is_empty(), "edit accepted while warnings exist")
 	check(panel.generation > epoch and panel.rows.is_empty() and panel.measured_delays.is_empty(), "edit invalidates estimated and measured results")

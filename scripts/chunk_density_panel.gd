@@ -91,12 +91,15 @@ func _select(index: int) -> void:
 	canvas.queue_redraw()
 	details.text = "Cell %s · objects %d · triangles %d · building prisms %d · asset convexes %d · display %.1f MiB · work %.1f MiB (estimates)" % [listing.get_item_metadata(index),row.objects,row.triangles,row.building_prisms,row.asset_convexes,float(row.presentation_bytes)/1048576.0,float(row.work_bytes)/1048576.0]
 	var key: String = listing.get_item_metadata(index)
-	if measured_delays.has(key): details.text += " · measured preview generation %.2f seconds" % measured_delays[key].seconds
+	if measured_delays.has(key): details.text += " · measured preview preparation %.2f seconds" % measured_delays[key].seconds
 
 func record_preview(cell: Vector2i, signature: String, seconds: float) -> void:
-	if seconds <= 5.0: return
+	measured_delays.erase("%d/%d" % [cell.x,cell.y])
+	if seconds <= 5.0:
+		details.text = "Preview ready: cell %s took %.2f seconds (measured preparation and attachment)." % [cell,seconds]
+		return
 	measured_delays["%d/%d" % [cell.x,cell.y]] = {"signature":signature,"seconds":seconds}
-	details.text = "Slow preview: cell %s took %.2f seconds (measured generation, separate from memory estimates)." % [cell,seconds]
+	details.text = "Slow preview: cell %s took %.2f seconds (measured preparation and attachment, separate from memory estimates)." % [cell,seconds]
 
 func _exit_tree() -> void:
 	if task != null: task.cancel()
