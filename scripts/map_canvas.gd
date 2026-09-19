@@ -28,6 +28,7 @@ var marquee_end := Vector2.ZERO
 var marquee_additive := false
 var zoom := 1.0
 var pan := Vector2.ZERO
+var density_cells: Array = []
 
 func _ready() -> void:
 	author.configure(store, self)
@@ -182,6 +183,11 @@ func _draw() -> void:
 			draw_arc(points[0], 5.0 if entry.field == "nodes" else 8.0, 0, TAU, 20, color, 2.0, true)
 		if chosen:
 			for p in points: draw_rect(Rect2(p - Vector2(3, 3), Vector2(6, 6)), Color("ffe14c"))
+	for target: Vector2i in density_cells:
+		var a := screen([bounds.min[0]+target.x*cell,bounds.min[1]+target.y*cell])
+		var b := screen([bounds.min[0]+(target.x+1)*cell,bounds.min[1]+(target.y+1)*cell])
+		draw_rect(Rect2(a,b-a).abs(),Color(1.0,0.3,0.1,0.15))
+		draw_rect(Rect2(a,b-a).abs(),Color(1.0,0.3,0.1,0.9),false,2.0)
 	for p in draft: draw_circle(screen([p.x, p.y]), 5.0, Color("ffe14c"))
 	if draft.size() > 1:
 		var line := PackedVector2Array()

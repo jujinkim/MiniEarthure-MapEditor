@@ -6,6 +6,8 @@ const ATTACH_USEC := 8000
 const CACHE_CELLS := 4
 const CACHE_BYTES := 256 * 1024 * 1024
 var package_work: RefCounted
+var density_panel: VBoxContainer
+var density_deferred_package := {}
 var package_operation := ""
 var regional_grouping: SpinBox
 var package_destination := ""
@@ -404,6 +406,10 @@ func _build_ui() -> void:
 	validation_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	validation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(validation_label)
+	density_panel = preload("./chunk_density_panel.gd").new()
+	column.add_child(density_panel)
+	density_panel.configure(store, canvas)
+	density_panel.busy_source = func(): return busy
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.custom_minimum_size.y = 48
@@ -845,6 +851,9 @@ func _apply_properties() -> void:
 	if failure == "": _selection(canvas.selected)
 
 func _document_changed() -> void:
+	if not density_deferred_package.is_empty():
+		density_deferred_package.clear()
+		busy = false
 	if import_job != null: import_job.cancel()
 	native_request_identity = ""
 	_discard_import()
@@ -945,6 +954,11 @@ func _start_package(operation: String, destination: String = "") -> void:
 	if store.has_gesture():
 		_status("Finish or cancel the current gesture first.")
 		return
+	if density_panel.task != null:
+		density_panel.cancel()
+		density_deferred_package = {"operation":operation,"destination":destination}
+		busy = true
+		return
 	if operation == "export" and FileAccess.file_exists(destination):
 		_operation_status("Export failed · E_EXPORT_EXISTS", "Choose a new package filename; existing files are preserved.")
 		return
@@ -969,6 +983,10 @@ func _start_package(operation: String, destination: String = "") -> void:
 		_status(error_string(err))
 
 func _cancel_operation() -> void:
+	if density_panel != null: density_panel.cancel()
+	if not density_deferred_package.is_empty():
+		density_deferred_package.clear()
+		busy = false
 	if import_job != null: import_job.cancel()
 	native_request_identity = ""
 	_discard_import()
@@ -1016,6 +1034,7 @@ func _package_finished(result: Dictionary) -> void:
 		_operation_status(package_operation.capitalize() + " failed · Prior preview and original files retained", store.reason(result))
 		return
 	if package_operation != "preview":
+		result.data.preview_delays = density_panel.measured_delays.duplicate(true)
 		last_export_report = result.data
 		if package_operation == "export":
 			var failure := _publish_package(result.data.path, package_destination)
@@ -1033,6 +1052,7 @@ func _package_finished(result: Dictionary) -> void:
 		_show_cached(package_cell)
 		return
 	preview_stats.generated += 1
+	density_panel.record_preview(package_cell,result.data.signature,float(result.data.get("generation_seconds",0.0)))
 	render_data = result.data
 	render_batch_estimate = 1000
 	render_staged = Node3D.new()
@@ -1205,6 +1225,11 @@ func _finish_terrain(job: RefCounted, result: Dictionary) -> void:
 	_status(failure if failure != "" else "Terrain stroke applied. Undo: Ctrl/Cmd+Z")
 
 func _process(_delta: float) -> void:
+	if not density_deferred_package.is_empty() and density_panel.task == null:
+		var pending := density_deferred_package
+		density_deferred_package = {}
+		busy = false
+		_start_package(pending.operation,pending.destination)
 	cancel_button.disabled = not busy and pending_import == null
 	cancel_button.tooltip_text = "Cancel the running operation; keep prior preview and original files." if busy else "No running operation."
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
@@ -1595,3 +1620,4 @@ func _physics_process(delta: float) -> void:
 	for key in ["sunrise_minutes","sunset_minutes","latitude_mdeg","longitude_mdeg","utc_offset_minutes"]:
 		if environment_preview.profile.has(key): environment_preview.config[key] = environment_preview.profile[key]
 	environment_renderer.update_environment(environment_preview,preview_world.get_node("PreviewCamera").global_position,[],preview_resources)
+	environment_renderer.update_dynamic_lights(preview_world.get_node("PreviewCamera").global_position,[])

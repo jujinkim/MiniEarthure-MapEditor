@@ -43,6 +43,11 @@ func show_report(value: Dictionary) -> void:
 			data.cell_count,data.package_bytes,"within goal" if data.base_target_met else "over goal",
 			data.user_asset_compressed_bytes,data.user_asset_bytes,data.expanded_bytes,
 			data.validation_peak_bytes,data.retained_memory_bytes,data.source_peak_bytes,data.seconds]
+	for key: String in data.get("chunk_costs",{}):
+		var row: Dictionary = data.chunk_costs[key]
+		summary.text += "\nCell %s: %d objects / %d triangles / %d prisms / %d convexes · display %.1f MiB · work %.1f MiB estimated · %s" % [key,row.objects,row.triangles,row.building_prisms,row.asset_convexes,float(row.presentation_bytes)/1048576.0,float(row.work_bytes)/1048576.0,row.warning]
+		var delay: Dictionary = data.get("preview_delays",{}).get(key,{})
+		if delay.get("signature","") == row.signature: summary.text += " · measured preview %.2fs" % delay.seconds
 	overview.queue_redraw()
 	popup_centered()
 

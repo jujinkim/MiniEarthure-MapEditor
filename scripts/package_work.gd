@@ -66,14 +66,20 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 		var charge := int(cost.data)
 		if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
 		update("Generating cell %d / %d" % [cell.x, cell.y])
+		var generation_started := Time.get_ticks_usec()
 		var generated: Dictionary = native.generate_chunk_packed(cell.x, cell.y)
 		if generated.ok: generated = native.with_presentation(generated.data)
 		if not generated.ok: return generated
 		generated.data.signature = signature
 		generated.data.cell = cell
 		generated.data.charge = charge
+		generated.data.generation_seconds = (Time.get_ticks_usec() - generation_started) / 1000000.0
 		return generated
 	var report: Dictionary = staged.inspection.duplicate(true)
+	var density := density_report(native, snapshot, index.data, cached)
+	if not density.ok: return density
+	report.chunk_costs = density.data
+	if operation == "density": return {"ok":true,"data":report}
 	report.index_references = index.data.references
 	update("Preparing 2D overview")
 	var overview: Dictionary = JSON.parse_string(native.overview_json(OVERVIEW_BYTES))
@@ -150,9 +156,35 @@ static func compressed_assets(path: String, assets: Array) -> Dictionary:
 func allowance(native: RefCounted, cell: Vector2i) -> Dictionary:
 	var cost: Dictionary = JSON.parse_string(native.estimate_chunk(cell.x, cell.y))
 	if not cost.ok: return cost
-	var charge := int(cost.data.generation_scratch_bytes) + int(cost.data.triangles) * (256 + int(cost.data.max_object_id_bytes)) + int(cost.data.objects) * 1024 + int(cost.data.presentation_bytes) * 4
+	var charge := work_bytes(cost.data)
 	if charge > PREVIEW_BYTES: return failure("E_PREVIEW_BUDGET", "Cell estimate %d exceeds the %d-byte preview work allowance." % [charge, PREVIEW_BYTES])
 	return {"ok": true, "data": charge}
+
+static func work_bytes(cost: Dictionary) -> int:
+	return int(cost.generation_scratch_bytes) + int(cost.triangles) * (256 + int(cost.max_object_id_bytes)) + int(cost.objects) * 1024 + int(cost.presentation_bytes) * 4
+
+func density_report(native: RefCounted, snapshot: Dictionary, index: Dictionary, cached: Dictionary) -> Dictionary:
+	var bounds: Dictionary = snapshot.document.bounds
+	var query: Dictionary = JSON.parse_string(native.query_cells(int(bounds.min[0]),int(bounds.min[1]),int(bounds.max[0]),int(bounds.max[1]),16384))
+	if not query.ok: return query
+	var rows := {}
+	for target: Dictionary in query.data.geometry_cells:
+		if stopped(): return failure("E_CANCELLED", "Density analysis cancelled.")
+		var cell := Vector2i(int(target.x), int(target.y))
+		var key := "%d/%d" % [cell.x,cell.y]
+		var signature := INDEX.signature(snapshot.document,snapshot.hashes,index,cell)
+		if cached.get(key,{}).get("signature","") == signature:
+			rows[key] = cached[key]
+			continue
+		var estimated: Dictionary = JSON.parse_string(native.estimate_chunk(cell.x,cell.y))
+		if not estimated.ok: return estimated
+		var row: Dictionary = estimated.data.duplicate(true)
+		row.cell = cell
+		row.signature = signature
+		row.work_bytes = work_bytes(row)
+		row.warning = "over limit" if row.work_bytes > PREVIEW_BYTES else ("high" if row.work_bytes >= PREVIEW_BYTES * 3 / 4 else "")
+		rows[key] = row
+	return {"ok":true,"data":rows}
 
 func reopen_regions(path: String, destination: String) -> Dictionary:
 	if stopped(): return failure("E_CANCELLED", "Reopen cancelled.")
