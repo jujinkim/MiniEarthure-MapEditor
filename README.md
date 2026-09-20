@@ -205,3 +205,9 @@ PNG import as separate map-owned assets. [Authoring, commands and limits](docs/W
 [Regional export/reopen](docs/REGIONAL_SOURCE.md) adds explicit `.mkregions` export,
 storage grouping and recovery into a new project directory. Existing `.memap` and
 source projects remain supported and preserved.
+
+## Regional miniatures
+
+Seven original fictional regions, editable sources, independent current v1 packages
+and suggested road waypoint paths are in [regional-miniatures](examples/regional-miniatures/README.md).
+They use the public MapKit kit; no game course codec is part of this editor.
