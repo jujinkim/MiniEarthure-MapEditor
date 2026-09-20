@@ -22,9 +22,9 @@ func configure(source: RefCounted, view: Control) -> void:
 	terrain.store = source
 	terrain.canvas = view
 
-func recipe(version: int, theme: String) -> String:
+func set_theme(theme: String) -> String:
 	canvas.cancel_interaction()
-	return store.apply_command("Choose recipe and theme", [{"field": "recipe_version", "before": store.document.recipe_version, "after": version}, {"field": "theme", "before": store.document.theme, "after": theme}])
+	return store.apply_command("Choose theme", [{"field": "theme", "before": store.document.theme, "after": theme}])
 
 func _insert(field: String, record: Dictionary) -> Dictionary:
 	return {"field": field, "id": store.record_id(field, record), "before": null, "after": record}
@@ -74,17 +74,14 @@ func draw(tool: String, draft: Array[Vector2]) -> String:
 			surfaces.append(str(options.surface))
 		record.merge({"from": nodes[0], "to": nodes[1], "points": points, "widths_cm": widths, "surfaces": surfaces, "kind": options.kind, "clearance_cm": int(options.clearance_cm) if options.kind in ["tunnel", "underpass"] else null, "sidewalk_cm": int(options.sidewalk_cm) if int(options.sidewalk_cm) > 0 else null})
 	elif tool == "Surface area":
-		if int(store.document.recipe_version) < 6: return "Surface areas require recipe 6."
 		record.merge({"polygon": polygon, "surface": options.surface})
 	elif tool == "Cylinder wall":
-		if int(store.document.recipe_version) < 3: return "Cylinder walls require recipe 3 or later."
 		if int(options.wall_radius_cm) < 25 or int(options.wall_radius_cm) > 50000: return "Wall radius must be 0.25–500 m."
 		record = CYLINDER.create(id, draft[0], int(options.wall_radius_cm), int(options.base_cm), int(options.wall_height_cm), options.material)
 	elif tool == "Building": record.merge({"footprint": polygon, "base_cm": int(options.base_cm), "height_cm": int(options.height_cm), "usage": options.usage, "material": options.material, "roof": options.roof})
 	elif tool in ["Forest", "Orchard"]:
 		record.merge({"polygon": polygon, "kind": tool.to_lower(), "spacing_cm": int(options.spacing_cm), "density_per_mille": int(options.density_per_mille), "exclusions": []})
 		if options.tree_asset_id != "builtin:tree":
-			if int(store.document.recipe_version) < 7: return "Custom planting assets require recipe 7."
 			record.tree = {"asset_id": options.tree_asset_id, "radius_cm": int(options.tree_radius_cm), "clearance_cm": int(options.tree_clearance_cm)}
 	elif tool == "Place": record.merge({"asset_id": options.asset_id, "position": [polygon[0][0], int(options.base_cm), polygon[0][1]], "quarter_turns": int(options.quarter_turns)})
 	elif tool == "Repeat": record.merge({"asset_id": options.asset_id, "points": _points(draft), "spacing_cm": int(options.spacing_cm)})

@@ -13,7 +13,7 @@ def expand(t):
     d=t.doc
     original_nodes={tuple(n["position"]):n["id"] for n in d["nodes"]}
     original_ids={n["id"] for n in d["nodes"]}
-    d['bounds']['max']=[57600,19200];d['recipe_version']=6
+    d['bounds']['max']=[57600,19200];d['recipe_version']=1
     template=copy.deepcopy(d['heightmaps'][0])
     d['heightmaps']=[dict(template,cell=dict(x=x,y=y)) for y in range(12) for x in range(36)]
     d['surface_areas']=[dict(id='city-paving',polygon=cm_ring([(192,0),(576,0),(576,192),(192,192)]),surface='concrete'),

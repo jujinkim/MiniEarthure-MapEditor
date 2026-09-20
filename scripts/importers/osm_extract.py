@@ -146,9 +146,7 @@ def structure_connections(roads, source_uses):
             links[peer].append(ways[0])
         kinds = {a["kind"] for a in arms}
         join = dict(ref=str(ref), kind=next(iter(kinds)) if len(kinds) == 1 else "mixed", source_ways=list(map(str, ways)))
-        # Preserve the v1 representation for its original unique-endpoint profile.
-        if len(arms) != 2 or len(kinds) != 1:
-            join["source_arms"] = sorted(arms, key=lambda a: (int(a["source_way"]), a["end"]))
+        join["source_arms"] = sorted(arms, key=lambda a: (int(a["source_way"]), a["end"]))
         joins.append(join)
     visited = set()
     for first in structures:
@@ -441,11 +439,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         counts["closed_ground_ways"] = sum(s["closed"] and s["kind"] == "ground" for s in loop_sources)
         if structural:
             counts["closed_structural_ways"] = sum(s["closed"] and s["kind"] != "ground" for s in loop_sources)
-        else:
-            # Existing ground-only output remains byte-for-byte compatible.
-            for entry in loop_sources:
-                del entry["kind"], entry["clearance_cm"]
-        collection["osm_ground_loops"] = dict(profile="source-node-segments-v2" if structural else "source-node-segments-v1", sources=loop_sources)
+        collection["osm_ground_loops"] = dict(profile="source-node-segments-v1", sources=loop_sources)
     else:
         counts["closed_ground_ways"] = 0
     return collection, counts
@@ -460,9 +454,9 @@ def finish(layer, counts):
     layer.warning("Selected ways and explicit multipolygons are imported; POIs, other ways/relations and other tags are omitted. No routing/access/oneway semantics.")
     layer.warning("Ground elevation/base, missing width/height/surface, vegetation and materials are estimates; building levels/roof tags are not interpreted.")
     if "closed_structural_ways" in counts:
-        layer.warning("Closed roads and their incident ways split by original source node IDs. Structural loops and direct bridge/tunnel connections require complete explicit heights and two distinct ground anchors; no inferred ramps. Source kind/clearance and crop cuts remain reviewable. Recipe 2+ and at most 16 native validation cells required.")
+        layer.warning("Closed roads and their incident ways split by original source node IDs. Structural loops and direct bridge/tunnel connections require complete explicit heights and two distinct ground anchors; no inferred ramps. Source kind/clearance and crop cuts remain reviewable. At most 16 native validation cells per adoption.")
     elif counts.get("closed_ground_ways"):
-        layer.warning("Closed ground roads split at every original node; incident ground approaches join by source node ID only. Crop cuts stay separate. No routing/access/oneway or roundabout priority semantics. Recipe 2+ and at most 16 native validation cells required.")
+        layer.warning("Closed ground roads split at every original node; incident ground approaches join by source node ID only. Crop cuts stay separate. No routing/access/oneway or roundabout priority semantics. At most 16 native validation cells per adoption.")
     if counts.get("explicit_height_roads"):
         vertical = layer.coordinates.get("vertical")
         if vertical is None:

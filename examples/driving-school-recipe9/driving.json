@@ -33,7 +33,7 @@
     "source_accuracy_cm": null
   },
   "source_files": {
-    "document.json": "2cee02eb48dbf1ad4f6342354f7f670c187fa3b96060c17866b1a480e2de0cdf",
+    "document.json": "ea7793ddc68af0cd0f7f95f6a38b51b5043cc3ced87697dad1e66763fb026c5a",
     "assets/city-bench.glb": "50af6aac61b382345622b79486e5f39ae806bab486c223a19521463fbbf05c56",
     "assets/city-bin.glb": "bcbb11db63aa5fd1c867db99d075edf448a9d4aeffcba5bd784ee84d1115cbf0",
     "assets/city-bollard.glb": "373c28b8302c336dbab8e5ca827a54854fceba3686d65f833c496f9a2b6cf6bb",

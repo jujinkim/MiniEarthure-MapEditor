@@ -51,7 +51,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	native_payload_digest = ""
 	_review_prefix = ""
 	if raw is not Dictionary or JSON.stringify(raw).to_utf8_buffer().size() > MAX_BYTES: return "Invalid or oversized ImportLayer."
-	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-local-v1", "geojson-v2", "osm-extract-v1", "overture-buildings-v1", "overture-transportation-v1", "overture-land-cover-v1"]: return "Unsupported ImportLayer version/adapter."
+	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-v1", "osm-extract-v1", "overture-buildings-v1", "overture-transportation-v1", "overture-land-cover-v1"]: return "Unsupported ImportLayer version/adapter."
 	if requested.has("adapter") and raw.adapter != requested.adapter: return "Import adapter does not match request."
 	if not _hex(raw.get("layer_id"), 32) or raw.layer_id != expected_id: return "Stale or invalid import identity."
 	var source: Variant = raw.get("source")
@@ -84,7 +84,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		return "Non-streaming import source exceeds 32 MiB."
 	var crop: Variant = raw.coordinates.get("osm_crop")
 	if requested.has("osm_bbox") or crop != null:
-		if raw.adapter != "osm-extract-v1" or crop is not Dictionary or crop.get("policy") not in ["geometry-intersection-v1", "geometry-intersection-v2", "geometry-intersection-v3", "geometry-intersection-v4"] or crop.get("shapely") != "2.1.2" or not _text(crop.get("geos")): return "Invalid OSM crop provenance."
+		if raw.adapter != "osm-extract-v1" or crop is not Dictionary or crop.get("policy") != "geometry-intersection-v1" or crop.get("shapely") != "2.1.2" or not _text(crop.get("geos")): return "Invalid OSM crop provenance."
 		var bbox: Variant = crop.get("bbox")
 		if bbox is not Array or bbox.size() != 4: return "Invalid OSM crop area."
 		for i in range(4):
@@ -95,14 +95,12 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		for key in ["input_features", "outside_features", "changed_features", "output_features", "boundary_contacts"]:
 			if not _count(crop.counts.get(key), 200000): return "Invalid OSM crop count."
 		if crop.counts.output_features != raw.get("feature_count"): return "OSM crop count mismatch."
-		if crop.policy in ["geometry-intersection-v2", "geometry-intersection-v3", "geometry-intersection-v4"]:
-			var vertical: Variant = crop.get("vertical")
-			var profile: String = {"geometry-intersection-v2": "explicit-ground-crop-v1", "geometry-intersection-v3": "explicit-structure-crop-v1", "geometry-intersection-v4": "explicit-connected-structure-crop-v1"}[crop.policy]
-			if vertical is not Dictionary or vertical.get("profile") != profile: return "Invalid OSM vertical crop profile."
-			for key in ["clipped_ground_features", "outside_explicit_features", "retained_structure_features"]:
-				if not _count(vertical.get(key), 20000): return "Invalid OSM vertical crop count."
-			if vertical.clipped_ground_features > crop.counts.changed_features or vertical.outside_explicit_features > crop.counts.outside_features or vertical.retained_structure_features > crop.counts.output_features: return "OSM vertical crop count mismatch."
-		elif crop.has("vertical"): return "OSM vertical crop requires version 2, 3 or 4."
+		var vertical: Variant = crop.get("vertical")
+		var profile := "explicit-connected-structure-crop-v1"
+		if vertical is not Dictionary or vertical.get("profile") != profile or vertical.get("connection_sections") is not Array: return "Invalid OSM vertical crop profile."
+		for key in ["clipped_ground_features", "outside_explicit_features", "retained_structure_features"]:
+			if not _count(vertical.get(key), 20000): return "Invalid OSM vertical crop count."
+		if vertical.clipped_ground_features > crop.counts.changed_features or vertical.outside_explicit_features > crop.counts.outside_features or vertical.retained_structure_features > crop.counts.output_features: return "OSM vertical crop count mismatch."
 	var overture_building_ids := {}
 	var overture_vertical := false
 	if raw.adapter == "overture-buildings-v1":
@@ -178,7 +176,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if patch.field == "nodes": nodes[patch.id] = true
 		if patch.field == "nodes" and patch.id.contains("-osm-node-") and raw.coordinates.has("vertical") and raw.coordinates.vertical.explicit_points == 0 and not raw.coordinates.has("osm_ground_loops"): return "Explicit OSM nodes require nonzero vertical source counts."
 		if patch.field == "roads" and patch.after.get("kind") in ["bridge", "tunnel"]: structure_count += 1
-	if crop is Dictionary and crop.get("policy") in ["geometry-intersection-v2", "geometry-intersection-v3", "geometry-intersection-v4"] and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
+	if crop is Dictionary and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
 	for patch in raw.patches:
 		if patch.field == "roads" and (not nodes.has(patch.after.get("from")) or not nodes.has(patch.after.get("to"))): return "Imported roads must reference their own layer nodes."
 	var collection_error: String = preload("./import_collections.gd").validate(raw, get_script())
@@ -189,7 +187,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if loop_error != "": return loop_error
 	var connection_error := _structure_connections(raw, prefix)
 	if connection_error != "": return connection_error
-	if crop is Dictionary and crop.get("policy") in ["geometry-intersection-v3", "geometry-intersection-v4"]:
+	if crop is Dictionary:
 		var structure_error := _structure_crop(raw, prefix)
 		if structure_error != "": return structure_error
 	if raw.adapter == "overture-transportation-v1":
@@ -212,10 +210,10 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 
 static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 	var crop: Variant = raw.coordinates.get("osm_crop")
-	var v4: bool = crop is Dictionary and crop.get("policy") == "geometry-intersection-v4"
-	if not raw.coordinates.has("osm_connections"): return "Missing structure connections." if v4 else ""
+	var has_sections: bool = crop is Dictionary and not crop.vertical.connection_sections.is_empty()
+	if not raw.coordinates.has("osm_connections"): return "Missing structure connections." if has_sections else ""
 	var meta: Variant = raw.coordinates.osm_connections
-	if raw.adapter != "osm-extract-v1" or meta is not Dictionary or meta.get("profile") not in ["same-kind-endpoints-v1", "explicit-structural-junctions-v2"] or meta.get("joins") is not Array or meta.joins.is_empty() or meta.joins.size() > 20000: return "Invalid structure connections."
+	if raw.adapter != "osm-extract-v1" or meta is not Dictionary or meta.get("profile") != "explicit-structural-junctions-v1" or meta.get("joins") is not Array or meta.joins.is_empty() or meta.joins.size() > 20000: return "Invalid structure connections."
 	var incident := {}
 	for patch: Dictionary in raw.patches:
 		if patch.field != "roads": continue
@@ -231,39 +229,37 @@ static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 	source_id.compile("^[1-9][0-9]{0,18}$")
 	for join in meta.joins:
 		if join is not Dictionary or join.get("ref") is not String or source_id.search(join.ref) == null or seen.has(join.ref): return "Invalid/duplicate source continuation."
-		var extended: bool = join.has("source_arms")
-		if extended and meta.profile != "explicit-structural-junctions-v2": return "Structural arms require connection version 2."
-		if join.get("kind") not in (["bridge", "tunnel", "mixed"] if extended else ["bridge", "tunnel"]): return "Invalid structural kind."
+		if not join.has("source_arms"): return "Missing structural source arms."
+		if join.get("kind") not in ["bridge", "tunnel", "mixed"]: return "Invalid structural kind."
 		seen[join.ref] = true
 		var ways: Variant = join.get("source_ways")
-		if ways is not Array or ways.size() < 2 or ways.size() > (32 if extended else 2): return "Invalid continuation source ways."
+		if ways is not Array or ways.size() < 2 or ways.size() > 32: return "Invalid continuation source ways."
 		var unique_ways := {}
 		for way in ways:
 			if way is not String or source_id.search(way) == null or unique_ways.has(way): return "Invalid continuation source way."
 			unique_ways[way] = true
 		var expected := {}
 		var expected_count := 2
-		if extended:
-			if join.source_arms is not Array or join.source_arms.size() < 2 or join.source_arms.size() > 32: return "Invalid structural arm budget."
-			expected_count = join.source_arms.size()
-			var source_kinds := {}
-			var source_clearance: Variant = null
-			var declared_ways := {}
-			for arm in join.source_arms:
-				if arm is not Dictionary or arm.get("source_way") not in ways or arm.get("end") not in ["from", "to"] or arm.get("kind") not in ["bridge", "tunnel"]: return "Invalid source structural arm."
-				var key: String = arm.source_way + ":" + arm.end
-				if expected.has(key): return "Duplicate source structural arm."
-				expected[key] = arm
-				if declared_ways.has(arm.source_way):
-					var previous: Dictionary = declared_ways[arm.source_way]
-					if previous.kind != arm.kind or previous.get("clearance_cm") != arm.get("clearance_cm"): return "Conflicting source-way structural profile."
-				declared_ways[arm.source_way] = arm
-				source_kinds[arm.kind] = true
-				if arm.kind == "tunnel":
-					if not _count(arm.get("clearance_cm"), 5000) or arm.clearance_cm < 200 or (source_clearance != null and source_clearance != arm.clearance_cm): return "Source tunnel clearance mismatch."
-					source_clearance = arm.clearance_cm
-				elif not arm.has("clearance_cm") or arm.clearance_cm != null: return "Bridge arm cannot declare tunnel clearance."
-			if declared_ways.size() != ways.size() or join.kind != ("mixed" if source_kinds.size() == 2 else source_kinds.keys()[0]): return "Source structural kind/way mismatch."
+		if join.source_arms is not Array or join.source_arms.size() < 2 or join.source_arms.size() > 32: return "Invalid structural arm budget."
+		expected_count = join.source_arms.size()
+		var source_kinds := {}
+		var source_clearance: Variant = null
+		var declared_ways := {}
+		for arm in join.source_arms:
+			if arm is not Dictionary or arm.get("source_way") not in ways or arm.get("end") not in ["from", "to"] or arm.get("kind") not in ["bridge", "tunnel"]: return "Invalid source structural arm."
+			var key: String = arm.source_way + ":" + arm.end
+			if expected.has(key): return "Duplicate source structural arm."
+			expected[key] = arm
+			if declared_ways.has(arm.source_way):
+				var previous: Dictionary = declared_ways[arm.source_way]
+				if previous.kind != arm.kind or previous.get("clearance_cm") != arm.get("clearance_cm"): return "Conflicting source-way structural profile."
+			declared_ways[arm.source_way] = arm
+			source_kinds[arm.kind] = true
+			if arm.kind == "tunnel":
+				if not _count(arm.get("clearance_cm"), 5000) or arm.clearance_cm < 200 or (source_clearance != null and source_clearance != arm.clearance_cm): return "Source tunnel clearance mismatch."
+				source_clearance = arm.clearance_cm
+			elif not arm.has("clearance_cm") or arm.clearance_cm != null: return "Bridge arm cannot declare tunnel clearance."
+		if declared_ways.size() != ways.size() or join.kind != ("mixed" if source_kinds.size() == 2 else source_kinds.keys()[0]): return "Source structural kind/way mismatch."
 		total_arms += expected_count
 		if total_arms > 200000: return "Structural source incidence budget exceeded."
 		var retained: Variant = join.get("retained")
@@ -275,10 +271,9 @@ static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 		for arm in retained:
 			if arm is not Dictionary or not _count(arm.get("feature"), int(raw.feature_count)-1) or arm.get("source_way") not in ways: return "Invalid retained continuation arm."
 			var source_key: String = arm.source_way
-			if extended:
-				if arm.get("end") not in ["from", "to"]: return "Missing retained structural direction."
-				source_key += ":" + arm.end
-				if not expected.has(source_key): return "Unknown retained structural arm."
+			if arm.get("end") not in ["from", "to"]: return "Missing retained structural direction."
+			source_key += ":" + arm.end
+			if not expected.has(source_key): return "Unknown retained structural arm."
 			if source_ways.has(source_key): return "Duplicate retained source arm."
 			var base_id := prefix + str(int(arm.feature))
 			var id: String = loop_ids.get(base_id, base_id)
@@ -290,24 +285,23 @@ static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 		for road: Dictionary in roads:
 			if not mapped.has(road.id): return "Continuation road mismatch."
 			var kind: String = join.kind
-			if extended:
-				var arm: Dictionary = mapped[road.id]
-				var source_arm: Dictionary = expected[arm.source_way + ":" + arm.end]
-				if road.get(arm.end) != prefix + "osm-node-" + join.ref or road.get("clearance_cm") != source_arm.clearance_cm: return "Structural direction/clearance mismatch."
-				kind = source_arm.kind
+			var arm: Dictionary = mapped[road.id]
+			var source_arm: Dictionary = expected[arm.source_way + ":" + arm.end]
+			if road.get(arm.end) != prefix + "osm-node-" + join.ref or road.get("clearance_cm") != source_arm.clearance_cm: return "Structural direction/clearance mismatch."
+			kind = source_arm.kind
 			if road.get("kind") != kind: return "Continuation road kind mismatch."
 			if kind == "tunnel":
 				if not _count(road.get("clearance_cm"), 5000) or road.clearance_cm < 200 or (clearance != null and clearance != road.clearance_cm): return "Joined tunnel clearance mismatch."
 				clearance = road.clearance_cm
 		if roads.size() > 0 and roads.size() < expected_count: sections[join.ref] = true
 		if roads.size() != expected_count and crop is not Dictionary: return "Missing uncropped continuation arms."
-	if v4:
+	if crop is Dictionary:
 		var declared: Variant = crop.vertical.get("connection_sections")
-		if declared is not Array or declared.is_empty() or declared.size() != sections.size(): return "Invalid connection sections."
+		if declared is not Array or declared.size() != sections.size(): return "Invalid connection sections."
 		for ref in declared:
 			if ref is not String or ref not in sections: return "Unknown/duplicate connection section."
 			sections.erase(ref)
-	elif not sections.is_empty(): return "Connection sections require crop version 4."
+	elif not sections.is_empty(): return "Connection sections require crop provenance."
 	return ""
 
 static func _loop_feature_ids(raw: Dictionary) -> Dictionary:
@@ -322,11 +316,9 @@ static func _loop_feature_ids(raw: Dictionary) -> Dictionary:
 static func _structure_crop(raw: Dictionary, prefix: String) -> String:
 	var crop: Dictionary = raw.coordinates.osm_crop
 	var v: Dictionary = crop.vertical
-	var v4: bool = crop.policy == "geometry-intersection-v4"
 	var loop_ids := _loop_feature_ids(raw)
 	var connection_sections := {}
-	if v4:
-		for ref: String in v.connection_sections: connection_sections[ref] = true
+	for ref: String in v.connection_sections: connection_sections[ref] = true
 	var continuation_ways := {}
 	if raw.coordinates.has("osm_connections"):
 		for join: Dictionary in raw.coordinates.osm_connections.joins:
@@ -334,7 +326,7 @@ static func _structure_crop(raw: Dictionary, prefix: String) -> String:
 				var feature := int(arm.feature)
 				if continuation_ways.has(feature) and continuation_ways[feature] != arm.source_way: return "Conflicting continuation source mapping."
 				continuation_ways[feature] = arm.source_way
-	if not _count(v.get("partial_structure_ways"), 20000) or (not v4 and v.partial_structure_ways < 1) or not _count(v.get("section_endpoints"), 40000): return "Invalid partial structure counts."
+	if not _count(v.get("partial_structure_ways"), 20000) or not _count(v.get("section_endpoints"), 40000): return "Invalid partial structure counts."
 	if v.get("structures") is not Array or v.structures.size() != v.retained_structure_features: return "Incomplete structure crop mapping."
 	var roads := {}
 	for patch: Dictionary in raw.patches:
@@ -370,7 +362,7 @@ static func _structure_crop(raw: Dictionary, prefix: String) -> String:
 			sections += int(end.role == "boundary-section")
 	var partial_ways := 0
 	for partial: bool in ways.values(): partial_ways += int(partial)
-	if sections < 1 or sections != v.section_endpoints or v.partial_structure_ways != partial_ways: return "Structure section count mismatch."
+	if sections != v.section_endpoints or v.partial_structure_ways != partial_ways: return "Structure section count mismatch."
 	return ""
 
 func patches(store: RefCounted) -> Array:
@@ -403,8 +395,6 @@ func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 			var frame: Dictionary = value.coordinates.get("vertical", {"target_crs":"EPSG:5773 / EGM96 metres", "vertical_zero_m":0})
 			var frame_error: String = preload("./import_vertical.gd").frame_error(store.document, frame, value.coordinates)
 			if frame_error != "": return frame_error
-	if value.adapter == "overture-land-cover-v1" and store.document.recipe_version < 3: return "Land cover vegetation requires explicit recipe 3 or newer."
-	if value.adapter == "overture-buildings-v1" and value.coordinates.overture.get("include_parts", false) and store.document.recipe_version < 3: return "Vertical building parts require explicit recipe 3 or newer."
 	var candidate: Dictionary = store.document.duplicate(true)
 	var failure: String = store._apply(candidate, patches(store), false)
 	if failure != "": return failure
@@ -412,11 +402,9 @@ func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 	if not result.ok: return store.reason(result)
 	if value.adapter == "osm-extract-v1":
 		if not value.coordinates.get("osm_ground_loops", {}).get("retained", []).is_empty():
-			if candidate.recipe_version < 2: return "OSM closed roads require explicit recipe 2 or newer for connected surfaces."
 			return _validate_structure_cells(store, result.data.document, context)
 		for patch: Dictionary in value.patches:
 			if patch.field == "roads" and patch.after.kind in ["bridge", "tunnel"]:
-				if candidate.recipe_version < 2: return "OSM bridges/tunnels require explicit recipe 2 or newer for connected surfaces."
 				return _validate_structure_cells(store, result.data.document, context)
 	# The UI child also binds nonstructural reviews to immutable file payloads.
 	# Keep synchronous API callers and structural generation requirements intact.

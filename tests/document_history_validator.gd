@@ -11,7 +11,8 @@ func check(ok: bool, message: String) -> void:
 		push_error(message)
 
 func building(id: String) -> Dictionary:
-	return {"id": id, "footprint": [[1000,1000],[3000,1000],[3000,3000],[1000,3000]],
+	var offset := 10000 if id == "b" else (20000 if id == "c" else 0)
+	return {"id": id, "footprint": [[1000+offset,1000],[3000+offset,1000],[3000+offset,3000],[1000+offset,3000]],
 		"base_cm": 0, "height_cm": 1200, "usage": "residential", "material": "concrete", "roof": "flat"}
 
 func patch(field: String, id: String, before: Variant, after: Variant) -> Dictionary:
@@ -28,7 +29,11 @@ func run() -> void:
 	store.new_document()
 	var original := building("a")
 	var other := building("b")
-	check(store.apply_command("Two objects", [patch("buildings", "a", null, original), patch("buildings", "b", null, other)]) == "", "multi-record command accepted")
+	var initial_error := store.apply_command("Two objects", [patch("buildings", "a", null, original), patch("buildings", "b", null, other)])
+	check(initial_error == "", "multi-record command accepted: " + initial_error)
+	if initial_error != "":
+		quit(1)
+		return
 	original.height_cm = 9999
 	check(store.document.buildings[0].height_cm == 1200, "caller mutation cannot alter document/memento")
 	var bytes := store.history_bytes
@@ -121,7 +126,7 @@ func run() -> void:
 	check(store.apply_command(large_label + large_label, [patch("seed", "", 1001, 1002)]) != "" and state(store) == stale, "oversize command preserves state and history")
 	store.new_document()
 	check(store.history_bytes == 0 and store.undo_stack.is_empty() and store.redo_stack.is_empty(), "replacement releases both histories")
-	check(store.apply_command("Explicit recipe", [patch("recipe_version", "", 1, 3)]) == "", "explicit recipe change uses command")
+	check(store.apply_command("Seed", [patch("seed", "", store.document.seed, 12345)]) == "", "seed change uses command")
 	var repetition := {"id":"line", "asset_id":"builtin:fence", "points":[[1000,0,1000],[2000,0,1000]], "spacing_cm":200}
 	check(store.apply_command("Repeat", [patch("repetitions", "line", null, repetition)]) == "", "optional repetition field is command-owned")
 	check(store.undo() == "" and store.document.get("repetitions", []).is_empty(), "optional field undo handles canonical omission")

@@ -12,7 +12,7 @@ func run() -> void:
 	var panel: RefCounted = ui.author_panel.environment_panel
 	check(panel != null,"public environment authoring panel")
 	panel._apply()
-	check(ui.store.document.recipe_version==8 and ui.store.document.has("environment"),"explicit recipe/profile adoption")
+	check(ui.store.document.recipe_version==1 and ui.store.document.has("environment"),"current v1 environment profile")
 	var accepted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and not ui.store.document.has("environment"),"undo restores legacy profile absence")
 	check(ui.store.redo()=="" and ui.store.document.environment==accepted.environment,"redo restores profile")

@@ -31,7 +31,7 @@ def rectangle(x, y, w, h):
 
 def empty(name, size, cell):
     return dict(map_id=name, revision=1, bounds={"min":[0,0], "max":[size,size]},
-                cell_size_cm=cell, seed=9012026, recipe_version=4, theme="default", terrain_base_cm=0,
+                cell_size_cm=cell, seed=9012026, recipe_version=1, theme="default", terrain_base_cm=0,
                 **{field: [] for field in FIELDS},
                 attributions=[dict(source=PROFILE, license="MIT", notice="Original synthetic geometry and terrain; no external datasets; not a surveyed region")],
                 provenance=dict(tool_id="mapeditor-reference-maps", version="1", build_id=PROFILE,

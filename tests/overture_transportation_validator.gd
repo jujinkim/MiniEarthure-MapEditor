@@ -19,7 +19,7 @@ func run() -> void:
 	root.add_child(ui)
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
-	check(ui.store.apply_command("Choose road recipe",[{"field":"recipe_version","before":1,"after":2}])=="","explicit recipe 2 for native junction generation")
+	check(ui.store.apply_command("Choose road recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}])=="","current generation setup for native junction generation")
 	var before: Dictionary=ui.store.document.duplicate(true)
 	var source := ProjectSettings.globalize_path("user://overture_transportation_validator.gd.json")
 	var output: Array = []
@@ -46,7 +46,7 @@ func run() -> void:
 		var bad:=raw.duplicate(true)
 		var meta: Dictionary=bad.coordinates.overture_transportation
 		if field=="license":bad.source.license="MIT"
-		elif field=="adapter":bad.adapter="geojson-v2"
+		elif field=="adapter":bad.adapter="geojson-v1"
 		elif field=="bbox":meta.bbox=[9,55,10,56]
 		elif field=="release":meta.release="latest"
 		elif field=="sources":meta.segment_sources[0].sources=[]

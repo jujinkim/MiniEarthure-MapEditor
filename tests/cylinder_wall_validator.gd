@@ -42,7 +42,7 @@ func run() -> void:
 	check(ui.store.apply_command("small seam fixture", [
 		{"field":"bounds","before":ui.store.document.bounds,"after":{"min":[0,0],"max":[25600,25600]}},
 		{"field":"cell_size_cm","before":ui.store.document.cell_size_cm,"after":12800}]) == "", "small fixture")
-	check(ui.canvas.author.recipe(4,"urban") == "", "supported recipe")
+	check(ui.canvas.author.set_theme("urban") == "", "supported recipe")
 	var author: RefCounted = ui.canvas.author
 	author.options.wall_radius_cm = 1600
 	author.options.wall_height_cm = 350

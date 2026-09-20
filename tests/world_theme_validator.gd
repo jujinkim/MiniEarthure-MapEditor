@@ -37,7 +37,7 @@ func run() -> void:
 	# Exercise the real authoring panel and the existing detached asset worker.
 	var ui: Control=load("res://main.tscn").instantiate();root.add_child(ui)
 	await process_frame
-	check(ui.canvas.author.recipe(6,"default")=="","recipe")
+	check(ui.canvas.author.set_theme("default")=="","recipe")
 	check(ui.store.save_project(ProjectSettings.globalize_path("user://sign-ui"))=="","saved UI document")
 	ui.author_panel.open()
 	var panel: RefCounted=ui.author_panel.sign_panel

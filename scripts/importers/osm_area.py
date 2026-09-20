@@ -187,31 +187,24 @@ def crop(collection, selected):
         if 0 < retained_connection_ends[entry["ref"]] < len(entry.get("source_arms", [None, None]))}
     counts["output_features"] = len(output)
     meta = dict(bbox=selected, policy="geometry-intersection-v1", shapely="2.1.2", geos=shapely.geos_version_string, counts=counts)
-    if has_explicit:
-        meta["policy"] = "geometry-intersection-v2"
-        meta["vertical"] = dict(profile=VERTICAL_PROFILE, **vertical_counts)
-    if retained_structures & incomplete_structures or connection_sections:
-        # A source vertex cut is also a section end when its other source-way arm
-        # was removed. Retained original junctions continue to use their own ID.
-        retained_ends = Counter((f["properties"]["osm_way_id"], ref) for f in output
-            if f["properties"].get("road_kind") in ("bridge", "tunnel")
-            for ref in (f["properties"]["osm_node_refs"][0], f["properties"]["osm_node_refs"][-1]))
-        section_ends = 0
-        for entry in structure_sources:
-            p = output[entry["feature"]]["properties"]
-            entry["partial"] = p["osm_way_id"] in incomplete_structures
-            entry["endpoints"] = []
-            for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1]):
-                key = (p["osm_way_id"], ref)
-                section = isinstance(ref, str) or (source_ends[key] != 1 and retained_ends[key] == 1) or str(ref) in connection_sections
-                entry["endpoints"].append(dict(ref=str(ref), role="boundary-section" if section else "source-node"))
-                section_ends += section
-        meta["policy"] = "geometry-intersection-v3"
-        meta["vertical"].update(profile="explicit-structure-crop-v1", section_endpoints=section_ends,
-            partial_structure_ways=len(retained_structures & incomplete_structures), structures=structure_sources)
-        if connection_sections:
-            meta["policy"] = "geometry-intersection-v4"
-            meta["vertical"].update(profile="explicit-connected-structure-crop-v1", connection_sections=sorted(connection_sections))
+    # A source vertex cut is also a section end when its other source-way arm
+    # was removed. Retained original junctions continue to use their own ID.
+    retained_ends = Counter((f["properties"]["osm_way_id"], ref) for f in output
+        if f["properties"].get("road_kind") in ("bridge", "tunnel")
+        for ref in (f["properties"]["osm_node_refs"][0], f["properties"]["osm_node_refs"][-1]))
+    section_ends = 0
+    for entry in structure_sources:
+        p = output[entry["feature"]]["properties"]
+        entry["partial"] = p["osm_way_id"] in incomplete_structures
+        entry["endpoints"] = []
+        for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1]):
+            key = (p["osm_way_id"], ref)
+            section = isinstance(ref, str) or (source_ends[key] != 1 and retained_ends[key] == 1) or str(ref) in connection_sections
+            entry["endpoints"].append(dict(ref=str(ref), role="boundary-section" if section else "source-node"))
+            section_ends += section
+    meta["vertical"] = dict(profile="explicit-connected-structure-crop-v1", **vertical_counts,
+        section_endpoints=section_ends, partial_structure_ways=len(retained_structures & incomplete_structures),
+        structures=structure_sources, connection_sections=sorted(connection_sections))
     result = dict(type="FeatureCollection", features=output)
     if connections: result["osm_connections"] = connections
     if "osm_ground_loops" in collection: result["osm_ground_loops"] = collection["osm_ground_loops"]

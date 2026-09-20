@@ -25,7 +25,7 @@ class FleetMapTests(unittest.TestCase):
     def test_actual_gap_bypass_and_authored_collision(self):
         doc = json.loads((ROOT / "examples/fleet-playground/document.json").read_text())
         roads = {r["id"]: r for r in doc["roads"]}
-        self.assertEqual(doc["recipe_version"], 6)
+        self.assertEqual(doc["recipe_version"], 1)
         self.assertEqual(roads["landing"]["points"][0][0] - roads["launch"]["points"][-1][0], 1200)
         self.assertEqual(roads["launch"]["points"][-1][1], 300)
         self.assertTrue(all(p[1] == 0 for p in roads["bypass"]["points"]))

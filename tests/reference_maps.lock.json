@@ -18,13 +18,6 @@
         0
       ]
     },
-    "capacity": {
-      "base_package_bytes": 29566,
-      "base_target_bytes": 50000000,
-      "base_target_met": true,
-      "total_package_bytes": 29566,
-      "user_asset_compressed_bytes": 0
-    },
     "cell_count": 400,
     "cell_size_cm": 51200,
     "counts": {
@@ -36,26 +29,6 @@
       "repetitions": 0,
       "roads": 840,
       "zones": 200
-    },
-    "generated_cells": {
-      "0/0": "363186008f42cafc1a64e536f1d157bdd3bf9c0585fcbabc8b20b3b52a1664e3",
-      "0/9": "19dc00f6587b8e7c68b4fa0d54a08c9875343ae1f9dd703273de955b1f62765c",
-      "11/11": "4dbff59efba7d7186aadc884bdca09f3844475d6119b81dcc841d6599fa800e5",
-      "18/18": "c711141cce6bb642ea1c10fd011e4a0e21eadb7419d48edd27693d32a98685ab",
-      "19/19": "6402cc45d392db72b7bd2923991e2da81fad25ec1721e2bf4a3ff3bbe12022b4",
-      "9/0": "0feb57ba81844bf5cd112dfd672b9325950456c67568eb387fee55483f2eb34f",
-      "9/9": "52f4c4d91862f4c853445188871f048eac6eb9376ea7716bb5720bd514300871"
-    },
-    "inspection": {
-      "base_data_bytes": 395021,
-      "cell_count": 400,
-      "expanded_bytes": 395021,
-      "package_bytes": 29566,
-      "package_sha256": "2135981b3caf810932d48f6ca8fb8ca78725cb134c7737d0b0e747432ccd2435",
-      "retained_memory_bytes": 14443178,
-      "user_asset_bytes": 0,
-      "validation_peak_bytes": 320771110,
-      "world_content_hash": "708bd6bc977d84679279e2c60e3a643d6ddd04a704be0581e0e9e93b9259ebc5"
     },
     "map_id": "p01-synthetic-v1-10km",
     "profile": "p01-synthetic-v1",
@@ -166,7 +139,7 @@
       }
     ],
     "source_files": {
-      "document.json": "e7d12852bd49a773df71f1c357fc39aba2576eaf433ef82aa330b48af9b8aef8",
+      "document.json": "564b86a6db1dceeb5db35b98c08225ea322dbabc75b79fd10e6bff04b156300a",
       "terrain/flat.png": "cfc5e674bb900da72162e4d7a9f6225a4497d8d31ed5f7ea09695ffac6a6fad8",
       "terrain/hill.png": "b30ad568b7101067a30156cfc3d72ebfed31381ad9422aa8634666b51bcc8615"
     },
@@ -175,7 +148,7 @@
       "source_accuracy_cm": null,
       "spacing_cm": 200
     },
-    "world_scale": 0.125
+    "world_scale": 1.0
   },
   "baseline-user": {
     "attributions": [
@@ -196,13 +169,6 @@
         0
       ]
     },
-    "capacity": {
-      "base_package_bytes": 29903,
-      "base_target_bytes": 50000000,
-      "base_target_met": true,
-      "total_package_bytes": 30000,
-      "user_asset_compressed_bytes": 97
-    },
     "cell_count": 400,
     "cell_size_cm": 51200,
     "counts": {
@@ -214,20 +180,6 @@
       "repetitions": 0,
       "roads": 840,
       "zones": 200
-    },
-    "generated_cells": {
-      "0/0": "69d32e1ea7e46aaef10bf3e8959615aca58db658997a37dc39166822a1187bfa"
-    },
-    "inspection": {
-      "base_data_bytes": 395754,
-      "cell_count": 400,
-      "expanded_bytes": 395961,
-      "package_bytes": 30000,
-      "package_sha256": "18615694e14e888f1fff0b825902febb8f1f5929d851ca985ca69d71023b29fc",
-      "retained_memory_bytes": 14469666,
-      "user_asset_bytes": 207,
-      "validation_peak_bytes": 320885506,
-      "world_content_hash": "66bb4a2c09253bfb088f255352efcf12a9d66944ba688c45cfb9918543918345"
     },
     "map_id": "p01-synthetic-v1-10km-user",
     "profile": "p01-synthetic-v1",
@@ -339,7 +291,7 @@
     ],
     "source_files": {
       "assets/white.png": "cfc5e674bb900da72162e4d7a9f6225a4497d8d31ed5f7ea09695ffac6a6fad8",
-      "document.json": "e4df860c0ad5e6aea972a9b76747e9ab9cdc2bd6447a421729057fb4947410d5",
+      "document.json": "d501338f0e716738d61db8756a1a7085368c9342c47ee185d10f6ce9937932fc",
       "terrain/flat.png": "cfc5e674bb900da72162e4d7a9f6225a4497d8d31ed5f7ea09695ffac6a6fad8",
       "terrain/hill.png": "b30ad568b7101067a30156cfc3d72ebfed31381ad9422aa8634666b51bcc8615"
     },
@@ -348,7 +300,7 @@
       "source_accuracy_cm": null,
       "spacing_cm": 200
     },
-    "world_scale": 0.125
+    "world_scale": 1.0
   },
   "structures": {
     "attributions": [
@@ -369,13 +321,6 @@
         0
       ]
     },
-    "capacity": {
-      "base_package_bytes": 1798,
-      "base_target_bytes": 50000000,
-      "base_target_met": true,
-      "total_package_bytes": 1798,
-      "user_asset_compressed_bytes": 0
-    },
     "cell_count": 4,
     "cell_size_cm": 51200,
     "counts": {
@@ -387,23 +332,6 @@
       "repetitions": 1,
       "roads": 7,
       "zones": 1
-    },
-    "generated_cells": {
-      "0/0": "36b5a047170f46fe0f36fd358ac4e1568ee37af08ab01a4138dfc46fba4450c8",
-      "0/1": "a525e889117723356e17075a2d4bc88d7ba7882eb1c31eaa77de0a5e123194b0",
-      "1/0": "9fd803f089373c1e840cf1b08593cb27a95885ba207db8ba64203509c82dabaf",
-      "1/1": "274e443453090237227b4aead7cad9f4f5a38565e65fea2a60aca4a5e068029c"
-    },
-    "inspection": {
-      "base_data_bytes": 4495,
-      "cell_count": 4,
-      "expanded_bytes": 4495,
-      "package_bytes": 1798,
-      "package_sha256": "a89129d104116bc8df7f89dab1d36a39f84e32309d5e163c3c2d4917e793e8cb",
-      "retained_memory_bytes": 1203662,
-      "user_asset_bytes": 0,
-      "validation_peak_bytes": 10027386,
-      "world_content_hash": "36bd47dda37b89408a2fc5a01336795bc1100daef9c29d3113ed45e416dba85b"
     },
     "limitations": [
       "Bridge/elevated decks require explicit surface spawn; no connected ground approach is authored.",
@@ -500,13 +428,13 @@
       }
     ],
     "source_files": {
-      "document.json": "f601fa136833e4b339dcf848e278fee7ce32912a3e58e74989d6c6d0912637f0"
+      "document.json": "68fddd3b8ef998b60eb6d998a0470c3eb0f8a37d9321a0dab9baba32f1df8e15"
     },
     "terrain": {
       "description": "implicit flat terrain",
       "source_accuracy_cm": null,
       "spacing_cm": null
     },
-    "world_scale": 0.125
+    "world_scale": 1.0
   }
 }

@@ -55,10 +55,7 @@ func run() -> void:
 	var out: Array = []
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_loops_fixture.py"),path]),out,true) == 0,"synthetic loop PBF: " + str(out))
 	var source_hash := FileAccess.get_sha256(path)
-	ui._start_import(path,LAYER.OSM_LICENSE)
-	await wait_import(ui)
-	check(ui.pending_import == null and ui.status_label.text.contains("recipe 2"),"recipe 1 cannot silently skip native junctions: " + ui.status_label.text)
-	check(ui.store.apply_command("Choose connected recipe",[{"field":"recipe_version","before":1,"after":2}]) == "","explicit recipe 2")
+	check(ui.store.apply_command("Choose connected recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current generation setup")
 	var base := ProjectSettings.globalize_path("user://baseline")
 	check(ui.store.save_project(base) == "","save baseline")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"export baseline")
@@ -245,7 +242,7 @@ func structural_loops(ui: Control) -> void:
 		check(ui.pending_import != null,"native structural loop review " + mode + ": " + ui.status_label.text)
 		if ui.pending_import == null: continue
 		var raw: Dictionary = ui.pending_import.value.duplicate(true)
-		check(raw.coordinates.osm_ground_loops.profile == "source-node-segments-v2","structural source-kind profile " + mode)
+		check(raw.coordinates.osm_ground_loops.profile == "source-node-segments-v1","structural source-kind profile " + mode)
 		if mode == "closed_bridge":
 			var job := CancelGeneration.new()
 			check(job.start_validation(ui.store,ui.pending_import,false,"structural-loop-test",path,Crypto.new().generate_random_bytes(16).hex_encode()) == "","start owned structural loop cancellation")
@@ -302,7 +299,7 @@ func structural_loops(ui: Control) -> void:
 			await wait_import(ui)
 			check(ui.pending_import != null,"native cropped structural loop " + mode + ": " + ui.status_label.text)
 			if ui.pending_import != null:
-				check(ui.pending_import.value.coordinates.osm_crop.policy == "geometry-intersection-v3","partial structural loop provenance " + mode)
+				check(ui.pending_import.value.coordinates.osm_crop.policy == "geometry-intersection-v1","partial structural loop provenance " + mode)
 				ui._adopt_import()
 				await wait_import(ui)
 				check(ui.store.document.roads.size() == 4,"partial structural loop atomic adoption " + mode + ": " + ui.status_label.text)

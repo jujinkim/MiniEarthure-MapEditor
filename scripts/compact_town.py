@@ -10,7 +10,7 @@ from shapely.ops import unary_union, nearest_points
 
 def compact(t):
     d = t.doc
-    d['recipe_version'] = 5
+    d['recipe_version'] = 1
     # Re-space the seven glove turns in their district before widening the road.
     finger = {r['id'] for r in d['roads'] if r['id'].startswith(('kart-finger-', 'kart-thumb-'))}
     moved = {}

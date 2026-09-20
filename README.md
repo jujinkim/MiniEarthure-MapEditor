@@ -1,5 +1,8 @@
 # MiniEarthure MapEditor
 
+[Current v1 authoring/import contracts](docs/CURRENT_V1.md) supersede historical
+recipe-version selection, automatic promotion and previous-format compatibility.
+
 Independent Godot 4.7.2 Windows/Linux editor foundation, licensed MIT. Requires
 only this repository and its public MapKit submodule; no game installation or
 private repository is needed to build or edit.

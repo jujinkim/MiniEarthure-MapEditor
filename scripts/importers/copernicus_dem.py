@@ -23,7 +23,7 @@ def integer(value, name, low, high):
     return int(value)
 
 
-def grid(options, mosaic=False):
+def grid(options):
     if not isinstance(options, dict) or set(options) - {"osm_denominator"} != {"coordinates", "cell", "cell_size_cm", "map_min_cm", "spacing_cm", "vertical_zero_m", "source"}:
         raise ValueError("Invalid DEM options")
     if not isinstance(options["source"], str) or len(options["source"]) > 4096:
@@ -52,8 +52,6 @@ def grid(options, mosaic=False):
             coordinates.point([lon, lat])  # same strip/hemisphere guard as vectors
             points.append((lon, lat))
     west, south = math.floor(min(p[0] for p in points)), math.floor(min(p[1] for p in points))
-    if not mosaic and (max(p[0] for p in points) >= west+1 or max(p[1] for p in points) >= south+1):
-        raise ValueError("Cell crosses source tiles; multi-tile DEM mosaics require separate implementation")
     return coordinates, side, points, [west, south], zero
 
 
@@ -82,20 +80,6 @@ def identity(path):
             digest.update(chunk)
     if not count: raise ValueError("Empty DEM")
     return {"bytes":count, "sha256":digest.hexdigest()}
-
-
-def plan(options):
-    if "cell_count" in options: return mosaic_plan(options)
-    coordinates, side, points, tile, _ = grid(options)
-    resolution, fallback = 30, False
-    source = local_source(options["source"])
-    # Explicit user-declared 2021 GLO-30 COG; provenance is not authenticated.
-    source_info = dict(identity(source), path=str(source))
-    return dict(adapter="copernicus-dem-v1", release="2021", resolution_m=resolution, fallback90=fallback,
-                license=LICENSE_URL, notice=NOTICE.format(resolution=resolution), vertical_crs="EPSG:3855 / EGM2008 metres",
-                surface="DSM including buildings and vegetation; not bare-earth DTM", projection=coordinates.metadata,
-                tile=tile, bbox=[round(v,9) for v in [min(p[0] for p in points), min(p[1] for p in points), max(p[0] for p in points), max(p[1] for p in points)]],
-                side=side, options=options, source=source_info, checked_at=int(time.time()))
 
 
 def capture(review, partial, destination, progress):
@@ -130,92 +114,13 @@ def raster_dependencies():
     return rasterio, np
 
 
-def sampling_options(review):
-    # Previously captured receipts retain these historical choices as provenance.
-    # Pure local sampling may read them; new plan/execute requests still reject them.
-    options = dict(review["options"])
-    for key in ("allow_download", "fallback90"):
-        if key in options:
-            if type(options.pop(key)) is not bool: raise ValueError("Invalid legacy DEM choice")
-    return options
-
-
-def sample(path, review, progress):
-    path = local_source(path)
-    rasterio, np = raster_dependencies()
-    _, side, points, tile, zero = grid(sampling_options(review))
-    from rasterio.windows import Window
-    # Only local captured GTiff; no VRT/sidecars/network, no overview/downsampling inference.
-    with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", GDAL_PAM_ENABLED="NO", GDAL_CACHEMAX=16*1024*1024), rasterio.open(path, driver="GTiff") as dataset:
-        t = dataset.transform
-        resolution = review["resolution_m"]
-        expected_height = 3600 if resolution == 30 else 1200
-        if dataset.driver != "GTiff" or dataset.crs != rasterio.crs.CRS.from_epsg(4326) or dataset.count != 1 or dataset.dtypes != ("float32",) or dataset.height != expected_height or not 120 <= dataset.width <= expected_height or t.b != 0 or t.d != 0 or t.a <= 0 or t.e >= 0 or dataset.scales != (1.0,) or dataset.offsets != (0.0,):
-            raise ValueError("Expected unscaled north-up WGS84 float32 single-band 2021 COG")
-        if abs(t.a*dataset.width-1) > 1e-8 or abs(-t.e*dataset.height-1) > 1e-8 or abs(t.c+t.a/2-tile[0]) > 1e-8 or abs(t.f+t.e/2-(tile[1]+1)) > 1e-8:
-            raise ValueError("COG sample-centre/tile alignment mismatch")
-        xy = np.asarray(points, dtype=np.float64)
-        cols = (xy[:,0]-t.c)/t.a-0.5
-        rows = (xy[:,1]-t.f)/t.e-0.5
-        c0, r0 = np.floor(cols).astype(int), np.floor(rows).astype(int)
-        if c0.min() < 0 or r0.min() < 0 or c0.max()+1 >= dataset.width or r0.max()+1 >= dataset.height:
-            raise ValueError("Bilinear support crosses COG edge; no padding or silent neighbor substitution")
-        left, top, width, height = int(c0.min()), int(r0.min()), int(c0.max()-c0.min()+2), int(r0.max()-r0.min()+2)
-        if width*height > 1024*1024 or any(h*w > 2048*2048 for h,w in dataset.block_shapes): raise ValueError("DEM decode window/block budget exceeded")
-        window = Window(left,top,width,height)
-        data = dataset.read(1, window=window)
-        mask = dataset.read_masks(1, window=window)
-        cc, rr, dx, dy = c0-left, r0-top, cols-c0, rows-r0
-        samples = [data[rr,cc], data[rr,cc+1], data[rr+1,cc], data[rr+1,cc+1]]
-        if any(not np.isfinite(v).all() for v in samples) or any((m == 0).any() for m in [mask[rr,cc],mask[rr,cc+1],mask[rr+1,cc],mask[rr+1,cc+1]]): raise ValueError("Missing/non-finite DEM support; no ocean/land zero filling")
-        values = sum(v.astype(np.float64)*weight for v,weight in zip(samples,[(1-dx)*(1-dy),dx*(1-dy),(1-dx)*dy,dx*dy]))
-        if (values < -1000).any() or (values > 10000).any(): raise ValueError("DEM elevation outside supported physical range")
-        heights = np.rint((values-zero)*100 / review["options"].get("osm_denominator", 1)).astype(np.int64)
-        low, high = int(heights.min()), int(heights.max())
-        step = max(1, math.ceil((high-low)/65535))
-        if abs(low) > 1000000 or step > 100 or high > 1000000: raise ValueError("Local height/PNG16 range exceeded; choose explicit vertical origin")
-        encoded = np.rint((heights-low)/step).astype('>u2').reshape(side,side)
-        raw = b"".join(b'\0'+row.tobytes() for row in encoded)
-        def chunk(kind, content): return struct.pack('>I',len(content))+kind+content+struct.pack('>I',zlib.crc32(kind+content))
-        png = b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',side,side,16,0,0,0,0))+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b'')
-        progress(side*side, side*side)
-        return png, dict(offset_cm=low, step_cm=step, source_accuracy_cm=None,
-                         resampling="bilinear at full-resolution COG sample centres; local rows +northing", vertical_zero_m=zero,
-                         quantization="nearest ties-to-even cm, then nearest PNG step", max_quantization_error_cm=0.5+step/2,
-                         source_window=[left,top,width,height], source_pixel_degrees=[t.a,-t.e], rasterio=rasterio.__version__, gdal=rasterio.__gdal_version__)
-
-
 def execute(request, scratch, progress):
     if request["mode"] == "dem-plan":
-        progress("acquire",0,0)
+        progress("acquire", 0, 0)
         result = plan(request["options"])
-        progress("sample",0,0)
+        progress("sample", 0, 0)
         return result
-    review = request["plan"]
-    if review.get("adapter") == "copernicus-dem-v2": return execute_mosaic(request, scratch, progress)
-    if not 0 <= time.time()-review["checked_at"] <= 600: raise ValueError("DEM review expired")
-    # Recompute all derived contract fields. Local source identity is rechecked before capture.
-    current = plan(review["options"])
-    if {k:v for k,v in current.items() if k != "checked_at"} != {k:v for k,v in review.items() if k != "checked_at"}:
-        raise ValueError("DEM options/source changed; review again")
-    current["checked_at"] = review["checked_at"]
-    review = current  # JSON consumers may serialize integral values as floats.
-    raster_dependencies()  # actionable failure before any local copy
-    destination = Path(request["destination"])
-    source = capture(review, scratch/"source.tif.part", destination, lambda c,t:progress("acquire",c,t))
-    receipt = dict(review, source=source)
-    with Path(str(destination)+".json").open("x") as stream: json.dump(receipt,stream,sort_keys=True)
-    total = review["side"]**2
-    progress("sample",0,total)
-    png, metadata = sample(destination, review, lambda c,t:progress("sample",c,t))
-    png_path = Path(str(destination)+".png")
-    part = scratch/"dem.png.part"
-    with part.open("xb") as stream:
-        stream.write(png)
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.link(part,png_path)
-    return dict(review=receipt, raster=metadata, png_path=str(png_path), png_sha256=hashlib.sha256(png).hexdigest(), png_bytes=len(png))
+    return execute_cells(request, scratch, progress)
 
 
 MAX_MOSAIC_SAMPLES = 1025 * 1025
@@ -236,7 +141,7 @@ def mosaic_grid(options):
     for y in range(ny):
         for x in range(nx):
             cell_options = dict(base, cell=[base["cell"][0]+x, base["cell"][1]+y])
-            coordinates, side, cell_points, _, zero = grid(cell_options, mosaic=True)
+            coordinates, side, cell_points, _, zero = grid(cell_options)
             cells.append(cell_options["cell"])
             points.append(cell_points)
     # Conservative support envelope for the smallest admitted COG width (120).
@@ -249,19 +154,24 @@ def mosaic_grid(options):
     return coordinates, side, cells, points, tiles, zero
 
 
-def mosaic_plan(options):
+def plan(options):
     coordinates, side, cells, groups, tiles, zero = mosaic_grid(options)
     sources = []
+    selected = Path(options["source"])
+    if not selected.is_absolute(): raise ValueError("Select an absolute local COG file or folder")
+    folder = selected.is_dir()
+    local_source(selected, folder=folder)
+    if not folder and len(tiles) != 1:
+        raise ValueError("Interpolation needs multiple source tiles; select a local folder")
     for tile in tiles:
         resolution, fallback = 30, False
-        folder = local_source(options["source"], folder=True)
-        path = folder / tile_filename(tile)
+        path = selected / tile_filename(tile) if folder else selected
         source = dict(identity(local_source(path)), path=str(path))
         sources.append(dict(tile=tile,resolution_m=resolution,fallback90=fallback,source=source,notice=NOTICE.format(resolution=resolution)))
     if sum(s["source"]["bytes"] for s in sources) > MAX_SOURCE:
         raise ValueError("Combined DEM sources exceed 64 MiB")
     flat = [p for group in groups for p in group]
-    return dict(adapter="copernicus-dem-v2",release="2021",license=LICENSE_URL,
+    return dict(adapter="copernicus-dem-v1",release="2021",license=LICENSE_URL,
                 vertical_crs="EPSG:3855 / EGM2008 metres",surface="DSM including buildings and vegetation; not bare-earth DTM",
                 projection=coordinates.metadata, bbox=[round(v,9) for v in [min(p[0] for p in flat),min(p[1] for p in flat),max(p[0] for p in flat),max(p[1] for p in flat)]],
                 side=side,cells=cells,options=options,sources=sources,checked_at=int(time.time()))
@@ -272,7 +182,7 @@ def mosaic_heights(paths, review, progress):
     from rasterio.windows import Window
     paths = [local_source(path) for path in paths]
     rasterio, np = raster_dependencies()
-    _, side, cells, groups, tiles, zero = mosaic_grid(sampling_options(review))
+    _, side, cells, groups, tiles, zero = mosaic_grid(review["options"])
     with ExitStack() as stack:
         stack.enter_context(rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", GDAL_PAM_ENABLED="NO", GDAL_CACHEMAX=16*1024*1024))
         datasets = {}
@@ -347,10 +257,10 @@ def mosaic_heights(paths, review, progress):
             source_windows=windows,rasterio=rasterio.__version__,gdal=rasterio.__gdal_version__)
 
 
-def execute_mosaic(request,scratch,progress):
+def execute_cells(request,scratch,progress):
     review=request["plan"]
     if not 0<=time.time()-review["checked_at"]<=600: raise ValueError("DEM review expired")
-    current=mosaic_plan(review["options"])
+    current=plan(review["options"])
     if {k:v for k,v in current.items() if k!="checked_at"}!={k:v for k,v in review.items() if k!="checked_at"}: raise ValueError("DEM options/source changed; review again")
     current["checked_at"]=review["checked_at"]
     review=current

@@ -13,3 +13,9 @@ execution, OS/device and platform acceptance are left to the user. Full
 integration, recursive clean-clone, export matrices and prolonged performance
 runs require an explicit user request. Record known failures and user checks
 separately; this supersedes earlier automatic full-suite/final-acceptance rules.
+
+Current v1 replacement (2026-09-20): all own format/protocol numbers remain 1
+unless the user explicitly approves a version change. Runtime state revisions,
+epochs and request IDs are not format versions. No previous-format loaders,
+automatic conversion or legacy compatibility branches. Preserve user datasets,
+original files and Git history. New rules modify the current v1 definition.

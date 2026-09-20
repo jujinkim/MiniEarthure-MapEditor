@@ -58,7 +58,7 @@ class VerticalTests(unittest.TestCase):
         v=Vertical(self.options([1,5,7,13],zero=100))
         converted=v.apply(value)
         clipped,meta=crop(converted,[9.5007,55.5,9.5017,55.502])
-        self.assertEqual(meta["policy"],"geometry-intersection-v3")
+        self.assertEqual(meta["policy"],"geometry-intersection-v1")
         original=converted["features"][1]
         result=clipped["features"][0]
         x=result["geometry"]["coordinates"][0][0]

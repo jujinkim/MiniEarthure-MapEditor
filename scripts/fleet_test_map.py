@@ -23,7 +23,7 @@ def post_glb(width, height):
 
 def create(destination):
     doc = empty("fleet-playground-v1", 12800, 12800)
-    doc["recipe_version"] = 6
+    doc["recipe_version"] = 1
     doc["attributions"] = [dict(source="fleet-playground-v1", license="MIT", notice="Original synthetic ramps, obstacles and ground bypass. No external data.")]
     doc["provenance"].update(tool_id="mapeditor-fleet-test", build_id="fleet-playground-v1",
                              first_created="2026-09-11T00:00:00Z", last_edited="2026-09-11T00:00:00Z")

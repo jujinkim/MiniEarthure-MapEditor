@@ -14,11 +14,11 @@ func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destin
 	document_signature = JSON.stringify(store.document).sha256_text()
 	document_epoch = store.command_epoch
 	_store_id = store.get_instance_id()
-	var outputs: Variant = data.get("outputs", [data])
-	if reviewed.get("adapter") not in ["copernicus-dem-v1", "copernicus-dem-v2"] or outputs is not Array or outputs.is_empty() or outputs.size() > 16: return "Invalid DEM output count."
+	var outputs: Variant = data.get("outputs")
+	if reviewed.get("adapter") != "copernicus-dem-v1" or outputs is not Array or outputs.is_empty() or outputs.size() > 16: return "Invalid DEM output count."
 	for output: Variant in outputs:
 		if output is not Dictionary or not LAYER._hex(output.get("png_sha256"), 64): return "Invalid DEM PNG identity."
-	expected_cells = (data.get("outputs", []).size() if reviewed.get("adapter") == "copernicus-dem-v2" else 1) if not store.document.roads.is_empty() else 0
+	expected_cells = outputs.size() if not store.document.roads.is_empty() else 0
 	if expected_cells > 16: return "DEM exceeds 16 candidate cells."
 	structural = expected_cells > 0
 	request = {"kind":"dem", "request":token, "document":store.document.duplicate(true), "project":project_source,

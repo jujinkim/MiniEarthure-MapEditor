@@ -77,7 +77,7 @@ class Loops(unittest.TestCase):
         value,counts=osm.parse(xml("height").encode(),"osm")
         vertical=Vertical(dict(target="EGM96",zero_m=2,grid=None));value=vertical.apply(value)
         selected,meta=crop(value,BOX)
-        self.assertEqual(meta["policy"],"geometry-intersection-v2")
+        self.assertEqual(meta["policy"],"geometry-intersection-v1")
         layer=self.layer(selected,counts)
         self.assertTrue(all(e["explicit_height"] for e in layer.coordinates["osm_ground_loops"]["retained"]))
         self.assertTrue(all(p[1]==100 for r in layer.patches if r["field"]=="roads" for p in r["after"]["points"]))
@@ -135,7 +135,7 @@ class Loops(unittest.TestCase):
                 value, counts = osm.parse(raw, "osm")
                 layer = self.layer(value, counts)
                 meta = layer.coordinates["osm_ground_loops"]
-                self.assertEqual(meta["profile"], "source-node-segments-v2")
+                self.assertEqual(meta["profile"], "source-node-segments-v1")
                 self.assertEqual(counts["closed_structural_ways"], int(mode.startswith("closed")))
                 structural = [f for f in value["features"] if f["properties"].get("road_kind") != "ground"]
                 self.assertEqual(len(structural), 8 if mode.startswith("closed") else 1)

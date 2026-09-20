@@ -62,7 +62,7 @@ func run() -> void:
 	for field in ["license","adapter","origin"]:
 		var bad := raw.duplicate(true)
 		if field == "license": bad.source.license = "MIT"
-		elif field == "adapter": bad.adapter = "geojson-v2"
+		elif field == "adapter": bad.adapter = "geojson-v1"
 		else: bad.coordinates.origin = [10,55]
 		check(LAYER.new().load_value(bad,raw.layer_id,ui.import_coordinates_request) != "", "forged OSM " + field + " rejected")
 	if DisplayServer.get_name() != "headless":

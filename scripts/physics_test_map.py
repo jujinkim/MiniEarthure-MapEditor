@@ -40,7 +40,7 @@ def terrain_png():
 
 def create(destination):
     doc = empty(PROFILE, SIZE_M * 100, SIZE_M * 100)
-    doc["recipe_version"] = 5
+    doc["recipe_version"] = 1
     doc["attributions"] = [dict(source=PROFILE, license="MIT", notice="Original synthetic terrain for vehicle tuning; no external data or assets.")]
     doc["provenance"].update(tool_id="mapeditor-physics-test", build_id=PROFILE,
                              first_created="2026-09-11T00:00:00Z", last_edited="2026-09-11T00:00:00Z")

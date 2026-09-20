@@ -347,7 +347,7 @@ def convert(parsed, source, raw, *, layer_id, coordinates, accuracy="unknown", p
         if progress: progress(index+1,len(parsed["roads"]))
     layer.warning("Transportation ground graph only; exact connector IDs connect endpoints. Interior connectors split whole source segments. Physical boundaries add geodetically interpolated vertices, never connectors. Crossing coordinates never create graph connections.")
     layer.warning("Explicit connector positions: WGS84 closest position and at are checked; shared ID uses the source connector coordinate with at most 1 mm correction. Ambiguous/off-line positions reject the entire graph.")
-    layer.warning("Chosen road plane is an estimate, not source elevation or terrain sampling. Recipe 2+ ground ribbons follow terrain. Verify terrain alignment before adoption; level is not metric height.")
+    layer.warning("Chosen road plane is an estimate, not source elevation or terrain sampling. Ground ribbons follow terrain. Verify terrain alignment before adoption; level is not metric height.")
     layer.warning("Absent width estimates 8 m; paved/unknown/absent surface estimates asphalt. Source names, routes, destinations and speed limits remain in the snapshot, not game rules. No inferred sidewalks.")
     layer.warning("Complete segment/connector query required. Crossing bbox, missing refs, rail/water, restrictions, structures and incomplete/overlapping/conditional physical rules reject the whole candidate. No clipped or repaired graph.")
     layer.encode()

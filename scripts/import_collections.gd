@@ -21,7 +21,7 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 	for patch: Dictionary in raw.patches:
 		if patch.id.contains("-collection"): records[patch.id] = patch
 	if meta == null: return "Missing GeometryCollection provenance." if not records.is_empty() else ""
-	if raw.adapter != "geojson-v2" or meta is not Dictionary or meta.size() != 3 or meta.get("profile") != "feature-leaves-v1" or meta.get("sources") is not Array or meta.sources.is_empty() or meta.sources.size() > 20000 or meta.get("leaves") is not Array or meta.leaves.size() != raw.feature_count: return "Invalid GeometryCollection profile."
+	if raw.adapter != "geojson-v1" or meta is not Dictionary or meta.size() != 3 or meta.get("profile") != "feature-leaves-v1" or meta.get("sources") is not Array or meta.sources.is_empty() or meta.sources.size() > 20000 or meta.get("leaves") is not Array or meta.leaves.size() != raw.feature_count: return "Invalid GeometryCollection profile."
 	if records.size() != raw.patches.size(): return "Incomplete GeometryCollection record namespace."
 	var state := [0,0,0]
 	for index in range(meta.sources.size()):

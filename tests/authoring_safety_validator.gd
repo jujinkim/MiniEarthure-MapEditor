@@ -18,7 +18,7 @@ func run() -> void:
 	await process_frame
 	var author: RefCounted = ui.canvas.author
 	check(ui.store.save_project(ProjectSettings.globalize_path("user://safety")) == "", "save safety fixture")
-	check(author.recipe(4,"default") == "", "explicit recipe")
+	check(author.set_theme("default") == "", "explicit recipe")
 	var options: Dictionary = author.options.duplicate(true)
 	options.spacing_cm = 200
 	options.radius_cm = 102400
@@ -67,7 +67,7 @@ func run() -> void:
 	if ui.unsaved_dialog.visible:
 		ui.unsaved_dialog.hide()
 		ui._continue_document_action()
-	check(author.recipe(2,"default") == "", "road safety recipe")
+	check(author.set_theme("default") == "", "road safety recipe")
 	author.options.start_cm = 500
 	author.options.end_cm = 500
 	ui.canvas.tool = "Road"
@@ -90,7 +90,7 @@ func run() -> void:
 	if ui.unsaved_dialog.visible:
 		ui.unsaved_dialog.hide()
 		ui._continue_document_action()
-	check(author.recipe(2,"default") == "", "terrain portal recipe")
+	check(author.set_theme("default") == "", "terrain portal recipe")
 	author.options.start_cm = 0
 	author.options.end_cm = 0
 	author.options.kind = "ground"

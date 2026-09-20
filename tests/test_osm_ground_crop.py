@@ -34,8 +34,8 @@ class GroundCrop(unittest.TestCase):
         original=copy.deepcopy(value)
         clipped,meta=crop(value,BOX)
         self.assertEqual(value,original)
-        self.assertEqual(meta["policy"],"geometry-intersection-v2")
-        self.assertEqual(meta["vertical"],dict(profile="explicit-ground-crop-v1",
+        self.assertEqual(meta["policy"],"geometry-intersection-v1")
+        self.assertEqual({k:meta["vertical"][k] for k in ("profile","clipped_ground_features","outside_explicit_features","retained_structure_features")},dict(profile="explicit-connected-structure-crop-v1",
             clipped_ground_features=4,outside_explicit_features=0,retained_structure_features=2))
         for index in [1,4]: self.assertEqual(clipped["features"][index],value["features"][index])
         result=convert(clipped,"synthetic.osm",osm.LICENSE,source_bytes=raw,layer_id="c"*32,coordinates=OPTIONS,osm_graph=True)

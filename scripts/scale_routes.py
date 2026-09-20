@@ -253,8 +253,8 @@ def create(source, package, output, restored, profile='full', mapkit=None, nativ
     if document_semantics(doc) != document_semantics(restored_doc):
         raise ValueError('restored package/source semantics mismatch')
     identity = package_identity(package,metadata['source_hashes'],restored)
-    if profile in ['forest-hill','bridge-shuttle'] and identity['index_version'] != 2:
-        raise ValueError('native route requires current index v2; rebuild the matching MapKit CLI')
+    if profile in ['forest-hill','bridge-shuttle'] and identity['index_version'] != 1:
+        raise ValueError('native route requires current index v1; rebuild the matching MapKit CLI')
     result = dict(format='l02-road-routes-v1', metadata_sha256=digest(source/'scale.json'),
                   source_sha256=metadata['source_hashes']['document.json'],
                   package=identity,

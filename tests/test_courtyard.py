@@ -15,5 +15,5 @@ class CourtyardTests(unittest.TestCase):
    layer=finish(convert(a,'synthetic',LICENSE,layer_id='c'*32,source_bytes=binary,coordinates=dict(mode='wgs84-utm',origin=[9,55],local_origin_m=[512,512])),counts)
    self.assertEqual(len(layer.patches),1);self.assertEqual(len(layer.patches[0]['after']['holes']),1)
    self.assertEqual(layer.point_count,8);self.assertEqual(layer.patches[0]['after']['roof'],'flat')
-   self.assertEqual(path.read_bytes(),binary);self.assertTrue(any('recipe 5' in x for x in layer.warnings))
+   self.assertEqual(path.read_bytes(),binary);self.assertTrue(any('courtyard' in x.lower() for x in layer.warnings))
 if __name__=='__main__':unittest.main()

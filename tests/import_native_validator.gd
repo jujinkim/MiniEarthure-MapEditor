@@ -80,7 +80,7 @@ func run() -> void:
 		ui.import_source_format.select(1); ui.import_source_format.item_selected.emit(1)
 	ui.import_origin_lon.value = 9; ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512; ui.import_origin_y.value = 512
-	if structural_case(): check(ui.store.apply_command("Recipe 2",[{"field":"recipe_version","before":1,"after":2}]) == "", "explicit connected recipe")
+	if structural_case(): check(ui.store.apply_command("Fixture seed",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "", "current setup")
 	var project := ProjectSettings.globalize_path("user://native-project")
 	check(ui.store.save_project(project) == "", "save baseline")
 	var heights := PackedInt64Array(); heights.resize(17*17); heights.fill(0)

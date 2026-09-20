@@ -51,7 +51,7 @@ class ImportLayer:
     source: Source
     coordinates: dict
     import_version: int = 1
-    adapter: str = "geojson-local-v1"
+    adapter: str = "geojson-v1"
     patches: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
     estimates: dict = field(default_factory=dict)

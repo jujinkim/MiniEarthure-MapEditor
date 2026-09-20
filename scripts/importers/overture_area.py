@@ -157,7 +157,7 @@ def finish(layer, metadata):
         prefix = f"import-{layer.layer_id}-{index}"
         count = feature["footprint_count"]
         feature["building_ids"] = [prefix] if count == 1 else [f"{prefix}-part-{part}" for part in range(count)]
-    # Recipe 3+ requires an authored use even for solid multipart islands.
+    # Each building requires an authored use even for solid multipart islands.
     # GeoJSON already counted unknown usage as an estimate; make the fallback
     # explicit without inventing a provider classification.
     for patch in layer.patches:
@@ -168,7 +168,7 @@ def finish(layer, metadata):
     layer.warning("Overture buildings only; crossing footprints retained without clipping. Other themes not queried.")
     layer.warning("Multipart footprints share source identity; horizontal islands retain their source; explicit vertical parent/part mapping is separate.")
     if metadata.get("include_parts"):
-        layer.warning("Vertical solids require explicit recipe 3 or newer (recipe 5 for courtyards). Vertical parts replace parent solids; parent IDs/sources remain in provenance and full geometry in the snapshot. Common ground plane is user supplied, not terrain sampled; verify alignment before adoption. Underground/nonzero level and incomplete families reject. Height is part thickness, not roof altitude.")
+        layer.warning("Vertical parts replace parent solids; parent IDs/sources remain in provenance and full geometry in the snapshot. Common ground plane is user supplied, not terrain sampled; verify alignment before adoption. Underground/nonzero level and incomplete families reject. Height is part thickness, not roof altitude.")
     layer.warning("Legacy base=0, unknown use represented as residential, flat roof/concrete and absent height are estimates; names/facade/roof/floors are not modeled.")
     layer.encode()
     return layer

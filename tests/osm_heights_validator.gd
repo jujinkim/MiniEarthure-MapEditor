@@ -23,7 +23,7 @@ func run() -> void:
 	root.size = Vector2i(1024,720)
 	ui = load("res://main.tscn").instantiate();root.add_child(ui)
 	await process_frame
-	check(ui.store.apply_command("Recipe 2",[{"field":"recipe_version","before":1,"after":2}]) == "","explicit structural recipe")
+	check(ui.store.apply_command("Fixture seed",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current setup")
 	ui.import_python.text=OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	ui.import_source_format.select(1);ui.import_source_format.item_selected.emit(1)
 	ui.import_origin_lon.value=9.5;ui.import_origin_lat.value=55.5
@@ -152,7 +152,7 @@ func run() -> void:
 	ui._start_import(source,LAYER.OSM_LICENSE);await wait_job()
 	check(ui.pending_import!=null and state()==before,"stream crop with full original supplemental heights: "+ui.status_label.text)
 	if ui.pending_import!=null:
-		check(ui.pending_import.value.coordinates.osm_crop.policy=="geometry-intersection-v3" and ui.pending_import.value.coordinates.osm_height_supplement.source.json==heights,"crop keeps original supplement snapshot")
+		check(ui.pending_import.value.coordinates.osm_crop.policy=="geometry-intersection-v1" and ui.pending_import.value.coordinates.osm_height_supplement.source.json==heights,"crop keeps original supplement snapshot")
 	ui._discard_import()
 	check(ui.store.bridge.document_json()==bridge_before,"rejected/cancelled/review candidates preserve loaded bridge")
 	for name: String in hashes:check(FileAccess.get_sha256(directory.path_join(name))==hashes[name],"original preserved: "+name)

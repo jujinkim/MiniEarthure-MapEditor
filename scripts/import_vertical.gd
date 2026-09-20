@@ -94,7 +94,7 @@ static func frame_error(doc: Dictionary, frame: Dictionary, coordinates: Diction
 			var declared: Variant = horizontal.get("vertical", {"target_crs":CRS.EGM96, "vertical_zero_m":0})
 			if declared is not Dictionary: return "Existing OSM vertical provenance is incomplete."
 			other = declared
-		elif meta.get("adapter") in ["copernicus-dem-v1", "copernicus-dem-v2"] and meta.get("dem") is Dictionary:
+		elif meta.get("adapter") == "copernicus-dem-v1" and meta.get("dem") is Dictionary:
 			var active := false
 			var maps: Variant = meta.get("heightmaps", [meta.get("heightmap", {})])
 			if maps is not Array: return "Existing DEM provenance is incomplete."

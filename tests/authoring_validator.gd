@@ -120,7 +120,7 @@ func run() -> void:
 	await click_button("Authoring settings…")
 	check(ui.author_panel.visible and ui.author_panel.tabs.get_tab_count() == 6, "real authoring tabs")
 	ui.author_panel.hide()
-	ok(ui.canvas.author.recipe(4, "rural"), "explicit recipe4/theme")
+	ok(ui.canvas.author.set_theme("rural"), "explicit recipe4/theme")
 	var author: RefCounted = ui.canvas.author
 	author.options.grid_cm = 800
 	author.options.radius_cm = 1600
@@ -194,7 +194,7 @@ func run() -> void:
 	ok(FILES.validate(recovered, recovered.document), "recovered raster native validation")
 	ui._new()
 	ok(ui.store.save_project(ProjectSettings.globalize_path("user://e03-structures")), "new authoring project")
-	ok(author.recipe(4,"urban"), "structure recipe")
+	ok(author.set_theme("urban"), "structure recipe")
 	ok(author.terrain.import_png(flat_path, Vector2i.ZERO, 6400, 0, 1, 500, {"source":"Synthetic E03", "license":"MIT", "notice":"Original"}), "valid PNG import")
 	check(ui.store.document.heightmaps[0].source_accuracy_cm == 500 and ui.store.document.attributions.size() == 1, "accuracy and attribution retained")
 	ok(ui.store.undo(), "undo height import and attribution together")
@@ -273,7 +273,7 @@ func run() -> void:
 	asset.convex_collision[0].faces.pop_back()
 	check(author.asset(asset) != "" and state() == before, "open convex rejects atomically")
 	check(FILES.read(image_path).bytes == bytes, "asset original bytes preserved")
-	ok(author.recipe(6, "urban"), "explicit urban recipe")
+	ok(author.set_theme("urban"), "explicit urban recipe")
 	author.options.surface = "concrete"
 	await shape("Surface area", [Vector2(5000,5000),Vector2(20000,5000),Vector2(20000,15000),Vector2(5000,15000)])
 	check(ui.store.document.surface_areas.size() == 1, "canvas surface paint authoring")
@@ -287,7 +287,7 @@ func run() -> void:
 	ok(author.apply("Mark road", [{"field":"roads","id":marked.id,"before":ui.store.document.roads[0],"after":marked}]), "persist editable road markings")
 	var tree_asset := {"id":"garden-tree", "path":"", "attribution":{"source":"MapEditor synthetic city tree", "license":"MIT", "notice":"Original procedural tree"}, "collision":[{"center":[0,12,0],"size_cm":[65,24,65]},{"center":[0,115,0],"size_cm":[16,180,16]}]}
 	ok(author.asset(tree_asset,"res://examples/driving-school/assets/city-tree.glb"), "import shared planting GLB")
-	ok(author.recipe(7, "urban"), "explicit custom vegetation recipe")
+	ok(author.set_theme("urban"), "explicit custom vegetation recipe")
 	author.options.tree_asset_id = "garden-tree"
 	author.options.tree_radius_cm = 58
 	author.options.tree_clearance_cm = 5

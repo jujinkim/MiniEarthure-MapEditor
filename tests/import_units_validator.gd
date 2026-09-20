@@ -31,7 +31,7 @@ func run() -> void:
 	var generated: Dictionary = JSON.parse_string(store.bridge.generate_chunk(0,0))
 	check(generated.ok, "native generation accepts metric geometry")
 	store.new_document()
-	layer.value.adapter = "geojson-local-v1"
+	layer.value.adapter = "geojson-v1"
 	check(layer.adopt(store) == "" and store.document.buildings[0].height_cm == 800, "custom GeoJSON retains 1:1 dimensions")
 	check(preload("res://scripts/import_units.gd").dem_denominator(authored) == 8, "DEM aligns with adopted OSM scale")
 	check(preload("res://scripts/import_units.gd").dem_denominator(store.document) == 1, "custom DEM is unscaled")

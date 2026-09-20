@@ -2,7 +2,7 @@ extends RefCounted
 ## Editor-only provenance for independent GeoJSON road parts. No graph inference.
 static func validate(raw: Dictionary, boundary: Script) -> String:
 	var meta: Variant = raw.coordinates.get("geojson_multilines")
-	if raw.adapter != "geojson-v2":
+	if raw.adapter != "geojson-v1":
 		return "MultiLineString provenance requires GeoJSON." if meta != null else ""
 	if meta == null:
 		for patch: Dictionary in raw.patches:

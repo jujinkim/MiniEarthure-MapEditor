@@ -16,7 +16,7 @@ func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
-	check(ui.store.apply_command("Choose connected road recipe",[{"field":"recipe_version","before":1,"after":2}]) == "","explicit recipe 2 selection")
+	check(ui.store.apply_command("Choose connected road recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current generation setup")
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	ui.import_source_format.select(1)
 	ui.import_source_format.item_selected.emit(1)
@@ -115,7 +115,7 @@ func check_ground_crop(ui: Control, path: String) -> void:
 			"profile": bad.coordinates.osm_crop.vertical.profile = "guessed"
 			"count": bad.coordinates.osm_crop.vertical.clipped_ground_features = 100
 			"retained": bad.coordinates.osm_crop.vertical.retained_structure_features = 0
-			"downgrade": bad.coordinates.osm_crop.policy = "geometry-intersection-v1"
+			"downgrade": bad.coordinates.osm_crop.policy = "geometry-intersection-v2"
 		check(LAYER.new().load_value(bad,ui.import_identity,ui.import_coordinates_request) != "","forged vertical crop rejected: " + kind)
 	# A crop shorter than one quantized centimetre must fail native review atomically.
 	var collapsed: Dictionary = raw.duplicate(true)
@@ -193,7 +193,7 @@ func check_structure_crop(ui: Control, path: String) -> void:
 	check(ui.import_summary.text.contains("open truncated cross-sections") and ui.import_summary.text.contains("not surveyed entrances"),"section ends and portal limitation reviewed")
 	var raw: Dictionary = ui.pending_import.value.duplicate(true)
 	var crop: Dictionary = raw.coordinates.osm_crop
-	check(crop.policy == "geometry-intersection-v3" and crop.vertical.section_endpoints == 4 and crop.vertical.partial_structure_ways == 2,"partial structure profile/counts reviewed")
+	check(crop.policy == "geometry-intersection-v1" and crop.vertical.section_endpoints == 4 and crop.vertical.partial_structure_ways == 2,"partial structure profile/counts reviewed")
 	for kind in ["missing", "profile", "section-count", "way-count", "partial", "mapping", "duplicate", "range", "role", "endpoint", "downgrade"]:
 		var bad: Dictionary = raw.duplicate(true)
 		var v: Dictionary = bad.coordinates.osm_crop.vertical

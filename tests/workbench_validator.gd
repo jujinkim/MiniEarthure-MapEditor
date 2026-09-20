@@ -96,7 +96,7 @@ func run() -> void:
 	root.add_child(ui)
 	await process_frame
 	await process_frame
-	var patches: Array = [{"field":"recipe_version", "before":1, "after":3}]
+	var patches: Array = []
 	for item in [
 		["buildings", {"id":"house-a","footprint":[[8000,8000],[20000,8000],[20000,20000],[8000,20000]],"base_cm":0,"height_cm":1200,"usage":"residential","material":"concrete","roof":"flat","entrances":[[[10000,6000],[12000,6000],[12000,8000],[10000,8000]]]}],
 		["buildings", {"id":"house-b","footprint":[[28000,8000],[40000,8000],[40000,20000],[28000,20000]],"base_cm":0,"height_cm":1800,"usage":"residential","material":"brick","roof":"flat"}],

@@ -325,11 +325,9 @@ func fresh() -> bool:
 
 func _setup() -> void:
 	var box := page("Map")
-	hint(box, "Recipe 2: terrain-following roads, bridge/tunnel cuts. Recipe 3: buildings, entrances and repeated props. Recipe 4: custom convex proxies and materials. Recipe 6: ground paving, road markings and connected sidewalks. Changing recipe changes world identity; originals are never migrated on load.")
-	var recipe := choice(box, "Recipe", ["1", "2", "3", "4", "5", "6", "7", "8"], str(int(editor.store.document.recipe_version)))
 	var theme := choice(box, "Theme", ["default", "urban", "rural"], editor.store.document.theme)
-	button(box, "Apply recipe and theme", func():
-		if fresh(): report(author.recipe(int(recipe.get_item_text(recipe.selected)), theme.get_item_text(theme.selected)))
+	button(box, "Apply theme", func():
+		if fresh(): report(author.set_theme(theme.get_item_text(theme.selected)))
 	)
 	var bounds: Dictionary = editor.store.document.bounds.duplicate(true)
 	var coordinates: Array = []
@@ -393,7 +391,7 @@ func _drawing() -> void:
 	opt_choice(box, "Planting tree", "tree_asset_id", trees)
 	opt_number(box, "Tree canopy half-width (m)", "tree_radius_cm", 0.01, 2)
 	opt_number(box, "Tree clearance (m)", "tree_clearance_cm", 0, 1000)
-	hint(box, "For custom planting, choose a GLB in recipe 7 and declare a canopy footprint enclosing its collision. Candidates outside the zone or overlapping obstacles are skipped; the count follows spacing and density.")
+	hint(box, "For custom planting, choose a GLB and declare a canopy footprint enclosing its collision. Candidates outside the zone or overlapping obstacles are skipped; the count follows spacing and density.")
 	opt_number(box, "Quarter turns", "quarter_turns", 0, 3, false)
 	hint(box, "Repetition supports builtin fence or streetlight; fence paths are cardinal. Gables require an axis-aligned rectangular footprint. Native overlap and clearance rules apply.")
 
@@ -477,7 +475,7 @@ func _asset_form(box: Node) -> void:
 	var height := number(box, "Proxy height (m)", 2, 0.01, 1000, 0.01)
 	var depth := number(box, "Proxy Y size (m)", 2, 0.01, 1000, 0.01)
 	var boxes := json_edit(box, "Box proxies: center [x,height,y], size_cm [x,height,y]", current.get("collision", [{"center": [0,100,0], "size_cm": [200,200,200]}]))
-	var convexes := json_edit(box, "Convex proxies: vertices [x,height,y], outward triangular faces (recipe 4)", current.get("convex_collision", []))
+	var convexes := json_edit(box, "Convex proxies: vertices [x,height,y], outward triangular faces", current.get("convex_collision", []))
 	button(box, "Replace proxies with sized box", func():
 		boxes.text = JSON.stringify([{"center": [0, roundi(height.value * 50), 0], "size_cm": [roundi(width.value * 100), roundi(height.value * 100), roundi(depth.value * 100)]}], "  ")
 		convexes.text = "[]"
@@ -490,7 +488,7 @@ func _asset_form(box: Node) -> void:
 		convexes.text = JSON.stringify([{"vertices": [[-w,0,-d],[w,0,-d],[-w,0,d],[-w,h,-d]], "faces": [[0,1,2],[0,3,1],[0,2,3],[1,3,2]]}], "  ")
 	)
 	var material_on := CheckButton.new()
-	material_on.text = "Override material (recipe 4)"
+	material_on.text = "Override material"
 	material_on.button_pressed = current.has("material")
 	box.add_child(material_on)
 	var material: Dictionary = current.get("material", {"albedo_rgba": [255,255,255,255], "metallic_per_mille":0, "roughness_per_mille":800, "double_sided":false})
@@ -542,7 +540,7 @@ func _selected() -> void:
 		var clearance := number(box, "Clearance (cm)", float(record.clearance_cm) if record.clearance_cm != null else 400, 1, 10000)
 		var sidewalk := number(box, "Sidewalk (cm; 0 none)", float(record.sidewalk_cm) if record.sidewalk_cm != null else 0, 0, 2000)
 		var markings_on := CheckButton.new()
-		markings_on.text = "Road markings (recipe 6)"
+		markings_on.text = "Road markings"
 		markings_on.button_pressed = record.has("markings")
 		box.add_child(markings_on)
 		var appearance: Dictionary = record.get("markings", {"lanes":2,"center_line":true,"edge_lines":true,"crosswalk_start":false,"crosswalk_end":false})

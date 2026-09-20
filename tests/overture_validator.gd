@@ -42,7 +42,7 @@ func run() -> void:
 	for field in ["license","adapter","provenance","bbox","release","sources"]:
 		var bad:=raw.duplicate(true)
 		if field=="license":bad.source.license="MIT"
-		elif field=="adapter":bad.adapter="geojson-v2"
+		elif field=="adapter":bad.adapter="geojson-v1"
 		elif field=="bbox":bad.coordinates.overture.bbox=[9,55,10,56]
 		elif field=="release":bad.coordinates.overture.release="latest"
 		elif field=="sources":bad.coordinates.overture.feature_sources[0].sources=[]

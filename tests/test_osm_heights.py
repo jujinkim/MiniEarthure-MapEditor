@@ -95,7 +95,7 @@ class HeightSupplementTests(unittest.TestCase):
         converted=v.apply(value);clipped,meta=crop(converted,[9.5007,55.5,9.5017,55.502])
         expected,_=parse(xml(True).encode(),"osm")
         self.assertEqual(clipped,crop(v.apply(expected),[9.5007,55.5,9.5017,55.502])[0])
-        self.assertEqual(meta["policy"],"geometry-intersection-v3")
+        self.assertEqual(meta["policy"],"geometry-intersection-v1")
         bad=grid();bad["bbox"][0]=9.5001
         with self.assertRaisesRegex(ValueError,"outside correction grid"):
             Vertical(dict(target="EGM2008",zero_m=102,grid=json.dumps(bad))).apply(value)

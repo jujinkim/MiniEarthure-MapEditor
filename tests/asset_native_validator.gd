@@ -66,7 +66,7 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate(); root.add_child(ui)
 	await process_frame
 	project = ProjectSettings.globalize_path("user://asset-project")
-	check(ui.canvas.author.recipe(4, "default") == "", "recipe for native asset validation")
+	check(ui.canvas.author.set_theme("default") == "", "recipe for native asset validation")
 	check(ui.store.save_project(project) == "", "save isolated asset project")
 	source = ProjectSettings.globalize_path("user://asset.png")
 	var picture := Image.create(4,4,false,Image.FORMAT_RGBA8); picture.fill(Color.YELLOW)

@@ -38,7 +38,7 @@ def compose(profile,architecture=None,climate=None,settlement=None,sign=None):
 def scene(profile,library,signs,**overrides):
     config=compose(profile,**overrides)
     doc=empty('world-'+profile+'-v1',9600,1600)
-    doc.update(recipe_version=6,bounds={'min':[0,0],'max':[9600,6400]},surface_areas=[])
+    doc.update(recipe_version=1,bounds={'min':[0,0],'max':[9600,6400]},surface_areas=[])
     doc['provenance'].update(tool_id='mapeditor-world-themes',build_id='world-themes-v1',first_created='2026-09-11T00:00:00Z',last_edited='2026-09-11T00:00:00Z')
     # Axis metadata is inert attribution, content independent of UI language.
     doc['attributions']=[ATTRIBUTION,dict(source='world-authoring-profile',license='MIT',notice=json.dumps(config,sort_keys=True))]

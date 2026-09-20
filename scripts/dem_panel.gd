@@ -94,7 +94,7 @@ func _mosaic_summary() -> String:
 func options() -> Dictionary:
 	var result := {"coordinates":{"mode":"wgs84-utm","origin":[fields.Longitude.value,fields.Latitude.value],"local_origin_m":[fields["Local origin x (m)"].value,fields["Local origin y (m)"].value]},"cell":[fields["Cell x"].value,fields["Cell y"].value],"cell_size_cm":editor.store.document.cell_size_cm,"map_min_cm":editor.store.document.bounds.min.duplicate(),"spacing_cm":fields["Spacing (cm)"].value,"vertical_zero_m":fields["EGM2008 at local zero (m)"].value,"source":source.text.strip_edges()}
 
-	if mosaic.button_pressed: result["cell_count"] = [fields["Cell columns"].value,fields["Cell rows"].value]
+	result["cell_count"] = [fields["Cell columns"].value,fields["Cell rows"].value] if mosaic.button_pressed else [1.0,1.0]
 	var denominator := preload("./import_units.gd").dem_denominator(editor.store.document)
 	if denominator != 1: result["osm_denominator"] = denominator
 	return result
@@ -157,12 +157,12 @@ func finish(mode: String, result: Dictionary) -> void:
 		editor._status("Invalid DEM result.")
 		return
 	if mode == "dem-plan":
-		if JSON.stringify(result.data.get("options")) != JSON.stringify(requested) or result.data.get("adapter") != ("copernicus-dem-v2" if requested.has("cell_count") else "copernicus-dem-v1") or result.data.get("license") != LAYER.LICENSE:
+		if JSON.stringify(result.data.get("options")) != JSON.stringify(requested) or result.data.get("adapter") != "copernicus-dem-v1" or result.data.get("license") != LAYER.LICENSE:
 			editor._status("DEM review does not match requested source.")
 			return
 		plan = result.data
 		summary.text = "Review before local copying: source accuracy unknown locally; output spacing is not source accuracy.\nBilinear samples become local height = EGM2008 height − chosen local-zero height.\n" + JSON.stringify(plan,"  ")
-		if requested.has("cell_count"): summary.text = _mosaic_summary()
+		summary.text = _mosaic_summary()
 		get_ok_button().disabled = false
 		return
 	discard()

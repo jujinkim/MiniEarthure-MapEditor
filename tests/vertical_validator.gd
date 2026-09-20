@@ -21,7 +21,7 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
-	check(ui.store.apply_command("Choose connected road recipe",[{"field":"recipe_version","before":1,"after":2}]) == "","explicit recipe 2 selection")
+	check(ui.store.apply_command("Choose connected road recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current generation setup")
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	var directory := ProjectSettings.globalize_path("user://")
 	var output: Array = []
@@ -173,7 +173,7 @@ func run() -> void:
 	ui._start_import(source,LAYER.OSM_LICENSE);await wait_job()
 	check(ui.pending_import!=null and state()==before,"streaming converted partial structures native review: "+ui.status_label.text)
 	if ui.pending_import!=null:
-		check(ui.pending_import.value.coordinates.osm_crop.policy=="geometry-intersection-v3" and ui.pending_import.value.coordinates.vertical.grid_source.json==original_grid,"streaming crop retains source correction")
+		check(ui.pending_import.value.coordinates.osm_crop.policy=="geometry-intersection-v1" and ui.pending_import.value.coordinates.vertical.grid_source.json==original_grid,"streaming crop retains source correction")
 	ui._discard_import()
 	for name: String in hashes:check(FileAccess.get_sha256(directory.path_join(name))==hashes[name],"original preserved: "+name)
 	check(FileAccess.get_sha256(package)==package_hash,"prior package preserved through rejection/cancel/retry")

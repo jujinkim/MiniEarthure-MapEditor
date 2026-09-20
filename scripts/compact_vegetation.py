@@ -10,7 +10,7 @@ from city_assets import tree, TREE_CANOPY_WIDTH_M
 
 def configure_vegetation(t):
     name = tree(t)
-    t.doc['recipe_version'] = 7
+    t.doc['recipe_version'] = 1
     for zone in t.doc['zones']:
         # The map defines polygons, exclusions and 700/800 per-mille density.
         # Spacing uses metres appropriate to the shared 3.25 m city model.

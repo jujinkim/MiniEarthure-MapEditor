@@ -8,17 +8,17 @@ static func inputs(request: Dictionary) -> Dictionary:
 	var groups := {"original":0, "capture":0, "png":0, "project":0}
 	var reviewed: Dictionary = request.reviewed
 	var data: Dictionary = request.data
-	var sources: Variant = reviewed.get("sources", [{"source":reviewed.get("source")}])
+	var sources: Variant = reviewed.get("sources")
 	if sources is not Array or sources.is_empty() or sources.size() > 4: return {"error":"Invalid DEM source count."}
 	var entries: Array = []
 	for index in range(sources.size()):
 		if sources[index] is not Dictionary or sources[index].get("source") is not Dictionary: return {"error":"Invalid DEM source identity."}
 		var source: Dictionary = sources[index].source
 		if source.get("path") is not String: return {"error":"DEM requires a reviewed local source."}
-		var capture: String = request.destination + (".source-%d.tif" % index if reviewed.get("adapter") == "copernicus-dem-v2" else "")
+		var capture: String = request.destination + (".source-%d.tif" % index)
 		entries.append([source.path, source.get("bytes"), source.get("sha256"), "original"])
 		entries.append([capture, source.get("bytes"), source.get("sha256"), "capture"])
-	var outputs: Variant = data.get("outputs", [data])
+	var outputs: Variant = data.get("outputs")
 	if outputs is not Array or outputs.is_empty() or outputs.size() > 16: return {"error":"Invalid DEM output count."}
 	for output: Variant in outputs:
 		if output is not Dictionary: return {"error":"Invalid DEM output identity."}

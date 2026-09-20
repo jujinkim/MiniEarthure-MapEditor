@@ -38,7 +38,7 @@ class AtmosphereAssets(unittest.TestCase):
                 destination=Path(temporary)/concept
                 doc=module.upgrade(source,destination,concept)
                 self.assertEqual(doc["environment"]["concept"],concept)
-                self.assertEqual(doc["recipe_version"],8)
+                self.assertEqual(doc["recipe_version"],1)
                 self.assertEqual(before,(source/"document.json").read_bytes())
                 with self.assertRaises(FileExistsError):module.upgrade(source,destination,concept)
 if __name__=="__main__":unittest.main()

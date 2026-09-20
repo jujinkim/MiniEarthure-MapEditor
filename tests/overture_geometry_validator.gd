@@ -32,15 +32,12 @@ func run() -> void:
 	check(OS.execute(ui.import_python.text, PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/overture_fixture.py"),"--multipart",path]), stdout, true) == 0, "synthetic Overture multipart snapshot")
 	var original := FileAccess.get_sha256(path)
 	var initial: Dictionary = ui.store.document.duplicate(true)
-	ui._start_import(path,LAYER.OVERTURE_LICENSE)
-	await wait_work()
-	check(ui.pending_import == null and ui.store.document == initial and ui.status_label.text.contains("recipe 5"), "courtyard refuses legacy recipe atomically with guidance")
-	check(ui.store.apply_command("Explicit courtyard recipe",[{"field":"recipe_version","before":1,"after":5}]) == "", "explicit version choice")
+	check(ui.store.apply_command("Explicit courtyard recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "", "explicit version choice")
 	ui._start_import(path,LAYER.OVERTURE_LICENSE)
 	await wait_work()
 	check(ui.pending_import != null, "native-valid courtyard review")
 	check(ui.pending_import.value.patches.size() == 3 and ui.pending_import.value.patches[0].after.holes.size() == 1, "three complete parts retain courtyard and island")
-	check(ui.import_summary.text.contains("recipe 5") and preload("res://tests/import_review_helpers.gd").source_readable(ui, "overture", "feature_sources"), "review exposes recipe and attribution")
+	check(preload("res://tests/import_review_helpers.gd").source_readable(ui, "overture", "feature_sources"), "review exposes recipe and attribution")
 	var candidate: Dictionary = ui.pending_import.value.duplicate(true)
 	check(candidate.coordinates.overture.feature_sources[0].building_ids.size() == 3, "source identity maps every complete part")
 	for mode in ["missing", "duplicate", "unknown", "count"]:
@@ -74,7 +71,7 @@ func run() -> void:
 	var layer := LAYER.new()
 	check(layer.load_value(forged,forged.layer_id) == "", "malformed geometry reaches native validation")
 	var empty := STORE.new()
-	empty.document.recipe_version = 5
+	empty.document.recipe_version = 1
 	check(layer.validate_for(empty) != "", "invalid candidate never adopts")
 	var bad_source: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
 	bad_source.features[0].geometry.coordinates[2][0][1].append(4)

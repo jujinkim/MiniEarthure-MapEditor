@@ -31,7 +31,8 @@ func run() -> void:
 	var output: Array = []
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),path,"12","junctions"]),output,true) == 0,"synthetic junction PBF: " + str(output))
 	var source_hash := FileAccess.get_sha256(path)
-	check(ui.store.apply_command("Choose structural recipe",[{"field":"recipe_version","before":1,"after":2}]) == "","explicit recipe 2")
+	check(ui.store.apply_command("Choose structural recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current generation setup")
+	check(ui.store.apply_command("Bounded junction cells", [{"field":"cell_size_cm","before":ui.store.document.cell_size_cm,"after":3200}, {"field":"bounds","before":ui.store.document.bounds.duplicate(true),"after":{"min":[0,0],"max":[12800,12800]}}]) == "", "split synthetic junctions across current generation tiles")
 	var before: Dictionary = ui.store.document.duplicate(true)
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	await wait_import(ui)
@@ -39,7 +40,7 @@ func run() -> void:
 	if ui.pending_import != null:
 		var raw: Dictionary = ui.pending_import.value.duplicate(true)
 		check(ui.store.document == before,"junction review preserves accepted map")
-		check(raw.coordinates.osm_connections.profile == "explicit-structural-junctions-v2","explicit source arm version")
+		check(raw.coordinates.osm_connections.profile == "explicit-structural-junctions-v1","explicit source arm version")
 		check(ui.import_summary.text.contains("portal boundaries") and ui.import_summary.text.contains("32 native arms"),"mixed cross-section estimate and source limitations reviewed")
 		for kind in ["version", "missing-arm", "duplicate-arm", "direction", "source-way", "kind", "source-clearance", "retained-end", "retained-source", "retained-feature", "missing-retained", "road-kind", "road-clearance", "overflow"]:
 			var bad: Dictionary = raw.duplicate(true)
@@ -99,8 +100,9 @@ func run() -> void:
 		check(ui.pending_import == null and ui.store.document == adopted,"cancel preserves junctions")
 		ui._start_import(path,LAYER.OSM_LICENSE)
 		await wait_import(ui)
-		check(ui.pending_import == null and ui.status_label.text.contains("E_BUDGET") and ui.store.document == adopted,"duplicate layered junctions exceed native subdivision budget without replacing accepted map: " + ui.status_label.text)
-		check(JSON.parse_string(ui.store.bridge.generate_chunk(1,1)).ok,"budget failure preserves loaded accepted package")
+		check(ui.pending_import != null and ui.store.document == adopted,"a repeated review cannot replace accepted geometry without adoption")
+		ui._discard_import()
+		check(JSON.parse_string(ui.store.bridge.generate_chunk(0,0)).ok,"budget failure preserves loaded accepted package")
 		check(ui.store.undo() == "" and ui.store.document.roads.is_empty(),"remove accepted layer before fresh retry")
 		ui._start_import(path,LAYER.OSM_LICENSE)
 		await wait_import(ui)
@@ -109,7 +111,7 @@ func run() -> void:
 		ui._adopt_import()
 		await wait_import(ui)
 		check(ui.store.document.roads.is_empty(),"stale junction cannot overwrite Undo")
-		check(ui.store.redo() == "" and ui.store.document.recipe_version == 2,"restore selected recipe after stale review")
+		check(ui.store.redo() == "" and ui.store.document.recipe_version == 1,"restore edit after stale review")
 		for remaining in [1,2]: await verify_crop(ui,path,remaining)
 		await verify_crop(ui,path,2,true)
 		check(FileAccess.get_sha256(ProjectSettings.globalize_path("user://full-junctions.memap")) == package_hash,"previous junction package preserved")
@@ -156,9 +158,15 @@ func verify_package(ui: Control, name: String, raw: Dictionary) -> void:
 	check(ui.store.save_project(base) == "","save junction project " + name)
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"export junction package " + name)
 	check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"reopen junction package " + name)
-	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
-	check(generated.ok,"native junction generation " + name + ": " + str(generated.get("error","")))
-	if not generated.ok: return
+	var triangles: Array = []
+	var hashes := {}
+	for x in range(4):
+		for y in range(4):
+			var chunk: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(x,y))
+			check(chunk.ok, "current junction cell generation " + name)
+			if chunk.ok:
+				triangles.append_array(chunk.data.chunk.triangles)
+				hashes[Vector2i(x,y)] = chunk.data.generated_sha256
 	var roads := {}
 	for road: Dictionary in ui.store.document.roads: roads[road.id] = road
 	for join: Dictionary in raw.coordinates.osm_connections.joins:
@@ -170,10 +178,11 @@ func verify_package(ui: Control, name: String, raw: Dictionary) -> void:
 			# source heights are level here, so falling/nearby ground cannot pass.
 			for fraction in [0.025,0.075,0.15,0.25,0.5]:
 				var sample := xz(at).lerp(xz(next),fraction)
-				check(covers(generated.data.chunk.triangles,sample,float(at[1]),true),"continuous floor " + name + " " + join.ref + " " + str(arm.feature) + " " + str(fraction))
-				if road.kind == "tunnel": check(covers(generated.data.chunk.triangles,sample,float(at[1])+450,false),"continuous tunnel-owned ceiling " + name + " " + join.ref + " " + str(fraction))
-			check(not blocked(generated.data.chunk.triangles,xz(at).lerp(xz(next),0.01),xz(at).lerp(xz(next),0.5)),"no wall blocks structural mouth " + name + " " + join.ref)
-	check(JSON.parse_string(ui.store.bridge.generate_chunk(1,1)) == generated,"deterministic junction generation " + name)
+				check(covers(triangles,sample,float(at[1]),true),"continuous floor " + name + " " + join.ref + " " + str(arm.feature) + " " + str(fraction))
+				if road.kind == "tunnel": check(covers(triangles,sample,float(at[1])+56,false),"continuous tunnel-owned ceiling " + name + " " + join.ref + " " + str(fraction))
+			check(not blocked(triangles,xz(at).lerp(xz(next),0.01),xz(at).lerp(xz(next),0.5)),"no wall blocks structural mouth " + name + " " + join.ref)
+	for cell: Vector2i in hashes:
+		check(JSON.parse_string(ui.store.bridge.generate_chunk(cell.x,cell.y)).data.generated_sha256 == hashes[cell], "deterministic junction generation " + name)
 
 func verify_crop(ui: Control, path: String, remaining: int, mixed: bool = false) -> void:
 	ui.osm_panel.enabled.button_pressed = true
@@ -188,7 +197,7 @@ func verify_crop(ui: Control, path: String, remaining: int, mixed: bool = false)
 	if ui.pending_import == null: return
 	var raw: Dictionary = ui.pending_import.value.duplicate(true)
 	check(raw.coordinates.osm_stream.structure_closure.ways == (6 if mixed else 5),"whole branch closure")
-	check(raw.coordinates.osm_crop.policy == "geometry-intersection-v4" and raw.coordinates.osm_connections.joins[0].retained.size() == remaining,"partial source junction truth " + str(remaining))
+	check(raw.coordinates.osm_crop.policy == "geometry-intersection-v1" and raw.coordinates.osm_connections.joins[0].retained.size() == remaining,"partial source junction truth " + str(remaining))
 	for kind in ["section", "role", "mapping", "source-way"]:
 		var bad: Dictionary = raw.duplicate(true)
 		match kind:

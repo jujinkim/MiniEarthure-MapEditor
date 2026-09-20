@@ -23,7 +23,7 @@ class StructureCrop(unittest.TestCase):
         output,meta=crop(value,BOX)
         self.assertEqual(value,original)
         self.assertEqual(crop(value,BOX),(output,meta))
-        self.assertEqual(meta["policy"],"geometry-intersection-v3")
+        self.assertEqual(meta["policy"],"geometry-intersection-v1")
         v=meta["vertical"]
         self.assertEqual(v["partial_structure_ways"],2)
         self.assertEqual(v["section_endpoints"],4)

@@ -43,7 +43,10 @@ class Connections(unittest.TestCase):
             for ref in refs: way.remove(ref)
             for ref in reversed(refs): way.append(ref)
         reversed_value, _ = self.parse(root)
-        self.assertEqual(reversed_value["osm_connections"], value["osm_connections"])
+        expected = copy.deepcopy(value["osm_connections"])
+        for join in expected:
+            for arm in join["source_arms"]: arm["end"] = "from" if arm["end"] == "to" else "to"
+        self.assertEqual(reversed_value["osm_connections"], expected)
         root = ET.fromstring(raw)
         duplicate = copy.deepcopy(root.find("node[@id='3']")); duplicate.set("id", "100"); root.insert(0, duplicate)
         root.find("way[@id='3']/nd").set("ref", "100")
@@ -110,7 +113,7 @@ class Connections(unittest.TestCase):
         value,_ = self.parse(); original = copy.deepcopy(value)
         output, meta = crop(value, JOIN_BOX)
         self.assertEqual(value, original)
-        self.assertEqual(meta["policy"],"geometry-intersection-v4")
+        self.assertEqual(meta["policy"],"geometry-intersection-v1")
         self.assertEqual(meta["vertical"]["partial_structure_ways"],0)
         self.assertEqual(meta["vertical"]["section_endpoints"],4)
         self.assertEqual(set(meta["vertical"]["connection_sections"]), {"3","4","9","10"})
@@ -119,7 +122,7 @@ class Connections(unittest.TestCase):
         self.assertTrue(all(len(j["retained"]) == 1 for j in layer.coordinates["osm_connections"]["joins"]))
         # Keeping both original arms retains one graph join; synthetic cuts remain separate.
         output, meta = crop(value,[9.0006,54.9999,9.0012,55.001])
-        self.assertEqual(meta["policy"],"geometry-intersection-v3")
+        self.assertEqual(meta["policy"],"geometry-intersection-v1")
         self.assertEqual(output["features"][0]["properties"]["osm_node_refs"][-1], 3)
         self.assertEqual(output["features"][1]["properties"]["osm_node_refs"][0], 3)
 
@@ -175,7 +178,7 @@ class Connections(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stderr.decode())
             saved = output.read_bytes(); layer = json.loads(saved)
             self.assertEqual(layer["source"]["sha256"],hashlib.sha256(raw).hexdigest())
-            self.assertEqual(layer["coordinates"]["osm_crop"]["policy"],"geometry-intersection-v4")
+            self.assertEqual(layer["coordinates"]["osm_crop"]["policy"],"geometry-intersection-v1")
             self.assertEqual(layer["coordinates"]["vertical"]["explicit_roads"],10)
             self.assertIn("two distinct explicit ground connections"," ".join(layer["warnings"]))
             self.assertTrue(all(len(w)<=512 for w in layer["warnings"]))

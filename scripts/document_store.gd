@@ -112,7 +112,7 @@ func _patch_error(patch: Variant) -> String:
 	if field in VALUE_FIELDS:
 		if patch.get("id", "") != "":
 			return "Map-value commands have no record ID."
-		if field == "environment": return "" # Optional profile: undo restores absence on legacy recipes.
+		if field == "environment": return "" # Optional map profile: Undo restores its absence.
 		return "Map values cannot be removed." if patch.before == null or patch.after == null else ""
 	if field not in RECORD_FIELDS:
 		return "Unsupported command field: " + field
@@ -374,7 +374,7 @@ func recover(path: String) -> String:
 	var validation := _validate(content)
 	if not validation.ok:
 		return reason(validation)
-	if envelope and value.has("recovery_version"):
+	if envelope:
 		if value.recovery_version != 1 or value.get("document_sha256") != str(validation.data.canonical).sha256_text():
 			return "Unsupported or corrupt recovery snapshot."
 		if value.get("project_path") is not String or value.get("base_sha256") is not String:

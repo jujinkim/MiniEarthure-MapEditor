@@ -62,7 +62,7 @@ def make(profile="mixed", size_m=2000, town=None):
     tiles = ((size-3200)//TILE_CM)//2*2
     origin = ((size-tiles*TILE_CM)//2//CELL_CM)*CELL_CM
     doc = empty(f"{PROFILE}-{profile}-{size_m}m", size, CELL_CM)
-    doc.update(recipe_version=6, surface_areas=[])
+    doc.update(recipe_version=1, surface_areas=[])
     doc["provenance"].update(tool_id="mapeditor-scale-maps", build_id=PROFILE,
         first_created="2026-09-11T00:00:00Z", last_edited="2026-09-11T00:00:00Z")
     doc["attributions"] = [dict(source=PROFILE,license="MIT",notice=

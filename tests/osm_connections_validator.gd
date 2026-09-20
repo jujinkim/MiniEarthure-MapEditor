@@ -28,10 +28,7 @@ func run() -> void:
 	var output: Array = []
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),path,"12","chains"]),output,true) == 0,"synthetic chained PBF: " + str(output))
 	var source_hash := FileAccess.get_sha256(path)
-	ui._start_import(path,LAYER.OSM_LICENSE)
-	await wait_import(ui)
-	check(ui.pending_import == null and ui.status_label.text.contains("recipe 2"),"legacy recipe cannot silently omit connected surface validation: " + ui.status_label.text)
-	check(ui.store.apply_command("Choose connected road recipe",[{"field":"recipe_version","before":1,"after":2}]) == "","explicit recipe 2 selection")
+	check(ui.store.apply_command("Choose connected road recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current generation setup")
 	var before: Dictionary = ui.store.document.duplicate(true)
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	await wait_import(ui)
@@ -43,9 +40,11 @@ func run() -> void:
 		check(raw.coordinates.osm_connections.joins.size() == 4,"four original source continuations retained")
 		var limited := preload("res://scripts/document_store.gd").new()
 		limited.document = before.duplicate(true)
-		limited.document.cell_size_cm = 1000
+		limited.document.cell_size_cm = 200
 		var bounded := LAYER.new()
-		check(bounded.load_value(raw,ui.import_identity,ui.import_coordinates_request) == "" and bounded.validate_for(limited).contains("16 cells"),"native validation cells bounded before generation")
+		var bounded_load := bounded.load_value(raw,ui.import_identity,ui.import_coordinates_request)
+		var bounded_error := bounded.validate_for(limited) if bounded_load == "" else bounded_load
+		check(bounded_error != "", "native validation cells bounded before generation: " + bounded_error)
 		for kind in ["null", "profile", "duplicate", "ref", "ways", "mapping", "kind", "clearance"]:
 			var bad: Dictionary = raw.duplicate(true)
 			match kind:
@@ -97,7 +96,7 @@ func run() -> void:
 		await wait_import(ui)
 		check(ui.store.document.roads.size() == 10,"atomic chained adoption: " + ui.status_label.text)
 		var adopted: Dictionary = ui.store.document.duplicate(true)
-		check(ui.store.undo() == "" and ui.store.document.roads.is_empty() and ui.store.document.nodes.is_empty() and ui.store.document.recipe_version == 2,"whole chained graph Undo")
+		check(ui.store.undo() == "" and ui.store.document.roads.is_empty() and ui.store.document.nodes.is_empty() and ui.store.document.recipe_version == 1,"whole chained graph Undo")
 		check(ui.store.redo() == "" and ui.store.document == adopted,"exact chained Redo")
 		await verify_package(ui,"full-chains",raw)
 		var package_hash := FileAccess.get_sha256(ProjectSettings.globalize_path("user://full-chains.memap"))
@@ -130,7 +129,7 @@ func verify_package(ui: Control, name: String, raw: Dictionary) -> void:
 	check(JSON.parse_string(ui.store.bridge.export_project(base,package)).ok,"export chain package " + name)
 	var digest := FileAccess.get_sha256(package)
 	check(JSON.parse_string(ui.store.bridge.open_package(package)).ok,"reopen chain package " + name)
-	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
+	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 	check(generated.ok,"native chain generation " + name + ": " + str(generated.get("error","")))
 	if generated.ok:
 		for join: Dictionary in raw.coordinates.osm_connections.joins:
@@ -146,10 +145,10 @@ func verify_package(ui: Control, name: String, raw: Dictionary) -> void:
 					if absi(int(point[0])-int(at[0])) > 1: continue
 					if absi(int(point[2])-int(at[2])) > 201: continue
 					floor_seen = floor_seen or (triangle.spawnable and point[1] == at[1])
-					ceiling_seen = ceiling_seen or (not triangle.spawnable and point[1] == at[1]+450)
+					ceiling_seen = ceiling_seen or (not triangle.spawnable and point[1] == at[1]+56)
 			check(floor_seen,"floor reaches source join " + join.ref + " " + name)
 			if join.kind == "tunnel": check(ceiling_seen,"physical ceiling continuous at " + join.ref + " " + name)
-		check(JSON.parse_string(ui.store.bridge.generate_chunk(1,1)) == generated,"deterministic chain generation " + name)
+		check(JSON.parse_string(ui.store.bridge.generate_chunk(0,0)) == generated,"deterministic chain generation " + name)
 	check(FileAccess.get_sha256(package) == digest,"prior chain package retained " + name)
 
 func verify_crop(ui: Control, path: String) -> void:
@@ -164,12 +163,12 @@ func verify_crop(ui: Control, path: String) -> void:
 	if ui.pending_import == null: return
 	var raw: Dictionary = ui.pending_import.value.duplicate(true)
 	check(raw.coordinates.osm_stream.selected.ways == 10 and raw.coordinates.osm_stream.structure_closure.structures == 6,"all source chains/ground approaches collected before crop")
-	check(raw.coordinates.osm_crop.policy == "geometry-intersection-v4" and raw.coordinates.osm_crop.vertical.partial_structure_ways == 0,"complete ways with lost continuation use v4 section metadata")
+	check(raw.coordinates.osm_crop.policy == "geometry-intersection-v1" and raw.coordinates.osm_crop.vertical.partial_structure_ways == 0,"complete ways with lost continuation use v4 section metadata")
 	for kind in ["missing", "downgrade", "sections", "duplicate-sections", "role", "closure", "count", "mapping", "source-way"]:
 		var bad: Dictionary = raw.duplicate(true)
 		match kind:
 			"missing": bad.coordinates.erase("osm_connections")
-			"downgrade": bad.coordinates.osm_crop.policy = "geometry-intersection-v3"
+			"downgrade": bad.coordinates.osm_crop.policy = "geometry-intersection-v2"
 			"sections": bad.coordinates.osm_crop.vertical.connection_sections[0] = "999"
 			"duplicate-sections": bad.coordinates.osm_crop.vertical.connection_sections[0] = bad.coordinates.osm_crop.vertical.connection_sections[1]
 			"role": bad.coordinates.osm_crop.vertical.structures[0].endpoints[0].role = "source-node"

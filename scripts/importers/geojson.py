@@ -65,7 +65,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     raw = b"" if captured_source is not None else source_bytes if source_bytes is not None else json.dumps(value, sort_keys=True, allow_nan=False).encode()
     transform = Coordinates(coordinates)
     topology_budget = Budget()
-    layer = ImportLayer(layer_id or uuid.uuid4().hex, captured_source or Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v2")
+    layer = ImportLayer(layer_id or uuid.uuid4().hex, captured_source or Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v1")
     features = value.get("features")
     if not isinstance(features, list) or not 1 <= len(features) <= 20_000:
         raise ValueError("expected 1..20000 features")
@@ -185,7 +185,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                         if usage not in ("residential", "commercial", "industrial", "public"):
                             usage = "residential"
                             layer.estimate("courtyard_usage")
-                        layer.warning("Building courtyard requires explicit recipe 5 and flat roof; choose recipe 5 before review/adoption.")
+                        layer.warning("Building courtyard uses the current flat-roof profile.")
                     layer.add("buildings", {"id": part_id, "footprint": polygon,
                         **({"holes": [hole[:-1] for hole in rings[1:]]} if len(rings) > 1 else {}),
                         "base_cm": round(scalar("base_m", 0) * 100), "height_cm": round(scalar("height_m", 12, 0.01, 1000) * 100),
@@ -218,14 +218,11 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             if p.get("road_kind") not in ("bridge", "tunnel"): continue
             for end, ref in (("from", p["osm_node_refs"][0]), ("to", p["osm_node_refs"][-1])):
                 retained.setdefault(str(ref), []).append(dict(feature=index, source_way=str(p["osm_way_id"]), end=end))
-        extended = any("source_arms" in entry for entry in value["osm_connections"])
         joins = []
         for entry in value["osm_connections"]:
             arms = retained.get(entry["ref"], [])
-            if "source_arms" not in entry:
-                arms = [{k: v for k, v in arm.items() if k != "end"} for arm in arms]
             joins.append(dict(entry, retained=arms))
-        layer.coordinates["osm_connections"] = dict(profile="explicit-structural-junctions-v2" if extended else "same-kind-endpoints-v1", joins=joins)
+        layer.coordinates["osm_connections"] = dict(profile="explicit-structural-junctions-v1", joins=joins)
     layer.encode()  # Bound the complete contract before handing it to any caller.
     return layer
 
@@ -359,13 +356,13 @@ def main():
             result.warning_count += 1
         if osm_crop is not None:
             result.coordinates["osm_crop"] = osm_crop
-            if osm_crop["policy"] in ("geometry-intersection-v3", "geometry-intersection-v4"):
+            if osm_crop["vertical"]["section_endpoints"] > 0:
                 result.warnings.insert(0, "Partial bridge/tunnel crop: boundary-section ends are open truncated cross-sections, not surveyed entrances or ground ramps. Width/deck/ceiling/walls use the existing native corridor and may extend beyond the centreline bbox. Original retained ground junctions still need nonzero approaches. Review source-way/range/endpoints in crop provenance; no outside continuation or datum alignment is inferred.")
                 result.warning_count += 1
             elif "vertical" in osm_crop:
                 result.warnings.insert(0, "OSM ground crop interpolates reviewed target-datum heights at WGS84 segment cuts; source heights are references, ground still follows map terrain. Original node IDs stay connected; new boundary cuts are separate endpoints. Complete bridge/tunnel spans and nonzero ground approaches are required; no extra terrain fitting is inferred.")
                 result.warning_count += 1
-            crop_summary = "OSM derived geometry crop: " + json.dumps(osm_crop, sort_keys=True) if osm_crop["policy"] not in ("geometry-intersection-v3", "geometry-intersection-v4") else "OSM partial structure crop counts: " + json.dumps({k:v for k,v in osm_crop["vertical"].items() if k not in ("structures", "connection_sections")}, sort_keys=True) + "; full source mapping is recorded in projection provenance."
+            crop_summary = "OSM crop counts: " + json.dumps({"features":osm_crop["counts"],"vertical":{k:v for k,v in osm_crop["vertical"].items() if k not in ("structures","connection_sections","profile")}},sort_keys=True) + "; source mappings in projection provenance."
             result.warnings.insert(0, crop_summary)
             result.warning_count += 1
             result.warnings = result.warnings[:50]

@@ -19,7 +19,7 @@ func run() -> void:
 	root.add_child(ui)
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
-	check(ui.store.apply_command("Choose vegetation recipe",[{"field":"recipe_version","before":1,"after":3}])=="","explicit recipe 3 for native vegetation generation")
+	check(ui.store.apply_command("Choose vegetation recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}])=="","current generation setup for native vegetation generation")
 	var before: Dictionary=ui.store.document.duplicate(true)
 	var source := ProjectSettings.globalize_path("user://overture_land_cover_validator.gd.json")
 	var output: Array = []
@@ -46,7 +46,7 @@ func run() -> void:
 		var bad:=raw.duplicate(true)
 		var meta:Dictionary=bad.coordinates.overture_land_cover
 		if field=="license":bad.source.license="MIT"
-		elif field=="adapter":bad.adapter="geojson-v2"
+		elif field=="adapter":bad.adapter="geojson-v1"
 		elif field=="profile":meta.profile="all-trees"
 		elif field=="bbox":meta.bbox=[9,55,10,56]
 		elif field=="release":meta.release="latest"
@@ -68,7 +68,7 @@ func run() -> void:
 	var legacy:=STORE.new()
 	legacy.document=before.duplicate(true)
 	legacy.document.recipe_version=1
-	check(ui.pending_import.validate_for(legacy).contains("recipe 3"),"legacy recipe requires explicit vegetation version")
+	check(ui.pending_import.validate_for(legacy) == "","current rules include vegetation")
 	var forged:=raw.duplicate(true)
 	forged.patches[0].after.polygon.resize(2)
 	var invalid_layer:=LAYER.new()

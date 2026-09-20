@@ -14,7 +14,7 @@ func setup(owner: AcceptDialog) -> void:
 	epoch = panel.editor.store.command_epoch
 	var value: Dictionary = before.duplicate(true) if before is Dictionary else PROFILE.defaults()
 	var box: VBoxContainer = panel.page("Environment")
-	panel.hint(box,"Map defaults and regional art direction. Applying enables recipe 8. Time and weather preview controls do not change saved data.")
+	panel.hint(box,"Map defaults and regional art direction. Uses the current generation rules. Time and weather preview controls do not change saved data.")
 	_pick(box,"Map concept","concept",PROFILE.CONCEPTS,str(value.concept))
 	_pick(box,"Architecture","architecture",["","modern","rural","adobe","timber","tropical"],str(value.get("architecture","")))
 	_pick(box,"Climate","climate",["","temperate","polar","arid","tropical"],str(value.get("climate","")))
@@ -72,7 +72,6 @@ func _apply() -> void:
 		panel.feedback.text = "Regions and light bindings must be JSON arrays."
 		return
 	var patches := [{"field":"environment","before":before,"after":value}]
-	if int(store.document.recipe_version) < 8: patches.push_front({"field":"recipe_version","before":store.document.recipe_version,"after":8})
 	var failure: String = store.apply_command("Environment design",patches)
 	panel.feedback.text = "Environment saved in document · Undo is available" if failure.is_empty() else failure
 	if failure.is_empty():

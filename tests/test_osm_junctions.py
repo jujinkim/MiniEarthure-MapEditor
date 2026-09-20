@@ -30,7 +30,7 @@ class Junctions(unittest.TestCase):
         self.assertEqual(joins[0]["source_ways"],["1","5"])
         self.assertEqual([(a["source_way"],a["end"]) for a in joins[0]["source_arms"]],[("1","from"),("1","to"),("5","from")])
         layer = convert(value,"synthetic",osm.LICENSE,coordinates=OPTIONS,osm_graph=True)
-        self.assertEqual(layer.coordinates["osm_connections"]["profile"],"explicit-structural-junctions-v2")
+        self.assertEqual(layer.coordinates["osm_connections"]["profile"],"explicit-structural-junctions-v1")
         roads = {p["id"]:p["after"] for p in layer.patches if p["field"] == "roads"}
         for join in layer.coordinates["osm_connections"]["joins"]:
             for arm in join["retained"]:
@@ -62,7 +62,7 @@ class Junctions(unittest.TestCase):
         for box,remaining in [(WEST,1),(EAST,2)]:
             with self.subTest(remaining=remaining):
                 output,meta = crop(value,box)
-                self.assertEqual(meta["policy"],"geometry-intersection-v4")
+                self.assertEqual(meta["policy"],"geometry-intersection-v1")
                 self.assertIn("1",meta["vertical"]["connection_sections"])
                 layer = convert(output,"source",osm.LICENSE,coordinates=OPTIONS,osm_graph=True)
                 join = layer.coordinates["osm_connections"]["joins"][0]
