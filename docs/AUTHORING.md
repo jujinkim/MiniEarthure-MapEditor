@@ -1,19 +1,19 @@
 # Map authoring tools
 
-E03, 2026-09-09. Public MIT Editor tools use the existing MapKit recipes and
-DocumentStore. No native ABI, package schema, generator or game dependency changed.
+Current authoring uses [CURRENT_V1](CURRENT_V1.md). Dated implementation records
+below preserve their original evidence; version selection/promotion requirements
+are superseded. All current features use v1 without a recipe selector.
 [DOCUMENTS.md](DOCUMENTS.md) defines atomic commands and recovery;
 [WORKBENCH.md](WORKBENCH.md) defines selection, layers and shortcuts.
 
 ## Start and draw
 
 Save a project directory before file-backed edits. Open **Authoring settings…**.
-The Map tab explicitly chooses recipe 1–4 and default/urban/rural theme as one
-command. Typed map bounds and implicit terrain base have their own atomic Apply;
-existing payload dimensions/seams and road junctions are revalidated. Reads and
-saves never upgrade a recipe. Use recipe 2 for current terrain
-roads/structures, 3 for entrances/repetitions/building rules, and 4 for convex
-proxies/material overrides. Unsupported input is rejected by MapKit.
+The Map tab chooses the theme with **Apply theme**. Typed map bounds and implicit
+terrain base have their own atomic Apply; payload seams and road junctions are
+revalidated. Roads, buildings, entrances, repetitions, convex proxies, courtyards,
+vegetation and environment all use the current v1 rules. Unsupported input is
+rejected by MapKit; there is no recipe selection or automatic upgrade.
 
 The Drawing tab sets the next shape's parameters. Close the dialog, choose the
 canvas tool and click vertices; right-click finishes. Place uses a single click.
@@ -207,7 +207,7 @@ its centre, radius, base or height. Move, rotate, mirror, duplicate, undo/redo,
 save/reopen and package export use the ordinary document operations.
 
 This authoring shape emits a 48-sided solid, flat-roof MapKit building prism
-(recipe 3+). The integer polygon is authoritative for both rendering and solid
+(current v1). The integer polygon is authoritative for both rendering and solid
 collision; no custom assets or new package/runtime version are needed. An edited
 irregular polygon remains editable as ordinary geometry instead of being silently
 rounded. Locked layers, invalid bounds and road/obstacle overlaps reject atomically.
@@ -220,4 +220,4 @@ The Signs tab creates text with an explicit licensed font or imports a prepared 
 then adopts a separate UV-mapped GLB through native asset validation. See
 [world profiles, language separation and limits](WORLD_THEME_AUTHORING.md).
 
-Recipe 7 planting: choose a GLB under **Planting tree**, set canopy half-width and obstacle clearance, then draw Forest/Orchard. The model's declared collision must fit within that footprint (up to the existing 2m tree radius). Polygons, exclusions, spacing, density and seed drive MapKit generation; there is no fixed count or relocation. Density zero or an occupied zone may produce no trees.
+Planting: choose a GLB under **Planting tree**, set canopy half-width and obstacle clearance, then draw Forest/Orchard. The model's declared collision must fit within that footprint (up to the existing 2m tree radius). Polygons, exclusions, spacing, density and seed drive MapKit generation; there is no fixed count or relocation. Density zero or an occupied zone may produce no trees.

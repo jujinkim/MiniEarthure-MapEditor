@@ -1,5 +1,13 @@
 # Import boundary and adoption
 
+> **Current v1 replacement (2026-09-20):** [CURRENT_V1](CURRENT_V1.md) owns the
+> current adapter shapes. GeoJSON is `geojson-v1`; all map features use v1.
+> Crop uses `geometry-intersection-v1` / `explicit-connected-structure-crop-v1`,
+> junctions use `explicit-structural-junctions-v1`, loops use `source-node-segments-v1`,
+> and DEM uses one `copernicus-dem-v1` array contract. The dated extensions, old
+> shape examples and version-selection directions below are historical evidence;
+> they do not describe additional supported readers or conversion paths.
+
 ## Current units — 2026-09-11
 
 Custom projects use actual metres. Only OSM adoption divides source coordinates,
@@ -30,12 +38,12 @@ private data or runtime generator is imported. `scripts/importers/import_layer.p
 defines the version-1 typed interchange; `scripts/import_layer.gd` revalidates
 untrusted results before native MapKit checks and explicit adoption.
 
-Adapters include `geojson-v2` below and the bounded `osm-extract-v1` snapshot profile
+Current adapters include `geojson-v1` and the bounded `osm-extract-v1` snapshot profile
 at the end of this document. Select the format explicitly in **Import vector**.
 The [PBF streaming extension](#osm-pbf-selected-area-streaming--2026-09-10)
 adds an explicit local-source profile beyond 32 MiB; earlier whole-source limits
 still apply when streaming is disabled.
-`geojson-v2`: explicit local-metre or WGS84 LineString, MultiLineString, Polygon,
+`geojson-v1`: explicit local-metre or WGS84 LineString, MultiLineString, Polygon,
 MultiPolygon and bounded GeometryCollection input (see the collection extension below). [Multipart roads](#local-geojson-multipart-roads--2026-09-10)
 retain independent parts and explicit source mapping.
 Forest/orchard polygon holes become existing zone exclusions; recipe-5 building holes
