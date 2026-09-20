@@ -47,6 +47,7 @@ class RegionalMaps(unittest.TestCase):
                 for (x,y),values in grids.items():
                     if (x+1,y) in grids:self.assertEqual(values[8::9],grids[x+1,y][0::9])
                     if (x,y+1) in grids:self.assertEqual(values[-9:],grids[x,y+1][:9])
+                self.assertFalse(any(p.endswith(".import") for p in meta["source_files"]))
                 for path,data in payloads.items():self.assertEqual((folder/path).read_bytes(),data,path)
                 with tempfile.TemporaryDirectory() as temp:
                     package=Path(temp)/'map.memap'

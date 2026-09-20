@@ -280,7 +280,9 @@ def build(plan,library):
     sign_doc=json.loads((sign_source/"document.json").read_text())
     sign=copy.deepcopy(next(a for a in sign_doc["assets"] if a["id"]=="map-writing"))
     sign["id"]="regional-writing";assets[sign["id"]]=sign
-    for path in (sign_source/"signs").iterdir():payloads["signs/"+path.name]=path.read_bytes()
+    for path in (sign_source/"signs").iterdir():
+        if path.is_file() and not path.name.endswith(".import"):
+            payloads["signs/"+path.name]=path.read_bytes()
     a,b=plan["outer"][:2];length=math.dist(a,b);dx=(b[0]-a[0])/length;dz=(b[1]-a[1])/length
     sx=a[0]+dx*30-dz*9;sz=a[1]+dz*30+dx*9
     doc["placements"]=[p for p in doc["placements"] if math.hypot(p["position"][0]/100-sx,p["position"][2]/100-sz)>6]
