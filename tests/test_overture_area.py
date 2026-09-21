@@ -69,7 +69,7 @@ class OvertureTests(unittest.TestCase):
         self.assertEqual(meta["id"], FEATURE["id"])
         self.assertEqual(meta["sources"], FEATURE["properties"]["sources"])
         self.assertEqual(meta["footprint_count"], 3)
-        self.assertIn("courtyard_usage", layer.estimates)
+        self.assertEqual(layer.estimates["usage"], 3)  # courtyard and solid islands use the same explicit estimate
         self.assertEqual(layer.patches, self.layer(obj).patches)
         polygon = snapshot(); polygon["features"][0]["geometry"] = dict(type="Polygon", coordinates=FEATURE["geometry"]["coordinates"][0])
         self.assertEqual(self.layer(polygon).patches, self.layer(snapshot()).patches)

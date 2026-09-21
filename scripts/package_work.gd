@@ -186,8 +186,17 @@ func density_report(native: RefCounted, snapshot: Dictionary, index: Dictionary,
 		rows[key] = row
 	return {"ok":true,"data":rows}
 
-func reopen_regions(path: String, destination: String) -> Dictionary:
+func reopen_package(path: String, destination: String) -> Dictionary:
 	if stopped(): return failure("E_CANCELLED", "Reopen cancelled.")
+	if path.get_extension().to_lower() == "memap":
+		update("Validating package before restoring a new project directory")
+		var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
+		var validated: Dictionary = JSON.parse_string(bridge.open_package_budgeted(path, 1024*1024*1024))
+		if not validated.ok: return validated
+		if stopped(): return failure("E_CANCELLED", "Reopen cancelled.")
+		return JSON.parse_string(bridge.unpack_source(destination))
+	if path.get_extension().to_lower() != "mkregions":
+		return failure("E_FORMAT", "Choose a .memap or .mkregions package.")
 	var native: RefCounted = ClassDB.instantiate("MapKitRegionReader")
 	var opened: Dictionary = JSON.parse_string(native.open_index(path,1024*1024*1024,""))
 	if not opened.ok: return opened

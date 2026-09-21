@@ -27,7 +27,7 @@ func record(field: String, id: String) -> Dictionary:
 	return {}
 
 func button(node: Node, title: String) -> Button:
-	if node is Button and node.text == title: return node
+	if node is Button and not node is MenuButton and node.text == title: return node
 	for child in node.get_children():
 		var found := button(child, title)
 		if found != null: return found

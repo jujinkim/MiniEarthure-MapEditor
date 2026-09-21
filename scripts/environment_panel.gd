@@ -1,14 +1,14 @@
 extends RefCounted
 ## Public environment authoring; commands retain ordinary undo/redo and validation.
 const PROFILE := preload("res://addons/mapkit/godot/environment_profile.gd")
-var panel: AcceptDialog
+var panel: PanelContainer
 var fields := {}
 var regions: TextEdit
 var lights: TextEdit
 var before: Variant
 var epoch := 0
 
-func setup(owner: AcceptDialog) -> void:
+func setup(owner: PanelContainer) -> void:
 	panel = owner
 	before = panel.editor.store.document.get("environment")
 	epoch = panel.editor.store.command_epoch
@@ -34,7 +34,7 @@ func setup(owner: AcceptDialog) -> void:
 	apply.pressed.connect(_apply)
 
 func _pick(box: Node, title: String, key: String, values: Array, current: String) -> void:
-	var row: HBoxContainer = panel.row(box,title)
+	var row: VBoxContainer = panel.row(box,title)
 	var picker := OptionButton.new()
 	for value: String in values: picker.add_item("From concept" if value.is_empty() else value.capitalize())
 	picker.select(maxi(0,values.find(current)))
@@ -42,7 +42,7 @@ func _pick(box: Node, title: String, key: String, values: Array, current: String
 	fields[key] = func(): return values[picker.selected]
 
 func _number(box: Node, title: String, key: String, minimum: float, maximum: float, current: float, factor := 1.0) -> void:
-	var row: HBoxContainer = panel.row(box,title)
+	var row: VBoxContainer = panel.row(box,title)
 	var spin := SpinBox.new()
 	spin.min_value = minimum
 	spin.max_value = maximum

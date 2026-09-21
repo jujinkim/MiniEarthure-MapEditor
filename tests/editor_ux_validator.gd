@@ -33,6 +33,13 @@ func click(target: Button) -> void:
 		event.pressed = down
 		root.push_input(event)
 		await process_frame
+func menu_command(label: String) -> void:
+	for index in range(ui.commands.commands.size()):
+		if ui.commands.commands[index].label == label:
+			ui.commands.execute(index)
+			await process_frame
+			return
+	check(false, "menu command available: " + label)
 func write(path: String, value: String) -> void:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(value)
@@ -64,7 +71,7 @@ func run() -> void:
 	check(ui.tool_hint.text.contains("right-click") and ui.tool_hint.text.contains("Authoring settings"), "persistent tool discovery")
 	await capture("workbench")
 	var before := state()
-	await click(button(ui, "New"))
+	await menu_command("New")
 	check(ui.unsaved_dialog.visible and state() == before, "New asks before replacing dirty document")
 	await capture("unsaved")
 	await click(ui.unsaved_dialog.get_cancel_button())
@@ -75,13 +82,13 @@ func run() -> void:
 	check(state() == before, "cancel Close preserves document")
 	var original_id: String = ui.store.document.map_id
 	var retained_path: String = ui.store.recovery_path()
-	await click(button(ui, "New"))
+	await menu_command("New")
 	await click(ui.recovery_continue_button)
 	check(ui.store.document.map_id != original_id and ui.store.undo_stack.is_empty(), "explicit recovery continuation creates new document")
 	check(FileAccess.file_exists(retained_path), "explicit continuation retains recovery snapshot")
 	# Save picker cancellation must consume no deferred replacement, including late callbacks.
 	before = state()
-	await click(button(ui, "New"))
+	await menu_command("New")
 	await click(ui.unsaved_dialog.get_ok_button())
 	check(ui.dialog.visible and ui.dialog_action == "save_transition", "save before transition asks for project directory")
 	ui.dialog.hide()
@@ -90,7 +97,7 @@ func run() -> void:
 	ui._path_selected(abandoned)
 	check(state() == before and not DirAccess.dir_exists_absolute(abandoned), "cancel picker rejects late save/transition")
 	# First export guides Save -> new filename; export never alters source or overwrites output.
-	await click(button(ui, "Export .memap"))
+	await menu_command("Export map")
 	check(ui.dialog_action == "save_for_export", "first export enters save flow")
 	var project := ProjectSettings.globalize_path("user://ux-project")
 	ui.dialog.hide()
@@ -110,7 +117,7 @@ func run() -> void:
 	before = state()
 	# Failed Save-and-continue retains edits, history and conflicting disk bytes.
 	write(project.path_join("document.json"), "external writer")
-	await click(button(ui, "New"))
+	await menu_command("New")
 	await click(ui.unsaved_dialog.get_ok_button())
 	check(state() == before and ui.pending_document_action.is_empty() and ui.status_label.text.contains("Save As"), "save conflict blocks replacement and explains recovery")
 	check(FileAccess.get_file_as_string(project.path_join("document.json")) == "external writer", "conflicting original remains untouched")
@@ -119,7 +126,7 @@ func run() -> void:
 	ui._document_changed()
 	check(ui.store.apply_command("Another seed", [{"field":"seed", "before":17,"after":18}]) == "", "second dirty fixture")
 	original_id = ui.store.document.map_id
-	await click(button(ui, "New"))
+	await menu_command("New")
 	await click(ui.unsaved_dialog.get_ok_button())
 	var reopened := STORE.new()
 	check(reopened.open_project(safe_project) == "" and reopened.document.seed == 18 and ui.store.document.map_id != original_id, "Save and continue persists exact edits before replacement")
@@ -169,7 +176,7 @@ func run() -> void:
 	ui._set_tool("Select")
 	await capture("retry")
 	check(ui.right_dock.get_global_rect().end.x <= ui.size.x and ui.status_label.get_global_rect().end.y <= ui.size.y, "controls and feedback fit minimum window")
-	check(ui.tool_hint.get_global_rect().end.x <= ui.canvas.get_global_rect().end.x, "tool help wraps within canvas")
+	check(ui.tool_hint.get_global_rect().end.x <= ui.workspace_views.get_global_rect().end.x, "tool help wraps within central views")
 	ui.store.dirty = false
 	ui.queue_free()
 	await process_frame

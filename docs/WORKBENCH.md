@@ -1,5 +1,39 @@
 # Editing workbench
 
+## Current workspace update — 2026-09-21
+
+File/Edit/View/Create/Validate menus and **Commands…** (Ctrl/Cmd+P) share one
+command registry. Search shows the available keyboard shortcuts. Text input keeps
+its own key handling. The central workspace switches between 2D, 3D and split
+views; this changes view state only. The document, selection and Undo owner remains
+DocumentStore. This update does **not** add 3D picking or transform gizmos.
+
+Authoring settings now live in the right dock. Select a settings page from the
+dropdown; **Refresh** reloads controls from the current document after another
+edit. Stale controls still cannot overwrite a newer document. File selection and
+import review remain dialogs. Activity and Problems share the bottom panel.
+Panel sizes, visibility and central view mode are stored separately in workbench.cfg.
+
+In the 3D preview, right drag orbits, middle drag pans and the wheel zooms.
+**Frame selection** centers the current 2D/tree selection and schedules that cell.
+The bounded four-cell cache and incremental attachment remain; this is still a
+selected-cell preview, not camera-driven neighborhood streaming.
+
+**File → Restore package** accepts `.memap` and `.mkregions`. It validates the
+package, restores a new adjacent `<package>.source` directory and invokes the
+normal unsaved-document guard. Existing projects and outputs are never replaced.
+Canceled/late completed restores remain on disk but cannot replace the active
+document. Invalid packages publish no restored project.
+
+GeoJSON unclassified building use is mapped to the current residential rendering
+profile with an explicit estimate/warning before adoption. The original source
+and classifications are preserved. This applies equally to solid and courtyard
+buildings; Overture no longer needs a separate post-conversion substitution.
+
+Focused validation and remaining scope are in [AUTHORING_WORKSPACE_STATUS.md](AUTHORING_WORKSPACE_STATUS.md).
+
+## Earlier workbench behavior
+
 E01, 2026-09-09. The central 2D map, object/layer tree, property inspector and
 shared MapKit cell preview use the same validated DocumentStore as E02.
 See [DOCUMENTS.md](DOCUMENTS.md) for atomic commands, history and recovery.

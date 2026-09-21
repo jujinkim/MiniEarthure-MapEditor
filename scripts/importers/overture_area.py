@@ -157,12 +157,7 @@ def finish(layer, metadata):
         prefix = f"import-{layer.layer_id}-{index}"
         count = feature["footprint_count"]
         feature["building_ids"] = [prefix] if count == 1 else [f"{prefix}-part-{part}" for part in range(count)]
-    # Each building requires an authored use even for solid multipart islands.
-    # GeoJSON already counted unknown usage as an estimate; make the fallback
-    # explicit without inventing a provider classification.
-    for patch in layer.patches:
-        if patch["after"]["usage"] == "unknown":
-            patch["after"]["usage"] = "residential"
+    # GeoJSON supplies a current authored use and marks unclassified sources as estimates.
     layer.adapter = "overture-buildings-v1"
     layer.coordinates["overture"] = metadata
     layer.warning("Overture buildings only; crossing footprints retained without clipping. Other themes not queried.")

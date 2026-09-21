@@ -1,13 +1,13 @@
 extends RefCounted
 const SIGNS := preload("./sign_authoring.gd")
 const FILES := preload("./authoring_files.gd")
-var panel: AcceptDialog
+var panel: PanelContainer
 var controls := {}
 var revision := 0
 var baking := false
 var scratch := ""
 
-func setup(owner: AcceptDialog) -> void:
+func setup(owner: PanelContainer) -> void:
 	panel = owner
 	var box: VBoxContainer = panel.page("Signs")
 	panel.hint(box, "Map writing stays independent of UI language. Create a sign from a licensed font, or import a prepared PNG. Place it as a separate asset in Drawing; the building stays unchanged. Select an existing sign asset to restore text and provenance; reselect its licensed font to edit. Imported images retain their original layout.")

@@ -178,20 +178,20 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     layer.add("zones", {"id": part_id, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]})
                     layer.estimate("vegetation_spacing_density")
                 else:
-                    usage = properties.get("usage", "unknown")
+                    usage = text(properties.get("usage", "unknown"), "usage", 64)
+                    if usage not in ("residential", "commercial", "industrial", "public"):
+                        usage = "residential"
+                        layer.estimate("usage")
+                        layer.warning("Unclassified building use is represented as residential; review before adoption. Original source classification is retained in the source file.")
                     if len(rings) > 1:
                         if len(rings) > 17 or sum(len(r)-1 for r in rings) > 512:
                             raise ValueError("courtyard supports at most 16 holes and 512 total vertices")
-                        if usage not in ("residential", "commercial", "industrial", "public"):
-                            usage = "residential"
-                            layer.estimate("courtyard_usage")
                         layer.warning("Building courtyard uses the current flat-roof profile.")
                     layer.add("buildings", {"id": part_id, "footprint": polygon,
                         **({"holes": [hole[:-1] for hole in rings[1:]]} if len(rings) > 1 else {}),
                         "base_cm": round(scalar("base_m", 0) * 100), "height_cm": round(scalar("height_m", 12, 0.01, 1000) * 100),
                         "usage": text(usage, "usage", 64), "material": "concrete", "roof": "flat"})
                     layer.estimate("material_roof")
-                    if "usage" not in properties: layer.estimate("usage")
         else:
             raise ValueError(f"unsupported geometry {kind}; no features imported")
         if collections:

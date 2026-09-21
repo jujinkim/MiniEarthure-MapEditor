@@ -21,6 +21,8 @@ var preview_cache := {}
 var cache_clock := 0
 var preview_due := 0
 var preview_enabled := false
+var preview_camera := preload("./preview_camera.gd").new()
+var framed_cell := Vector2i(-1, -1)
 var preview_stats := {"generated": 0, "reused": 0, "attachment_frames": 0, "max_batch_usec": 0, "max_frame_usec": 0}
 var export_report: AcceptDialog
 var last_export_report := {}
@@ -36,7 +38,7 @@ var drive_surface: OptionButton
 var drive_request: Dictionary = {}
 var last_drive_result: Dictionary = {}
 const AUTHOR_PANEL := preload("./authoring_panel.gd")
-var author_panel: AcceptDialog
+var author_panel: PanelContainer
 const DEM_PANEL := preload("./dem_panel.gd")
 var dem_panel: ConfirmationDialog
 const STORE := preload("./document_store.gd")
@@ -46,6 +48,10 @@ var store := STORE.new()
 var canvas: Control
 var status_label: Label
 var project_label: Label
+var commands: PopupPanel
+var workspace_views: HSplitContainer
+var preview_dock: VBoxContainer
+var view_mode := "split"
 var properties: VBoxContainer
 const EDIT := preload("./workbench_edit.gd")
 const LAYERS := preload("./workbench_layers.gd")
@@ -196,25 +202,25 @@ func _build_ui() -> void:
 	margin.add_child(column)
 	var title_row := HBoxContainer.new()
 	column.add_child(title_row)
+	commands = preload("./workspace_commands.gd").new()
+	add_child(commands)
+	_register_commands()
+	commands.menus(title_row)
 	var title := Label.new()
-	title.text = "MINIEARTHURE   /   MAP EDITOR"
-	title.add_theme_color_override("font_color", Color("ffe14c"))
-	title.add_theme_font_size_override("font_size", 24)
+	title.text = "MAP EDITOR"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
-	var bar := HFlowContainer.new()
+	var bar := HBoxContainer.new()
 	column.add_child(bar)
-	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Import vector", _import_geojson], ["Export map", _export], ["Reopen .mkregions", _choose.bind("reopen_regions")], ["Test Drive", _test_drive]]:
+	for entry in [["Save", _save], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Commands…", commands.open]]:
 		_button(bar, entry[0], entry[1])
-	var grouping_label := Label.new()
-	grouping_label.text = "Regional export · cells per side"
-	bar.add_child(grouping_label)
 	regional_grouping = SpinBox.new()
 	regional_grouping.min_value = 1
 	regional_grouping.max_value = 128
 	regional_grouping.value = 8
+	regional_grouping.prefix = "Regional cells "
 	regional_grouping.tooltip_text = "Storage grouping only. Execution cell size and map quality stay unchanged."
-	bar.add_child(regional_grouping)
 	var import_work_button := Button.new()
 	import_work_button.text = "Import work"
 	import_work_button.tooltip_text = "Inspect leftover local import work without changing files."
@@ -232,7 +238,7 @@ func _build_ui() -> void:
 	column.add_child(split)
 	canvas = CANVAS.new()
 	canvas.store = store
-	canvas.custom_minimum_size = Vector2(300, 280)
+	canvas.custom_minimum_size = Vector2(220, 200)
 	canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	canvas.status.connect(_status)
 	canvas.terrain_requested.connect(_start_terrain)
@@ -263,7 +269,7 @@ func _build_ui() -> void:
 		tool_buttons[name] = tool_button
 	author_panel = AUTHOR_PANEL.new()
 	author_panel.editor = self
-	add_child(author_panel)
+	author_panel.hide()
 	_button(left, "Authoring settings…", func(): author_panel.open())
 	var edits := HBoxContainer.new()
 	left.add_child(edits)
@@ -305,13 +311,22 @@ func _build_ui() -> void:
 	selection_label.text = "2D MAP  ·  Select  ·  0 selected"
 	center.add_child(selection_label)
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	center.add_child(canvas)
+	var view_modes := HBoxContainer.new()
+	center.add_child(view_modes)
+	for mode in ["2d", "3d", "split"]:
+		_button(view_modes, mode.to_upper(), _set_view_mode.bind(mode))
+	workspace_views = HSplitContainer.new()
+	workspace_views.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center.add_child(workspace_views)
+	workspace_views.add_child(canvas)
 	tool_hint = Label.new()
 	tool_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tool_hint.max_lines_visible = 2
+	tool_hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	tool_hint.add_theme_font_size_override("font_size", 12)
 	center.add_child(tool_hint)
 	right_dock = VSplitContainer.new()
-	right_dock.custom_minimum_size.x = 300
+	right_dock.custom_minimum_size.x = 260
 	center_split.add_child(right_dock)
 	var property_dock := VBoxContainer.new()
 	property_dock.custom_minimum_size.y = 140
@@ -326,11 +341,11 @@ func _build_ui() -> void:
 	properties.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(properties)
 	apply_button = _button(property_dock, "Apply properties", _apply_properties)
-	var preview_dock := VBoxContainer.new()
-	preview_dock.custom_minimum_size.y = 160
+	preview_dock = VBoxContainer.new()
+	preview_dock.custom_minimum_size = Vector2(200, 160)
 	preview_dock.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_dock.add_child(preview_dock)
-	var controls := HBoxContainer.new()
+	workspace_views.add_child(preview_dock)
+	var controls := HFlowContainer.new()
 	preview_dock.add_child(controls)
 	_label(controls, "Cell")
 	preview_x = SpinBox.new()
@@ -340,25 +355,31 @@ func _build_ui() -> void:
 		spin.max_value = 127
 		controls.add_child(spin)
 	_button(controls, "3D Preview", _preview)
+	_button(controls, "Frame selection", _frame_selection)
 	preview_x.value_changed.connect(_preview_cell_changed)
 	preview_y.value_changed.connect(_preview_cell_changed)
 	var preview_hint := Label.new()
-	preview_hint.text = "Affected cells refresh automatically · 2D filters do not change export"
+	preview_hint.text = "Orbit / pan / zoom"
+	preview_hint.tooltip_text = "Right drag: orbit · Middle drag: pan · Wheel: zoom · Refresh loads only the selected cell"
 	preview_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	preview_hint.add_theme_font_size_override("font_size", 12)
 	preview_dock.add_child(preview_hint)
 	full_generation = CheckButton.new()
 	full_generation.text = "Full 3D check on Validate / Export"
 	full_generation.add_theme_font_size_override("font_size", 12)
-	preview_dock.add_child(full_generation)
+	property_dock.add_child(full_generation)
+	property_dock.add_child(regional_grouping)
+	right_dock.add_child(author_panel)
 	export_report = REPORT.new()
 	export_report.theme = theme
 	add_child(export_report)
 	var preview_container := SubViewportContainer.new()
 	preview_container.stretch = true
 	preview_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	preview_container.custom_minimum_size = Vector2(280, 100)
+	preview_container.custom_minimum_size = Vector2(200, 100)
 	preview_dock.add_child(preview_container)
+	preview_container.gui_input.connect(func(event: InputEvent):
+		if preview_camera.input(event): preview_container.accept_event())
 	viewport = SubViewport.new()
 	viewport.size = Vector2i(680, 500)
 	viewport.own_world_3d = true
@@ -369,6 +390,7 @@ func _build_ui() -> void:
 	camera.name = "PreviewCamera"
 	camera.far = 2000
 	preview_world.add_child(camera)
+	preview_camera.camera = camera
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -25, 0)
 	preview_world.add_child(sun)
@@ -382,7 +404,7 @@ func _build_ui() -> void:
 	time.max_value = 23.99
 	time.step = 0.25
 	time.value = 12
-	time.prefix = "Preview hour "
+	time.prefix = "Hour "
 	controls.add_child(time)
 	time.value_changed.connect(func(value: float): environment_preview.seconds = value*3600.0)
 	var weather := OptionButton.new()
@@ -393,8 +415,14 @@ func _build_ui() -> void:
 		environment_preview.previous_weather = environment_preview.weather
 		environment_preview.wet = 2 if index == 2 else 0
 		environment_preview.snow = 2 if index == 3 else 0)
+	var output_tabs := TabContainer.new()
+	output_tabs.custom_minimum_size.y = 130
+	column.add_child(output_tabs)
+	var activity := VBoxContainer.new()
+	activity.name = "Activity"
+	output_tabs.add_child(activity)
 	var view_bar := HFlowContainer.new()
-	column.add_child(view_bar)
+	activity.add_child(view_bar)
 	cancel_button = _button(view_bar, "Cancel operation", _cancel_operation)
 	cancel_button.disabled = true
 	retry_import_button = _button(view_bar, "Retry import…", _import_geojson)
@@ -406,19 +434,20 @@ func _build_ui() -> void:
 	validation_label = Label.new()
 	validation_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	validation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(validation_label)
+	activity.add_child(validation_label)
 	density_panel = preload("./chunk_density_panel.gd").new()
-	column.add_child(density_panel)
+	density_panel.name = "Problems"
+	output_tabs.add_child(density_panel)
 	density_panel.configure(store, canvas)
 	density_panel.busy_source = func(): return busy
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	status_label.custom_minimum_size.y = 48
+	status_label.custom_minimum_size.y = 20
 	status_label.text = "V Select · R Road · B Building · G Forest · O Orchard · Ctrl/Cmd+A/D/Z/Y/S · Delete · Escape cancels"
-	column.add_child(status_label)
+	activity.add_child(status_label)
 	import_progress = ProgressBar.new()
 	import_progress.visible = false
-	column.add_child(import_progress)
+	activity.add_child(import_progress)
 	dialog = FileDialog.new()
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
 	dialog.use_native_dialog = true
@@ -647,9 +676,9 @@ func _choose(action: String) -> void:
 			if import_source_format.selected == 5: dialog.filters = PackedStringArray(["*.overture-land-cover.json ; Overture land cover snapshot"])
 			if import_source_format.selected == 4: dialog.filters = PackedStringArray(["*.overture-roads.json ; Overture transportation snapshot"])
 			if import_source_format.selected == 2: dialog.filters = PackedStringArray(["*.osm ; OSM XML snapshot"])
-		if action == "reopen_regions":
-			dialog.title = "Reopen regional map into a new adjacent .source directory"
-			dialog.filters = PackedStringArray(["*.mkregions ; Indexed regional map"])
+		if action == "reopen_package":
+			dialog.title = "Restore package into a new adjacent .source directory"
+			dialog.filters = PackedStringArray(["*.memap ; Map package", "*.mkregions ; Indexed regional map"])
 		if action == "recover":
 			dialog.filters = PackedStringArray(["* ; Recovery, previous or pending document"])
 			dialog.current_dir = ProjectSettings.globalize_path("user://recovery")
@@ -658,7 +687,7 @@ func _choose(action: String) -> void:
 func _path_selected(path: String) -> void:
 	var failure := ""
 	match dialog_action:
-		"reopen_regions":
+		"reopen_package":
 			if busy: return
 			var destination := path + ".source"
 			if DirAccess.dir_exists_absolute(destination):
@@ -668,7 +697,7 @@ func _path_selected(path: String) -> void:
 			var task: RefCounted = package_work
 			worker_generation = generation
 			busy = true
-			var error := worker.start(func(): return {"operation":"reopen_regions","result":task.reopen_regions(path,destination)})
+			var error := worker.start(func(): return {"operation":"reopen_package","result":task.reopen_package(path,destination)})
 			if error != OK:
 				busy = false
 				package_work = null
@@ -751,6 +780,7 @@ func _selection(ids: Array) -> void:
 		child.queue_free()
 	if layers != null: layers.sync_selection()
 	tool_hint.text = _tool_help(canvas.tool)
+	tool_hint.tooltip_text = tool_hint.text
 	selection_label.text = "2D MAP  ·  %s  ·  %d selected" % [canvas.tool, property_records.size()]
 	apply_button.disabled = property_records.is_empty()
 	if property_records.is_empty():
@@ -904,15 +934,47 @@ func _set_tool(name: String) -> void:
 	_selection(canvas.selected)
 	canvas.queue_redraw()
 
+func _register_commands() -> void:
+	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Restore package", _choose.bind("reopen_package")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Import vector", _import_geojson], ["Export map", _export]]:
+		commands.register("File", entry[0], entry[1], "Ctrl/Cmd+S" if entry[0] == "Save" else "")
+	commands.register("Edit", "Undo", _history.bind(false), "Ctrl/Cmd+Z")
+	commands.register("Edit", "Redo", _history.bind(true), "Ctrl/Cmd+Shift+Z")
+	commands.register("Edit", "Duplicate", func(): canvas.duplicate_selection(), "Ctrl/Cmd+D")
+	commands.register("Edit", "Delete", func(): canvas.delete_selection(), "Delete")
+	commands.register("View", "Commands…", commands.open, "Ctrl/Cmd+P")
+	commands.register("View", "Fit map", func(): canvas.fit_map(), "F")
+	commands.register("View", "Frame selection in 3D", _frame_selection)
+	commands.register("View", "Tools / layers", func(): left_dock.visible = not left_dock.visible)
+	commands.register("View", "Properties", func(): right_dock.visible = not right_dock.visible)
+	commands.register("View", "Reset panels", _reset_panels)
+	for mode in ["2d", "3d", "split"]:
+		commands.register("View", mode.to_upper(), _set_view_mode.bind(mode))
+	for tool in ["Select", "Road", "Surface area", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
+		commands.register("Create", tool, _set_tool.bind(tool))
+	commands.register("Create", "Authoring settings…", func(): author_panel.open())
+	commands.register("Validate", "Validate", _validate)
+	commands.register("Validate", "3D Preview", _preview)
+	commands.register("Validate", "Test Drive", _test_drive)
+
+func _set_view_mode(mode: String) -> void:
+	view_mode = mode if mode in ["2d", "3d", "split"] else "split"
+	canvas.visible = view_mode != "3d"
+	preview_dock.visible = view_mode != "2d"
+	canvas.cancel_interaction()
+
 func _reset_panels() -> void:
 	left_dock.show()
 	right_dock.show()
 	outer_split.split_offset = 0
 	center_split.split_offset = int(size.x * 0.35)
 	right_dock.split_offset = 0
+	workspace_views.split_offset = 0
+	_set_view_mode("split")
 
 func _restore_workbench() -> void:
 	view_settings.load("user://workbench.cfg")
+	_set_view_mode(str(view_settings.get_value("views", "mode", "split")))
+	workspace_views.split_offset = int(view_settings.get_value("views", "split", 0))
 	left_dock.visible = bool(view_settings.get_value("panels", "left_visible", true))
 	right_dock.visible = bool(view_settings.get_value("panels", "right_visible", true))
 	outer_split.split_offset = int(view_settings.get_value("panels", "left", 0))
@@ -920,16 +982,21 @@ func _restore_workbench() -> void:
 	right_dock.split_offset = int(view_settings.get_value("panels", "vertical", 0))
 	snap_toggle.button_pressed = bool(view_settings.get_value("snap", "enabled", true))
 	snap_size.value = clampf(float(view_settings.get_value("snap", "metres", 1.0)), 0.01, 100.0)
+	author_panel.visible = bool(view_settings.get_value("panels", "authoring_visible", true))
+	if author_panel.visible and author_panel.tabs.get_tab_count() == 0: author_panel.open()
 	canvas.layer_state = view_settings.get_value("layers", displayed_map_id, {}).duplicate(true)
 	layers.refresh()
 
 func _save_workbench() -> void:
 	if canvas == null or left_dock == null: return
+	view_settings.set_value("views", "mode", view_mode)
+	view_settings.set_value("views", "split", workspace_views.split_offset)
 	view_settings.set_value("panels", "left_visible", left_dock.visible)
 	view_settings.set_value("panels", "right_visible", right_dock.visible)
 	view_settings.set_value("panels", "left", outer_split.split_offset)
 	view_settings.set_value("panels", "right", center_split.split_offset)
 	view_settings.set_value("panels", "vertical", right_dock.split_offset)
+	view_settings.set_value("panels", "authoring_visible", author_panel.visible)
 	view_settings.set_value("snap", "enabled", canvas.snap_enabled)
 	view_settings.set_value("snap", "metres", canvas.snap_cm / 100.0)
 	if displayed_map_id != "": view_settings.set_value("layers", displayed_map_id, canvas.layer_state)
@@ -1011,6 +1078,31 @@ func _clear_preview_cache() -> void:
 	for entry: Dictionary in preview_cache.values():
 		if is_instance_valid(entry.root): entry.root.queue_free()
 	preview_cache.clear()
+	framed_cell = Vector2i(-1, -1)
+
+func _frame_selection() -> void:
+	if property_records.is_empty():
+		_status("Select an object in the map or tree before framing it.")
+		return
+	var points: Array[Vector2] = []
+	var height := 0.0
+	for entry in property_records:
+		points.append_array(EDIT.points(entry.field, entry.record))
+		if entry.field == "placements": height = float(entry.record.position[1])
+		elif entry.field == "buildings": height = float(entry.record.base_cm)
+	if points.is_empty(): return
+	var bounds := Rect2(points[0], Vector2.ZERO)
+	for point in points: bounds = bounds.expand(point)
+	var center := bounds.get_center()
+	var origin: Array = store.document.bounds.min
+	var cell := Vector2i(floori((center.x - origin[0]) / store.document.cell_size_cm), floori((center.y - origin[1]) / store.document.cell_size_cm))
+	preview_x.value = cell.x
+	preview_y.value = cell.y
+	framed_cell = cell
+	preview_camera.frame(RENDERER.scene_position([center.x, height, center.y]), maxf(8, bounds.size.length() / 100.0))
+	_set_view_mode("split" if view_mode == "2d" else view_mode)
+	preview_enabled = true
+	preview_due = Time.get_ticks_msec() + 150
 
 func _show_cached(cell: Vector2i) -> void:
 	cache_clock += 1
@@ -1019,9 +1111,9 @@ func _show_cached(cell: Vector2i) -> void:
 	var bounds: Dictionary = store.document.bounds
 	var cell_size := float(store.document.cell_size_cm)
 	var center := RENDERER.scene_position([bounds.min[0] + (cell.x + 0.5) * cell_size, 0, bounds.min[1] + (cell.y + 0.5) * cell_size])
-	var camera: Camera3D = preview_world.get_node("PreviewCamera")
-	camera.position = center + Vector3(35, 55, 45) * cell_size / 51200.0
-	camera.look_at(center)
+	if framed_cell != cell:
+		preview_camera.frame(center, Vector3(35, 55, 45).length() * cell_size / 51200.0)
+		framed_cell = cell
 	validation_label.text = "Preview ready · cell %d / %d" % [cell.x, cell.y]
 	_status(validation_label.text)
 
@@ -1278,7 +1370,7 @@ func _process(_delta: float) -> void:
 	var output: Dictionary = worker.wait_to_finish()
 	busy = false
 	var result: Dictionary = output.result
-	if output.operation == "reopen_regions":
+	if output.operation == "reopen_package":
 		var stale: bool = generation != worker_generation or package_work.stopped()
 		package_work = null
 		if not result.ok: _status(store.reason(result))
@@ -1429,10 +1521,11 @@ func _adopt_import() -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is not InputEventKey or not event.pressed or event.echo: return
 	var focus := get_viewport().gui_get_focus_owner()
-	if focus is LineEdit or focus is TextEdit or author_panel.visible: return
+	if focus is LineEdit or focus is TextEdit: return
 	var handled := true
 	if event.ctrl_pressed or event.meta_pressed:
 		match event.keycode:
+			KEY_P: commands.open()
 			KEY_S: _save()
 			KEY_Z: _history(event.shift_pressed)
 			KEY_Y: _history(true)

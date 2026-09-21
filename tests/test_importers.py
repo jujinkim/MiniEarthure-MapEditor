@@ -17,6 +17,20 @@ def fixture():
 
 
 class ImportTests(unittest.TestCase):
+    def test_building_usage_is_current_contract_and_estimates_are_explicit(self):
+        for usage in [None, "warehouse", "unknown", "commercial"]:
+            with self.subTest(usage=usage):
+                value = fixture()
+                if usage is not None:
+                    value["features"][0]["properties"]["usage"] = usage
+                original = copy.deepcopy(value)
+                layer = convert(value, "source", "MIT")
+                self.assertEqual(layer.patches[0]["after"]["usage"], "commercial" if usage == "commercial" else "residential")
+                self.assertEqual(layer.estimates.get("usage", 0), 0 if usage == "commercial" else 1)
+                self.assertEqual(value, original)
+                if usage != "commercial":
+                    self.assertTrue(any("Unclassified building use" in warning for warning in layer.warnings))
+
     def test_metadata_and_new_namespace(self):
         value = fixture()
         raw = json.dumps(value).encode()

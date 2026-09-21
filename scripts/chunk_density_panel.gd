@@ -19,7 +19,7 @@ func configure(document_store: RefCounted, map_canvas: Control) -> void:
 	store = document_store
 	canvas = map_canvas
 	listing = ItemList.new()
-	listing.custom_minimum_size.y = 90
+	listing.custom_minimum_size.y = 48
 	add_child(listing)
 	details = Label.new()
 	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

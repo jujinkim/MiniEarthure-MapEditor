@@ -1,4 +1,4 @@
-extends AcceptDialog
+extends PanelContainer
 const HEIGHTMAP_JOB := preload("./heightmap_native_job.gd")
 const ASSET_JOB := preload("./asset_native_job.gd")
 var asset_revision := 0
@@ -21,6 +21,7 @@ const FILES := preload("./authoring_files.gd")
 var editor: Control
 var author: RefCounted
 var tabs: TabContainer
+var page_picker: OptionButton
 var feedback: Label
 var source_picker: FileDialog
 var fields := {}
@@ -31,15 +32,19 @@ var sign_panel: RefCounted
 var environment_panel: RefCounted
 
 func _ready() -> void:
-	title = "Map authoring"
-	size = Vector2i(800, 650)
-	min_size = Vector2i(680, 500)
-	unresizable = false
+	size_flags_vertical = Control.SIZE_EXPAND_FILL
+	custom_minimum_size.y = 160
 	var column := VBoxContainer.new()
 	add_child(column)
-	column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	column.offset_bottom = -55
+	var toolbar := HBoxContainer.new()
+	column.add_child(toolbar)
+	page_picker = OptionButton.new()
+	page_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	toolbar.add_child(page_picker)
+	button(toolbar, "Refresh", open)
+	page_picker.item_selected.connect(func(index: int): tabs.current_tab = index)
 	tabs = TabContainer.new()
+	tabs.tabs_visible = false
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(tabs)
 	feedback = Label.new()
@@ -239,6 +244,7 @@ func open() -> void:
 	for child in tabs.get_children():
 		tabs.remove_child(child)
 		child.queue_free()
+	page_picker.clear()
 	fields.clear()
 	feedback.text = "Choose an explicit recipe before using its features. All edits pass MapKit validation."
 	_setup()
@@ -251,11 +257,13 @@ func open() -> void:
 	sign_panel.setup(self)
 	environment_panel = preload("./environment_panel.gd").new()
 	environment_panel.setup(self)
-	popup_centered(Vector2i(800, 650))
+	show()
+	editor.right_dock.show()
 
 func page(name: String) -> VBoxContainer:
 	var scroll := ScrollContainer.new()
 	scroll.name = name
+	page_picker.add_item(name)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	tabs.add_child(scroll)
 	var box := VBoxContainer.new()
@@ -270,12 +278,12 @@ func hint(box: Node, text: String) -> void:
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(label)
 
-func row(box: Node, title: String) -> HBoxContainer:
-	var result := HBoxContainer.new()
+func row(box: Node, title: String) -> VBoxContainer:
+	var result := VBoxContainer.new()
 	box.add_child(result)
 	var label := Label.new()
 	label.text = title
-	label.custom_minimum_size.x = 225
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	result.add_child(label)
 	return result
 
@@ -298,6 +306,7 @@ func text(box: Node, title: String, value: String) -> LineEdit:
 
 func choice(box: Node, title: String, values: Array, value: String) -> OptionButton:
 	var control := OptionButton.new()
+	control.fit_to_longest_item = false
 	for item in values: control.add_item(str(item))
 	control.selected = maxi(0, values.find(value))
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -307,6 +316,8 @@ func choice(box: Node, title: String, values: Array, value: String) -> OptionBut
 func button(box: Node, title: String, callback: Callable) -> Button:
 	var control := Button.new()
 	control.text = title
+	control.clip_text = true
+	control.tooltip_text = title
 	control.pressed.connect(callback)
 	box.add_child(control)
 	return control
