@@ -6,7 +6,7 @@ const PAYLOADS := preload("./authoring_files.gd")
 const FILES := preload("./document_files.gd")
 const HISTORY_BYTES := 16 * 1024 * 1024
 const HISTORY_COMMANDS := 200
-const RECORD_FIELDS := ["nodes", "roads", "buildings", "surface_areas", "zones", "assets", "placements", "repetitions", "heightmaps", "attributions"]
+const RECORD_FIELDS := ["nodes", "roads", "buildings", "surface_areas", "zones", "assets", "placements", "repetitions", "heightmaps", "attributions", "courses"]
 const VALUE_FIELDS := ["bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment"]
 var document: Dictionary = {}
 var project_path := ""
@@ -88,6 +88,7 @@ func _json_copy(value: Variant) -> Variant:
 	return JSON.parse_string(JSON.stringify(value))
 
 func record_id(field: String, record: Dictionary) -> String:
+	if field == "courses": return str(record.get("course_id", ""))
 	if field == "attributions":
 		return JSON.stringify([record.get("source", ""), record.get("license", ""), record.get("notice", "")])
 	if field == "heightmaps":
@@ -325,7 +326,7 @@ func save_project(path: String) -> String:
 	var destination := absolute.path_join("document.json")
 	var expected := _disk_digest if destination == _disk_path else ""
 	var failure := ""
-	if absolute != project_path and (not document.heightmaps.is_empty() or not document.assets.is_empty() or history_bytes > 0):
+	if absolute != project_path and (not document.heightmaps.is_empty() or not document.assets.is_empty() or not document.get("courses",[]).is_empty() or history_bytes > 0):
 		var captured := SNAPSHOT.capture(document, project_path, undo_stack + redo_stack)
 		if not captured.ok: return reason(captured)
 		failure = SNAPSHOT.copy_to(captured.data, absolute)

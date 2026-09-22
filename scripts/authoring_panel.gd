@@ -29,6 +29,7 @@ var asset_fields := {}
 var asset_before := {}
 var session_signature := ""
 var sign_panel: RefCounted
+var course_panel: RefCounted
 var environment_panel: RefCounted
 
 func _ready() -> void:
@@ -153,6 +154,7 @@ func _discard_heightmap() -> void:
 	if heightmap_review != null: heightmap_review.hide()
 
 func _exit_tree() -> void:
+	if course_panel != null: course_panel.teardown()
 	_discard_heightmap()
 	_discard_asset()
 
@@ -257,6 +259,9 @@ func open() -> void:
 	sign_panel.setup(self)
 	environment_panel = preload("./environment_panel.gd").new()
 	environment_panel.setup(self)
+	if course_panel != null: course_panel.teardown()
+	course_panel = preload("./course_panel.gd").new()
+	course_panel.setup(self)
 	show()
 	editor.right_dock.show()
 

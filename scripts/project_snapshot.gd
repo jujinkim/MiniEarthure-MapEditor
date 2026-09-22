@@ -14,9 +14,14 @@ static func capture(document: Dictionary, source: String, history: Array = []) -
 	var paths := {}
 	for field in ["assets", "heightmaps"]:
 		for record: Dictionary in checked.data.document.get(field, []): paths[str(record.path)] = true
+	for course: Dictionary in checked.data.document.get("courses", []):
+		if course.has("validation"): paths[str(course.validation.path)] = true
 	# Save As keeps Undo/Redo usable, including old immutable raster versions.
 	for command: Dictionary in history:
 		for patch: Dictionary in command.patches:
+			if patch.field == "courses":
+				for value in [patch.before, patch.after]:
+					if value != null and value.has("validation"): paths[str(value.validation.path)] = true
 			if patch.field in ["assets", "heightmaps"]:
 				for value in [patch.before, patch.after]:
 					if value != null: paths[str(value.path)] = true

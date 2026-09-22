@@ -1,4 +1,6 @@
 extends Control
+signal course_point_selected(point: Vector2)
+var course_points: Array = []
 signal selection_changed(ids: Array)
 signal status(text: String)
 signal terrain_requested(request: Dictionary)
@@ -199,6 +201,12 @@ func _draw() -> void:
 		var rect := Rect2(start, end - start).abs()
 		draw_rect(rect, Color(1, 0.88, 0.3, 0.12))
 		draw_rect(rect, Color("ffe14c"), false, 1.5)
+	for index in course_points.size():
+		var cp: Dictionary = course_points[index]
+		var p: Array = cp.position_cm
+		var center := screen([p[0],p[2]])
+		draw_arc(center, float(cp.radius_cm)*_scale(), 0, TAU, 32, Color.CYAN, 2.0)
+		draw_string(ThemeDB.fallback_font,center, str(index+1),HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color.CYAN)
 
 func _hit(p: Vector2) -> String:
 	var objects := EDIT.entries(store.document)
@@ -257,7 +265,9 @@ func _gui_input(event: InputEvent) -> void:
 			if event.pressed:
 				grab_focus()
 				var p := world(event.position)
-				if tool == "Terrain":
+				if tool == "Course":
+					course_point_selected.emit(p)
+				elif tool == "Terrain":
 					var options: Dictionary = author.options.duplicate(true)
 					options.spacing_cm = options.grid_cm
 					_report(author.terrain.begin(p, options))
