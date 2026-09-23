@@ -26,6 +26,9 @@ static func build(native: RefCounted, document: Dictionary, cancelled: Callable 
 				for convex: Dictionary in asset.get("convex_collision", []):
 					for vertex: Array in convex.vertices:
 						margin = maxf(margin, maxf(absf(vertex[0]), absf(vertex[2])))
+		if entry.field == "gimmicks":
+			low = Vector2(entry.record.safety_min_cm[0],entry.record.safety_min_cm[2])
+			high = Vector2(entry.record.safety_max_cm[0],entry.record.safety_max_cm[2])
 		low -= Vector2.ONE * margin
 		high += Vector2.ONE * margin
 		var queried: Dictionary = JSON.parse_string(native.query_cells(int(low.x), int(low.y), int(high.x), int(high.y), 16384))

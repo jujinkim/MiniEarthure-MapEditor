@@ -161,7 +161,7 @@ func allowance(native: RefCounted, cell: Vector2i) -> Dictionary:
 	return {"ok": true, "data": charge}
 
 static func work_bytes(cost: Dictionary) -> int:
-	return int(cost.generation_scratch_bytes) + int(cost.triangles) * (256 + int(cost.max_object_id_bytes)) + int(cost.objects) * 1024 + int(cost.presentation_bytes) * 4
+	return int(cost.get("gimmick_bytes",0)) + int(cost.generation_scratch_bytes) + int(cost.triangles) * (256 + int(cost.max_object_id_bytes)) + int(cost.objects) * 1024 + int(cost.presentation_bytes) * 4
 
 func density_report(native: RefCounted, snapshot: Dictionary, index: Dictionary, cached: Dictionary) -> Dictionary:
 	var bounds: Dictionary = snapshot.document.bounds

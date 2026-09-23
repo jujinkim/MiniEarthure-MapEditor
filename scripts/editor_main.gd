@@ -43,6 +43,7 @@ const DEM_PANEL := preload("./dem_panel.gd")
 var dem_panel: ConfirmationDialog
 const STORE := preload("./document_store.gd")
 const CANVAS := preload("./map_canvas.gd")
+const GIMMICK_GEOMETRY := preload("res://addons/mapkit/godot/gimmick_geometry.gd")
 const RENDERER := preload("res://addons/mapkit/godot/chunk_renderer.gd")
 var store := STORE.new()
 var canvas: Control
@@ -1147,6 +1148,8 @@ func _package_finished(result: Dictionary) -> void:
 		return
 	preview_stats.generated += 1
 	render_data = result.data
+	render_data.gimmicks = JSON.parse_string(result.data.chunk.gimmicks_json) if result.data.chunk.has("gimmicks_json") else result.data.chunk.get("gimmicks",[])
+	render_data.gimmick_index = 0
 	render_batch_estimate = 1000
 	render_staged = Node3D.new()
 	render_staged.visible = false
@@ -1174,6 +1177,14 @@ func _advance_attachment() -> void:
 	while not render_job.is_empty():
 		var batch := Time.get_ticks_usec()
 		var done := RENDERER.advance(render_job)
+		if done and render_job.error.is_empty() and render_data.gimmick_index < render_data.gimmicks.size():
+			var definition: Dictionary = render_data.gimmicks[render_data.gimmick_index]
+			var visual := GIMMICK_GEOMETRY.visual(definition)
+			visual.transform = GIMMICK_GEOMETRY.pose(definition,0)
+			visual.set_meta("gimmick_id",definition.id)
+			render_staged.add_child(visual)
+			render_data.gimmick_index += 1
+			done = false
 		var batch_usec := Time.get_ticks_usec() - batch
 		render_batch_estimate = maxi(render_batch_estimate, batch_usec)
 		preview_stats.max_batch_usec = maxi(preview_stats.max_batch_usec, batch_usec)

@@ -82,6 +82,11 @@ func run() -> void:
 		if not job.error.is_empty():push_error(str(job.error));quit(1);return
 		print("REVIEW_GEOMETRY nodes=",job.root.get_child_count()," triangles=",combined.triangles.size()," objects=",combined.objects.size()," materials=",job.materials.size()," instances=",job.instances.size())
 		jobs.append(job)
+		var source_document: Dictionary = JSON.parse_string(bridge.document_json()).data
+		for g: Dictionary in source_document.get("gimmicks", []):
+			var structure := preload("res://addons/mapkit/godot/gimmick_geometry.gd").visual(g)
+			structure.transform = preload("res://addons/mapkit/godot/gimmick_geometry.gd").pose(g,0)
+			world.add_child(structure)
 		var camera:=Camera3D.new();world.add_child(camera);camera.current=true
 		camera.projection=Camera3D.PROJECTION_ORTHOGONAL;camera.size=meta.size[0]*1.13
 		var center:=Vector3(meta.size[0]/2.0,0,-meta.size[1]/2.0)

@@ -1,6 +1,6 @@
 extends RefCounted
 ## Vector edit planning only. MapKit validation and DocumentStore publish atomically.
-const FIELDS := ["surface_areas", "zones", "buildings", "roads", "repetitions", "placements", "nodes"]
+const FIELDS := ["surface_areas", "zones", "buildings", "roads", "repetitions", "placements", "gimmicks", "nodes"]
 
 static func key(field: String, id: String) -> String:
 	return field + "/" + id
@@ -39,6 +39,10 @@ static func translated(field: String, record: Dictionary, delta: Vector2) -> Dic
 		for p: Array in vertices:
 			p[0] += int(delta.x)
 			p[2] += int(delta.y)
+	if field == "gimmicks":
+		for name in ["safety_min_cm", "safety_max_cm"]:
+			after[name][0] += int(delta.x)
+			after[name][2] += int(delta.y)
 	return after
 
 static func patch(field: String, before: Variant, after: Variant) -> Dictionary:
