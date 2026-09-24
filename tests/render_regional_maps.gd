@@ -69,9 +69,13 @@ func run() -> void:
 			if not surfaces.has(key):
 				var surface:=SurfaceTool.new();surface.begin(Mesh.PRIMITIVE_TRIANGLES);surfaces[key]=surface
 			var surface:SurfaceTool=surfaces[key]
+			var a:Vector3=RENDER.DATA.scene_vertex(combined,index,0)
+			var b:Vector3=RENDER.DATA.scene_vertex(combined,index,2)
+			var c:Vector3=RENDER.DATA.scene_vertex(combined,index,1)
+			var normal:Vector3=(c-a).cross(b-a).normalized()
 			for vertex in [0,2,1]:
 				var point:Vector3=RENDER.DATA.scene_vertex(combined,index,vertex)
-				surface.set_uv(Vector2(point.x,point.z));surface.add_vertex(point)
+				surface.set_uv(Vector2(point.x,point.z) if absf(normal.y)>.5 else Vector2(point.x if absf(normal.z)>absf(normal.x) else point.z,point.y));surface.add_vertex(point)
 		combined.render_batches=[]
 		for key:String in surfaces:
 			var surface:SurfaceTool=surfaces[key];surface.generate_normals()
@@ -95,7 +99,8 @@ func run() -> void:
 		var directory:=output.path_join(id);DirAccess.make_dir_recursive_absolute(directory)
 		root.get_texture().get_image().save_png(directory.path_join("overview.png"))
 		camera.projection=Camera3D.PROJECTION_PERSPECTIVE;camera.fov=62
-		camera.position=Vector3(meta.start.x_cm/100.0,3.5,-meta.start.y_cm/100.0)
+		var start_probe:Dictionary=JSON.parse_string(bridge.surface_probe(int(meta.start.x_cm),int(meta.start.y_cm),meta.start.surface_id))
+		camera.position=Vector3(meta.start.x_cm/100.0,float(start_probe.data.position_cm[1])/100.0+1.2,-meta.start.y_cm/100.0)
 		camera.rotation=Vector3(-.06,meta.start.heading_radians,0)
 		await process_frame;await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png(directory.path_join("ground.png"))
