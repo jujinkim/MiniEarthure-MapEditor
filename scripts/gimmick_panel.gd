@@ -17,7 +17,7 @@ func setup(owner: Control) -> void:
 	records = panel.editor.store.document.get("gimmicks", []).duplicate(true)
 	picker = panel.choice(box, "Object", ["New structure"], "New structure")
 	for record: Dictionary in records: picker.add_item(record.id)
-	templates = JSON.parse_string(FileAccess.get_file_as_string("res://addons/mapkit/examples/driving-library/library.json"))
+	templates = JSON.parse_string(FileAccess.get_file_as_string("res://addons/mapkit/godot/driving_templates.json"))
 	template = panel.choice(box, "Template", templates.keys(), templates.keys()[0])
 	for axis in ["X", "Y", "Z"]:
 		controls[axis] = panel.number(box, "Position " + axis + " (m)", 32 if axis != "Y" else 0, -10000, 10000, 0.01)

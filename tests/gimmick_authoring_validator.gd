@@ -9,6 +9,13 @@ func run() -> void:
 	await process_frame
 	ui.author_panel.open()
 	var panel: RefCounted = ui.author_panel.gimmick_panel
+	var ramp: Dictionary = panel.draft()
+	var entry_height := -INF
+	for v: Array in ramp.parts[0].vertices:
+		if v[2] == -225: entry_height = maxf(entry_height, v[1])
+	check(entry_height == 0 and ramp.position[1] == 0, "new ramp has no entry step or floating placement")
+	check(ui.store.apply_command("Ramp probe", [{"field":"gimmicks", "id":ramp.id, "before":null, "after":ramp}]) == "", "native validates current ramp")
+	check(ui.store.undo() == "", "ramp probe restored")
 	for i in panel.template.item_count:
 		if panel.template.get_item_text(i) == "platform": panel.template.select(i)
 	panel.load_controls(panel.templates.platform)

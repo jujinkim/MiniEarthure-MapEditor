@@ -44,3 +44,7 @@ passes all seven maps. Fixed overview/street rendering uses the public renderer;
 instanced leaf tint is included. Detailed art/driving/editor acceptance is left
 to users. Embedded font notices stay with the original source assets/packages.
 No memory/cell admission caps are raised.
+
+New structure editing uses MapKit’s current zero-step templates. The native
+gimmick authoring validator passes (including new ramp save and undo). Existing
+source/library artifacts are preserved.
