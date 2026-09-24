@@ -14,7 +14,8 @@ integration, recursive clean-clone, export matrices and prolonged performance
 runs require an explicit user request. Record known failures and user checks
 separately; this supersedes earlier automatic full-suite/final-acceptance rules.
 
-Current v1 replacement (2026-09-20): all own format/protocol numbers remain 1
+Current replacement: `.memap` format 2 is the required MapKit reader contract
+under the 2026-09-24 decision; other own format/protocol numbers remain 1
 unless the user explicitly approves a version change. Runtime state revisions,
 epochs and request IDs are not format versions. No previous-format loaders,
 automatic conversion or legacy compatibility branches. Preserve user datasets,
