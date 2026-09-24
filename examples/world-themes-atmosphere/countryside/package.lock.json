@@ -4,11 +4,11 @@
     "base_data_bytes": 13068,
     "cell_count": 24,
     "expanded_bytes": 175708,
-    "package_bytes": 110196,
-    "package_sha256": "6545921bedeffc893ff7ed006c7b9f23778847bdfb8aa91e00fd495615bd00b6",
-    "retained_memory_bytes": 11225624,
+    "package_bytes": 110197,
+    "package_sha256": "1e9fb0913a9b318fbab692eba43cda5ebb8e642252b6883956aa630d085821f6",
+    "retained_memory_bytes": 113294584,
     "user_asset_bytes": 162640,
-    "validation_peak_bytes": 296749440,
+    "validation_peak_bytes": 398818402,
     "world_content_hash": "a6d117d17222953fecc82331605e3a3e3c4dbae85b4e278f49a72be8d811063c"
   }
 }
