@@ -38,6 +38,7 @@ func run() -> void:
 				var chunk:Dictionary=generated.data.chunk
 				var packed:Dictionary=bridge.generate_chunk_packed(x,y)
 				var decorated:Dictionary=bridge.with_presentation(packed.data)
+				if not decorated.get("ok",false):push_error(str(decorated));quit(1);return
 				var part:Dictionary=decorated.data.chunk.presentation
 				if presentation.is_empty():presentation=part.duplicate(true)
 				else:
