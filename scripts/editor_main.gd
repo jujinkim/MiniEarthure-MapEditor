@@ -380,7 +380,9 @@ func _build_ui() -> void:
 	preview_container.custom_minimum_size = Vector2(200, 100)
 	preview_dock.add_child(preview_container)
 	preview_container.gui_input.connect(func(event: InputEvent):
-		if preview_camera.input(event): preview_container.accept_event())
+		if author_panel != null and author_panel.gimmick_panel != null and author_panel.gimmick_panel.surface_input(event):
+			preview_container.accept_event()
+		elif preview_camera.input(event): preview_container.accept_event())
 	viewport = SubViewport.new()
 	viewport.size = Vector2i(680, 500)
 	viewport.own_world_3d = true
