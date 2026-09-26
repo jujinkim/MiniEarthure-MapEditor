@@ -1,0 +1,20 @@
+validation project=editor script=render_regional_maps installed_addons=False port=57299
+Initialize godot-rust (API v4.7.stable.official, runtime v4.7.2.stable.mono.official, safeguards strict)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 4.1 Metal - 90.5 - Compatibility - Using Device: Apple - Apple M1
+
+REVIEW_GEOMETRY nodes=129 triangles=73346 objects=274 materials=0 instances=0
+REGIONAL_RENDERED haeon cells=1 shared_bytes=63523456
+REVIEW_GEOMETRY nodes=94 triangles=79262 objects=253 materials=0 instances=0
+REGIONAL_RENDERED belmont cells=1 shared_bytes=46682080
+REVIEW_GEOMETRY nodes=106 triangles=65220 objects=179 materials=0 instances=0
+REGIONAL_RENDERED nord cells=1 shared_bytes=37386496
+REVIEW_GEOMETRY nodes=76 triangles=61177 objects=153 materials=0 instances=0
+REGIONAL_RENDERED safra cells=1 shared_bytes=44690528
+REVIEW_GEOMETRY nodes=51 triangles=74399 objects=108 materials=0 instances=0
+REGIONAL_RENDERED red-wadi cells=1 shared_bytes=30370048
+REVIEW_GEOMETRY nodes=107 triangles=81035 objects=666 materials=0 instances=0
+REGIONAL_RENDERED kanupi cells=1 shared_bytes=52188640
+REVIEW_GEOMETRY nodes=102 triangles=75875 objects=283 materials=0 instances=0
+REGIONAL_RENDERED bansai cells=1 shared_bytes=48448160
+render_regional_maps: PASS

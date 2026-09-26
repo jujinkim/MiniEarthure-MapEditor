@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/Applications/Godot_mono.app/Contents/MacOS/Godot",
+    "--path",
+    "/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/miniearthure-check-xxxx_x17",
+    "--script",
+    "res://addons/mapkit/godot/tests/richer_material_validator.gd"
+  ],
+  "elapsed_seconds": 1.064,
+  "exit_code": 0,
+  "unexpected_diagnostics": [],
+  "strict_applied": true,
+  "import_cache": "/private/tmp/miniearthure-richer/editor-import",
+  "owned_children": {}
+}

@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/Applications/Godot_mono.app/Contents/MacOS/Godot",
+    "--path",
+    "/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/miniearthure-check-2d7164lx",
+    "--script",
+    "res://tests/render_regional_maps.gd"
+  ],
+  "elapsed_seconds": 24.227,
+  "exit_code": 0,
+  "unexpected_diagnostics": [],
+  "strict_applied": true,
+  "import_cache": "/private/tmp/miniearthure-richer/editor-import",
+  "owned_children": {}
+}

@@ -1,0 +1,121 @@
+[
+  {
+    "id": "belmont",
+    "package_sha256": "362f36bbd57e8b9ede9c6577cb8faf90d6629aafc426b8e8ec3b00b20d601ee5",
+    "cell_count": 432,
+    "cell_hashes_sha256": "df2b5482ccd0cef7973a0aba96160bb063c0cff264f01ab96d7ba0eec0f1bd44",
+    "source_manifest_sha256": "c263b14809dc074e8ec54a4b67fcca0ce14a6cbb89dbc86d8daf6db0ad57f479",
+    "size_m": [
+      384,
+      288
+    ],
+    "route_lengths_m": [
+      236.03,
+      357.34,
+      423.39
+    ],
+    "result": "PASS"
+  },
+  {
+    "id": "kanupi",
+    "package_sha256": "b4dc33a32c3e3371337b7c0cbb44ac5e1dba9ef50ac6b71815be0ee14a954c50",
+    "cell_count": 432,
+    "cell_hashes_sha256": "a493c6816bcf0048e807a06bca13e59f774dc8c1676b455b0516dc73d408363c",
+    "source_manifest_sha256": "31785165a929c077c682cfce4fea47b01110e5cf22144cd092768f4801043ead",
+    "size_m": [
+      384,
+      288
+    ],
+    "route_lengths_m": [
+      244.15,
+      348.68,
+      423.61
+    ],
+    "result": "PASS"
+  },
+  {
+    "id": "bansai",
+    "package_sha256": "314155d1673a6f12390000c5b0b68cbe0ecf5ca40c7ec5e9a6c231c0e8cf2b91",
+    "cell_count": 352,
+    "cell_hashes_sha256": "d8d5df8f153a8258fa3850d24fb893ff59e9291c7315edd6df2eb6a7d6f45d97",
+    "source_manifest_sha256": "63e449c1fb88ebe385d6af26800428d790906a9d61bb261677a105ecafe3ad1e",
+    "size_m": [
+      352,
+      256
+    ],
+    "route_lengths_m": [
+      264.46,
+      351.31,
+      429.4
+    ],
+    "result": "PASS"
+  },
+  {
+    "id": "safra",
+    "package_sha256": "5658aad3ab71b262da1a171c8c21126694d7743b58f68731d80b22953cfcbb65",
+    "cell_count": 324,
+    "cell_hashes_sha256": "02d8a718500d27fdcb21ebbb350f5f1ab9b2542cef3301858d20f17f27fc55e7",
+    "source_manifest_sha256": "df21e82966476038e09c2ee7b9e9ecd4014d7389deac220e3196dc3bdfa3ecee",
+    "size_m": [
+      288,
+      288
+    ],
+    "route_lengths_m": [
+      223.36,
+      341.34,
+      425.04
+    ],
+    "result": "PASS"
+  },
+  {
+    "id": "nord",
+    "package_sha256": "7674f6e9d0cee4a6b518fa240512c97b874f22a87821f02d21857db86312cc7a",
+    "cell_count": 338,
+    "cell_hashes_sha256": "a5bd676c5d5dba5df9285038471c85bb3ce90ee3a4ddc637d19ee419b459b460",
+    "source_manifest_sha256": "2b94cd88530b780f8c42ea3eeb38241196456d63f34901e136ab0af1a113638d",
+    "size_m": [
+      416,
+      208
+    ],
+    "route_lengths_m": [
+      244.89,
+      375.0,
+      422.29
+    ],
+    "result": "PASS"
+  },
+  {
+    "id": "haeon",
+    "package_sha256": "0f5815e252ac5ec37cca3c081479b39cd3a4ada10bfd68c294392b3c18908f0d",
+    "cell_count": 400,
+    "cell_hashes_sha256": "92eabb18c053ce272747ad268011652aa8f9bb437c8d769c5f75f79cf1b742e6",
+    "source_manifest_sha256": "4e0cfa083e3892e4be5a2f153aab5011181a7faf1c4ec6b0dfed9855d36e7c89",
+    "size_m": [
+      320,
+      320
+    ],
+    "route_lengths_m": [
+      226.14,
+      329.1,
+      421.6
+    ],
+    "result": "PASS"
+  },
+  {
+    "id": "red-wadi",
+    "package_sha256": "5484ac4d2247a5560a8599aa206147d0a9cd236a6686c6e6d23bdc95de0c5ec6",
+    "cell_count": 416,
+    "cell_hashes_sha256": "e439c6761b8e3f04b703c49af03297af6ad95e5aa363af74e351d45524a77b64",
+    "source_manifest_sha256": "15c5a059bd91f99a1f972aa55d32bbf0cc2e4c1290b13b45e4e0adde77da83e6",
+    "size_m": [
+      416,
+      256
+    ],
+    "route_lengths_m": [
+      232.63,
+      358.16,
+      426.69
+    ],
+    "result": "PASS"
+  }
+]
