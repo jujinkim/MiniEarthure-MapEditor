@@ -399,6 +399,11 @@ func _drawing() -> void:
 	opt_choice(box, "Building material", "material", ["concrete", "brick", "wood"])
 	opt_choice(box, "Roof", "roof", ["flat", "gable"])
 	hint(box, "Cylinder wall: choose the tool and click its centre. A solid round barrier uses the same visible and collision outline. Base and material are shared with the settings above.")
+	hint(box, "Water: surface is not solid. Island outlines stay dry; terrain and bridges retain their collisions.")
+	opt_number(box, "Water surface (m)", "water_surface_cm", -10000, 10000)
+	opt_number(box, "Water bottom (m)", "water_bottom_cm", -10000, 10000)
+	opt_number(box, "Flow X (m/s)", "water_flow_x", -10, 10)
+	opt_number(box, "Flow Y (m/s)", "water_flow_y", -10, 10)
 	opt_number(box, "Cylinder wall radius (m)", "wall_radius_cm", 0.25, 500)
 	opt_number(box, "Cylinder wall height (m)", "wall_height_cm", 0.01, 1000)
 	opt_number(box, "Planting / repetition spacing (m)", "spacing_cm", 2, 1000)
@@ -608,6 +613,17 @@ func _selected() -> void:
 			report(author.edit_road(record, vertices, ws, ss, structure, int(clearance.value) if structure in ["tunnel", "underpass"] else null, int(sidewalk.value) if sidewalk.value > 0 else null, [int(levels[0].value), int(levels[1].value)]))
 		)
 	else:
+		if entry.field == "water_bodies":
+			var level := number(box, "Water surface (m)", record.surface_cm/100.0, -10000, 10000, .01)
+			var bottom := number(box, "Water bottom (m)", record.bottom_cm/100.0, -10000, 10000, .01)
+			var fx := number(box, "Flow X (m/s)", record.flow_cm_s[0]/100.0, -10, 10, .01)
+			var fy := number(box, "Flow Y (m/s)", record.flow_cm_s[1]/100.0, -10, 10, .01)
+			button(box, "Apply water properties", func():
+				if not fresh(): return
+				var after := record.duplicate(true)
+				after.merge({"surface_cm":roundi(level.value*100),"bottom_cm":roundi(bottom.value*100),"flow_cm_s":[roundi(fx.value*100),roundi(fy.value*100)]}, true)
+				report(author.apply("Edit water", [{"field":"water_bodies","id":record.id,"before":record,"after":after}]))
+			)
 		var cylinder: Dictionary = author.CYLINDER.dimensions(record) if entry.field == "buildings" else {}
 		if not cylinder.is_empty():
 			hint(box, "Cylinder wall · solid collision · 48 sides")

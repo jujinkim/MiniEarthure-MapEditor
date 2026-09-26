@@ -118,7 +118,7 @@ func run() -> void:
 	var project := ProjectSettings.globalize_path("user://e03-project")
 	ok(ui.store.save_project(project), "save before file authoring")
 	await click_button("Authoring settings…")
-	check(ui.author_panel.visible and ui.author_panel.tabs.get_tab_count() == 6, "real authoring tabs")
+	check(ui.author_panel.visible and ui.author_panel.tabs.get_tab_count() == 9, "real authoring tabs")
 	ui.author_panel.hide()
 	ok(ui.canvas.author.set_theme("rural"), "explicit recipe4/theme")
 	var author: RefCounted = ui.canvas.author
@@ -309,9 +309,10 @@ func run() -> void:
 	ui.preview_x.value = 1
 	ui.preview_y.value = 1
 	ui._preview()
-	for _i in range(500):
+	var preview_deadline:=Time.get_ticks_msec()+20000
+	while Time.get_ticks_msec()<preview_deadline:
 		await process_frame
-		if not ui.busy: break
+		if not ui.busy and ui.status_label.text.begins_with("Preview ready"): break
 	check(not ui.busy and ui.status_label.text.begins_with("Preview ready"), "same MapKit renderer displays authored content")
 	await click_button("Authoring settings…")
 	ui.author_panel.tabs.current_tab = 3
@@ -329,14 +330,14 @@ func run() -> void:
 	(ancestor as ScrollContainer).ensure_control_visible(apply)
 	await process_frame
 	await process_frame
-	await click(apply.get_global_rect().get_center() + Vector2(ui.author_panel.position))
+	await click(apply.get_global_rect().get_center())
 	var asset_deadline := Time.get_ticks_msec() + 20000
 	while ui.busy and Time.get_ticks_msec() < asset_deadline: await process_frame
 	check(not ui.busy, "asynchronous asset job finishes: " + ui.author_panel.feedback.text)
 	check(ui.store.document.assets.size() == 3 and ui.store.document.assets.any(func(record: Dictionary): return record.id == "ui-asset"), "real authoring panel Apply imports an asset: " + ui.author_panel.feedback.text)
 	before = state()
 	controls.boxes.text = "[invalid"
-	await click(apply.get_global_rect().get_center() + Vector2(ui.author_panel.position))
+	await click(apply.get_global_rect().get_center())
 	check(state() == before and ui.author_panel.feedback.text.contains("valid JSON"), "proxy UI invalid input preserves history")
 	controls.boxes.text = "[]"
 	var capture := OS.get_environment("MAPEDITOR_CAPTURE_PATH")

@@ -7,6 +7,7 @@ var store: RefCounted
 var canvas: Control
 var terrain := TERRAIN.new()
 var options := {
+	"water_surface_cm": 0, "water_bottom_cm": -500, "water_flow_x": 0, "water_flow_y": 0,
 	"start_cm": 20, "end_cm": 20, "start_level": 0, "end_level": 0,
 	"kind": "ground", "width_cm": 800, "surface": "asphalt", "clearance_cm": 400, "sidewalk_cm": 0,
 	"height_cm": 1200, "base_cm": 0, "usage": "residential", "material": "concrete", "roof": "flat",
@@ -40,7 +41,7 @@ func _points(draft: Array[Vector2]) -> Array:
 	return result
 
 func draw(tool: String, draft: Array[Vector2]) -> String:
-	var fields := {"Road": "roads", "Surface area": "surface_areas", "Building": "buildings", "Cylinder wall": "buildings", "Forest": "zones", "Orchard": "zones", "Place": "placements", "Repeat": "repetitions", "Entrance": "buildings", "Exclusion": "zones"}
+	var fields := {"Water": "water_bodies", "Island": "water_bodies", "Road": "roads", "Surface area": "surface_areas", "Building": "buildings", "Cylinder wall": "buildings", "Forest": "zones", "Orchard": "zones", "Place": "placements", "Repeat": "repetitions", "Entrance": "buildings", "Exclusion": "zones"}
 	var field: String = fields.get(tool, "")
 	if field == "": return "Choose an authoring tool."
 	if not canvas.available({"field": field, "record": {"id": "draft"}}, true): return "Show and unlock the target layer."
@@ -73,6 +74,8 @@ func draw(tool: String, draft: Array[Vector2]) -> String:
 			widths.append(int(options.width_cm))
 			surfaces.append(str(options.surface))
 		record.merge({"from": nodes[0], "to": nodes[1], "points": points, "widths_cm": widths, "surfaces": surfaces, "kind": options.kind, "clearance_cm": int(options.clearance_cm) if options.kind in ["tunnel", "underpass"] else null, "sidewalk_cm": int(options.sidewalk_cm) if int(options.sidewalk_cm) > 0 else null})
+	elif tool == "Water":
+		record.merge({"polygon": polygon, "islands": [], "surface_cm": int(options.water_surface_cm), "bottom_cm": int(options.water_bottom_cm), "flow_cm_s": [int(options.water_flow_x), int(options.water_flow_y)]})
 	elif tool == "Surface area":
 		record.merge({"polygon": polygon, "surface": options.surface})
 	elif tool == "Cylinder wall":
@@ -92,12 +95,12 @@ func draw(tool: String, draft: Array[Vector2]) -> String:
 			if entry.key == canvas.selected[0]: selected = entry
 		if selected.is_empty() or selected.field != field or not canvas.available(selected, true): return "Select an editable " + field + " object."
 		record = selected.record.duplicate(true)
-		var key := "entrances" if tool == "Entrance" else "exclusions"
+		var key := "islands" if tool == "Island" else ("entrances" if tool == "Entrance" else "exclusions")
 		var rings: Array = record.get(key, []).duplicate(true)
 		rings.append(polygon)
 		record[key] = rings
 		patches.append(EDIT.patch(field, selected.record, record))
-	if tool not in ["Entrance", "Exclusion"]: patches.append(_insert(field, record))
+	if tool not in ["Entrance", "Exclusion", "Island"]: patches.append(_insert(field, record))
 	return apply("Draw " + tool, patches, tool == "Road")
 
 func apply(label: String, patches: Array, check_roads: bool = false) -> String:

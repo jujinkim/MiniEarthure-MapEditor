@@ -8,7 +8,7 @@ func run() -> void:
 	var source := OS.get_environment("REGIONAL_SOURCE")
 	var output := OS.get_environment("REGIONAL_DESTINATION")
 	var ids:=OS.get_environment("REGIONAL_IDS").split(",",false)
-	if ids.is_empty():ids=PackedStringArray(["haeon","belmont","nord","safra","red-wadi","kanupi","bansai"])
+	if ids.is_empty():ids=PackedStringArray(JSON.parse_string(FileAccess.get_file_as_string(source.path_join("arcade-world.json"))).maps)
 	for id: String in ids:
 		var meta: Dictionary=JSON.parse_string(FileAccess.get_file_as_string(source.path_join(id+"/region.json")))
 		var bridge: RefCounted=ClassDB.instantiate("MapKitBridge")
@@ -28,14 +28,15 @@ func run() -> void:
 		# streaming/cache limits are unchanged and verified separately.
 		cache.limit_bytes=512*1024*1024
 		var jobs:Array=[]
-		var combined:Dictionary={"cell":{"x":0,"y":0},"triangles":[],"objects":[],"building_prisms":[],"asset_convexes":[]}
+		var combined:Dictionary={"cell":{"x":0,"y":0},"triangles":[],"objects":[],"building_prisms":[],"asset_convexes":[],"water_bodies":[]}
 		var seen:Dictionary={}
 		var presentation:Dictionary={}
-		for y in int(meta.size[1])/16:
-			for x in int(meta.size[0])/16:
+		for y in ceili(float(meta.size[1])/float(meta.get("cell_size_m",16))):
+			for x in ceili(float(meta.size[0])/float(meta.get("cell_size_m",16))):
 				var generated:Dictionary=JSON.parse_string(bridge.generate_chunk(x,y))
 				if not generated.get("ok",false):push_error(str(generated));quit(1);return
 				var chunk:Dictionary=generated.data.chunk
+				combined.water_bodies.append_array(chunk.get("water_bodies",[]))
 				var packed:Dictionary=bridge.generate_chunk_packed(x,y)
 				var decorated:Dictionary=bridge.with_presentation(packed.data)
 				if not decorated.get("ok",false):push_error(str(decorated));quit(1);return
@@ -92,6 +93,15 @@ func run() -> void:
 			var structure := preload("res://addons/mapkit/godot/gimmick_geometry.gd").visual(g)
 			structure.transform = preload("res://addons/mapkit/godot/gimmick_geometry.gd").pose(g,0)
 			world.add_child(structure)
+		var profile:Dictionary=source_document.get("environment",{})
+		var seconds:float=float(profile.get("start_minutes",720))*60.0
+		var sky:Dictionary=preload("res://addons/mapkit/godot/environment_profile.gd").celestial(seconds,profile)
+		cache.environment_context().update(seconds,0.0,0.0,float(sky.altitude),int(profile.get("sunset_minutes",1080)))
+		if float(sky.daylight)<.5:
+			environment.environment.background_color=Color("182838")
+			environment.environment.ambient_light_color=Color("9cbad4")
+			environment.environment.ambient_light_energy=.55
+			sun.light_color=Color("94b6e1");sun.light_energy=.35
 		var camera:=Camera3D.new();world.add_child(camera);camera.current=true
 		camera.projection=Camera3D.PROJECTION_ORTHOGONAL;camera.size=meta.size[0]*1.13
 		var center:=Vector3(meta.size[0]/2.0,0,-meta.size[1]/2.0)

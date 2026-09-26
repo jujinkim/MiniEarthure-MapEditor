@@ -57,7 +57,7 @@ static func signature(document: Dictionary, hashes: Dictionary, index: Dictionar
 	# Shared junctions, inferred sidewalks, vegetation spacing and ordered repetition
 	# can depend on remote source records. Keep a conservative dependency closure.
 	for entry: Dictionary in local:
-		if entry.field in ["roads", "surface_areas", "zones", "repetitions"]:
-			for field in ["roads", "nodes", "buildings", "surface_areas", "zones", "placements", "repetitions"]:
+		if entry.field in ["roads", "water_bodies", "surface_areas", "zones", "repetitions"]:
+			for field in ["roads", "nodes", "buildings", "water_bodies", "surface_areas", "zones", "placements", "repetitions"]:
 				source[field] = document.get(field, [])
 	return JSON.stringify(source).sha256_text()

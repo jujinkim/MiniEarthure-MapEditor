@@ -5,6 +5,10 @@ selector and automatic feature-driven promotion are removed. Current road
 arrangements, buildings, vegetation, environment and regional files use the same
 rules. Do not increment format/protocol versions without explicit user approval.
 
+The 2026-09-26 decision explicitly replaces `.memap` format 2 with current v1.
+[Arcade worlds and water authoring](ARCADE_WORLD.md) are the active new examples;
+preserved historical packages are not automatically upgraded or loaded.
+
 GeoJSON uses `geojson-v1`, including disconnected multilines and collections.
 OSM crop, loop and structural-connection provenance have one current v1 shape;
 all structural arms, retained directions, crop sections and source kinds are

@@ -19,10 +19,16 @@ func setup(owner: PanelContainer) -> void:
 	_pick(box,"Architecture","architecture",["","modern","rural","adobe","timber","tropical"],str(value.get("architecture","")))
 	_pick(box,"Climate","climate",["","temperate","polar","arid","tropical"],str(value.get("climate","")))
 	_pick(box,"Settlement","settlement",["","urban","village","sparse","wilderness"],str(value.get("settlement","")))
+	var tint_row:VBoxContainer=panel.row(box,"Ground color")
+	var tint_enabled:=CheckButton.new();tint_enabled.text="Use authored color";tint_enabled.button_pressed=value.has("ground_color");tint_row.add_child(tint_enabled)
+	var tint:=ColorPickerButton.new();tint.edit_alpha=false
+	var rgb:Array=value.get("ground_color",[117,148,86]);tint.color=Color(float(rgb[0])/255,float(rgb[1])/255,float(rgb[2])/255);tint_row.add_child(tint)
+	fields.ground_color=func():return [roundi(tint.color.r*255),roundi(tint.color.g*255),roundi(tint.color.b*255)] if tint_enabled.button_pressed else null
 	_number(box,"Latitude (degrees)","latitude_mdeg",-90,90,value.latitude_mdeg/1000.0,1000)
 	_number(box,"Longitude (degrees)","longitude_mdeg",-180,180,value.longitude_mdeg/1000.0,1000)
 	_number(box,"UTC offset (minutes)","utc_offset_minutes",-720,840,value.utc_offset_minutes)
 	_number(box,"Sunrise (minutes after midnight)","sunrise_minutes",0,1439,value.sunrise_minutes)
+	_number(box,"Starting time (minutes after midnight)","start_minutes",0,1439,value.get("start_minutes",720))
 	_number(box,"Sunset (minutes after midnight)","sunset_minutes",0,1439,value.sunset_minutes)
 	panel.hint(box,'Regional overrides · ordered polygons in centimetres. Example: [{"id":"farm","concept":"countryside","polygon":[[0,0],[10000,0],[10000,10000]]}]. Architecture, climate and settlement may be overridden separately.')
 	regions = _json(box,value.get("regions",[]))
