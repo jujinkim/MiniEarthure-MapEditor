@@ -601,6 +601,7 @@ func _selected() -> void:
 		for i in range(record.widths_cm.size()):
 			widths.append(number(box, "Segment %d width (cm)" % i, record.widths_cm[i], 20, 10000))
 			surfaces.append(choice(box, "Segment %d surface" % i, ["asphalt", "concrete", "dirt", "gravel", "grass"], record.surfaces[i]))
+		var snow := number(box, "Snow retention (%)", record.get("snow_retention_percent", 100), 0, 100)
 		button(box, "Apply road structure", func():
 			if not fresh(): return
 			var vertices: Array = []
@@ -610,7 +611,7 @@ func _selected() -> void:
 			for control: SpinBox in widths: ws.append(int(control.value))
 			for control: OptionButton in surfaces: ss.append(control.get_item_text(control.selected))
 			var structure := kind.get_item_text(kind.selected)
-			report(author.edit_road(record, vertices, ws, ss, structure, int(clearance.value) if structure in ["tunnel", "underpass"] else null, int(sidewalk.value) if sidewalk.value > 0 else null, [int(levels[0].value), int(levels[1].value)]))
+			report(author.edit_road(record, vertices, ws, ss, structure, int(clearance.value) if structure in ["tunnel", "underpass"] else null, int(sidewalk.value) if sidewalk.value > 0 else null, [int(levels[0].value), int(levels[1].value)], int(snow.value)))
 		)
 	else:
 		if entry.field == "water_bodies":

@@ -222,7 +222,8 @@ func run() -> void:
 	failure = author.edit_road(first,points,[900],["concrete"],"bridge",null,100,[1,1])
 	check(failure != "" and state() == before, "locked graph rejects all endpoint/property changes")
 	ui.canvas.set_layer_state("roads", {})
-	ok(author.edit_road(first,points,[900],["concrete"],"bridge",null,100,[1,1]), "shared bridge height and width edit")
+	ok(author.edit_road(first,points,[900],["concrete"],"bridge",null,100,[1,1],15), "shared bridge height and width edit")
+	check(int(ui.store._get_value(ui.store.document,"roads",first.id).get("snow_retention_percent",100)) == 15, "road snow retention edits atomically with geometry")
 	var joined := false
 	for road: Dictionary in ui.store.document.roads:
 		if road.id == second.id: joined = road.points[0][1] == 900

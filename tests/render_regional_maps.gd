@@ -96,7 +96,7 @@ func run() -> void:
 		var profile:Dictionary=source_document.get("environment",{})
 		var seconds:float=float(profile.get("start_minutes",720))*60.0
 		var sky:Dictionary=preload("res://addons/mapkit/godot/environment_profile.gd").celestial(seconds,profile)
-		cache.environment_context().update(seconds,0.0,0.0,float(sky.altitude),int(profile.get("sunset_minutes",1080)))
+		cache.environment_context().update(seconds,float(profile.get("initial_wet",0))*0.5,float(profile.get("initial_snow",0))*0.5,float(sky.altitude),int(profile.get("sunset_minutes",1080)))
 		if float(sky.daylight)<.5:
 			environment.environment.background_color=Color("182838")
 			environment.environment.ambient_light_color=Color("9cbad4")

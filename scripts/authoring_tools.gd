@@ -135,11 +135,14 @@ func apply(label: String, patches: Array, check_roads: bool = false) -> String:
 		if failure != "": return failure
 	return store.apply_command(label, patches)
 
-func edit_road(before: Dictionary, points: Array, widths: Array, surfaces: Array, kind: String, clearance: Variant, sidewalk: Variant, levels: Array) -> String:
+func edit_road(before: Dictionary, points: Array, widths: Array, surfaces: Array, kind: String, clearance: Variant, sidewalk: Variant, levels: Array, snow_retention: int = -1) -> String:
 	if points.size() < 2 or levels.size() != 2: return "Road requires two endpoints and endpoint levels."
 	for point in points:
 		if point is not Array or point.size() != 3: return "Each road point is [x,height,y] in integer centimetres."
 	var after := before.duplicate(true)
+	if snow_retention != -1:
+		if snow_retention < 0 or snow_retention > 100: return "Snow retention must be 0..100 percent."
+		after.snow_retention_percent = snow_retention
 	after.merge({"points": points, "widths_cm": widths, "surfaces": surfaces, "kind": kind, "clearance_cm": clearance, "sidewalk_cm": sidewalk}, true)
 	var patches: Array = [EDIT.patch("roads", before, after)]
 	var changed_nodes := {}
