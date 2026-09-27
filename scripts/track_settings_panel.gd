@@ -8,12 +8,14 @@ var difficulty: OptionButton
 var time_input: SpinBox
 var selections := {}
 var _defaults := {}
+var _duration_options := {}
 var note: Label
 
 func _ready() -> void:
 	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
 	var catalogue: Dictionary = JSON.parse_string(bridge.track_catalogue()).data
 	_defaults = catalogue.defaults
+	_duration_options = catalogue.duration_options
 	var toggle := Button.new()
 	toggle.text = "Seed 트랙 생성"
 	add_child(toggle)
@@ -34,8 +36,8 @@ func _ready() -> void:
 	circuit.button_pressed = _defaults.circuit
 	form.add_child(circuit)
 	duration = OptionButton.new()
-	for minutes in [1,3,5]: duration.add_item("약 %d분 · 순환은 한 바퀴" % minutes,minutes)
-	duration.select([1,3,5].find(int(_defaults.minutes)))
+	_refresh_duration(int(_defaults.duration_seconds))
+	circuit.toggled.connect(func(_value: bool): _refresh_duration(duration.get_selected_id()))
 	form.add_child(duration)
 	difficulty = OptionButton.new()
 	for title in ["초급","보통","고급"]: difficulty.add_item(title)
@@ -53,7 +55,7 @@ func _ready() -> void:
 	form.add_child(grid)
 	var labels := {"slope":"경사","zigzag":"지그재그","cylinder":"원통","loop":"수직 루프","spiral_up":"상승 나선","spiral_down":"하강 나선","jump":"점프","fixed_obstacle":"고정 장애물","moving_obstacle":"이동 장애물","rotating_obstacle":"회전 장애물","acceleration_panel":"가속 패널","boost_chain":"연속 부스터","air_ring":"공중 링"}
 	for piece: Dictionary in catalogue.pieces:
-		if piece.id in ["straight","curve","curve_left","slope","zigzag"]: continue
+		if piece.id in catalogue.basic_piece_ids: continue
 		var check := CheckBox.new()
 		check.text = labels.get(piece.id,piece.id)
 		check.button_pressed = piece.id in _defaults.gimmicks
@@ -80,13 +82,24 @@ func settings() -> Dictionary:
 	var enabled: Array = []
 	for id: String in selections:
 		if selections[id].button_pressed: enabled.append(id)
-	return {"seed":int(seed_input.text),"circuit":circuit.button_pressed,"minutes":duration.get_selected_id(),
+	return {"seed":int(seed_input.text),"circuit":circuit.button_pressed,"duration_seconds":duration.get_selected_id(),
 		"difficulty":["easy","normal","hard"][difficulty.selected],"time_minutes":roundi(time_input.value*60.0),"gimmicks":enabled}
 
 func restore(value: Dictionary) -> void:
 	seed_input.text = str(int(value.seed))
 	circuit.button_pressed = value.circuit
-	duration.select([1,3,5].find(int(value.minutes)))
+	_refresh_duration(int(value.duration_seconds))
 	difficulty.select(["easy","normal","hard"].find(value.difficulty))
 	time_input.value = float(value.time_minutes)/60.0
 	for id: String in selections: selections[id].button_pressed = id in value.gimmicks
+
+func _refresh_duration(seconds: int) -> void:
+	duration.clear()
+	var choices: Array = _duration_options["circuit" if circuit.button_pressed else "sprint"]
+	for item: Dictionary in choices:
+		var label := "약 %d초" % int(item.seconds) if int(item.seconds)<60 else "약 %d분" % (int(item.seconds)/60)
+		if circuit.button_pressed: label += " / 한 바퀴 · 최대 %d바퀴" % int(item.max_laps)
+		duration.add_item(label,int(item.seconds))
+	for i in duration.item_count:
+		if duration.get_item_id(i)==seconds: duration.select(i); return
+	duration.select(0)
