@@ -37,3 +37,9 @@ bounds instead of copying shape constants, and preserves the 1 m swept bore
 radius when loading it. Generation/save/reopen/settings and native swept bounds
 are checked with synthetic documents. Detailed editing/preview acceptance is a
 user check.
+
+2026-09-28 catalogue-load fix: the panel checks the required `selection_groups`
+dictionary before creating controls. A stale loaded native module now produces
+restart guidance with generation disabled, not a Dictionary access error or an
+old-catalogue fallback. Settings restore is a no-op in that state. The focused
+validator covers missing groups and the current single cylinder-family control.

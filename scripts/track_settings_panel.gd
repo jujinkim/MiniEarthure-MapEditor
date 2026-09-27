@@ -10,10 +10,21 @@ var selections := {}
 var _defaults := {}
 var _duration_options := {}
 var note: Label
+var catalogue_ready := false
+
+func _load_catalogue() -> Dictionary:
+	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
+	return JSON.parse_string(bridge.track_catalogue()).data
 
 func _ready() -> void:
-	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
-	var catalogue: Dictionary = JSON.parse_string(bridge.track_catalogue()).data
+	var catalogue := _load_catalogue()
+	if not catalogue.get("selection_groups") is Dictionary:
+		note = Label.new()
+		note.text = "트랙 생성 모듈이 현재 화면과 맞지 않습니다. 게임과 Godot Editor를 완전히 종료한 후 최신 빌드로 다시 실행해 주세요."
+		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		add_child(note)
+		return
+	catalogue_ready = true
 	_defaults = catalogue.defaults
 	_duration_options = catalogue.duration_options
 	var toggle := Button.new()
@@ -83,6 +94,7 @@ func _ready() -> void:
 	form.add_child(cancel)
 
 func settings() -> Dictionary:
+	if not catalogue_ready: return {}
 	var enabled: Array = []
 	for id: String in selections:
 		if selections[id].button_pressed: enabled.append(id)
@@ -90,6 +102,7 @@ func settings() -> Dictionary:
 		"difficulty":["easy","normal","hard"][difficulty.selected],"time_minutes":roundi(time_input.value*60.0),"gimmicks":enabled}
 
 func restore(value: Dictionary) -> void:
+	if not catalogue_ready: return
 	seed_input.text = str(int(value.seed))
 	circuit.button_pressed = value.circuit
 	_refresh_duration(int(value.duration_seconds))

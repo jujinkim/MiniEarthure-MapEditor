@@ -1,11 +1,24 @@
 extends SceneTree
 const STORE := preload("res://scripts/document_store.gd")
 const PANEL := preload("res://scripts/track_settings_panel.gd")
+class MissingGroupsPanel extends "res://scripts/track_settings_panel.gd":
+	func _load_catalogue() -> Dictionary:
+		var catalogue := super._load_catalogue()
+		catalogue.erase("selection_groups")
+		return catalogue
+
 var failures: Array[String] = []
 func _initialize() -> void: run.call_deferred()
 func check(value: bool,label: String) -> void:
 	if not value: failures.append(label); push_error(label)
 func run() -> void:
+	var mismatched := MissingGroupsPanel.new()
+	root.add_child(mismatched)
+	check(not mismatched.catalogue_ready and mismatched.selections.is_empty(), "mismatched native catalogue disables generation")
+	check(mismatched.note.text.contains("다시 실행"), "mismatched native catalogue shows restart guidance")
+	check(mismatched.settings().is_empty(), "mismatched catalogue cannot submit settings")
+	mismatched.restore({})
+	mismatched.free()
 	var store := STORE.new()
 	store.new_document()
 	var old_path := ProjectSettings.globalize_path("user://original")
@@ -34,6 +47,7 @@ func run() -> void:
 	check(reopened.open_project(current)=="" and reopened.document.assembled_track==store.document.assembled_track,"seed settings placements round trip")
 	var panel := PANEL.new()
 	root.add_child(panel)
+	check(panel.catalogue_ready and panel.selections.has("cylinder") and not panel.selections.has("cylinder_curve"), "current catalogue exposes one cylinder family")
 	panel.restore(reopened.document.assembled_track.settings)
 	check(JSON.parse_string(JSON.stringify(panel.settings()))==JSON.parse_string(JSON.stringify(settings)),"generator controls restore settings")
 	panel.free()
