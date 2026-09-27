@@ -56,13 +56,17 @@ func _ready() -> void:
 	var labels := {"slope":"경사","zigzag":"지그재그","cylinder":"원통","loop":"수직 루프","spiral_up":"상승 나선","spiral_down":"하강 나선","jump":"점프","fixed_obstacle":"고정 장애물","moving_obstacle":"이동 장애물","rotating_obstacle":"회전 장애물","acceleration_panel":"가속 패널","boost_chain":"연속 부스터","air_ring":"공중 링"}
 	for piece: Dictionary in catalogue.pieces:
 		if piece.id in catalogue.basic_piece_ids: continue
+		var grouped := false
+		for group: String in catalogue.selection_groups:
+			if piece.id != group and piece.id in catalogue.selection_groups[group]: grouped=true
+		if grouped: continue
 		var check := CheckBox.new()
 		check.text = labels.get(piece.id,piece.id)
 		check.button_pressed = piece.id in _defaults.gimmicks
 		grid.add_child(check)
 		selections[piece.id] = check
 	note = Label.new()
-	note.text = "기본 조각에 완만한 경사·지그재그가 포함됩니다. 선택한 기믹 중 일부가 배치됩니다. 시간은 참고값이며 차량과 운전에 따라 달라집니다. 동일 조각은 최대 4개 연속입니다."
+	note.text = "모든 코스에 좌우 급코너와 좁은 U턴이 포함됩니다. 원통을 선택하면 굽은 원통이 배치됩니다. 다른 기믹은 후보 중 일부가 배치됩니다. 시간은 참고값이며 차량과 운전에 따라 달라집니다. 동일 조각은 최대 4개 연속입니다."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	form.add_child(note)
 	var generate := Button.new()

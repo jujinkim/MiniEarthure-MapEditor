@@ -64,6 +64,7 @@ func load_controls(g: Dictionary) -> void:
 	controls.strength.value = g.get("effect",{}).get("strength_percent",100)
 	controls.height.value = g.get("effect",{}).get("jump_height_cm",300)/100.0
 	var track: Dictionary = g.get("track",{})
+	controls.radius.min_value = 1.0 if track.get("kind","")=="swept_cylinder" else 1.5
 	controls.radius.value = track.get("radius_cm",250)/100.0
 	controls.width.value = track.get("width_cm",220)/100.0
 	controls.length.value = track.get("length_cm",1600)/100.0
@@ -92,7 +93,9 @@ func draft() -> Dictionary:
 	for part: Dictionary in g.parts:
 		for v: Array in part.vertices: radius = maxi(radius, ceili(absf(v[0])*g.scale_per_mille[0]/1000.0 + absf(v[1])*g.scale_per_mille[1]/1000.0 + absf(v[2])*g.scale_per_mille[2]/1000.0))
 	if g.has("track"):
-		radius = 4*int(g.track.radius_cm) + (2*int(g.track.width_cm) if g.track.kind == "loop" else int(g.track.length_cm)/2) + 40
+		var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
+		var bounds: Dictionary = JSON.parse_string(bridge.special_track_bounds(JSON.stringify(g.track)))
+		if bounds.ok: radius=int(bounds.data.radius_cm)
 	var margin := roundi(controls.landing.value * 100) if g.motion.kind in ["boost","launch","target_speed","jump_height","air_ring"] else 0
 	for i in 3:
 		g.safety_min_cm[i] = g.position[i] - radius + mini(0,int(g.motion.delta_cm[i])) - margin

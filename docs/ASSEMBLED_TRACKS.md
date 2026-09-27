@@ -28,3 +28,12 @@ catalogue. Circuit offers 30 seconds/1 minute/2 minutes **per lap**, with maximu
 Settings store `duration_seconds`; basic sharp corners and hairpins are automatic
 geometry. The current catalogue requires regenerated packages; existing files
 are preserved without automatic conversion.
+
+2026-09-28 vehicle-scale follow-up: the existing **Cylinder** checkbox represents
+MapKit's `selection_groups.cylinder` family. Variant names do not create extra
+controls. The generated shape, source frames and bounds remain MapKit-owned;
+the driving-structure panel asks the native `special_track_bounds` API for
+bounds instead of copying shape constants, and preserves the 1 m swept bore
+radius when loading it. Generation/save/reopen/settings and native swept bounds
+are checked with synthetic documents. Detailed editing/preview acceptance is a
+user check.

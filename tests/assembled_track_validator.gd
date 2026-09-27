@@ -18,6 +18,12 @@ func run() -> void:
 	settings.seed=42
 	var generated: Dictionary = JSON.parse_string(bridge.generate_track(JSON.stringify(settings),ProjectSettings.globalize_path("user://generated.memap")))
 	check(generated.ok,"generation")
+	for g: Dictionary in generated.data.document.gimmicks:
+		if not g.has("track"): continue
+		var bounds: Dictionary = JSON.parse_string(bridge.special_track_bounds(JSON.stringify(g.track)))
+		check(bounds.ok,"native shared track bounds")
+		for axis in 3:
+			check(g.safety_min_cm[axis]<=g.position[axis]-bounds.data.radius_cm and g.safety_max_cm[axis]>=g.position[axis]+bounds.data.radius_cm,"swept source envelope")
 	check(store.open_generated(generated.data.document)=="" and store.project_path=="" and store.dirty,"new unsaved document")
 	check(FileAccess.get_file_as_bytes(old_path.path_join("document.json"))==original_bytes,"original file preserved")
 	var recovered := STORE.new()
