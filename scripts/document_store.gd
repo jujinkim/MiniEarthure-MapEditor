@@ -396,3 +396,15 @@ func recover(path: String) -> String:
 
 func reason(result: Dictionary) -> String:
 	return "%s: %s" % [result.error.code, result.error.message]
+
+func open_generated(value: Dictionary) -> String:
+	var checked := _validate(value)
+	if not checked.ok: return reason(checked)
+	var failure := autosave() if dirty else ""
+	if failure != "": return failure
+	document = checked.data.document
+	project_path = ""
+	bridge = ClassDB.instantiate("MapKitBridge")
+	_reset_session()
+	_after_edit()
+	return ""

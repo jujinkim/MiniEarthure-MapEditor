@@ -26,6 +26,10 @@ var framed_cell := Vector2i(-1, -1)
 var preview_stats := {"generated": 0, "reused": 0, "attachment_frames": 0, "max_batch_usec": 0, "max_frame_usec": 0}
 var export_report: AcceptDialog
 var last_export_report := {}
+var track_job: Node
+var track_dialog: AcceptDialog
+var track_panel: Control
+var track_epoch := -1
 var full_generation: CheckButton
 const TEST_DRIVE := preload("./test_drive_launcher.gd")
 var test_drive_launcher := TEST_DRIVE.new()
@@ -214,7 +218,7 @@ func _build_ui() -> void:
 	title_row.add_child(title)
 	var bar := HBoxContainer.new()
 	column.add_child(bar)
-	for entry in [["Save", _save], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Commands…", commands.open]]:
+	for entry in [["Seed Track", _open_track_generator], ["Save", _save], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Commands…", commands.open]]:
 		_button(bar, entry[0], entry[1])
 	regional_grouping = SpinBox.new()
 	regional_grouping.min_value = 1
@@ -1080,6 +1084,11 @@ func _cancel_attachment() -> void:
 	busy = false
 
 func _clear_preview_cache() -> void:
+	if is_instance_valid(preview_world):
+		var stage := preview_world.get_node_or_null("ToyTrackStage")
+		if stage != null:
+			preview_world.remove_child(stage)
+			stage.queue_free()
 	for entry: Dictionary in preview_cache.values():
 		if is_instance_valid(entry.root): entry.root.queue_free()
 	preview_cache.clear()
@@ -1110,6 +1119,9 @@ func _frame_selection() -> void:
 	preview_due = Time.get_ticks_msec() + 150
 
 func _show_cached(cell: Vector2i) -> void:
+	if store.document.get("assembled_track") is Dictionary and not preview_world.has_node("ToyTrackStage"):
+		var b: Dictionary = store.document.bounds
+		preview_world.add_child(preload("res://addons/mapkit/godot/track_stage.gd").create(PackedInt64Array([b.min[0],b.min[1],b.max[0],b.max[1]])))
 	cache_clock += 1
 	preview_cache[cell].used = cache_clock
 	for key: Vector2i in preview_cache: preview_cache[key].root.visible = key == cell
@@ -1731,3 +1743,41 @@ func _physics_process(delta: float) -> void:
 		if environment_preview.profile.has(key): environment_preview.config[key] = environment_preview.profile[key]
 	environment_renderer.update_environment(environment_preview,preview_world.get_node("PreviewCamera").global_position,[],preview_resources)
 	environment_renderer.update_dynamic_lights(preview_world.get_node("PreviewCamera").global_position,[])
+
+func _open_track_generator() -> void:
+	if not is_instance_valid(track_job):
+		track_job = preload("res://addons/mapkit/godot/track_job.gd").new()
+		add_child(track_job)
+		track_job.completed.connect(func(_request: int, result: Dictionary):
+			if track_epoch != store.command_epoch: return
+			if not result.ok: _status(result.error.message); return
+			var failure: String = store.open_generated(result.data.document)
+			if failure != "": _status(failure); return
+			_clear_preview_cache()
+			_status("Generated a new document. Original files and recovery snapshot retained.")
+			track_dialog.hide()
+			_preview())
+	if not is_instance_valid(track_dialog):
+		track_dialog = AcceptDialog.new()
+		track_dialog.title = "Seed Track"
+		add_child(track_dialog)
+		var scroll := ScrollContainer.new()
+		scroll.custom_minimum_size = Vector2(460,520)
+		track_dialog.add_child(scroll)
+		var panel := preload("./track_settings_panel.gd").new()
+		track_panel = panel
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(panel)
+		panel.requested.connect(func(settings: Dictionary):
+			if busy: _status("Finish or cancel the current operation first."); return
+			track_epoch = store.command_epoch
+			var directory := ProjectSettings.globalize_path("user://generated-tracks")
+			DirAccess.make_dir_recursive_absolute(directory)
+			track_job.begin(settings,directory.path_join(Crypto.new().generate_random_bytes(12).hex_encode()+".memap"))
+			_status("Assembling track…"))
+		panel.cancelled.connect(func(): track_job.cancel(); _status("Generation cancelled. Current document retained."))
+		track_dialog.canceled.connect(track_job.cancel)
+		track_dialog.confirmed.connect(track_job.cancel)
+	if store.document.get("assembled_track") is Dictionary:
+		track_panel.restore(store.document.assembled_track.settings)
+	track_dialog.popup_centered(Vector2i(500,600))
