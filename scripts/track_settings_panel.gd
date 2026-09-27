@@ -53,7 +53,7 @@ func _ready() -> void:
 	form.add_child(grid)
 	var labels := {"slope":"경사","zigzag":"지그재그","cylinder":"원통","loop":"수직 루프","spiral_up":"상승 나선","spiral_down":"하강 나선","jump":"점프","fixed_obstacle":"고정 장애물","moving_obstacle":"이동 장애물","rotating_obstacle":"회전 장애물","acceleration_panel":"가속 패널","boost_chain":"연속 부스터","air_ring":"공중 링"}
 	for piece: Dictionary in catalogue.pieces:
-		if piece.id in ["straight","curve","slope","zigzag"]: continue
+		if piece.id in ["straight","curve","curve_left","slope","zigzag"]: continue
 		var check := CheckBox.new()
 		check.text = labels.get(piece.id,piece.id)
 		check.button_pressed = piece.id in _defaults.gimmicks

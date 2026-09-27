@@ -17,3 +17,7 @@ piece-layout tool is introduced.
 `tests/assembled_track_validator.gd` covers original/recovery preservation,
 new-document semantics, save/reopen and settings restoration. Detailed editor
 interaction and driving acceptance are user verification.
+
+The 2026-09-28 catalogue adds left curves to the always-available basic shapes;
+neither curve direction is shown as an optional gimmick. The existing generated
+document/save/reopen/settings test passes against the new seeded circuit layout.
