@@ -1121,7 +1121,7 @@ func _frame_selection() -> void:
 func _show_cached(cell: Vector2i) -> void:
 	if store.document.get("assembled_track") is Dictionary and not preview_world.has_node("ToyTrackStage"):
 		var b: Dictionary = store.document.bounds
-		preview_world.add_child(preload("res://addons/mapkit/godot/track_stage.gd").create(PackedInt64Array([b.min[0],b.min[1],b.max[0],b.max[1]])))
+		preview_world.add_child(preload("res://addons/mapkit/godot/track_stage.gd").create(PackedInt64Array([b.min[0],b.min[1],b.max[0],b.max[1]]), store.document.assembled_track))
 	cache_clock += 1
 	preview_cache[cell].used = cache_clock
 	for key: Vector2i in preview_cache: preview_cache[key].root.visible = key == cell

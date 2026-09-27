@@ -43,3 +43,13 @@ dictionary before creating controls. A stale loaded native module now produces
 restart guidance with generation disabled, not a Dictionary access error or an
 old-catalogue fallback. Settings restore is a no-op in that state. The focused
 validator covers missing groups and the current single cylinder-family control.
+
+
+2026-09-28 RC venue replacement: the shared catalogue now mixes 2m/4m roads and
+2m/4m curved tubes, retains one Cylinder checkbox, and exposes eight additional
+choices: banked U chicane, jump hurdle, ramp/overpass shortcut, roller hills,
+offset landing, slalom walls, rotating sweepers and lifting gates. Seed selects
+indoor carpet, outdoor circuit or toy plastic. Shared MapKit rendering supplies
+the stage and track materials; generated packages must be regenerated for the
+current catalogue fingerprint. Original files are preserved. Detailed driving,
+whole races, multiplayer and manual application acceptance remain user checks.

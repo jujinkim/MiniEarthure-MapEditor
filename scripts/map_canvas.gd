@@ -119,9 +119,10 @@ func _draw() -> void:
 		draw_line(screen([bounds.min[0], y]), screen([bounds.max[0], y]), Color("34373c"))
 	if doc.get("assembled_track") is Dictionary:
 		for piece: Dictionary in doc.assembled_track.pieces:
-			var line := PackedVector2Array()
-			for sample: Dictionary in piece.path: line.append(screen([sample.position_cm[0],sample.position_cm[2]]))
-			if line.size()>1: draw_polyline(line,Color("50b7ee"),3.0,true)
+			for path: Array in [piece.path,piece.get("alternate_path",[])]:
+				var line := PackedVector2Array()
+				for sample: Dictionary in path: line.append(screen([sample.position_cm[0],sample.position_cm[2]]))
+				if line.size()>1: draw_polyline(line,Color("f2c94c") if path!=piece.path else Color("50b7ee"),3.0,true)
 	var visible_tiles := {}
 	for tile: Dictionary in doc.heightmaps:
 		if not available({"field":"heightmaps", "record":{"id":"terrain"}}): continue

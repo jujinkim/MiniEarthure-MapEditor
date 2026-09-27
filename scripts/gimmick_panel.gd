@@ -64,7 +64,7 @@ func load_controls(g: Dictionary) -> void:
 	controls.strength.value = g.get("effect",{}).get("strength_percent",100)
 	controls.height.value = g.get("effect",{}).get("jump_height_cm",300)/100.0
 	var track: Dictionary = g.get("track",{})
-	controls.radius.min_value = 1.0 if track.get("kind","")=="swept_cylinder" else 1.5
+	controls.radius.min_value = 1.0 if track.get("kind","") in ["swept_cylinder","swept_half_pipe"] else 1.5
 	controls.radius.value = track.get("radius_cm",250)/100.0
 	controls.width.value = track.get("width_cm",220)/100.0
 	controls.length.value = track.get("length_cm",1600)/100.0
