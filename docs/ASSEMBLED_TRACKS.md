@@ -67,3 +67,19 @@ detailed authoring and driving remain user tests. See root `docs/SEED_TRACK_VARI
 ## Race-flow replacement — 2026-09-28
 
 Current Ready/automatic-start, individual finish and sprint plaza behavior is recorded in [FREE_ROAM.md](FREE_ROAM.md). Earlier manual start and player-finish-ends-all behavior is replaced.
+
+## Random seed extension — 2026-09-28 replacement
+
+The panel uses the current MapKit catalogue: one required instance per selected
+family, at most two consecutive family members, with ordinary slopes automatic.
+Results show length, estimated seconds, measured straight share and any requested
+time overrun. There is no straight-share target field or display. Every selected
+family remains present even when the minimum valid layout exceeds the request.
+Current v1 fingerprints require fresh generation; original files are preserved.
+Focused generation/display and source preservation checks pass; detailed driving
+and authoring remain user checks. Integration evidence: root
+`docs/SIMPLIFIED_SEED_TRACKS.md`.
+
+The recovery validator explicitly writes an autosave before attempting to recover
+its finish-policy change. The production timer owns autosave in the application;
+a bare store fixture cannot assume that timer ran.

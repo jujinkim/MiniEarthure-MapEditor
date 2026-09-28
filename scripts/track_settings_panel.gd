@@ -77,7 +77,7 @@ func _ready() -> void:
 		grid.add_child(check)
 		selections[piece.id] = check
 	note = Label.new()
-	note.text = "선택한 기믹은 모두 포함하며 필요하면 목표 시간보다 길어집니다. 도로와 원통 폭은 6·4·2m이고 seed에 따라 직선과 코너 비율이 달라집니다. 특수 구간은 연속으로 이어질 수 있습니다. 질주코스에는 자동 가속이 없습니다."
+	note.text = "선택한 기믹은 모두 포함하며 필요하면 목표 시간보다 길어집니다. 도로와 원통 폭은 6·4·2m이고 seed에 따라 직선과 코너 비율이 달라집니다. 같은 기믹 계열은 최대 2개 연속입니다. 질주코스에는 자동 가속이 없습니다."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	form.add_child(note)
 	var generate := Button.new()
@@ -122,4 +122,7 @@ func _refresh_duration(seconds: int) -> void:
 	duration.select(0)
 
 func show_result(assembly: Dictionary) -> void:
-	note.text = "생성 결과 · 예상 %.1f초 · 일반도로 직선 %.1f%% (목표 %d%%)" % [float(assembly.estimated_msec)/1000.0, 100.0*float(assembly.ordinary_straight_cm)/maxf(1.0,float(assembly.ordinary_length_cm)), int(assembly.straight_target_percent)]
+	var seconds := float(assembly.estimated_msec) / 1000.0
+	var excess := maxf(0.0, seconds - float(assembly.settings.duration_seconds))
+	note.text = "생성 결과 · 길이 %.1fm · 예상 %.1f초 · 일반도로 직선 %.1f%%" % [float(assembly.length_cm)/100.0, seconds, 100.0*float(assembly.ordinary_straight_cm)/maxf(1.0,float(assembly.ordinary_length_cm))]
+	if excess > 0.0: note.text += " · 요청보다 %.1f초 초과 (필수 기믹·연결 유지)" % excess
