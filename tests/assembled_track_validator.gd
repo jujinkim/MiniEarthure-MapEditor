@@ -4,7 +4,7 @@ const PANEL := preload("res://scripts/track_settings_panel.gd")
 class MissingGroupsPanel extends "res://scripts/track_settings_panel.gd":
 	func _load_catalogue() -> Dictionary:
 		var catalogue := super._load_catalogue()
-		catalogue.erase("selection_groups")
+		catalogue.erase("selection_ids")
 		return catalogue
 
 var failures: Array[String] = []
@@ -61,7 +61,11 @@ func run() -> void:
 	check(panel.catalogue_ready and panel.selections.has("cylinder") and not panel.selections.has("cylinder_curve"), "current catalogue exposes one cylinder family")
 	panel.restore(reopened.document.assembled_track.settings)
 	check(JSON.parse_string(JSON.stringify(panel.settings()))==JSON.parse_string(JSON.stringify(settings)),"generator controls restore settings")
-	check(panel.selections.has("sprint_lane"),"32m sprint selection")
+	check(panel.selections.has("sprint_lane"),"16m sprint selection")
+	check(panel.selections.has("obstacles") and not panel.selections.has("fixed_obstacle") and not panel.selections.has("jump_barrier"),"one obstacle selection")
+	panel._refresh_duration(90)
+	check(panel.duration.get_item_text(panel.duration.selected).contains("1분 30초"),"exact 90 second label")
+	panel._refresh_duration(60)
 	check(not panel.selections.has("slope_up") and not panel.selections.has("curve_left_down"),"ordinary grades are not gimmick choices")
 	panel.show_result(reopened.document.assembled_track)
 	check(panel.note.text.contains("일반도로 직선") and panel.note.text.contains("예상"),"actual duration and ordinary distance ratio")

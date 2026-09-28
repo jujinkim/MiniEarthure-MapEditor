@@ -83,3 +83,10 @@ and authoring remain user checks. Integration evidence: root
 The recovery validator explicitly writes an autosave before attempting to recover
 its finish-policy change. The production timer owns autosave in the application;
 a bare store fixture cannot assume that timer ran.
+
+2026-09-29: The panel consumes MapKit `selection_ids`, with one **장애물** checkbox
+and **질주코스 · 16m**. Both modes offer 60/90/120 seconds; 90 is displayed as
+**1분 30초**. Circuit caps are catalogue-owned 3/2/2. The generated document retains
+exact attachment metadata through save/reopen and recovery; original sources are
+preserved. `assembled_track_validator` covers settings, native contract mismatch,
+source preservation and document roundtrip. Detailed editing/driving is user work.
