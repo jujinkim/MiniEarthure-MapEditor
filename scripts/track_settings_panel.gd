@@ -64,7 +64,7 @@ func _ready() -> void:
 	var grid := GridContainer.new()
 	grid.columns = 2
 	form.add_child(grid)
-	var labels := {"slope":"경사","zigzag":"지그재그","cylinder":"원통","loop":"수직 루프","spiral_up":"상승 나선","spiral_down":"하강 나선","jump":"점프","fixed_obstacle":"고정 장애물","moving_obstacle":"이동 장애물","rotating_obstacle":"회전 장애물","acceleration_panel":"가속 패널","boost_chain":"연속 부스터","air_ring":"공중 링","banked_chicane":"U자 뱅크 코너","jump_barrier":"점프 장벽","overpass":"고가 지름길","roller_waves":"연속 롤러 언덕","offset_jump":"옆으로 착지 점프","slalom_gates":"교차 슬라럼","swing_gates":"회전 스위퍼","piston_gates":"상하 왕복 게이트"}
+	var labels := {"sprint_lane":"질주코스 · 32m","slope":"경사","zigzag":"지그재그","cylinder":"원통","loop":"수직 루프","spiral_up":"상승 나선","spiral_down":"하강 나선","jump":"점프","fixed_obstacle":"고정 장애물","moving_obstacle":"이동 장애물","rotating_obstacle":"회전 장애물","acceleration_panel":"가속 패널","boost_chain":"연속 부스터","air_ring":"공중 링","banked_chicane":"U자 뱅크 코너","jump_barrier":"점프 장벽","overpass":"고가 지름길","roller_waves":"연속 롤러 언덕","offset_jump":"옆으로 착지 점프","slalom_gates":"교차 슬라럼","swing_gates":"회전 스위퍼","piston_gates":"상하 왕복 게이트"}
 	for piece: Dictionary in catalogue.pieces:
 		if piece.id in catalogue.basic_piece_ids: continue
 		var grouped := false
@@ -77,7 +77,7 @@ func _ready() -> void:
 		grid.add_child(check)
 		selections[piece.id] = check
 	note = Label.new()
-	note.text = "도로와 원통은 2m·4m 구간을 섞습니다. 급코너·강한 지그재그와 넓은 추월 구간이 이어집니다. RC 대회장 분위기는 seed로 정해집니다. 다른 기믹은 후보 중 일부가 배치됩니다. 시간은 참고값이며 차량과 운전에 따라 달라집니다. 동일 조각은 최대 4개 연속입니다."
+	note.text = "선택한 기믹은 모두 포함하며 필요하면 목표 시간보다 길어집니다. 도로와 원통 폭은 6·4·2m이고 seed에 따라 직선과 코너 비율이 달라집니다. 특수 구간은 연속으로 이어질 수 있습니다. 질주코스에는 자동 가속이 없습니다."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	form.add_child(note)
 	var generate := Button.new()
@@ -120,3 +120,6 @@ func _refresh_duration(seconds: int) -> void:
 	for i in duration.item_count:
 		if duration.get_item_id(i)==seconds: duration.select(i); return
 	duration.select(0)
+
+func show_result(assembly: Dictionary) -> void:
+	note.text = "생성 결과 · 예상 %.1f초 · 일반도로 직선 %.1f%% (목표 %d%%)" % [float(assembly.estimated_msec)/1000.0, 100.0*float(assembly.ordinary_straight_cm)/maxf(1.0,float(assembly.ordinary_length_cm)), int(assembly.straight_target_percent)]

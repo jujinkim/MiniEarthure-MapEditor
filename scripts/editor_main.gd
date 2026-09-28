@@ -1754,7 +1754,8 @@ func _open_track_generator() -> void:
 			var failure: String = store.open_generated(result.data.document)
 			if failure != "": _status(failure); return
 			_clear_preview_cache()
-			_status("Generated a new document. Original files and recovery snapshot retained.")
+			track_panel.show_result(result.data.document.assembled_track)
+			_status(track_panel.note.text)
 			track_dialog.hide()
 			_preview())
 	if not is_instance_valid(track_dialog):

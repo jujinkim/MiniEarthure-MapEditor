@@ -53,3 +53,13 @@ indoor carpet, outdoor circuit or toy plastic. Shared MapKit rendering supplies
 the stage and track materials; generated packages must be regenerated for the
 current catalogue fingerprint. Original files are preserved. Detailed driving,
 whole races, multiplayer and manual application acceptance remain user checks.
+
+## Mandatory variety settings — 2026-09-28
+
+The current catalogue adds the plain 32m sprint lane. Every checked family is
+required, so the estimate may exceed the requested time. Descriptions explain
+6/4/2m widths, seeded straight/corner balance and consecutive special sections.
+Generation reports actual estimated seconds and the ordinary-road straight share.
+The new document/recovery/epoch and cancellation behavior is unchanged. Focused
+`assembled_track_validator` covers checkbox/result display and source preservation;
+detailed authoring and driving remain user tests. See root `docs/SEED_TRACK_VARIETY.md`.
