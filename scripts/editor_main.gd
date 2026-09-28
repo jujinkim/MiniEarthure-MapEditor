@@ -791,6 +791,14 @@ func _selection(ids: Array) -> void:
 	selection_label.text = "2D MAP  ·  %s  ·  %d selected" % [canvas.tool, property_records.size()]
 	apply_button.disabled = property_records.is_empty()
 	if property_records.is_empty():
+		var free_roam := CheckBox.new()
+		free_roam.text = "자유주행형 맵"
+		free_roam.tooltip_text = "완주 후 결과 연출을 표시하고 자유주행으로 돌아갑니다"
+		free_roam.button_pressed = store.document.free_roam
+		free_roam.toggled.connect(func(value: bool):
+			var failure: String = store.set_free_roam(value)
+			if failure != "": _status(failure))
+		properties.add_child(free_roam)
 		_label(properties, "Select objects on the map or in layers.")
 		_label(properties, "Shift toggles; drag empty space to box-select.")
 		return

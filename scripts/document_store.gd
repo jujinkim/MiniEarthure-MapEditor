@@ -7,7 +7,7 @@ const FILES := preload("./document_files.gd")
 const HISTORY_BYTES := 16 * 1024 * 1024
 const HISTORY_COMMANDS := 200
 const RECORD_FIELDS := ["nodes", "roads", "buildings", "water_bodies", "surface_areas", "zones", "assets", "placements", "gimmicks", "repetitions", "heightmaps", "attributions", "courses"]
-const VALUE_FIELDS := ["bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment"]
+const VALUE_FIELDS := ["free_roam", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment"]
 var document: Dictionary = {}
 var project_path := ""
 var undo_stack: Array[Dictionary] = []
@@ -31,7 +31,7 @@ func new_document() -> void:
 	var stamp := Time.get_datetime_string_from_system(true) + "Z"
 	document = {
 		"map_id": "map-" + Crypto.new().generate_random_bytes(8).hex_encode(),
-		"revision": 1, "bounds": {"min": [0, 0], "max": [102400, 102400]},
+		"free_roam": false, "revision": 1, "bounds": {"min": [0, 0], "max": [102400, 102400]},
 		"cell_size_cm": 51200, "seed": 42, "recipe_version": 1, "theme": "default",
 		"terrain_base_cm": 0, "heightmaps": [], "nodes": [], "roads": [],
 		"buildings": [], "zones": [], "assets": [], "placements": [], "attributions": [],
@@ -408,3 +408,16 @@ func open_generated(value: Dictionary) -> String:
 	_reset_session()
 	_after_edit()
 	return ""
+
+func set_free_roam(value: bool) -> String:
+	var candidate := document.duplicate(true)
+	candidate.free_roam = value
+	var patches: Array = [{"field":"free_roam", "id":"", "before":document.free_roam, "after":value}]
+	if candidate.has("assembled_track"):
+		var result: Dictionary = JSON.parse_string(bridge.reseal_track_document(JSON.stringify(candidate)))
+		if not result.ok: return reason(result)
+		for course: Dictionary in document.get("courses",[]):
+			patches.append({"field":"courses", "id":course.course_id, "before":course, "after":null})
+		for course: Dictionary in result.data.document.courses:
+			patches.append({"field":"courses", "id":course.course_id, "before":null, "after":course})
+	return apply_command("자유주행형 맵", patches)

@@ -54,6 +54,7 @@ func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offs
 	_patches = [{"field":"heightmaps","id":store.record_id("heightmaps",record),"before":null if before.is_empty() else before,"after":record},{"field":"attributions","id":store.record_id("attributions",notice),"before":null,"after":notice}]
 	_blobs = {record.path:source.bytes}
 	_cells = [cell] if not store.document.roads.is_empty() else []
+	_patches.append({"field":"free_roam","id":"","before":store.document.free_roam,"after":true})
 	var failure := FILES.apply(store, "Adopt heightmap layer", _patches, _blobs, _cells, true, context) if validate_candidate else ""
 	if failure != "":
 		discard()

@@ -81,6 +81,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	value={"import_version":1,"adapter":"copernicus-dem-v1","layer_id":context.get("layer_id", Crypto.new().generate_random_bytes(16).hex_encode()),"heightmaps":records,"previous":previous,"dem":{"receipt":receipt.duplicate(true),"sampling":raster.duplicate(true)}}
 	var notice := {"source":"Copernicus 2021 mosaic#"+value.layer_id,"license":LICENSE,"notice":JSON.stringify(value)}
 	_patches.append({"field":"attributions","id":terrain.store.record_id("attributions",notice),"before":null,"after":notice})
+	_patches.append({"field":"free_roam","id":"","before":terrain.store.document.free_roam,"after":true})
 	var failure := FILES.apply(terrain.store,"Adopt DEM mosaic",_patches,_blobs,_cells,true,context)
 	if failure!="":
 		discard();return failure

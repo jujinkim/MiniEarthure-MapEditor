@@ -63,3 +63,7 @@ Generation reports actual estimated seconds and the ordinary-road straight share
 The new document/recovery/epoch and cancellation behavior is unchanged. Focused
 `assembled_track_validator` covers checkbox/result display and source preservation;
 detailed authoring and driving remain user tests. See root `docs/SEED_TRACK_VARIETY.md`.
+
+## Race-flow replacement — 2026-09-28
+
+Current Ready/automatic-start, individual finish and sprint plaza behavior is recorded in [FREE_ROAM.md](FREE_ROAM.md). Earlier manual start and player-finish-ends-all behavior is replaced.

@@ -38,6 +38,10 @@ static func decode(value: Variant, allow_assets: bool = false) -> Dictionary:
 			if record is not Dictionary: return {"error":"Invalid prepared document record."}
 	var fields := ["assets", "attributions"] if allow_assets else ["nodes", "roads", "buildings", "zones", "heightmaps", "attributions"]
 	for patch: Variant in command.patches:
+		if not allow_assets and patch is Dictionary and patch.get("field") == "free_roam":
+			if patch.get("id") != "" or patch.get("before") is not bool or patch.get("after") != true or candidate.get("free_roam") != true:
+				return {"error":"Invalid imported map free-roam policy."}
+			continue
 		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]) or patch.field not in fields or patch.id is not String or patch.id.is_empty() or patch.after is not Dictionary or (patch.before != null and patch.before is not Dictionary):
 			return {"error":"Invalid prepared command memento."}
 	command.bytes = size

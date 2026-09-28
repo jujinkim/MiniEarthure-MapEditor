@@ -374,6 +374,7 @@ func patches(store: RefCounted) -> Array:
 		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1"}
 	var attribution := {"source": value.source.name + "#" + value.layer_id, "license": value.source.license, "notice": JSON.stringify(metadata)}
 	result.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
+	result.append({"field":"free_roam","id":"","before":store.document.free_roam,"after":true})
 	return result
 
 func has_structures() -> bool:

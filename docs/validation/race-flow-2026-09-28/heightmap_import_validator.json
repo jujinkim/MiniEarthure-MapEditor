@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/Applications/Godot_mono.app/Contents/MacOS/Godot",
+    "--headless",
+    "--path",
+    "/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/miniearthure-check-pova0wd_",
+    "--script",
+    "res://tests/heightmap_import_validator.gd"
+  ],
+  "elapsed_seconds": 2.506,
+  "exit_code": 0,
+  "unexpected_diagnostics": [],
+  "strict_applied": true,
+  "import_cache": "/private/tmp/miniearthure-race-flow-editor-cache",
+  "owned_children": {}
+}

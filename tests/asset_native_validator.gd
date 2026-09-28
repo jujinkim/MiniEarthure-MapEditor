@@ -72,7 +72,7 @@ func run() -> void:
 	var picture := Image.create(4,4,false,Image.FORMAT_RGBA8); picture.fill(Color.YELLOW)
 	check(picture.save_png(source) == OK, "synthetic PNG")
 	var original: PackedByteArray = FILES.read(source).bytes
-	var package := ProjectSettings.globalize_path("user://original.memap")
+	var package := ProjectSettings.globalize_path("user://asset-original.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project, package)).ok, "baseline package")
 	var package_hash := FileAccess.get_sha256(package)
 	var bridge: String = ui.store.bridge.document_json()
@@ -149,7 +149,7 @@ func run() -> void:
 	# Regular live store and source replacement retain exact old bytes in history.
 	var live := JOB.new(); check(start(live) == "", "live asset")
 	await wait_job(live)
-	check(live.commit(ui.store) == "", "live asset install")
+	check(live.commit(ui.store) == "" and not ui.store.document.free_roam, "asset install preserves map policy")
 	var first: Dictionary = ui.store.document.assets[0].duplicate(true)
 	picture.fill(Color.RED); check(picture.save_png(source) == OK, "replacement fixture")
 	var replacement: PackedByteArray = FILES.read(source).bytes
