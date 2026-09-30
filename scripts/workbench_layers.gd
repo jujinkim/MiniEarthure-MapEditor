@@ -31,7 +31,7 @@ func _ready() -> void:
 		tree.set_column_expand(col, false)
 		tree.set_column_custom_minimum_width(col, 45)
 	tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tree.custom_minimum_size.y = 110
+	tree.custom_minimum_size.y = 64
 	tree.multi_selected.connect(_selected)
 	tree.item_edited.connect(_edited)
 	tree.item_collapsed.connect(func(item):
@@ -60,9 +60,10 @@ func _ready() -> void:
 	)
 	row.add_child(opacity_control)
 	var hint := Label.new()
-	hint.text = "Show / lock affect 2D editing only.\nShift/Ctrl-click for multiple objects."
+	hint.text = ""
+	tree.tooltip_text = "Show / lock affect 2D editing only. Shift/Ctrl-click for multiple objects."
 	hint.add_theme_font_size_override("font_size", 12)
-	add_child(hint)
+	hint.free()
 
 func _layer(parent: TreeItem, key: String, title: String, count: int) -> TreeItem:
 	var item := tree.create_item(parent)

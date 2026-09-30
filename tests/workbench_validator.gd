@@ -27,7 +27,7 @@ func record(field: String, id: String) -> Dictionary:
 	return {}
 
 func button(node: Node, title: String) -> Button:
-	if node is Button and not node is MenuButton and node.text == title: return node
+	if node is Button and not node is MenuButton and (node.text == title or node.get_meta("action_label", "") == title): return node
 	for child in node.get_children():
 		var found := button(child, title)
 		if found != null: return found
@@ -94,6 +94,7 @@ func run() -> void:
 	root.size = Vector2i(1440, 900)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.store.new_track(true)
 	await process_frame
 	await process_frame
 	var patches: Array = []

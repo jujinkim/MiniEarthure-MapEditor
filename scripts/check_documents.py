@@ -42,11 +42,11 @@ def main():
     (args.log_dir / 'environment.json').write_text(json.dumps({
         'godot': version, 'platform': sys.platform, 'native_sha256': hashlib.sha256(native.read_bytes()).hexdigest(),
         'source_files': {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
-                         for directory in ('scripts', 'tests') for p in (root / directory).rglob('*') if p.is_file() and '__pycache__' not in p.parts},
+                         for directory in ('scripts', 'tests', 'ui') for p in (root / directory).rglob('*') if p.is_file() and '__pycache__' not in p.parts},
     }, indent=2) + '\n')
     with tempfile.TemporaryDirectory(prefix='mapeditor-documents-') as directory, tempfile.TemporaryDirectory(prefix='run-', dir=data_root) as user_directory:
         project = Path(directory)
-        for folder in ('scripts', 'tests'):
+        for folder in ('scripts', 'tests', 'ui'):
             shutil.copytree(root / folder, project / folder, ignore=shutil.ignore_patterns('__pycache__'))
         shutil.copy2(root / 'main.tscn', project / 'main.tscn')
         shutil.copy2(root / 'project.godot', project / 'project.godot')

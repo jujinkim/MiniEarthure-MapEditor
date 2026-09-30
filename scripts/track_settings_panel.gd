@@ -21,7 +21,7 @@ func _ready() -> void:
 	var catalogue := _load_catalogue()
 	if not catalogue.get("selection_ids") is Array:
 		note = Label.new()
-		note.text = "트랙 생성 모듈이 현재 화면과 맞지 않습니다. 게임과 Godot Editor를 완전히 종료한 후 최신 빌드로 다시 실행해 주세요."
+		note.text = "The track module does not match this screen. Close the application and restart with the current build."
 		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		add_child(note)
 		return
@@ -29,7 +29,7 @@ func _ready() -> void:
 	_defaults = catalogue.defaults
 	_duration_options = catalogue.duration_options
 	var toggle := Button.new()
-	toggle.text = "Seed 트랙 생성"
+	toggle.text = "Seed Track generation"
 	add_child(toggle)
 	var form := VBoxContainer.new()
 	add_child(form)
@@ -40,11 +40,11 @@ func _ready() -> void:
 	seed_input.text = str(int(_defaults.seed))
 	form.add_child(seed_input)
 	var random_seed := Button.new()
-	random_seed.text = "새 seed"
+	random_seed.text = "New seed"
 	random_seed.pressed.connect(func(): seed_input.text = str(randi()))
 	form.add_child(random_seed)
 	circuit = CheckButton.new()
-	circuit.text = "순환 코스"
+	circuit.text = "Circuit"
 	circuit.button_pressed = _defaults.circuit
 	form.add_child(circuit)
 	duration = OptionButton.new()
@@ -52,7 +52,7 @@ func _ready() -> void:
 	circuit.toggled.connect(func(_value: bool): _refresh_duration(duration.get_selected_id()))
 	form.add_child(duration)
 	difficulty = OptionButton.new()
-	for title in ["초급","보통","고급"]: difficulty.add_item(title)
+	for title in ["Easy","Normal","Hard"]: difficulty.add_item(title)
 	difficulty.select(["easy","normal","hard"].find(_defaults.difficulty))
 	form.add_child(difficulty)
 	time_input = SpinBox.new()
@@ -60,12 +60,12 @@ func _ready() -> void:
 	time_input.max_value = 23.75
 	time_input.step = 0.25
 	time_input.value = float(_defaults.time_minutes)/60.0
-	time_input.suffix = "시 · 건조 / 무풍"
+	time_input.suffix = "h · dry / calm"
 	form.add_child(time_input)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	form.add_child(grid)
-	var labels := {"driving":"주행트랙", "gimmick":"기믹트랙", "action":"액션트랙"}
+	var labels := {"driving":"Driving", "gimmick":"Gimmick", "action":"Action"}
 	for id: String in catalogue.selection_ids:
 		var check := CheckBox.new()
 		check.text = labels.get(id,id)
@@ -74,20 +74,20 @@ func _ready() -> void:
 		selections[id] = check
 		check.toggled.connect(func(_value: bool): _update_enabled())
 	note = Label.new()
-	note.text = "활성 카테고리에서 시드로 종류·폭·방향을 선택합니다. 모든 종류의 등장을 보장하지 않습니다. 목표는 기본 경로 예상 시간 ±10%이며, 기존 기준 속도에 따른 추정치입니다. 지름길 시간은 별도입니다."
+	note.text = "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. The base route targets ±10% of the requested time at the reference speed; shortcut times are separate."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	form.add_child(note)
 	generate = Button.new()
-	generate.text = "생성 / 재생성"
+	generate.text = "Generate / regenerate"
 	generate.pressed.connect(func():
 		if not seed_input.text.is_valid_int() or int(seed_input.text)<0 or int(seed_input.text)>9007199254740991:
-			note.text = "Seed는 0~9007199254740991 정수입니다"
+			note.text = "Seed must be an integer from 0 to 9007199254740991."
 			return
 		requested.emit(settings()))
 	form.add_child(generate)
 	_update_enabled()
 	var cancel := Button.new()
-	cancel.text = "생성 취소"
+	cancel.text = "Cancel generation"
 	cancel.pressed.connect(func(): cancelled.emit())
 	form.add_child(cancel)
 
@@ -113,8 +113,8 @@ func _refresh_duration(seconds: int) -> void:
 	duration.clear()
 	var choices: Array = _duration_options["circuit" if circuit.button_pressed else "sprint"]
 	for item: Dictionary in choices:
-		var label := "약 1분 30초" if int(item.seconds) == 90 else "약 %d분" % (int(item.seconds)/60)
-		if circuit.button_pressed: label += " / 한 바퀴 · 최대 %d바퀴" % int(item.max_laps)
+		var label := "About 90 seconds" if int(item.seconds) == 90 else "About %d minutes" % (int(item.seconds)/60)
+		if circuit.button_pressed: label += " / per lap · up to %d laps" % int(item.max_laps)
 		duration.add_item(label,int(item.seconds))
 	for i in duration.item_count:
 		if duration.get_item_id(i)==seconds: duration.select(i); return
@@ -122,9 +122,9 @@ func _refresh_duration(seconds: int) -> void:
 
 func show_result(assembly: Dictionary) -> void:
 	var seconds := float(assembly.estimated_msec) / 1000.0
-	note.text = "생성 결과 · 길이 %.1fm · 기본 경로 예상 %.1f초 / 목표 %d초 · 기준 속도 추정" % [float(assembly.length_cm)/100.0, seconds, int(assembly.settings.duration_seconds)]
+	note.text = "Generated · %.1f m · base route %.1f s / target %d s · reference-speed estimate" % [float(assembly.length_cm)/100.0, seconds, int(assembly.settings.duration_seconds)]
 	for route: Dictionary in assembly.get("routes",[]).slice(1):
-		note.text += " · 지름길 %.1f초" % (float(route.estimated_msec)/1000.0)
+		note.text += " · shortcut %.1f s" % (float(route.estimated_msec)/1000.0)
 
 func _update_enabled() -> void:
 	if not is_instance_valid(generate): return

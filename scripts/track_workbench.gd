@@ -21,57 +21,115 @@ var sample_input: SpinBox
 var action_height: SpinBox
 var landing_target: OptionButton
 var landing_sample: SpinBox
-var route_input: LineEdit
 var drag_start: Variant=null
 var drag_source: Dictionary={}
 var drag_epoch := -1
 var updating := false
 
+const STYLE := preload("./workbench_style.gd")
+var palette_tools: VBoxContainer
+var placement: Node
+var route_list: ItemList
+var section_open := {"Transform":true, "Connections":false, "Routes & Checkpoints":false, "Actions":false}
+
 func build(owner: Control) -> void:
-	editor=owner
-	catalogue=JSON.parse_string(editor.store.bridge.track_catalogue()).data
-	palette=VBoxContainer.new()
-	palette.size_flags_vertical=Control.SIZE_EXPAND_FILL
+	editor = owner
+	catalogue = JSON.parse_string(editor.store.bridge.track_catalogue()).data
+	placement = preload("./track_placement.gd").new()
+	placement.bench = self
+	add_child(placement)
+	var entries: Array[Dictionary] = []
+	for entry: Dictionary in catalogue.entries:
+		var id: String = "track.piece." + entry.id
+		editor.commands.register("Track", piece_name(entry.id), add_piece.bind(entry.id), "", {"id":id, "context":"track", "description":"Preview this road piece; click in 3D to place. Repeat with the same tool.", "icon":"piece_" + entry.id, "menu":false})
+		entries.append({"id":id, "group":str(entry.category).capitalize(), "section":"Road pieces"})
+	for kind: String in catalogue.obstacle_kinds:
+		var id := "track.obstacle." + kind
+		editor.commands.register("Track", piece_name(kind) + " obstacle", add_obstacle.bind(kind), "", {"id":id, "context":"track", "icon":"obstacle", "description":"Point at a road surface, then click to attach an obstacle.", "menu":false})
+		entries.append({"id":id, "group":"Gimmick", "section":"Road attachments"})
+	for kind: String in ["jump_panel", "acceleration_panel", "boost_chain", "air_ring"]:
+		var id := "track.action." + kind
+		editor.commands.register("Track", "Attached " + piece_name(kind), add_action.bind(kind), "", {"id":id, "context":"track", "icon":kind, "description":"Point at a road surface, then click to attach an action.", "menu":false})
+		entries.append({"id":id, "group":"Action", "section":"Road attachments"})
+	for entry in [["Left", -15.0, "Q"], ["Right", 15.0, "E"]]:
+		editor.commands.register("Track", "Rotate preview " + entry[0], placement.rotate_by.bind(entry[1]), entry[2], {"id":"track.rotate_" + str(entry[0]).to_lower(), "context":"track", "enabled":func(): return placement.tool != "" and placement.kind == "piece", "reason":"Choose a road piece to preview first.", "icon":"rotate_" + str(entry[0]).to_lower()})
+	for entry in [
+		["apply_transform", "Apply transform and widths", apply_properties, "check", func(): return selected >= 0],
+		["snap_connection", "Snap entry to target exit", snap_to_target, "snap", func(): return selected >= 0 and is_instance_valid(target) and target.item_count > 0],
+		["connect_curve", "Connect exit to target entry", connect_curve, "connect", func(): return selected >= 0 and is_instance_valid(target) and target.item_count > 0],
+		["route_add", "Append selected piece", _route_add, "plus", func(): return selected >= 0],
+		["route_remove", "Remove route item", _route_remove, "minus", func(): return _route_can_move(0)],
+		["route_up", "Move route item up", _route_move.bind(-1), "up", func(): return _route_can_move(-1)],
+		["route_down", "Move route item down", _route_move.bind(1), "down", func(): return _route_can_move(1)],
+		["checkpoint_start", "Set start checkpoint", checkpoint.bind(true), "flag", func(): return selected >= 0],
+		["checkpoint_append", "Add finish / common checkpoint", checkpoint.bind(false), "flag", func(): return selected >= 0],
+		["route_new", "Add alternative route", _route_new, "plus", func(): return true],
+		["shortcut_example", "Zigzag + jump shortcut", _shortcut_example, "route", func(): return true]]:
+		editor.commands.register("Track", entry[1], entry[2], "", {"id":"track." + entry[0], "icon":entry[3], "context":"track", "enabled":entry[4], "reason":"Select an eligible piece, connection target or route item first."})
+	palette = VBoxContainer.new()
+	palette.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	editor.left_dock.add_child(palette)
-	var title:=Label.new()
-	title.text="트랙 조각"
-	palette.add_child(title)
-	var tabs:=TabContainer.new()
-	tabs.custom_minimum_size=Vector2(240,150)
-	palette.add_child(tabs)
-	for category: String in ["driving","gimmick","action"]:
-		var scroll:=ScrollContainer.new()
-		scroll.name={"driving":"주행","gimmick":"기믹","action":"액션"}[category]
-		tabs.add_child(scroll)
-		var list:=VBoxContainer.new()
-		scroll.add_child(list)
-		for entry: Dictionary in catalogue.entries:
-			if entry.category!=category: continue
-			_button(list,entry.id,add_piece.bind(entry.id))
-		if category=="gimmick":
-			for kind: String in catalogue.obstacle_kinds: _button(list,kind,add_obstacle.bind(kind))
-	_button(palette,"지그재그 + 점프 지름길 조합",func(): var result: Dictionary=JSON.parse_string(editor.store.bridge.track_shortcut_source()); _commit(result.data))
-	selection=ItemList.new()
-	selection.custom_minimum_size.y=60
-	selection.size_flags_vertical=Control.SIZE_EXPAND_FILL
+	palette_tools = preload("./workbench_palette.gd").new()
+	palette_tools.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	palette_tools.size_flags_stretch_ratio = 3.0
+	palette.add_child(palette_tools)
+	palette_tools.build(editor.commands, "track", entries)
+	var actions := HBoxContainer.new()
+	palette.add_child(actions)
+	editor.commands.button(actions, "tool.select")
+	editor.commands.button(actions, "view.frame")
+	editor.commands.button(actions, "edit.duplicate")
+	editor.commands.button(actions, "edit.delete")
+	_button(actions, "Zigzag + jump shortcut", _shortcut_example)
+	selection = ItemList.new()
+	selection.custom_minimum_size.y = 60
+	selection.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	selection.size_flags_stretch_ratio = 0.6
 	palette.add_child(selection)
-	selection.item_selected.connect(func(index: int): selected=index; _properties(); _draw())
-	snap=CheckButton.new()
-	snap.text="포트 스냅"
-	snap.button_pressed=true
+	selection.item_selected.connect(func(index: int):
+		cancel_interaction()
+		selected = index
+		_properties()
+		_draw()
+		editor.commands.refresh_buttons())
+	snap = CheckButton.new()
+	snap.text = "Port snap"
+	snap.tooltip_text = "Snap entry to a nearby exit within 3 m · S"
+	snap.button_pressed = true
+	snap.toggled.connect(func(_on: bool): placement.invalidate_candidate())
 	palette.add_child(snap)
-	_button(palette,"선택 조각 보기",frame_selection)
-	_button(palette,"복제",duplicate_piece)
-	_button(palette,"삭제",delete_piece)
-	properties=VBoxContainer.new()
-	properties.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	properties = VBoxContainer.new()
+	properties.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	editor.properties.get_parent().add_child(properties)
-	report=editor.validation_label
-	report.max_lines_visible=3
+	report = editor.validation_label
+	report.max_lines_visible = 2
+
+static func piece_name(id: String) -> String:
+	return {"gentle90":"Gentle 90°", "gentle45":"Gentle 45°", "gentle90_left":"Gentle 90° left", "gentle45_left":"Gentle 45° left", "hairpin":"Hairpin", "slope_up":"Slope Up"}.get(id, id.replace("_", " ").capitalize())
+
+func show_hint() -> void:
+	if not active: return
+	if placement.tool != "":
+		editor.tool_hint.text = piece_name(placement.tool) + " · " + placement.hint
+		editor.tool_hint.text += " · Cancel: " + editor.commands.shortcut_text("edit.cancel_interaction")
+	else:
+		editor.tool_hint.text = "Select · Click a piece; drag to move · Choose a palette tool to preview · Right drag orbits · Wheel zooms"
+	editor.tool_hint.tooltip_text = editor.tool_hint.text
+
+func cancel_interaction() -> void:
+	var had_preview: bool = placement != null and placement.tool != ""
+	drag_start = null
+	drag_source.clear()
+	drag_epoch = -1
+	if placement != null: placement.cancel()
+	if palette_tools != null: palette_tools.select_tool("")
+	if had_preview and is_instance_valid(properties) and not source.is_empty(): _properties()
+	show_hint()
 
 func refresh() -> void:
 	if updating: return
 	active=not editor.store.document.get("free_roam",false)
+	editor.canvas.navigation_only = active
 	palette.visible=active
 	properties.visible=active
 	report.visible=true
@@ -80,14 +138,15 @@ func refresh() -> void:
 	editor.regional_grouping.visible=not active
 	editor.preview_dock.get_child(0).visible=not active
 	if active:
-		editor.selection_label.text="3D 트랙 작업 공간 · 보조 평면도"
-		editor.tool_hint.text="왼쪽 조각 선택 · 왼쪽 드래그 이동 · 오른쪽 드래그 회전 · 휠 확대 · 속성에서 고도/곡선 조절"
-		editor.status_label.text="조각을 추가하거나 Seed Track으로 시작하세요." if source.get("instances",[]).is_empty() else "저장 가능한 저작 원본 · 실행 내보내기는 연결·코스 검사 후 가능"
+		editor.selection_label.text="TRACK WORKSPACE · 3D + navigation plan"
+		show_hint()
+		editor.status_label.text="Choose a piece to preview, or generate a Seed Track." if source.get("instances",[]).is_empty() else "Draft can be saved · Execution export requires valid connections and courses."
 	for child in editor.left_dock.get_children():
 		if child!=palette: child.visible=not active
 	editor.properties.visible=not active
 	editor.apply_button.visible=not active
 	if not active:
+		if editor.author_panel.tabs.get_tab_count() == 0: editor.author_panel.open()
 		if editor.store.document.has("assembled_track"): _draw()
 		elif is_instance_valid(view): view.queue_free()
 		return
@@ -99,15 +158,13 @@ func refresh() -> void:
 	_properties()
 	var a: Dictionary=editor.store.document.get("assembled_track",{})
 	var issues: Array=a.get("issues",[])
-	report.text="연결·코스 검사: "+("실행 형상 준비 · 수동 코스는 플레이어 완주 검증 필요" if issues.is_empty() and not a.is_empty() else " / ".join(issues))
+	report.text="Connections & courses: "+("Geometry ready · Manual courses need player completion" if issues.is_empty() and not a.is_empty() else " / ".join(issues))
 	_draw()
 
 func _button(parent: Node, text: String, callback: Callable) -> Button:
-	var b:=Button.new()
-	b.text=text
-	b.pressed.connect(callback)
-	parent.add_child(b)
-	return b
+	for command: Dictionary in editor.commands.commands:
+		if command.action == callback: return editor.commands.button(parent, command.id)
+	return STYLE.button(parent, text, callback)
 
 func _spin(parent: Node, label: String, value: float, low := -100000.0, high := 100000.0, step := 0.01) -> SpinBox:
 	var s:=SpinBox.new()
@@ -119,108 +176,187 @@ func _spin(parent: Node, label: String, value: float, low := -100000.0, high := 
 	parent.add_child(s)
 	return s
 
+func _section(title: String) -> VBoxContainer:
+	var header := Button.new()
+	header.text = ("▾ " if section_open[title] else "▸ ") + title
+	header.set_meta("action_label", title)
+	header.custom_minimum_size.y = 40
+	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	properties.add_child(header)
+	var content := VBoxContainer.new()
+	content.visible = section_open[title]
+	properties.add_child(content)
+	header.pressed.connect(func():
+		section_open[title] = not section_open[title]
+		content.visible = section_open[title]
+		header.text = ("▾ " if section_open[title] else "▸ ") + title)
+	return content
+
+func _selected_button(parent: Node, label: String, callback: Callable, enabled := true, reason := "Select a track piece first.") -> Button:
+	var button := _button(parent, label, callback)
+	button.disabled = selected < 0 or not enabled
+	if button.disabled: button.tooltip_text += "\n" + reason
+	return button
+
 func _properties() -> void:
 	for child in properties.get_children(): child.queue_free(); properties.remove_child(child)
 	controls.clear()
 	port_widths.clear()
-	var policy:=CheckButton.new()
-	policy.text="자유주행 편집으로 전환"
+	if source.is_empty(): return
+	var policy := CheckButton.new()
+	policy.text = "Switch to free roam"
 	properties.add_child(policy)
-	policy.toggled.connect(func(value: bool): var failure: String=editor.store.set_free_roam(value); if failure!="": editor._status(failure))
-	var circuit:=CheckButton.new()
-	circuit.text="순환 코스"
-	circuit.button_pressed=source.settings.circuit
-	properties.add_child(circuit)
-	circuit.toggled.connect(func(value: bool): var next:=source.duplicate(true); next.settings.circuit=value; _commit(next))
-	var routes:=OptionButton.new()
+	policy.toggled.connect(func(value: bool):
+		cancel_interaction()
+		var failure: String = editor.store.set_free_roam(value)
+		if failure != "": editor._status(failure))
+	if placement.tool != "":
+		placement.build_controls(properties)
+	var transform := _section("Transform")
+	var connections := _section("Connections")
+	var routes_box := _section("Routes & Checkpoints")
+	var actions_box := _section("Actions")
+	var circuit := CheckButton.new()
+	circuit.text = "Circuit"
+	circuit.button_pressed = source.settings.circuit
+	routes_box.add_child(circuit)
+	circuit.toggled.connect(func(value: bool): var next := source.duplicate(true); next.settings.circuit = value; _commit(next))
+	var routes := OptionButton.new()
 	for path: Dictionary in source.paths: routes.add_item(path.id)
-	route_index=clampi(route_index,0,maxi(0,source.paths.size()-1))
-	if routes.item_count>0: routes.select(route_index)
-	routes.item_selected.connect(func(index: int): route_index=index; _properties())
-	properties.add_child(routes)
-	_button(properties,"대체 경로 추가",func(): var next:=source.duplicate(true); next.paths.append({"id":"대체 %d" % next.paths.size(),"pieces":[]}); route_index=next.paths.size()-1; _commit(next))
-	route_input=LineEdit.new()
-	route_input.placeholder_text="경로 조각 ID 순서 (쉼표 구분)"
-	if not source.paths.is_empty(): route_input.text=", ".join(source.paths[route_index].pieces)
-	properties.add_child(route_input)
-	_button(properties,"경로 순서 적용",_set_route)
-	_button(properties,"선택 조각을 경로 끝에 추가",func():
-		if selected<0: return
-		var next:=source.duplicate(true)
-		if next.paths.is_empty(): next.paths=[{"id":"base","pieces":[]}]
-		var id: String=next.instances[selected].id
-		if not next.paths[route_index].pieces.has(id): next.paths[route_index].pieces.append(id)
-		_commit(next))
-	_button(properties,"선택 조각을 경로에서 제외",func():
-		if selected<0 or source.paths.is_empty(): return
-		var next:=source.duplicate(true)
-		next.paths[route_index].pieces.erase(next.instances[selected].id)
-		_commit(next))
+	route_index = clampi(route_index, 0, maxi(0, source.paths.size() - 1))
+	if routes.item_count > 0: routes.select(route_index)
+	routes.item_selected.connect(func(index: int): route_index = index; _properties())
+	routes_box.add_child(routes)
+	var route_actions := HBoxContainer.new()
+	routes_box.add_child(route_actions)
+	_button(route_actions, "Add alternative route", _route_new)
+	_selected_button(route_actions, "Append selected piece", _route_add)
+	_button(route_actions, "Remove route item", _route_remove)
+	_button(route_actions, "Move route item up", _route_move.bind(-1)).icon = STYLE.icon("up")
+	_button(route_actions, "Move route item down", _route_move.bind(1)).icon = STYLE.icon("down")
+	route_list = ItemList.new()
+	route_list.custom_minimum_size.y = 96
+	routes_box.add_child(route_list)
+	if not source.paths.is_empty():
+		for id: String in source.paths[route_index].pieces: route_list.add_item(id)
+	var sync_route := func():
+		var chosen := route_list.get_selected_items()
+		var at := -1 if chosen.is_empty() else chosen[0]
+		for j in range(2, 5):
+			var button: Button = route_actions.get_child(j)
+			button.disabled = at < 0 or (j == 3 and at == 0) or (j == 4 and at == route_list.item_count - 1)
+			if button.disabled: button.tooltip_text = str(button.get_meta("action_label")) + "\nSelect an eligible route list item."
+	route_list.item_selected.connect(func(_i: int): sync_route.call(); editor.commands.refresh_buttons())
+	sync_route.call()
 	for n in source.checkpoints.size():
-		var cp: Dictionary=source.checkpoints[n]
-		_button(properties,"CP %d · %s / %d 삭제" % [n,cp.piece,int(cp.sample)],func(): var next:=source.duplicate(true); next.checkpoints.remove_at(n); _commit(next))
+		var cp: Dictionary = source.checkpoints[n]
+		var row := HBoxContainer.new()
+		routes_box.add_child(row)
+		editor._label(row, "CP %d · %s / %d" % [n, cp.piece, int(cp.sample)])
+		_button(row, "Delete checkpoint", func(): var next := source.duplicate(true); next.checkpoints.remove_at(n); _commit(next))
 	for n in source.actions.size():
-		_button(properties,"액션 %s 삭제" % source.actions[n].id,func(): var next:=source.duplicate(true); next.actions.remove_at(n); _commit(next))
-	if selected<0: return
-	var item: Dictionary=source.instances[selected]
-	for j in 3: controls.append(_spin(properties,["X (m)","고도 (m)","Z (m)"][j],float(item.position_cm[j])/100.0))
-	for j in 3: controls.append(_spin(properties,["기울기 X°","회전 Y°","기울기 Z°"][j],float(item.rotation_mdeg[j])/1000.0,-360.0,360.0,0.1))
-	width=OptionButton.new()
+		var row := HBoxContainer.new()
+		actions_box.add_child(row)
+		var label: Label = editor._label(row, str(source.actions[n].id))
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		_button(row, "Delete action", func(): var next := source.duplicate(true); next.actions.remove_at(n); _commit(next))
+	if selected < 0:
+		for section in [transform, connections, actions_box]: editor._label(section, "Select a piece to edit its properties.")
+		return
+	var item: Dictionary = source.instances[selected]
+	for j in 3: controls.append(_spin(transform, ["X (m)", "Height (m)", "Z (m)"][j], float(item.position_cm[j]) / 100.0))
+	for j in 3: controls.append(_spin(transform, ["Pitch X°", "Yaw Y°", "Roll Z°"][j], float(item.rotation_mdeg[j]) / 1000.0, -360.0, 360.0, 0.1))
+	width = OptionButton.new()
 	for entry: Dictionary in catalogue.entries:
-		if entry.id!=item.preset: continue
+		if entry.id != item.preset: continue
 		for w in entry.widths_cm:
-			width.add_item("폭 %dm" % (float(w)/100.0),int(w))
-			if int(w)==int(item.width_cm): width.select(width.item_count-1)
-	properties.add_child(width)
-	port_widths.append(_spin(properties,"입구 폭 (m)",float(item.entry_width_cm)/100.0,2.0,12.0))
-	port_widths.append(_spin(properties,"출구 폭 (m)",float(item.exit_width_cm)/100.0,2.0,12.0))
-	_button(properties,"위치·회전·폭 적용",apply_properties)
-	if item.preset in ["free_curve","flight_curve"]:
+			width.add_item("Width %dm" % (float(w) / 100.0), int(w))
+			if int(w) == int(item.width_cm): width.select(width.item_count - 1)
+	transform.add_child(width)
+	port_widths.append(_spin(transform, "Entry width (m)", float(item.entry_width_cm) / 100.0, 2.0, 12.0))
+	port_widths.append(_spin(transform, "Exit width (m)", float(item.exit_width_cm) / 100.0, 2.0, 12.0))
+	_button(transform, "Apply transform and widths", apply_properties)
+	if item.preset in ["free_curve", "flight_curve"]:
 		for n in item.control_points.size():
-			for j in 3: controls.append(_spin(properties,"제어점 %d %s" % [n,["X","Y","Z"][j]],float(item.control_points[n][j])/100.0))
-		_button(properties,"곡선 제어점 적용",apply_properties)
-	target=OptionButton.new()
+			for j in 3: controls.append(_spin(transform, "Point %d %s" % [n, ["X", "Y", "Z"][j]], float(item.control_points[n][j]) / 100.0))
+		_button(transform, "Apply curve points", apply_properties)
+	target = OptionButton.new()
 	for i in source.instances.size():
-		if i!=selected: target.add_item(source.instances[i].id,i)
-	properties.add_child(target)
-	_button(properties,"대상 출구에 스냅·연결",snap_to_target)
-	_button(properties,"선택 출구 → 대상 입구 자유 연결",connect_curve)
-	var piece: Dictionary=editor.store.document.assembled_track.pieces[selected]
-	sample_input=_spin(properties,"경로 지점",0,0,piece.path.size()-1,1)
-	_button(properties,"출발 체크포인트",checkpoint.bind(true))
-	_button(properties,"도착 / 공통 체크포인트",checkpoint.bind(false))
-	action_height=_spin(properties,"점프 높이 (m)",2.0,0.5,10.0,0.1)
-	landing_target=OptionButton.new()
-	landing_target.add_item("연속 노면 점프",-2)
-	for i in source.instances.size(): landing_target.add_item("착지 · "+source.instances[i].id,i)
-	properties.add_child(landing_target)
-	landing_sample=_spin(properties,"착지 지점",0,0,1024,1)
-	for kind: String in ["jump_panel","acceleration_panel","boost_chain","air_ring"]:
-		_button(properties,kind+" 배치",add_action.bind(kind))
+		if i != selected: target.add_item(source.instances[i].id, i)
+	connections.add_child(target)
+	_selected_button(connections, "Snap entry to target exit", snap_to_target, target.item_count > 0, "Add another piece to connect.")
+	_selected_button(connections, "Connect exit to target entry", connect_curve, target.item_count > 0, "Add another piece to connect.")
+	var piece: Dictionary = editor.store.document.assembled_track.pieces[selected]
+	sample_input = _spin(routes_box, "Path sample", 0, 0, piece.path.size() - 1, 1)
+	var cp_actions := HBoxContainer.new()
+	routes_box.add_child(cp_actions)
+	_button(cp_actions, "Set start checkpoint", checkpoint.bind(true))
+	_button(cp_actions, "Add finish / common checkpoint", checkpoint.bind(false))
+	action_height = _spin(actions_box, "Jump height (m)", 2.0, 0.5, 10.0, 0.1)
+	landing_target = OptionButton.new()
+	landing_target.add_item("Continuous road jump", -2)
+	for i in source.instances.size(): landing_target.add_item("Landing · " + source.instances[i].id, i)
+	actions_box.add_child(landing_target)
+	landing_sample = _spin(actions_box, "Landing sample", 0, 0, 1024, 1)
+	var action_row := HBoxContainer.new()
+	actions_box.add_child(action_row)
+	for kind: String in ["jump_panel", "acceleration_panel", "boost_chain", "air_ring"]:
+		editor.commands.button(action_row, "track.action." + kind)
 
-func _commit(next: Dictionary) -> void:
-	var failure: String=editor.store.edit_track(next)
-	if failure!="": editor._status(failure)
+func _shortcut_example() -> void:
+	cancel_interaction()
+	var result: Dictionary = JSON.parse_string(editor.store.bridge.track_shortcut_source())
+	_commit(result.data)
+
+func _route_new() -> void:
+	var next := source.duplicate(true)
+	next.paths.append({"id":"Alternative %d" % next.paths.size(), "pieces":[]})
+	route_index = next.paths.size() - 1
+	_commit(next)
+
+func _route_can_move(delta: int) -> bool:
+	if not is_instance_valid(route_list): return false
+	var chosen := route_list.get_selected_items()
+	return not chosen.is_empty() and chosen[0] + delta >= 0 and chosen[0] + delta < route_list.item_count
+
+func _route_add() -> void:
+	if selected < 0: return
+	var next := source.duplicate(true)
+	if next.paths.is_empty(): next.paths = [{"id":"base", "pieces":[]}]
+	var id: String = next.instances[selected].id
+	if not next.paths[route_index].pieces.has(id): next.paths[route_index].pieces.append(id)
+	_commit(next)
+
+func _route_remove() -> void:
+	var chosen := route_list.get_selected_items()
+	if chosen.is_empty(): return
+	var next := source.duplicate(true)
+	next.paths[route_index].pieces.remove_at(chosen[0])
+	_commit(next)
+
+func _route_move(delta: int) -> void:
+	var chosen := route_list.get_selected_items()
+	if chosen.is_empty(): return
+	var at: int = chosen[0]
+	var next := source.duplicate(true)
+	var path: Array = next.paths[route_index].pieces
+	if at + delta < 0 or at + delta >= path.size(): return
+	var id: String = path[at]
+	path.remove_at(at)
+	path.insert(at + delta, id)
+	if _commit(next): route_list.select(at + delta)
+
+func _commit(next: Dictionary, next_selection := -2) -> bool:
+	var failure: String = editor.store.edit_track(next)
+	if failure != "": editor._status(failure); return false
+	if next_selection != -2:
+		selected = next_selection
+		refresh()
+	return true
 
 func add_piece(preset: String) -> void:
-	var next:=source.duplicate(true)
-	var widths: Array=[]
-	for entry: Dictionary in catalogue.entries:
-		if entry.id==preset: widths=entry.widths_cm
-	var w:=400 if widths.has(400) else int(widths[0])
-	var id: String="p-"+Crypto.new().generate_random_bytes(4).hex_encode()
-	var item: Dictionary={"id":id,"preset":preset,"position_cm":[0,0,0],"rotation_mdeg":[0,0,0],"width_cm":w,"entry_width_cm":w,"exit_width_cm":w,"control_points":[]}
-	if preset in ["free_curve","flight_curve"]: item.control_points=[[0,0,0],[0,0,600],[600,0,1200],[1200,0,1200]]
-	if selected>=0 and snap.button_pressed:
-		var result: Dictionary=JSON.parse_string(editor.store.bridge.snap_track_instance(JSON.stringify(item),JSON.stringify(next.instances[selected])))
-		if not result.ok: editor._status(result.error.message); return
-		item=result.data
-		next.connections.append({"from":next.instances[selected].id,"to":id})
-	if next.paths.is_empty(): next.paths=[{"id":"base","pieces":[]}]
-	next.paths[route_index].pieces.append(id)
-	next.instances.append(item)
-	selected=next.instances.size()-1
-	_commit(next)
+	placement.activate("piece", preset)
 
 func apply_properties() -> void:
 	if selected<0: return
@@ -242,8 +378,7 @@ func duplicate_piece() -> void:
 	item.id="p-"+Crypto.new().generate_random_bytes(4).hex_encode()
 	item.position_cm[0]+=int(item.width_cm)+200
 	next.instances.append(item)
-	selected=next.instances.size()-1
-	_commit(next)
+	_commit(next, next.instances.size()-1)
 
 func delete_piece() -> void:
 	if selected<0: return
@@ -255,8 +390,7 @@ func delete_piece() -> void:
 	next.attachments=next.attachments.filter(func(c): return c.piece!=id)
 	next.actions=next.actions.filter(func(c): return c.piece!=id and (c.landing==null or c.landing.piece!=id))
 	for path: Dictionary in next.paths: path.pieces.erase(id)
-	selected=-1
-	_commit(next)
+	_commit(next, -1)
 
 func snap_to_target() -> void:
 	if selected<0 or target.item_count==0: return
@@ -290,16 +424,7 @@ func connect_curve() -> void:
 		var at:=path.find(next.instances[selected].id)
 		path.insert(at+1,id)
 		if not path.has(next.instances[other].id): path.insert(at+2,next.instances[other].id)
-	selected=next.instances.size()-1
-	_commit(next)
-
-func _set_route() -> void:
-	var next:=source.duplicate(true)
-	if next.paths.is_empty(): next.paths=[{"id":"base","pieces":[]}]
-	var ids: Array=[]
-	for id: String in route_input.text.split(",",false): ids.append(id.strip_edges())
-	next.paths[route_index].pieces=ids
-	_commit(next)
+	_commit(next, next.instances.size()-1)
 
 func checkpoint(start: bool) -> void:
 	if selected<0: return
@@ -312,10 +437,7 @@ func checkpoint(start: bool) -> void:
 	_commit(next)
 
 func add_action(kind: String) -> void:
-	if selected<0: return
-	var next:=source.duplicate(true)
-	next.actions.append({"id":"a-"+Crypto.new().generate_random_bytes(4).hex_encode(),"kind":kind,"piece":next.instances[selected].id,"sample":int(sample_input.value),"height_cm":roundi(action_height.value*100.0),"landing":null if landing_target.get_selected_id()<0 else {"piece":next.instances[landing_target.get_selected_id()].id,"sample":int(landing_sample.value)}})
-	_commit(next)
+	placement.activate("action", kind)
 
 func _draw() -> void:
 	if is_instance_valid(view): view.queue_free()
@@ -341,7 +463,8 @@ func _draw() -> void:
 	if editor.preview_camera.camera.position==Vector3.ZERO: editor.preview_camera.frame(Vector3.ZERO,80.0)
 
 func input(event: InputEvent) -> bool:
-	if not active: return false
+	if not active or editor._popup_open(editor): return false
+	if placement.tool != "": return placement.input(event)
 	var camera: Camera3D=editor.preview_camera.camera
 	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT:
 		if event.pressed:
@@ -355,6 +478,8 @@ func input(event: InputEvent) -> bool:
 					var d:=camera.unproject_position(point).distance_to(event.position)
 					if d<nearest: nearest=d; index=i
 			selected=index
+			_properties()
+			editor.commands.refresh_buttons()
 			if selected>=0:
 				selection.select(selected)
 				_properties()
@@ -364,6 +489,9 @@ func input(event: InputEvent) -> bool:
 				drag_start=_plane_point(event.position,float(source.instances[selected].position_cm[1])*0.01)
 			return true
 		elif drag_start!=null:
+			if drag_epoch != editor.store.command_epoch or selected < 0:
+				cancel_interaction()
+				return true
 			var end: Variant=_plane_point(event.position,float(drag_source.instances[selected].position_cm[1])*0.01)
 			if end!=null and end.distance_to(drag_start)>0.01:
 				var delta: Vector3=end-drag_start
@@ -397,13 +525,7 @@ func _plane_point(point: Vector2, height: float) -> Variant:
 	return Plane(Vector3.UP,height).intersects_ray(camera.project_ray_origin(point),camera.project_ray_normal(point))
 
 func add_obstacle(kind: String) -> void:
-	if selected<0: editor._status("장애물을 배치할 도로를 선택하세요"); return
-	var next:=source.duplicate(true)
-	var piece: Dictionary=editor.store.document.assembled_track.pieces[selected]
-	var station:=0.0
-	for i in range(1,int(sample_input.value)+1): station+=PREVIEW.point(piece.path[i].position_cm).distance_to(PREVIEW.point(piece.path[i-1].position_cm))*100.0
-	next.attachments.append({"kind":kind,"piece":source.instances[selected].id,"path":"main","station_cm":roundi(station),"side":1})
-	_commit(next)
+	placement.activate("obstacle", kind)
 
 func frame_selection() -> void:
 	if selected<0: editor.preview_camera.frame(Vector3.ZERO,80.0); return

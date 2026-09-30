@@ -383,7 +383,7 @@ func recover(path: String) -> String:
 	if not validation.ok:
 		return reason(validation)
 	if envelope:
-		if value.recovery_version != 1 or value.get("document_sha256") != str(validation.data.canonical).sha256_text():
+		if value.get("recovery_version") != 1 or value.get("document_sha256") != str(validation.data.canonical).sha256_text():
 			return "Unsupported or corrupt recovery snapshot."
 		if value.get("project_path") is not String or value.get("base_sha256") is not String:
 			return "Invalid recovery origin."
@@ -427,7 +427,7 @@ func set_free_roam(value: bool) -> String:
 			patches.append({"field":"courses", "id":course.course_id, "before":course, "after":null})
 		for course: Dictionary in result.data.document.get("courses",[]):
 			patches.append({"field":"courses", "id":course.course_id, "before":null, "after":course})
-	return apply_command("자유주행형 맵", patches)
+	return apply_command("Free roam map", patches)
 
 func track_source() -> Dictionary:
 	var result: Dictionary = JSON.parse_string(bridge.track_authoring_source(JSON.stringify(document)))
@@ -436,7 +436,7 @@ func track_source() -> Dictionary:
 func edit_track(source: Dictionary, expected_epoch: int = -1) -> String:
 	if not document.has("assembled_track"):
 		for field: String in ["nodes","roads","heightmaps","surface_areas","water_bodies","buildings","zones","assets","placements","repetitions","gimmicks"]:
-			if not document.get(field,[]).is_empty(): return "기존 자유주행 형상을 보존했습니다. 트랙 조각 제작은 New Map에서 시작하세요."
+			if not document.get(field,[]).is_empty(): return "Existing free roam geometry was preserved. Start a New Map to author track pieces."
 	if expected_epoch >= 0 and expected_epoch != command_epoch: return "Stale track edit; current map retained."
 	var result: Dictionary = JSON.parse_string(bridge.compile_track_source(JSON.stringify(source)))
 	if not result.ok: return reason(result)
@@ -448,7 +448,7 @@ func edit_track(source: Dictionary, expected_epoch: int = -1) -> String:
 		result = JSON.parse_string(bridge.reseal_track_document(JSON.stringify(candidate)))
 		if not result.ok: return reason(result)
 		candidate=result.data.document
-	return apply_command("트랙 조립", [{"field":"track_document", "id":"", "before":document.duplicate(true), "after":candidate}])
+	return apply_command("Track assembly", [{"field":"track_document", "id":"", "before":document.duplicate(true), "after":candidate}])
 
 func new_track(free_roam := false) -> void:
 	new_document()

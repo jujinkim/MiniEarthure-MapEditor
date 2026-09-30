@@ -34,7 +34,7 @@ func add_building(id: String, x: int) -> void:
 	ok(ui.store.apply_command("building", [{"field":"buildings", "id":id, "before":null, "after":building(id,x)}]), "add building")
 
 func click_button(node: Node, title: String) -> bool:
-	if node is Button and node.text == title:
+	if node is Button and (node.text == title or node.get_meta("action_label", "") == title):
 		var point: Vector2 = node.get_global_rect().get_center()
 		for pressed in [true,false]:
 			var event := InputEventMouseButton.new()

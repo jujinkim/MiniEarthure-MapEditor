@@ -41,7 +41,9 @@ func run() -> void:
 	check(screen.track_workbench.palette.visible,"manual piece palette")
 	var bench: Node=screen.track_workbench
 	bench.add_piece("straight")
+	check(bench.placement.preview_at(Vector3.ZERO) and bench.placement.commit(), "preview then place straight")
 	bench.add_piece("gentle45")
+	check(bench.placement.preview_at(bench.PREVIEW.point(screen.store.document.assembled_track.pieces[0].path.back().position_cm)) and bench.placement.commit(), "preview then snap gentle45")
 	check(bench.source.instances.size()==2 and bench.source.connections.size()==1,"palette placement and port snap commands")
 	bench.duplicate_piece()
 	check(bench.source.instances.size()==3,"duplicate command")
@@ -60,6 +62,7 @@ func run() -> void:
 	bench.selected=0
 	bench._properties()
 	bench.add_action("jump_panel")
+	check(bench.placement.preview_attachment(0, 0) and bench.placement.commit(), "attach panel at road sample")
 	check(bench.source.actions.size()==1 and bench.source.actions[0].landing==null,"continuous road jump has no forced landing road")
 	check(screen.store.undo()=="" and bench.source.actions.is_empty(),"controller command undo")
 	screen._open_track_generator()

@@ -13,7 +13,7 @@ func check(ok: bool, message: String) -> void:
 func state() -> String:
 	return JSON.stringify([ui.store.document, ui.store.undo_stack, ui.store.redo_stack, ui.store.dirty, ui.store.project_path])
 func button(node: Node, title: String) -> Button:
-	if node is Button and node.text == title: return node
+	if node is Button and (node.text == title or node.get_meta("action_label", "") == title): return node
 	for child in node.get_children():
 		var found := button(child, title)
 		if found != null: return found
@@ -37,6 +37,10 @@ func menu_command(label: String) -> void:
 	for index in range(ui.commands.commands.size()):
 		if ui.commands.commands[index].label == label:
 			ui.commands.execute(index)
+			if label == "New":
+				ui.new_free_roam.button_pressed = true
+				ui.new_map_dialog.hide()
+				ui.new_map_dialog.confirmed.emit()
 			await process_frame
 			return
 	check(false, "menu command available: " + label)
@@ -60,6 +64,7 @@ func run() -> void:
 	root.size = Vector2i(1024, 720)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.store.new_track(true)
 	ui.dialog.use_native_dialog = false
 	await process_frame
 	await process_frame
@@ -132,6 +137,9 @@ func run() -> void:
 	check(reopened.open_project(safe_project) == "" and reopened.document.seed == 18 and ui.store.document.map_id != original_id, "Save and continue persists exact edits before replacement")
 	# A deferred document action cannot consume a replacement document.
 	ui._new()
+	ui.new_free_roam.button_pressed = true
+	ui.new_map_dialog.hide()
+	ui.new_map_dialog.confirmed.emit()
 	ui.store.new_document()
 	before = state()
 	await click(ui.recovery_continue_button)

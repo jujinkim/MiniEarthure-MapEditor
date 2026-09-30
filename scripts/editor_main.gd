@@ -142,6 +142,9 @@ var selected_field := ""
 var selected_record: Dictionary = {}
 var displayed_map_id := ""
 
+const WORKBENCH_STYLE := preload("./workbench_style.gd")
+var roam_palette: VBoxContainer
+
 func _ready() -> void:
 	get_tree().auto_accept_quit = false
 	get_window().min_size = Vector2i(1024, 720)
@@ -149,6 +152,10 @@ func _ready() -> void:
 	track_workbench=preload("./track_workbench.gd").new()
 	add_child(track_workbench)
 	track_workbench.build(self)
+	commands.load_settings()
+	commands.opening_popup.connect(_cancel_editing)
+	get_tree().node_added.connect(_watch_ui_node)
+	_decorate_ui(self)
 	store.changed.connect(_document_changed)
 	store.new_track()
 	_restore_workbench.call_deferred()
@@ -167,47 +174,17 @@ func _autosave() -> void:
 			_status(failure)
 
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT: _cancel_editing()
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_request_document_action("close")
 
 func _build_ui() -> void:
-	var ui_theme := Theme.new()
-	ui_theme.default_font_size = 16
-	var panel := StyleBoxFlat.new()
-	panel.bg_color = Color(0.08, 0.1, 0.13, 0.94)
-	panel.set_corner_radius_all(7)
-	panel.content_margin_left = 12
-	panel.content_margin_right = 12
-	panel.content_margin_top = 8
-	panel.content_margin_bottom = 8
-	ui_theme.set_stylebox("panel", "PanelContainer", panel)
-	var button := panel.duplicate()
-	button.bg_color = Color("292f39")
-	ui_theme.set_stylebox("normal", "Button", button)
-	var active := panel.duplicate()
-	active.bg_color = Color("766727")
-	active.border_color = Color("ffe14c")
-	active.set_border_width_all(1)
-	ui_theme.set_stylebox("hover", "Button", active)
-	ui_theme.set_stylebox("pressed", "Button", active)
-	ui_theme.set_stylebox("panel", "Tree", panel)
-	ui_theme.set_stylebox("selected", "Tree", active)
-	ui_theme.set_stylebox("selected_focus", "Tree", active)
-	ui_theme.set_color("font_color", "Tree", Color("e1e3e6"))
-	ui_theme.set_color("font_readonly_color", "TextEdit", Color("e1e3e6"))
-	ui_theme.set_icon("unchecked", "Tree", _checkbox_icon(false))
-	ui_theme.set_icon("checked", "Tree", _checkbox_icon(true))
-	var focus_style := StyleBoxFlat.new()
-	focus_style.bg_color = Color(0, 0, 0, 0)
-	focus_style.border_color = Color("ffe14c")
-	focus_style.set_border_width_all(1)
-	for control in ["Button", "Tree", "LineEdit"]:
-		ui_theme.set_stylebox("focus", control, focus_style)
-	theme = ui_theme
+	theme = WORKBENCH_STYLE.create_theme()
+	RenderingServer.set_default_clear_color(WORKBENCH_STYLE.CREAM)
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 14)
+		margin.add_theme_constant_override("margin_" + side, 10)
 	add_child(margin)
 	var column := VBoxContainer.new()
 	margin.add_child(column)
@@ -224,8 +201,9 @@ func _build_ui() -> void:
 	title_row.add_child(title)
 	var bar := HBoxContainer.new()
 	column.add_child(bar)
-	for entry in [["Seed Track", _open_track_generator], ["Save", _save], ["Undo", _history.bind(false)], ["Redo", _history.bind(true)], ["Validate", _validate], ["Commands…", commands.open]]:
-		_button(bar, entry[0], entry[1])
+	for group in [["File", ["file.new", "file.open", "file.save", "file.export_map"]], ["Edit", ["edit.undo", "edit.redo", "edit.duplicate", "edit.delete"]], ["Create", ["create.seed_track"]], ["Inspect", ["validate.validate", "view.commands", "edit.shortcuts"]]]:
+		_label(bar, group[0])
+		for id: String in group[1]: commands.button(bar, id)
 	regional_grouping = SpinBox.new()
 	regional_grouping.min_value = 1
 	regional_grouping.max_value = 128
@@ -233,7 +211,7 @@ func _build_ui() -> void:
 	regional_grouping.prefix = "Regional cells "
 	regional_grouping.tooltip_text = "Storage grouping only. Execution cell size and map quality stay unchanged."
 	var import_work_button := Button.new()
-	import_work_button.text = "Import work"
+	WORKBENCH_STYLE.decorate(import_work_button, "Import work", "Inspect leftover import work.", "import")
 	import_work_button.tooltip_text = "Inspect leftover local import work without changing files."
 	title_row.add_child(import_work_button)
 	import_recovery = IMPORT_RECOVERY.new()
@@ -249,7 +227,7 @@ func _build_ui() -> void:
 	column.add_child(split)
 	canvas = CANVAS.new()
 	canvas.store = store
-	canvas.custom_minimum_size = Vector2(220, 200)
+	canvas.custom_minimum_size = Vector2(100, 100)
 	canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	canvas.status.connect(_status)
 	canvas.terrain_requested.connect(_start_terrain)
@@ -258,34 +236,22 @@ func _build_ui() -> void:
 	var left := left_dock
 	left.custom_minimum_size.x = 245
 	split.add_child(left)
-	_label(left, "TOOLS")
-	var tool_scroll := ScrollContainer.new()
-	tool_scroll.custom_minimum_size.y = 72
-	tool_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tool_scroll.size_flags_stretch_ratio = 0.65
-	tool_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	left.add_child(tool_scroll)
-	var tool_controls := VBoxContainer.new()
-	tool_controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tool_scroll.add_child(tool_controls)
-	var tools := HFlowContainer.new()
-	tool_controls.add_child(tools)
-	var group := ButtonGroup.new()
+	roam_palette = preload("./workbench_palette.gd").new()
+	roam_palette.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_child(roam_palette)
+	var tool_entries: Array[Dictionary] = []
 	for name in ["Select", "Road", "Surface area", "Water", "Island", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
-		var tool_button := _button(tools, name, _set_tool.bind(name))
-		tool_button.toggle_mode = true
-		tool_button.button_group = group
-		tool_button.button_pressed = name == "Select"
-		tool_button.tooltip_text = _tool_help(name)
-		tool_buttons[name] = tool_button
+		tool_entries.append({"id":"tool." + name.to_snake_case(), "group":"Free roam", "section":"Drawing tools"})
+	roam_palette.build(commands, "roam", tool_entries)
+	for tile in roam_palette.tiles: tool_buttons[commands.commands[commands.index_of(tile.id)].label] = tile.button
 	author_panel = AUTHOR_PANEL.new()
 	author_panel.editor = self
 	author_panel.hide()
-	_button(left, "Authoring settings…", func(): author_panel.open())
 	var edits := HBoxContainer.new()
 	left.add_child(edits)
-	_button(edits, "Duplicate", func(): canvas.duplicate_selection())
-	_button(edits, "Delete", func(): canvas.delete_selection())
+	_button(edits, "Authoring settings…", func(): author_panel.open())
+	commands.button(edits, "edit.duplicate")
+	commands.button(edits, "edit.delete")
 	var snap := HBoxContainer.new()
 	left.add_child(snap)
 	snap_toggle = CheckButton.new()
@@ -325,7 +291,7 @@ func _build_ui() -> void:
 	var view_modes := HBoxContainer.new()
 	center.add_child(view_modes)
 	for mode in ["2d", "3d", "split"]:
-		_button(view_modes, mode.to_upper(), _set_view_mode.bind(mode))
+		commands.button(view_modes, "view." + mode)
 	workspace_views = HSplitContainer.new()
 	workspace_views.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center.add_child(workspace_views)
@@ -337,7 +303,7 @@ func _build_ui() -> void:
 	tool_hint.add_theme_font_size_override("font_size", 12)
 	center.add_child(tool_hint)
 	right_dock = VSplitContainer.new()
-	right_dock.custom_minimum_size.x = 260
+	right_dock.custom_minimum_size.x = 248
 	center_split.add_child(right_dock)
 	var property_dock := VBoxContainer.new()
 	property_dock.custom_minimum_size.y = 140
@@ -386,10 +352,12 @@ func _build_ui() -> void:
 	add_child(export_report)
 	var preview_container := SubViewportContainer.new()
 	preview_container.stretch = true
+	preview_container.focus_mode = Control.FOCUS_ALL
 	preview_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	preview_container.custom_minimum_size = Vector2(200, 100)
 	preview_dock.add_child(preview_container)
 	preview_container.gui_input.connect(func(event: InputEvent):
+		if event is InputEventMouseButton and event.pressed: preview_container.grab_focus()
 		if track_workbench != null and track_workbench.input(event):
 			preview_container.accept_event()
 		elif author_panel != null and author_panel.gimmick_panel != null and author_panel.gimmick_panel.surface_input(event):
@@ -431,7 +399,7 @@ func _build_ui() -> void:
 		environment_preview.wet = 2 if index == 2 else 0
 		environment_preview.snow = 2 if index == 3 else 0)
 	var output_tabs := TabContainer.new()
-	output_tabs.custom_minimum_size.y = 130
+	output_tabs.custom_minimum_size.y = 128
 	column.add_child(output_tabs)
 	var activity := VBoxContainer.new()
 	activity.name = "Activity"
@@ -444,7 +412,7 @@ func _build_ui() -> void:
 	retry_import_button.hide()
 	_button(view_bar, "Tools / layers", func(): left_dock.visible = not left_dock.visible)
 	_button(view_bar, "Properties / 3D", func(): right_dock.visible = not right_dock.visible)
-	_button(view_bar, "Fit map (F)", func(): canvas.fit_map())
+	_button(view_bar, "Frame selection", _frame_current)
 	_button(view_bar, "Reset panels", _reset_panels)
 	validation_label = Label.new()
 	validation_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -458,7 +426,7 @@ func _build_ui() -> void:
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.custom_minimum_size.y = 20
-	status_label.text = "V Select · R Road · B Building · G Forest · O Orchard · Ctrl/Cmd+A/D/Z/Y/S · Delete · Escape cancels"
+	status_label.text = "Choose a tool. Search commands or open Shortcuts for keyboard controls."
 	activity.add_child(status_label)
 	import_progress = ProgressBar.new()
 	import_progress.visible = false
@@ -593,18 +561,10 @@ func _import_number(parent: Control, title: String, minimum: float, maximum: flo
 	parent.add_child(value)
 	return value
 
-func _checkbox_icon(checked: bool) -> Texture2D:
-	var icon := Image.new()
-	var tick := '<path d="M4 8l3 3 5-6" fill="none" stroke="#ffe14c" stroke-width="2"/>' if checked else ""
-	icon.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect x="1" y="1" width="14" height="14" rx="2" fill="#15181e" stroke="#b8bcc5"/>' + tick + '</svg>')
-	return ImageTexture.create_from_image(icon)
-
 func _button(parent: Node, text: String, action: Callable) -> Button:
-	var button := Button.new()
-	button.text = text
-	button.pressed.connect(action)
-	parent.add_child(button)
-	return button
+	for command: Dictionary in commands.commands:
+		if command.action == action: return commands.button(parent, command.id)
+	return WORKBENCH_STYLE.button(parent, text, action)
 
 func _label(parent: Node, text: String) -> Label:
 	var label := Label.new()
@@ -615,18 +575,20 @@ func _label(parent: Node, text: String) -> Label:
 	return label
 
 func _new() -> void:
+	_cancel_editing()
 	if not is_instance_valid(new_map_dialog):
 		new_map_dialog=ConfirmationDialog.new()
 		new_map_dialog.title="New Map"
 		add_child(new_map_dialog)
 		new_free_roam=CheckBox.new()
-		new_free_roam.text="자유주행 맵 (기본: 트랙 조립)"
+		new_free_roam.text="Free roam map (default: track assembly)"
 		new_map_dialog.add_child(new_free_roam)
 		new_map_dialog.confirmed.connect(func(): _request_document_action("new"))
 	new_free_roam.button_pressed=false
 	new_map_dialog.popup_centered(Vector2i(400,160))
 
 func _request_document_action(action: String, path: String = "") -> void:
+	_cancel_editing()
 	canvas.cancel_interaction()
 	if store.dirty:
 		var failure := store.autosave()
@@ -685,6 +647,7 @@ func _continue_document_action() -> void:
 	elif request.action in ["open", "recover"]: _status("Ready: " + request.path)
 
 func _choose(action: String) -> void:
+	_cancel_editing()
 	dialog_action = action
 	dialog.filters = PackedStringArray()
 	dialog.title = {"open":"Open project directory", "save":"Save project to directory", "save_transition":"Save before continuing", "save_for_export":"Save project before export", "save_for_drive":"Save project before test drive", "export":"Export package — choose a new filename", "recover":"Recover a document", "import":"Choose source to review"}.get(action, "Choose file")
@@ -775,13 +738,14 @@ func _save() -> void:
 		if failure == "": _document_changed()
 
 func _import_geojson() -> void:
+	_cancel_editing()
 	if not busy:
 		import_dialog.get_ok_button().disabled = not IMPORT_LAYER._text(import_license.text.strip_edges())
 		import_dialog.popup_centered(Vector2i(760, 520))
 
 func _export() -> void:
 	var issues: Array=store.document.get("assembled_track",{}).get("issues",[])
-	if not issues.is_empty(): _status("실행용 내보내기 전 연결·코스를 수정하세요: "+" / ".join(issues)); return
+	if not issues.is_empty(): _status("Fix connections and courses before execution export: "+" / ".join(issues)); return
 	if busy:
 		_status("Cancel the active operation or wait before exporting.")
 		return
@@ -798,6 +762,7 @@ func _validate() -> void:
 	_start_package("report")
 
 func _selection(ids: Array) -> void:
+	if commands != null: commands.refresh_buttons()
 	selected_record = {}
 	selected_field = ""
 	property_records.clear()
@@ -809,14 +774,15 @@ func _selection(ids: Array) -> void:
 		properties.remove_child(child)
 		child.queue_free()
 	if layers != null: layers.sync_selection()
-	tool_hint.text = _tool_help(canvas.tool)
+	tool_hint.text = canvas.tool + " · " + _tool_help(canvas.tool)
+	tool_hint.text += "\nCancel: " + commands.shortcut_text("edit.cancel_interaction")
 	tool_hint.tooltip_text = tool_hint.text
 	selection_label.text = "2D MAP  ·  %s  ·  %d selected" % [canvas.tool, property_records.size()]
 	apply_button.disabled = property_records.is_empty()
 	if property_records.is_empty():
 		var free_roam := CheckBox.new()
-		free_roam.text = "자유주행형 맵"
-		free_roam.tooltip_text = "완주 후 결과 연출을 표시하고 자유주행으로 돌아갑니다"
+		free_roam.text = "Free roam map"
+		free_roam.tooltip_text = "Show results after finishing, then return to free roam."
 		free_roam.button_pressed = store.document.free_roam
 		free_roam.toggled.connect(func(value: bool):
 			var failure: String = store.set_free_roam(value)
@@ -920,6 +886,7 @@ func _apply_properties() -> void:
 	if failure == "": _selection(canvas.selected)
 
 func _document_changed() -> void:
+	if track_workbench != null: track_workbench.cancel_interaction()
 	if not density_deferred_package.is_empty():
 		density_deferred_package.clear()
 		busy = false
@@ -950,54 +917,137 @@ func _document_changed() -> void:
 	project_label.text = (store.project_path if store.project_path != "" else "Unsaved project") + ("  • modified" if store.dirty else "")
 	canvas.queue_redraw()
 	if track_workbench != null: track_workbench.refresh()
+	commands.refresh_buttons()
 
 func _tool_help(name: String) -> String:
 	var hints := {
-		"Select":"V · Click to select; Shift toggles. Drag empty space to box-select. Edit in Properties, then Apply.",
-		"Road":"R · Click at least two points; right-click to finish. Set width, surface and structure in Authoring settings.",
-		"Building":"B · Click at least three corners; right-click to finish. Select the building to edit height and material.",
+		"Select":"Click to select; Shift toggles. Drag empty space to box-select. Edit in Properties, then Apply.",
+		"Road":"Click at least two points; right-click to finish. Set width, surface and structure in Authoring settings.",
+		"Building":"Click at least three corners; right-click to finish. Select the building to edit height and material.",
 		"Water":"Draw a non-solid water polygon; right-click finishes. Set surface, bottom and flow in Authoring settings.",
 		"Island":"Select a water body, then draw a dry island; right-click finishes.",
 		"Cylinder wall":"Click the centre to place a solid round wall. Set radius and height in Authoring settings; select it to resize.",
-		"Forest":"G · Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
-		"Orchard":"O · Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
+		"Forest":"Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
+		"Orchard":"Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
 		"Terrain":"Drag to paint terrain. Choose brush, radius and strength in Authoring settings; release commits one Undo step.",
 		"Place":"Click to place the asset chosen in Authoring settings. Select it to change rotation.",
 		"Repeat":"Click a path; right-click to finish. Choose asset and spacing in Authoring settings.",
 		"Entrance":"Select one building first, then draw an entrance polygon; right-click to finish.",
 		"Exclusion":"Select one forest/orchard zone first, then draw an exclusion polygon; right-click to finish."
 	}
-	return str(hints.get(name, "")) + "\nEscape cancels · Wheel zooms · Middle drag pans"
+	return str(hints.get(name, "")) + "\nWheel zooms · Middle drag pans"
 
 func _set_tool(name: String) -> void:
+	_cancel_editing()
+	if not store.document.get("free_roam", false):
+		if track_workbench != null: track_workbench.show_hint()
+		return
 	canvas.tool = name
-	tool_buttons[name].button_pressed = true
+	roam_palette.select_tool("tool." + name.to_snake_case())
 	_selection(canvas.selected)
 	canvas.queue_redraw()
 
+func _has_selection() -> bool:
+	if not store.document.get("free_roam", false):
+		return track_workbench != null and track_workbench.selected >= 0
+	return canvas != null and not canvas.selected.is_empty()
+
+func _duplicate_current() -> void:
+	_cancel_editing()
+	if store.document.get("free_roam", false): canvas.duplicate_selection()
+	else: track_workbench.duplicate_piece()
+
+func _can_delete() -> bool:
+	return _has_selection() or (store.document.get("free_roam", false) and not canvas.draft.is_empty())
+
+func _delete_current() -> void:
+	if store.document.get("free_roam", false) and not canvas.draft.is_empty():
+		canvas.draft.pop_back()
+		canvas.queue_redraw()
+		return
+	_cancel_editing()
+	if store.document.get("free_roam", false): canvas.delete_selection()
+	else: track_workbench.delete_piece()
+
+func _frame_current() -> void:
+	if store.document.get("free_roam", false): canvas.fit_map()
+	else: track_workbench.frame_selection()
+
+func _toggle_snap() -> void:
+	if store.document.get("free_roam", false): snap_toggle.button_pressed = not snap_toggle.button_pressed
+	else:
+		track_workbench.snap.button_pressed = not track_workbench.snap.button_pressed
+		track_workbench.placement.invalidate_candidate()
+
+func _cancel_editing() -> void:
+	if canvas != null: canvas.cancel_interaction()
+	if track_workbench != null: track_workbench.cancel_interaction()
+
 func _register_commands() -> void:
+	commands.context_source = func(): return "roam" if store.document.get("free_roam", false) else "track"
+	commands.blocked_source = _shortcuts_blocked
 	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Restore package", _choose.bind("reopen_package")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Import vector", _import_geojson], ["Export map", _export]]:
-		commands.register("File", entry[0], entry[1], "Ctrl/Cmd+S" if entry[0] == "Save" else "")
-	commands.register("Edit", "Undo", _history.bind(false), "Ctrl/Cmd+Z")
-	commands.register("Edit", "Redo", _history.bind(true), "Ctrl/Cmd+Shift+Z")
-	commands.register("Edit", "Duplicate", func(): canvas.duplicate_selection(), "Ctrl/Cmd+D")
-	commands.register("Edit", "Delete", func(): canvas.delete_selection(), "Delete")
-	commands.register("View", "Commands…", commands.open, "Ctrl/Cmd+P")
-	commands.register("View", "Fit map", func(): canvas.fit_map(), "F")
-	commands.register("View", "Frame selection in 3D", _frame_selection)
+		commands.register("File", entry[0], entry[1], "Primary+S" if entry[0] == "Save" else "")
+	commands.register("Edit", "Undo", _history.bind(false), "Primary+Z", {"enabled":func(): return not store.undo_stack.is_empty(), "reason":"No committed edit to undo."})
+	commands.register("Edit", "Redo", _history.bind(true), "Primary+Shift+Z", {"keys":["Primary+Y"], "enabled":func(): return not store.redo_stack.is_empty(), "reason":"No edit to redo."})
+	commands.register("Edit", "Duplicate", _duplicate_current, "Primary+D", {"enabled":_has_selection, "reason":"Select an object in the current mode first."})
+	commands.register("Edit", "Delete", _delete_current, "Delete", {"keys":["Backspace"], "enabled":_can_delete, "reason":"Select an object in the current mode first."})
+	commands.register("Edit", "Select all", func(): canvas.select_all(), "Primary+A", {"context":"roam"})
+	commands.register("Edit", "Cancel interaction", _cancel_editing, "Escape", {"menu":false, "icon":"cancel"})
+	commands.register("Edit", "Toggle snap", _toggle_snap, "S", {"icon":"snap"})
+	commands.register("Edit", "Shortcuts", commands.open_settings, "", {"icon":"keyboard"})
+	commands.register("View", "Commands…", commands.open, "Primary+P", {"id":"view.commands", "icon":"search"})
+	commands.register("View", "Frame selection", _frame_current, "F", {"id":"view.frame", "icon":"frame", "description":"Frame the selected track piece, or fit the free roam map."})
+	commands.register("View", "Frame selection in 3D", _frame_selection, "", {"context":"roam", "icon":"frame"})
 	commands.register("View", "Tools / layers", func(): left_dock.visible = not left_dock.visible)
 	commands.register("View", "Properties", func(): right_dock.visible = not right_dock.visible)
 	commands.register("View", "Reset panels", _reset_panels)
 	for mode in ["2d", "3d", "split"]:
-		commands.register("View", mode.to_upper(), _set_view_mode.bind(mode))
+		commands.register("View", mode.to_upper(), _set_view_mode.bind(mode), "", {"id":"view." + mode, "icon":mode})
 	for tool in ["Select", "Road", "Surface area", "Water", "Island", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
-		commands.register("Create", tool, _set_tool.bind(tool))
-	commands.register("Create", "Authoring settings…", func(): author_panel.open())
+		var shortcut: String = {"Select":"V", "Road":"R", "Building":"B", "Forest":"G", "Orchard":"O"}.get(tool, "")
+		commands.register("Create", tool, _set_tool.bind(tool), shortcut, {"id":"tool." + tool.to_snake_case(), "context":"global" if tool == "Select" else "roam", "description":"Select in the active workspace: track pieces in 3D, or free roam objects on the plan." if tool == "Select" else _tool_help(tool), "menu":false})
+	commands.register("Create", "Authoring settings…", func(): author_panel.open(), "", {"context":"roam"})
+	commands.register("Create", "Seed Track", _open_track_generator, "", {"id":"create.seed_track", "icon":"generate"})
 	commands.register("Validate", "Validate", _validate)
-	commands.register("Validate", "3D Preview", _preview)
+	commands.register("Validate", "3D Preview", _preview, "", {"context":"roam", "icon":"3d"})
 	commands.register("Validate", "Test Drive", _test_drive)
+	for slot in 9:
+		commands.register("Favorites", "Favorite %d" % (slot + 1), commands.run_favorite.bind(slot), str(slot + 1), {"id":"favorite.%d" % (slot + 1), "menu":false})
+
+func _popup_open(node: Node) -> bool:
+	for child in node.get_children():
+		if child is Window and child.visible: return true
+		if _popup_open(child): return true
+	return false
+
+func _shortcuts_blocked() -> bool:
+	var focus := get_viewport().gui_get_focus_owner()
+	return focus is LineEdit or focus is TextEdit or (DisplayServer.has_feature(DisplayServer.FEATURE_IME) and not DisplayServer.ime_get_text().is_empty()) or _popup_open(self)
+
+func _watch_ui_node(node: Node) -> void:
+	if is_ancestor_of(node): _decorate_ui.call_deferred(node)
+
+func _decorate_ui(node: Node) -> void:
+	if not is_instance_valid(node) or node.is_queued_for_deletion(): return
+	if node is Window:
+		node.theme = theme
+		if not node.visibility_changed.is_connected(_window_visibility_changed): node.visibility_changed.connect(_window_visibility_changed)
+	if node is Button and not node is OptionButton and not node is MenuButton and not node is CheckBox and not node is CheckButton and not node is ColorPickerButton and not node.has_meta("action_label"):
+		var owner_node := node.get_parent()
+		var dialog_control := false
+		while owner_node != null:
+			if owner_node is AcceptDialog and (node == owner_node.get_ok_button() or (owner_node is ConfirmationDialog and node == owner_node.get_cancel_button()) or node == recovery_continue_button): dialog_control = true
+			if owner_node is FileDialog: dialog_control = true
+			owner_node = owner_node.get_parent()
+		if not dialog_control and node.text != "": WORKBENCH_STYLE.decorate(node, node.text, node.tooltip_text)
+	for child in node.get_children(): _decorate_ui(child)
+
+func _window_visibility_changed() -> void:
+	if _popup_open(self): _cancel_editing()
 
 func _set_view_mode(mode: String) -> void:
+	_cancel_editing()
 	view_mode = mode if mode in ["2d", "3d", "split"] else "split"
 	canvas.visible = view_mode != "3d"
 	preview_dock.visible = view_mode != "2d"
@@ -1038,6 +1088,7 @@ func _restore_workbench() -> void:
 
 func _save_workbench() -> void:
 	if canvas == null or left_dock == null: return
+	view_settings.load("user://workbench.cfg")
 	view_settings.set_value("views", "mode", view_mode)
 	view_settings.set_value("views", "split", workspace_views.split_offset)
 	view_settings.set_value("panels", "left_visible", left_dock.visible)
@@ -1383,9 +1434,10 @@ func _finish_terrain(job: RefCounted, result: Dictionary) -> void:
 		_status(store.reason(result.get("data", result)))
 		return
 	var failure: String = job.commit(store)
-	_status(failure if failure != "" else "Terrain stroke applied. Undo: Ctrl/Cmd+Z")
+	_status(failure if failure != "" else "Terrain stroke applied. Undo: " + commands.shortcut_text("edit.undo"))
 
 func _process(_delta: float) -> void:
+	if track_workbench != null and track_workbench.placement.tool != "" and _popup_open(self): _cancel_editing()
 	if not density_deferred_package.is_empty() and density_panel.task == null:
 		var pending := density_deferred_package
 		density_deferred_package = {}
@@ -1586,38 +1638,10 @@ func _adopt_import() -> void:
 	_start_native_import(candidate, true)
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if event is not InputEventKey or not event.pressed or event.echo: return
-	var focus := get_viewport().gui_get_focus_owner()
-	if focus is LineEdit or focus is TextEdit: return
-	var handled := true
-	if event.ctrl_pressed or event.meta_pressed:
-		match event.keycode:
-			KEY_P: commands.open()
-			KEY_S: _save()
-			KEY_Z: _history(event.shift_pressed)
-			KEY_Y: _history(true)
-			KEY_D: canvas.duplicate_selection()
-			KEY_A: canvas.select_all()
-			_: handled = false
-	else:
-		match event.keycode:
-			KEY_ESCAPE: canvas.cancel_interaction()
-			KEY_DELETE, KEY_BACKSPACE:
-				if not canvas.draft.is_empty():
-					canvas.draft.pop_back()
-					canvas.queue_redraw()
-				else: canvas.delete_selection()
-			KEY_V: _set_tool("Select")
-			KEY_R: _set_tool("Road")
-			KEY_B: _set_tool("Building")
-			KEY_G: _set_tool("Forest")
-			KEY_O: _set_tool("Orchard")
-			KEY_F: canvas.fit_map()
-			_: handled = false
-	if handled: get_viewport().set_input_as_handled()
+	if event is InputEventKey and commands.handle_key(event): get_viewport().set_input_as_handled()
 
 func _history(forward: bool) -> void:
-	canvas.cancel_interaction()
+	_cancel_editing()
 	var failure := store.redo() if forward else store.undo()
 	if failure != "":
 		_status(failure)
@@ -1691,6 +1715,7 @@ func _build_test_drive_dialog() -> void:
 
 
 func _test_drive() -> void:
+	_cancel_editing()
 	if busy:
 		_status("Wait for the current operation before starting test drive.")
 		return
@@ -1785,6 +1810,7 @@ func _physics_process(delta: float) -> void:
 	environment_renderer.update_dynamic_lights(preview_world.get_node("PreviewCamera").global_position,[])
 
 func _open_track_generator() -> void:
+	_cancel_editing()
 	if not is_instance_valid(track_job):
 		track_job = preload("res://addons/mapkit/godot/track_job.gd").new()
 		add_child(track_job)

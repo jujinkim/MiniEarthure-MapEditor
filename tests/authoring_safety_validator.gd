@@ -15,6 +15,7 @@ func run() -> void:
 	root.size = Vector2i(1440,900)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.store.new_track(true)
 	await process_frame
 	var author: RefCounted = ui.canvas.author
 	check(ui.store.save_project(ProjectSettings.globalize_path("user://safety")) == "", "save safety fixture")
@@ -64,6 +65,9 @@ func run() -> void:
 	check(FILES.write_new(path, PackedByteArray([1,2,3])).contains("conflict"), "immutable install never overwrites differing bytes")
 	# Mixed ground/bridge connection must match actual terrain, not just graph XYZ.
 	ui._new()
+	ui.new_free_roam.button_pressed = true
+	ui.new_map_dialog.hide()
+	ui.new_map_dialog.confirmed.emit()
 	if ui.unsaved_dialog.visible:
 		ui.unsaved_dialog.hide()
 		ui._continue_document_action()
@@ -87,6 +91,9 @@ func run() -> void:
 	check(state() == before and ui.status_label.text.contains("unlock"), "locked endpoint layer blocks new graph creation")
 	ui.canvas.set_layer_state("nodes", {})
 	ui._new()
+	ui.new_free_roam.button_pressed = true
+	ui.new_map_dialog.hide()
+	ui.new_map_dialog.confirmed.emit()
 	if ui.unsaved_dialog.visible:
 		ui.unsaved_dialog.hide()
 		ui._continue_document_action()

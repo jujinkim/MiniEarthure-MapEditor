@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+<path d="M22.35,28.00L21.75,26.86L21.15,25.72L20.54,24.58L19.94,23.44L19.34,22.30L18.73,21.16L18.13,20.02L17.52,18.88L16.92,17.74L16.32,16.60L15.70,15.43L15.09,14.29L14.49,13.15L13.89,12.01L13.28,10.87L12.68,9.73L12.08,8.59L11.47,7.45L10.87,6.31L10.27,5.17L9.65,4.00" fill="none" stroke="#202020" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M22.35,28.00L21.75,26.86L21.15,25.72L20.54,24.58L19.94,23.44L19.34,22.30L18.73,21.16L18.13,20.02L17.52,18.88L16.92,17.74L16.32,16.60L15.70,15.43L15.09,14.29L14.49,13.15L13.89,12.01L13.28,10.87L12.68,9.73L12.08,8.59L11.47,7.45L10.87,6.31L10.27,5.17L9.65,4.00" fill="none" stroke="#85c7f2" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="22.35" cy="28.00" r="2.1" fill="#ff947e" stroke="#202020" stroke-width=".8"/>
+<path d="M9.75,8.47L9.65,4.00L13.29,6.60" fill="none" stroke="#202020" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

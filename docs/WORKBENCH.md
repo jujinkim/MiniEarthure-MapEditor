@@ -1,5 +1,9 @@
 # Editing workbench
 
+The 2026-09-30 [icon workbench replacement](ICON_WORKBENCH.md) supersedes immediate
+palette placement, fixed shortcut UI and the previous visual presentation below.
+
+
 ## Current workspace update — 2026-09-21
 
 File/Edit/View/Create/Validate menus and **Commands…** (Ctrl/Cmd+P) share one

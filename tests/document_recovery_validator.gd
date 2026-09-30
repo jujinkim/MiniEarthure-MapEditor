@@ -98,9 +98,9 @@ func run() -> void:
 	file.store_8(0)
 	file.close()
 	check(store.recover(bad_path).contains("64 MiB") and state(store) == before, "oversized snapshot rejected before read")
-	# Legacy envelope support is read-only until an explicit Save As or missing primary.
+	# A snapshot missing the current v1 envelope is rejected without mutation.
 	write(bad_path, {"project_path": base, "document": valid.document})
-	check(store.recover(bad_path) == "" and store.save_project(base) != "", "legacy snapshot restores but cannot silently overwrite primary")
+	check(store.recover(bad_path) != "" and state(store) == before, "missing recovery version is rejected without changing memory or primary")
 	# Process deaths are real, isolated child processes. No fixed sleep or shared data.
 	for phase in ["before_backup", "before_primary", "after_primary"]:
 		await crash_case(phase)
@@ -154,6 +154,8 @@ func ui_failure_cases(snapshot: String) -> void:
 	ui._autosave()
 	check(str(ui.status_label.text).contains("Injected") and state(ui.store) == original, "timer reports autosave failure")
 	ui._new()
+	ui.new_map_dialog.hide()
+	ui.new_map_dialog.confirmed.emit()
 	check(state(ui.store) == original, "New blocked when current dirty document cannot be retained")
 	ui.dialog_action = "recover"
 	ui._path_selected(snapshot)

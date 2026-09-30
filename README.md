@@ -217,4 +217,5 @@ They use the public MapKit kit; no game course codec is part of this editor.
 
 The current compact street examples are [miniature-streets](examples/miniature-streets/README.md): seven new sources with connected bridges/underpasses, graded start areas and optional technical paths. Historical example packages remain intact.
 
+- [Icon workbench, shortcuts and preview placement](docs/ICON_WORKBENCH.md)
 - [Track piece workspace and draft authoring](docs/TRACK_AUTHORING.md)

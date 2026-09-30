@@ -3,6 +3,7 @@ extends "./preview_export_validator.gd"
 func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.store.new_track(true)
 	await process_frame
 	await process_frame
 	ui.preview_enabled = false

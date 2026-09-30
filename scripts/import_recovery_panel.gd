@@ -41,7 +41,7 @@ func restart() -> void:
 	scan.start()
 	refresh.disabled = not scan.done
 	report.text = "Checking local import work…"
-	if banner != null: banner.text = "Import work · checking…"
+	if banner != null: banner.tooltip_text = "Import work · checking…"
 
 func show_report() -> void:
 	restart()
@@ -70,10 +70,10 @@ func _process(_delta: float) -> void:
 	lines.append("This is a snapshot. An unresponsive Editor or worker may still be running. Nothing here is deleted, resumed or added to your map. Unknown entries and original files must be kept.")
 	report.text = "\n\n".join(lines)
 	if banner != null:
-		banner.text = "Import work · %d to review" % uncertain if uncertain > 0 else "Import work · %d responding" % active if active > 0 else "Import work · clear"
-		if scan.partial: banner.text += " · partial"
-		banner.tooltip_text = "%d Editors responded; %d entries need review. Open the read-only report for details." % [active, uncertain]
-		if scan.message != "": banner.text = "Import work · unable to inspect"
+		banner.tooltip_text = "Import work · %d to review" % uncertain if uncertain > 0 else "Import work · %d responding" % active if active > 0 else "Import work · clear"
+		if scan.partial: banner.tooltip_text += " · partial"
+		banner.tooltip_text += "\n%d Editors responded; %d entries need review. Open the read-only report for details." % [active, uncertain]
+		if scan.message != "": banner.tooltip_text = "Import work · unable to inspect"
 
 func _exit_tree() -> void:
 	scan.cancel()

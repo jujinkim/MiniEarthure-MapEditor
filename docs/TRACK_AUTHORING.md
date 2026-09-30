@@ -1,5 +1,9 @@
 # Track piece workspace — 2026-09-30
 
+The 2026-09-30 [icon workbench replacement](ICON_WORKBENCH.md) supersedes immediate
+palette placement, fixed shortcut UI and the previous visual presentation below.
+
+
 New Map defaults to a track draft. Selecting free roam retains the existing map
 editing tools. Track mode opens a primary 3D workspace and auxiliary plan, three
 category palettes on the left, source properties on the right and connection /

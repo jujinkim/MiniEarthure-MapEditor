@@ -12,6 +12,7 @@ var brush_cursor := Vector2.ZERO
 var terrain_textures := {}
 const EDIT := preload("./workbench_edit.gd")
 var store: RefCounted
+var navigation_only := false
 var tool := "Select":
 	set(value):
 		if value != tool:
@@ -108,15 +109,15 @@ func fit_map() -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color("101216"))
+	draw_rect(Rect2(Vector2.ZERO, size), Color("fff7e6"))
 	if store == null or store.document.is_empty(): return
 	var doc: Dictionary = store.document
 	var bounds: Dictionary = doc.bounds
 	var cell := int(doc.cell_size_cm)
 	for x in range(int(bounds.min[0]), int(bounds.max[0]) + 1, cell):
-		draw_line(screen([x, bounds.min[1]]), screen([x, bounds.max[1]]), Color("34373c"))
+		draw_line(screen([x, bounds.min[1]]), screen([x, bounds.max[1]]), Color("d5cdbc"))
 	for y in range(int(bounds.min[1]), int(bounds.max[1]) + 1, cell):
-		draw_line(screen([bounds.min[0], y]), screen([bounds.max[0], y]), Color("34373c"))
+		draw_line(screen([bounds.min[0], y]), screen([bounds.max[0], y]), Color("d5cdbc"))
 	if doc.get("assembled_track") is Dictionary:
 		for piece: Dictionary in doc.assembled_track.pieces:
 			for path: Array in [piece.path,piece.get("alternate_path",[])]:
@@ -152,10 +153,10 @@ func _draw() -> void:
 	terrain_textures = visible_tiles
 	if tool == "Terrain":
 		var center := screen([brush_cursor.x, brush_cursor.y])
-		draw_arc(center, float(author.options.radius_cm) * _scale(), 0, TAU, 48, Color("ffe14c"), 2)
-		for point in author.terrain.stroke: draw_circle(screen([point.x, point.y]), 3, Color("ffe14c"))
+		draw_arc(center, float(author.options.radius_cm) * _scale(), 0, TAU, 48, Color("c76035"), 2)
+		for point in author.terrain.stroke: draw_circle(screen([point.x, point.y]), 3, Color("c76035"))
 	elif tool == "Cylinder wall":
-		draw_arc(screen([brush_cursor.x, brush_cursor.y]), float(author.options.wall_radius_cm) * _scale(), 0, TAU, AUTHOR.CYLINDER.SEGMENTS, Color("ffe14c"), 2)
+		draw_arc(screen([brush_cursor.x, brush_cursor.y]), float(author.options.wall_radius_cm) * _scale(), 0, TAU, AUTHOR.CYLINDER.SEGMENTS, Color("c76035"), 2)
 	var transformed := {}
 	if dragging and drag_offset != Vector2.ZERO:
 		for item: Dictionary in EDIT.plan(doc, selected, "move", drag_offset).patches:
@@ -166,7 +167,7 @@ func _draw() -> void:
 		var points := PackedVector2Array()
 		for p in EDIT.points(entry.field, record): points.append(screen([p.x, p.y]))
 		var chosen: bool = entry.key in selected
-		var color := Color("ffe14c") if chosen else (Color("45bdd0") if entry.field == "water_bodies" else Color("e1e3e6"))
+		var color := Color("c76035") if chosen else (Color("45bdd0") if entry.field == "water_bodies" else Color("202020"))
 		color.a = opacity(entry)
 		if not available(entry, true): color = Color(0.5, 0.52, 0.55, color.a)
 		if entry.field in ["water_bodies", "surface_areas", "zones", "buildings"]:
@@ -184,29 +185,29 @@ func _draw() -> void:
 		elif entry.field in ["roads", "repetitions"]:
 			for i in range(points.size() - 1):
 				var width := maxf(3.0, float(record.widths_cm[i]) * _scale()) if entry.field == "roads" else 2.0
-				if chosen: draw_line(points[i], points[i + 1], Color("ffe14c"), width + 5.0, true)
+				if chosen: draw_line(points[i], points[i + 1], Color("c76035"), width + 5.0, true)
 				draw_line(points[i], points[i + 1], color if not chosen else Color("4e4825"), width, true)
 		else:
 			draw_circle(points[0], 5.0 if entry.field == "nodes" else 8.0, Color(color, color.a * 0.35))
 			draw_arc(points[0], 5.0 if entry.field == "nodes" else 8.0, 0, TAU, 20, color, 2.0, true)
 		if chosen:
-			for p in points: draw_rect(Rect2(p - Vector2(3, 3), Vector2(6, 6)), Color("ffe14c"))
+			for p in points: draw_rect(Rect2(p - Vector2(3, 3), Vector2(6, 6)), Color("c76035"))
 	for target: Vector2i in density_cells:
 		var a := screen([bounds.min[0]+target.x*cell,bounds.min[1]+target.y*cell])
 		var b := screen([bounds.min[0]+(target.x+1)*cell,bounds.min[1]+(target.y+1)*cell])
 		draw_rect(Rect2(a,b-a).abs(),Color(1.0,0.3,0.1,0.15))
 		draw_rect(Rect2(a,b-a).abs(),Color(1.0,0.3,0.1,0.9),false,2.0)
-	for p in draft: draw_circle(screen([p.x, p.y]), 5.0, Color("ffe14c"))
+	for p in draft: draw_circle(screen([p.x, p.y]), 5.0, Color("c76035"))
 	if draft.size() > 1:
 		var line := PackedVector2Array()
 		for p in draft: line.append(screen([p.x, p.y]))
-		draw_polyline(line, Color("ffe14c"), 2.0)
+		draw_polyline(line, Color("c76035"), 2.0)
 	if marquee:
 		var start := screen([drag_start.x, drag_start.y])
 		var end := screen([marquee_end.x, marquee_end.y])
 		var rect := Rect2(start, end - start).abs()
 		draw_rect(rect, Color(1, 0.88, 0.3, 0.12))
-		draw_rect(rect, Color("ffe14c"), false, 1.5)
+		draw_rect(rect, Color("c76035"), false, 1.5)
 	for index in course_points.size():
 		var cp: Dictionary = course_points[index]
 		var p: Array = cp.position_cm
@@ -259,6 +260,14 @@ func _snap_vertex(p: Vector2) -> Vector2:
 	return best
 
 func _gui_input(event: InputEvent) -> void:
+	if navigation_only:
+		if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
+			pan += event.relative
+		elif event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			zoom = clampf(zoom * (1.15 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.15), 0.25, 32.0)
+		queue_redraw()
+		accept_event()
+		return
 	if event is InputEventMouseButton:
 		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and event.pressed:
 			var anchor := raw_world(event.position)
@@ -410,4 +419,4 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT: cancel_interaction()
 
 func _report(failure: String) -> void:
-	status.emit(failure if failure != "" else "Edit applied. Undo: Ctrl/Cmd+Z")
+	status.emit(failure if failure != "" else "Edit applied. Use Undo to revert.")

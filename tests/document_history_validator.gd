@@ -146,6 +146,7 @@ func run() -> void:
 func canvas_gestures() -> void:
 	var ui: Node = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.store.new_track(true)
 	await process_frame
 	var store: RefCounted = ui.store
 	check(store.apply_command("Building", [patch("buildings", "a", null, building("a"))]) == "", "UI fixture")
@@ -185,6 +186,9 @@ func canvas_gestures() -> void:
 	check(not store.has_gesture() and not canvas.dragging, "focus loss cancels gesture")
 	canvas._gui_input(press)
 	ui._new()
+	ui.new_free_roam.button_pressed = true
+	ui.new_map_dialog.hide()
+	ui.new_map_dialog.confirmed.emit()
 	if ui.unsaved_dialog.visible:
 		ui.unsaved_dialog.hide()
 		ui._continue_document_action()
