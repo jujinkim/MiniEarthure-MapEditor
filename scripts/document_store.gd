@@ -519,7 +519,10 @@ func set_free_roam(value: bool) -> String:
 func track_source() -> Dictionary:
 	var assembly: Dictionary = document.get("assembled_track", {})
 	for field in ["authoring", "seed_source"]:
-		if assembly.get(field) is Dictionary: return assembly[field].duplicate(true)
+		if assembly.get(field) is Dictionary:
+			var source: Dictionary=assembly[field].duplicate(true)
+			source.grind_lines=document.get("grind_lines",[]).duplicate(true)
+			return source
 	var result: Dictionary = JSON.parse_string(bridge.track_authoring_source(JSON.stringify(document)))
 	return result.data if result.ok else {}
 

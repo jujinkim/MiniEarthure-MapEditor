@@ -47,6 +47,8 @@ func build(owner: Control) -> void:
 	placement.bench = self
 	add_child(placement)
 	var entries: Array[Dictionary] = []
+	editor.commands.register("Track", "Grind Line", open_grind_lines, "", {"id":"track.grind_line", "context":"track", "icon":"free_curve", "description":"Author independent straight or curved grind lines and their endpoint connections.", "menu":false})
+	entries.append({"id":"track.grind_line","group":"Gimmick","section":"Grind lines"})
 	for entry: Dictionary in catalogue.entries:
 		var id: String = "track.piece." + entry.id
 		editor.commands.register("Track", piece_name(entry.id), add_piece.bind(entry.id), "", {"id":id, "context":"track", "description":"Preview this road piece; click in 3D to place. Repeat with the same tool.", "icon":"piece_" + entry.id, "menu":false})
@@ -545,3 +547,9 @@ func frame_selection() -> void:
 	var radius:=8.0
 	for point: Dictionary in piece.path: radius=maxf(radius,center.distance_to(PREVIEW.point(point.position_cm))*2.0)
 	editor.preview_camera.frame(center,radius)
+
+func open_grind_lines() -> void:
+	cancel_interaction()
+	var panel := preload("./grind_line_panel.gd").new()
+	add_child(panel)
+	panel.open(self)

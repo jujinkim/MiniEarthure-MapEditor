@@ -279,7 +279,14 @@ func commit(expected_serial := -1) -> bool:
 		next.actions.append({"id":"a-" + Crypto.new().generate_random_bytes(4).hex_encode(), "kind":tool,
 			"piece":next.instances[candidate.target].id, "sample":candidate.sample, "height_cm":candidate.height_cm, "landing":candidate.landing})
 	else:
-		next.attachments.append(_attachment(next.instances[candidate.target], candidate.sample))
+		var attachment:=_attachment(next.instances[candidate.target], candidate.sample)
+		next.attachments.append(attachment)
+		if tool=="grind_rail":
+			var result: Dictionary=JSON.parse_string(bench.editor.store.bridge.track_attachment_lines(JSON.stringify(next.instances[candidate.target]),JSON.stringify(attachment)))
+			if not result.ok:_failure(result.error.message);return false
+			for line: Dictionary in result.data:
+				line.id="grind-"+Crypto.new().generate_random_bytes(6).hex_encode()
+				next.get_or_add("grind_lines",[]).append(line)
 	var state := {"tool":tool, "kind":kind, "height":float(next.instances[next_selection].position_cm[1]) / 100.0 if kind == "piece" else height,
 		"yaw":yaw, "width_cm":width_cm, "landing":landing, "jump_height_cm":jump_height_cm}
 	if not bench._commit(next, next_selection, {"repeat":state}): return false
@@ -308,13 +315,18 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 	var key := JSON.stringify([local, kind, tool if kind != "piece" else "", sample, jump_height_cm if kind == "action" else 0])
 	if not cache.has(key):
 		var source: Dictionary = bench.source.duplicate(true)
-		for field in ["connections", "paths", "checkpoints", "actions", "attachments"]: source[field] = []
+		for field in ["connections", "paths", "checkpoints", "actions", "attachments", "grind_lines"]: source[field] = []
 		source.instances = [local]
 		source.original_seed = null
 		source.grounded_supports = false
 		source.settings.circuit = false
 		if kind == "action": source.actions = [{"id":"preview", "kind":tool, "piece":"preview", "sample":sample, "height_cm":jump_height_cm, "landing":null}]
-		elif kind == "obstacle": source.attachments = [_attachment(local, sample)]
+		elif kind == "obstacle":
+			source.attachments = [_attachment(local, sample)]
+			if tool=="grind_rail":
+				var lines: Dictionary=JSON.parse_string(bench.editor.store.bridge.track_attachment_lines(JSON.stringify(local),JSON.stringify(source.attachments[0])))
+				if not lines.ok:_failure(lines.error.message);return false
+				source.grind_lines=lines.data
 		var compiled: Dictionary = JSON.parse_string(bench.editor.store.bridge.compile_track_source(JSON.stringify(source)))
 		if not compiled.ok: _failure(compiled.error.message); return false
 		var template := PREVIEW.create(compiled.data.document)

@@ -64,3 +64,20 @@ The 2026-10-01 [responsive editing implementation](TRACK_EDIT_PERFORMANCE.md) re
 synchronous interactive track commits and whole-preview selection refreshes. It
 documents live move ghosts, sequential cancellable worker edits, exact scoped
 measurements (including the 49-piece seed latency miss) and user verification.
+
+
+## Grind Line palette — 2026-10-01
+
+`Grind Line` opens independent line authoring: straight/cubic control points in
+centimetres, up frame, capture width and named start/end connections. `Add air
+line` needs no supporting collider; `Add on selected fence` fits the selected
+ordinary road's upper side, including curves. The public MapKit cap geometry is
+used in the preview. Rail placement asks MapKit for an explicit initial line;
+the line and rail remain independent after placement. Deleting a line removes
+its incoming links and leaves the supporting collider.
+
+Line edits use the existing cancellable source worker and history. IDs can be
+renamed with link updates. Invalid edits retain the current document. Focused
+`grind_line_validator` and existing `track_workbench_validator` cover editing,
+connections, deletion, undo, save/reopen and cancellation. Detailed editor
+interaction and game driving remain user verification.
