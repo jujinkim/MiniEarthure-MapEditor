@@ -44,3 +44,13 @@ The basic standalone initial screen also passed on macOS arm64 / Godot 4.7.2.
 The command fixture exercises palette placement, numeric movement, duplicate/delete,
 free connection replacement, continuous-road action placement and Undo without
 claiming detailed interactive acceptance.
+
+
+Grounded seed policy (2026-09-30): first manual conversion keeps MapKit's
+`grounded_supports` policy with the original seed settings. Source edits rebuild
+the grounded floor and per-piece collision columns. The shared draft preview now
+shows this floor and the same columns as execution. Independent new manual maps
+and imported maps do not enable the policy. The focused assembly validator passed
+policy preservation, Undo/Redo, project save/reopen with exact floor/support
+records, and shared preview identities. Placement/generation failure still keeps
+the existing document; detailed interactive editing remains user verification.

@@ -77,8 +77,17 @@ func run() -> void:
 	source.instances[3].position_cm[0]+=137
 	check(reopened.edit_track(source)=="","seed to manual edit")
 	check(reopened.document.assembled_track.authoring.original_seed==seed_geometry.settings,"original seed preserved")
+	check(reopened.document.assembled_track.authoring.grounded_supports,"manual conversion retains grounding policy")
 	check(reopened.document.assembled_track.seed_source==null,"manual source owns edited geometry")
 	check(reopened.undo()=="" and reopened.document.assembled_track==seed_geometry,"undo restores seed verification source")
 	check(reopened.redo()=="" and reopened.document.assembled_track.authoring is Dictionary,"redo restores manual source")
+	var manual_path:=ProjectSettings.globalize_path("user://grounded-manual")
+	check(reopened.save_project(manual_path)=="","manual grounded project saved")
+	var manual:=STORE.new()
+	check(manual.open_project(manual_path)=="" and manual.document.assembled_track==reopened.document.assembled_track,"manual floor and support geometry round trip")
+	var preview: Dictionary=JSON.parse_string(bridge.track_preview(JSON.stringify(manual.document)))
+	check(preview.ok and preview.data.meshes.has("assembled-venue-floor"),"manual preview includes grounded floor")
+	for support: Dictionary in manual.document.assembled_track.supports:
+		check(preview.data.meshes.has("assembled-support-%d" % int(support.piece_index)),"manual preview uses shared support mesh")
 	print("assembled_track_validator: ","PASS" if failures.is_empty() else str(failures))
 	quit(0 if failures.is_empty() else 1)
