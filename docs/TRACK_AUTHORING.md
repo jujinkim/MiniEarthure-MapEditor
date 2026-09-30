@@ -58,3 +58,9 @@ and imported maps do not enable the policy. The focused assembly validator passe
 policy preservation, Undo/Redo, project save/reopen with exact floor/support
 records, and shared preview identities. Placement/generation failure still keeps
 the existing document; detailed interactive editing remains user verification.
+
+
+The 2026-10-01 [responsive editing implementation](TRACK_EDIT_PERFORMANCE.md) replaces
+synchronous interactive track commits and whole-preview selection refreshes. It
+documents live move ghosts, sequential cancellable worker edits, exact scoped
+measurements (including the 49-piece seed latency miss) and user verification.

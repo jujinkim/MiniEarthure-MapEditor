@@ -21,10 +21,11 @@ var sample_input: SpinBox
 var action_height: SpinBox
 var landing_target: OptionButton
 var landing_sample: SpinBox
-var drag_start: Variant=null
-var drag_source: Dictionary={}
-var drag_epoch := -1
 var updating := false
+var selection_serial := 0
+var interaction_serial := 0
+var apply_context: Dictionary = {}
+var drawn_epoch := -1
 
 const STYLE := preload("./workbench_style.gd")
 var palette_tools: VBoxContainer
@@ -34,6 +35,13 @@ var section_open := {"Transform":true, "Connections":false, "Routes & Checkpoint
 
 func build(owner: Control) -> void:
 	editor = owner
+	editor.store.track_edit_ready.connect(func(context: Dictionary): apply_context = context)
+	editor.store.track_edit_finished.connect(func(failure: String):
+		if failure != "":
+			editor._status(failure)
+			if properties.get_meta("placement_tool", "") != placement.tool: _properties()
+		else: editor._status("Track edit complete · Draft saved in document history.")
+		editor.commands.refresh_buttons())
 	catalogue = JSON.parse_string(editor.store.bridge.track_catalogue()).data
 	placement = preload("./track_placement.gd").new()
 	placement.bench = self
@@ -87,12 +95,7 @@ func build(owner: Control) -> void:
 	selection.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	selection.size_flags_stretch_ratio = 0.6
 	palette.add_child(selection)
-	selection.item_selected.connect(func(index: int):
-		cancel_interaction()
-		selected = index
-		_properties()
-		_draw()
-		editor.commands.refresh_buttons())
+	selection.item_selected.connect(select_piece)
 	snap = CheckButton.new()
 	snap.text = "Port snap"
 	snap.tooltip_text = "Snap entry to a nearby exit within 3 m · S"
@@ -118,14 +121,23 @@ func show_hint() -> void:
 		editor.tool_hint.text = "Select · Click a piece; drag to move · Choose a palette tool to preview · Right drag orbits · Wheel zooms"
 	editor.tool_hint.tooltip_text = editor.tool_hint.text
 
-func cancel_interaction() -> void:
-	var had_preview: bool = placement != null and placement.tool != ""
-	drag_start = null
-	drag_source.clear()
-	drag_epoch = -1
+func select_piece(index: int) -> void:
+	cancel_interaction(false)
+	selection_serial += 1
+	interaction_serial += 1
+	selected = index
+	if selected >= 0: selection.select(selected)
+	else: selection.deselect_all()
+	_properties()
+	PREVIEW.select(view, selected)
+	editor.commands.refresh_buttons()
+
+func cancel_interaction(rebuild_properties := true) -> void:
+	if rebuild_properties: interaction_serial += 1
+	var had_preview: bool = placement != null and placement.tool != "" and placement.moving_index < 0
 	if placement != null: placement.cancel()
 	if palette_tools != null: palette_tools.select_tool("")
-	if had_preview and is_instance_valid(properties) and not source.is_empty(): _properties()
+	if rebuild_properties and had_preview and is_instance_valid(properties) and not source.is_empty(): _properties()
 	show_hint()
 
 func refresh() -> void:
@@ -152,12 +164,24 @@ func refresh() -> void:
 		if editor.store.document.has("assembled_track"): _draw()
 		elif is_instance_valid(view): view.queue_free()
 		return
+	var selected_id: String = str(source.instances[selected].id) if selected >= 0 and selected < source.get("instances", []).size() else ""
 	source=editor.store.track_source()
+	if apply_context.get("selection_serial", -1) != selection_serial and selected_id != "":
+		selected = -1
+		for i in source.instances.size():
+			if source.instances[i].id == selected_id: selected = i; break
+	var route_item: int = int(apply_context.get("route_item", -1))
+	if not apply_context.is_empty():
+		if apply_context.get("selection_serial", -1) == selection_serial:
+			selected = int(apply_context.get("selected", selected))
+			if apply_context.has("repeat") and apply_context.get("interaction_serial", -1) == interaction_serial: placement.resume_tool(apply_context.repeat)
+		apply_context = {}
 	selection.clear()
 	for i: Dictionary in source.instances: selection.add_item(i.id+" · "+i.preset)
 	selected=mini(selected,source.instances.size()-1)
 	if selected>=0: selection.select(selected)
 	_properties()
+	if route_item >= 0 and route_item < route_list.item_count: route_list.select(route_item)
 	var a: Dictionary=editor.store.document.get("assembled_track",{})
 	var issues: Array=a.get("issues",[])
 	report.text="Connections & courses: "+("Geometry ready · Manual courses need player completion" if issues.is_empty() and not a.is_empty() else " / ".join(issues))
@@ -202,6 +226,7 @@ func _selected_button(parent: Node, label: String, callback: Callable, enabled :
 	return button
 
 func _properties() -> void:
+	properties.set_meta("placement_tool", placement.tool)
 	for child in properties.get_children(): child.queue_free(); properties.remove_child(child)
 	controls.clear()
 	port_widths.clear()
@@ -213,7 +238,7 @@ func _properties() -> void:
 		cancel_interaction()
 		var failure: String = editor.store.set_free_roam(value)
 		if failure != "": editor._status(failure))
-	if placement.tool != "":
+	if placement.tool != "" and placement.moving_index < 0:
 		placement.build_controls(properties)
 	var transform := _section("Transform")
 	var connections := _section("Connections")
@@ -348,14 +373,16 @@ func _route_move(delta: int) -> void:
 	var id: String = path[at]
 	path.remove_at(at)
 	path.insert(at + delta, id)
-	if _commit(next): route_list.select(at + delta)
+	_commit(next, -2, {"route_item":at + delta})
 
-func _commit(next: Dictionary, next_selection := -2) -> bool:
-	var failure: String = editor.store.edit_track(next)
+func _commit(next: Dictionary, next_selection := -2, extra: Dictionary = {}) -> bool:
+	if editor.busy: editor._status("Wait for the current operation."); return false
+	var context := {"selection_serial":selection_serial, "interaction_serial":interaction_serial, "selected":selected if next_selection == -2 else next_selection}
+	context.merge(extra)
+	var failure: String = editor.store.start_track_edit(next, editor.store.command_epoch, context)
 	if failure != "": editor._status(failure); return false
-	if next_selection != -2:
-		selected = next_selection
-		refresh()
+	editor._status("Applying track edit… Camera and selection remain available · Cancel stops this edit.")
+	editor.commands.refresh_buttons()
 	return true
 
 func add_piece(preset: String) -> void:
@@ -443,10 +470,26 @@ func add_action(kind: String) -> void:
 	placement.activate("action", kind)
 
 func _draw() -> void:
-	if is_instance_valid(view): view.queue_free()
+	if drawn_epoch == editor.store.command_epoch and is_instance_valid(view):
+		PREVIEW.select(view, selected)
+		return
+	drawn_epoch = editor.store.command_epoch
 	var a: Dictionary=editor.store.document.get("assembled_track",{})
-	if a.is_empty(): return
-	view=PREVIEW.create(editor.store.document,selected)
+	if a.is_empty():
+		if is_instance_valid(view): view.queue_free()
+		view = null
+		return
+	var prepared: Dictionary = editor.store.prepared_track_preview
+	if prepared.is_empty():
+		PREVIEW.preparations += 1
+		prepared = PREVIEW.prepare(editor.store.document, editor.store.bridge, editor.store.track_preview_cache)
+	editor.store.track_preview_cache = prepared
+	editor.store.prepared_track_preview = {}
+	if is_instance_valid(view):
+		PREVIEW.apply(view, prepared, selected)
+		return
+	view = Node3D.new()
+	PREVIEW.apply(view, prepared, selected)
 	# View-only grid supplies orientation for an empty draft; it is not map geometry.
 	var mesh:=ImmediateMesh.new()
 	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
@@ -468,59 +511,22 @@ func _draw() -> void:
 func input(event: InputEvent) -> bool:
 	if not active or editor._popup_open(editor): return false
 	if placement.tool != "": return placement.input(event)
-	var camera: Camera3D=editor.preview_camera.camera
-	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			var nearest:=18.0
-			var index:=-1
-			var a: Dictionary=editor.store.document.get("assembled_track",{})
-			for i in a.get("pieces",[]).size():
-				for p: Dictionary in a.pieces[i].path:
-					var point:=PREVIEW.point(p.position_cm)
-					if camera.is_position_behind(point): continue
-					var d:=camera.unproject_position(point).distance_to(event.position)
-					if d<nearest: nearest=d; index=i
-			selected=index
-			_properties()
-			editor.commands.refresh_buttons()
-			if selected>=0:
-				selection.select(selected)
-				_properties()
-				_draw()
-				drag_source=source.duplicate(true)
-				drag_epoch=editor.store.command_epoch
-				drag_start=_plane_point(event.position,float(source.instances[selected].position_cm[1])*0.01)
-			return true
-		elif drag_start!=null:
-			if drag_epoch != editor.store.command_epoch or selected < 0:
-				cancel_interaction()
-				return true
-			var end: Variant=_plane_point(event.position,float(drag_source.instances[selected].position_cm[1])*0.01)
-			if end!=null and end.distance_to(drag_start)>0.01:
-				var delta: Vector3=end-drag_start
-				var item: Dictionary=drag_source.instances[selected]
-				item.position_cm[0]+=roundi(delta.x*100.0)
-				item.position_cm[2]-=roundi(delta.z*100.0)
-				if snap.button_pressed:
-					var current: Dictionary=JSON.parse_string(editor.store.bridge.track_instance(JSON.stringify(item)))
-					var nearest:=3.0
-					var found:=-1
-					if current.ok:
-						for i in drag_source.instances.size():
-							if i==selected: continue
-							var candidate: Dictionary=editor.store.document.assembled_track.pieces[i]
-							var distance: float=PREVIEW.point(current.data.path[0].position_cm).distance_to(PREVIEW.point(candidate.path.back().position_cm))
-							if distance<nearest: nearest=distance; found=i
-					if found>=0:
-						var result: Dictionary=JSON.parse_string(editor.store.bridge.snap_track_instance(JSON.stringify(item),JSON.stringify(drag_source.instances[found])))
-						if result.ok:
-							drag_source.instances[selected]=result.data
-							var edge: Dictionary={"from":drag_source.instances[found].id,"to":item.id}
-							if not drag_source.connections.has(edge): drag_source.connections.append(edge)
-				var failure: String=editor.store.edit_track(drag_source,drag_epoch)
-				if failure!="": editor._status(failure)
-			drag_start=null
-			return true
+	var camera: Camera3D = editor.preview_camera.camera
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		var nearest := 18.0
+		var index := -1
+		var a: Dictionary = editor.store.document.get("assembled_track", {})
+		for i in a.get("pieces", []).size():
+			for p: Dictionary in a.pieces[i].path:
+				var point := PREVIEW.point(p.position_cm)
+				if camera.is_position_behind(point): continue
+				var d := camera.unproject_position(point).distance_to(event.position)
+				if d < nearest: nearest = d; index = i
+		select_piece(index)
+		if selected >= 0 and not editor.store.track_edit_busy and not editor.busy:
+			var start: Variant = _plane_point(event.position, float(source.instances[selected].position_cm[1])*0.01)
+			if start != null: placement.begin_move(selected, start)
+		return true
 	return false
 
 func _plane_point(point: Vector2, height: float) -> Variant:

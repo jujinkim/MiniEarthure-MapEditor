@@ -225,3 +225,5 @@ The current compact street examples are [miniature-streets](examples/miniature-s
 
 - [Icon workbench, shortcuts and preview placement](docs/ICON_WORKBENCH.md)
 - [Track piece workspace and draft authoring](docs/TRACK_AUTHORING.md)
+
+- [Track drag feedback, worker commits and timing evidence](docs/TRACK_EDIT_PERFORMANCE.md)

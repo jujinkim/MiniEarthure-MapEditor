@@ -1,0 +1,2681 @@
+[
+  {
+    "count": 10,
+    "drag_ms": [
+      0.548,
+      0.413,
+      0.402,
+      0.397,
+      0.395,
+      0.396,
+      0.394,
+      0.393,
+      0.4,
+      0.394,
+      0.393,
+      0.392,
+      0.392,
+      0.392,
+      0.392,
+      0.392,
+      0.391,
+      0.391,
+      0.395,
+      0.392,
+      0.392,
+      0.392,
+      0.391,
+      0.393,
+      0.394,
+      0.391,
+      0.391,
+      0.391,
+      0.392,
+      0.391
+    ],
+    "grounded": false,
+    "pointer_ms": [
+      0.434,
+      0.412,
+      0.41,
+      0.404,
+      0.403,
+      0.407,
+      0.401,
+      0.4,
+      0.4,
+      0.4,
+      0.403,
+      0.4,
+      0.4,
+      0.403,
+      0.4,
+      0.403,
+      0.413,
+      0.417,
+      0.416,
+      0.415,
+      0.402,
+      0.418,
+      0.402,
+      0.399,
+      0.406,
+      0.402,
+      0.399,
+      0.4,
+      0.43,
+      0.4
+    ],
+    "repeat": 0,
+    "seed_generated": false,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 10.716,
+        "main_ms": 10.711,
+        "operation": "selection",
+        "submit_ms": 10.711,
+        "worker": {}
+      },
+      {
+        "apply_ms": 15.536,
+        "complete_ms": 46.875,
+        "main_ms": 15.536,
+        "operation": "move",
+        "submit_ms": 3.157,
+        "worker": {
+          "prepare_ms": 14.271,
+          "preview_ms": 8.098
+        }
+      },
+      {
+        "apply_ms": 15.801,
+        "complete_ms": 52.81,
+        "main_ms": 15.801,
+        "operation": "add",
+        "submit_ms": 2.605,
+        "worker": {
+          "prepare_ms": 14.537,
+          "preview_ms": 8.675
+        }
+      },
+      {
+        "apply_ms": 15.894,
+        "complete_ms": 52.805,
+        "main_ms": 15.894,
+        "operation": "property",
+        "submit_ms": 2.644,
+        "worker": {
+          "prepare_ms": 14.697,
+          "preview_ms": 8.548
+        }
+      },
+      {
+        "apply_ms": 11.251,
+        "complete_ms": 41.184,
+        "main_ms": 11.251,
+        "operation": "delete",
+        "submit_ms": 2.599,
+        "worker": {
+          "prepare_ms": 13.866,
+          "preview_ms": 7.699
+        }
+      },
+      {
+        "apply_ms": 10.562,
+        "complete_ms": 45.799,
+        "main_ms": 10.562,
+        "operation": "undo",
+        "submit_ms": 0.889,
+        "worker": {
+          "prepare_ms": 13.906,
+          "preview_ms": 8.481
+        }
+      },
+      {
+        "apply_ms": 10.324,
+        "complete_ms": 39.608,
+        "main_ms": 10.324,
+        "operation": "redo",
+        "submit_ms": 0.967,
+        "worker": {
+          "prepare_ms": 13.532,
+          "preview_ms": 7.792
+        }
+      }
+    ]
+  },
+  {
+    "count": 10,
+    "drag_ms": [
+      0.552,
+      0.416,
+      0.403,
+      0.397,
+      0.395,
+      0.395,
+      0.396,
+      0.396,
+      0.395,
+      0.395,
+      0.393,
+      0.394,
+      0.397,
+      0.394,
+      0.393,
+      0.393,
+      0.393,
+      0.393,
+      0.394,
+      0.396,
+      0.396,
+      0.397,
+      0.394,
+      0.392,
+      0.393,
+      0.392,
+      0.394,
+      0.402,
+      0.408,
+      0.409
+    ],
+    "grounded": false,
+    "pointer_ms": [
+      0.431,
+      0.414,
+      0.407,
+      0.406,
+      0.404,
+      0.406,
+      0.407,
+      0.402,
+      0.404,
+      0.402,
+      0.401,
+      0.404,
+      0.403,
+      0.401,
+      0.404,
+      0.401,
+      0.4,
+      0.404,
+      0.434,
+      0.415,
+      0.403,
+      0.401,
+      0.401,
+      0.401,
+      0.401,
+      0.4,
+      0.4,
+      0.401,
+      0.401,
+      0.4
+    ],
+    "repeat": 1,
+    "seed_generated": false,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 9.93,
+        "main_ms": 9.927,
+        "operation": "selection",
+        "submit_ms": 9.927,
+        "worker": {
+          "prepare_ms": 13.532,
+          "preview_ms": 7.792
+        }
+      },
+      {
+        "apply_ms": 15.436,
+        "complete_ms": 45.815,
+        "main_ms": 15.436,
+        "operation": "move",
+        "submit_ms": 3.209,
+        "worker": {
+          "prepare_ms": 14.008,
+          "preview_ms": 7.721
+        }
+      },
+      {
+        "apply_ms": 15.453,
+        "complete_ms": 52.344,
+        "main_ms": 15.453,
+        "operation": "add",
+        "submit_ms": 2.565,
+        "worker": {
+          "prepare_ms": 14.49,
+          "preview_ms": 8.448
+        }
+      },
+      {
+        "apply_ms": 15.701,
+        "complete_ms": 52.53,
+        "main_ms": 15.701,
+        "operation": "property",
+        "submit_ms": 2.677,
+        "worker": {
+          "prepare_ms": 14.961,
+          "preview_ms": 8.489
+        }
+      },
+      {
+        "apply_ms": 11.392,
+        "complete_ms": 41.349,
+        "main_ms": 11.392,
+        "operation": "delete",
+        "submit_ms": 2.553,
+        "worker": {
+          "prepare_ms": 13.796,
+          "preview_ms": 7.709
+        }
+      },
+      {
+        "apply_ms": 10.601,
+        "complete_ms": 45.901,
+        "main_ms": 10.601,
+        "operation": "undo",
+        "submit_ms": 0.907,
+        "worker": {
+          "prepare_ms": 14.171,
+          "preview_ms": 8.698
+        }
+      },
+      {
+        "apply_ms": 10.343,
+        "complete_ms": 39.22,
+        "main_ms": 10.343,
+        "operation": "redo",
+        "submit_ms": 0.883,
+        "worker": {
+          "prepare_ms": 13.605,
+          "preview_ms": 7.709
+        }
+      }
+    ]
+  },
+  {
+    "count": 10,
+    "drag_ms": [
+      0.612,
+      0.433,
+      0.414,
+      0.396,
+      0.394,
+      0.392,
+      0.392,
+      0.392,
+      0.393,
+      0.392,
+      0.392,
+      0.392,
+      0.392,
+      0.393,
+      0.394,
+      0.394,
+      0.391,
+      0.392,
+      0.391,
+      0.391,
+      0.393,
+      0.401,
+      0.392,
+      0.39,
+      0.391,
+      0.394,
+      0.391,
+      0.391,
+      0.391,
+      0.391
+    ],
+    "grounded": false,
+    "pointer_ms": [
+      0.43,
+      0.414,
+      0.407,
+      0.405,
+      0.403,
+      0.401,
+      0.401,
+      0.4,
+      0.402,
+      0.401,
+      0.4,
+      0.403,
+      0.399,
+      0.4,
+      0.402,
+      0.4,
+      0.399,
+      0.405,
+      0.403,
+      0.4,
+      0.399,
+      0.4,
+      0.399,
+      0.402,
+      0.4,
+      0.399,
+      0.402,
+      0.425,
+      0.4,
+      0.399
+    ],
+    "repeat": 2,
+    "seed_generated": false,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 10.08,
+        "main_ms": 10.076,
+        "operation": "selection",
+        "submit_ms": 10.076,
+        "worker": {
+          "prepare_ms": 13.605,
+          "preview_ms": 7.709
+        }
+      },
+      {
+        "apply_ms": 15.405,
+        "complete_ms": 46.912,
+        "main_ms": 15.405,
+        "operation": "move",
+        "submit_ms": 3.225,
+        "worker": {
+          "prepare_ms": 14.181,
+          "preview_ms": 7.875
+        }
+      },
+      {
+        "apply_ms": 15.78,
+        "complete_ms": 53.09,
+        "main_ms": 15.78,
+        "operation": "add",
+        "submit_ms": 2.568,
+        "worker": {
+          "prepare_ms": 14.685,
+          "preview_ms": 8.693
+        }
+      },
+      {
+        "apply_ms": 15.663,
+        "complete_ms": 52.532,
+        "main_ms": 15.663,
+        "operation": "property",
+        "submit_ms": 2.716,
+        "worker": {
+          "prepare_ms": 14.78,
+          "preview_ms": 8.505
+        }
+      },
+      {
+        "apply_ms": 11.315,
+        "complete_ms": 41.138,
+        "main_ms": 11.315,
+        "operation": "delete",
+        "submit_ms": 2.551,
+        "worker": {
+          "prepare_ms": 13.877,
+          "preview_ms": 7.97
+        }
+      },
+      {
+        "apply_ms": 10.629,
+        "complete_ms": 46.081,
+        "main_ms": 10.629,
+        "operation": "undo",
+        "submit_ms": 0.884,
+        "worker": {
+          "prepare_ms": 14.027,
+          "preview_ms": 8.535
+        }
+      },
+      {
+        "apply_ms": 10.332,
+        "complete_ms": 39.757,
+        "main_ms": 10.332,
+        "operation": "redo",
+        "submit_ms": 0.921,
+        "worker": {
+          "prepare_ms": 13.584,
+          "preview_ms": 7.717
+        }
+      }
+    ]
+  },
+  {
+    "count": 25,
+    "drag_ms": [
+      0.597,
+      0.44,
+      0.43,
+      0.428,
+      0.427,
+      0.424,
+      0.431,
+      0.439,
+      0.44,
+      0.438,
+      0.43,
+      0.442,
+      0.422,
+      0.422,
+      0.421,
+      0.422,
+      0.422,
+      0.421,
+      0.423,
+      0.425,
+      0.424,
+      0.421,
+      0.422,
+      0.421,
+      0.421,
+      0.421,
+      0.421,
+      0.422,
+      0.421,
+      0.421
+    ],
+    "grounded": false,
+    "pointer_ms": [
+      0.459,
+      0.44,
+      0.436,
+      0.438,
+      0.433,
+      0.434,
+      0.431,
+      0.434,
+      0.43,
+      0.429,
+      0.429,
+      0.433,
+      0.435,
+      0.43,
+      0.429,
+      0.429,
+      0.432,
+      0.429,
+      0.429,
+      0.429,
+      0.429,
+      0.432,
+      0.43,
+      0.429,
+      0.429,
+      0.43,
+      0.432,
+      0.428,
+      0.429,
+      0.428
+    ],
+    "repeat": 0,
+    "seed_generated": false,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 10.87,
+        "main_ms": 10.865,
+        "operation": "selection",
+        "submit_ms": 10.865,
+        "worker": {
+          "prepare_ms": 13.584,
+          "preview_ms": 7.717
+        }
+      },
+      {
+        "apply_ms": 16.781,
+        "complete_ms": 78.545,
+        "main_ms": 16.781,
+        "operation": "move",
+        "submit_ms": 3.624,
+        "worker": {
+          "prepare_ms": 30.832,
+          "preview_ms": 18.855
+        }
+      },
+      {
+        "apply_ms": 16.558,
+        "complete_ms": 82.365,
+        "main_ms": 16.558,
+        "operation": "add",
+        "submit_ms": 3.002,
+        "worker": {
+          "prepare_ms": 30.89,
+          "preview_ms": 19.563
+        }
+      },
+      {
+        "apply_ms": 16.543,
+        "complete_ms": 82.354,
+        "main_ms": 16.543,
+        "operation": "property",
+        "submit_ms": 3.01,
+        "worker": {
+          "prepare_ms": 31.246,
+          "preview_ms": 19.748
+        }
+      },
+      {
+        "apply_ms": 11.784,
+        "complete_ms": 71.485,
+        "main_ms": 11.784,
+        "operation": "delete",
+        "submit_ms": 2.957,
+        "worker": {
+          "prepare_ms": 30.372,
+          "preview_ms": 18.969
+        }
+      },
+      {
+        "apply_ms": 11.034,
+        "complete_ms": 75.407,
+        "main_ms": 11.034,
+        "operation": "undo",
+        "submit_ms": 1.987,
+        "worker": {
+          "prepare_ms": 31.84,
+          "preview_ms": 19.68
+        }
+      },
+      {
+        "apply_ms": 10.884,
+        "complete_ms": 77.27,
+        "main_ms": 10.884,
+        "operation": "redo",
+        "submit_ms": 1.985,
+        "worker": {
+          "prepare_ms": 31.407,
+          "preview_ms": 18.842
+        }
+      }
+    ]
+  },
+  {
+    "count": 25,
+    "drag_ms": [
+      0.596,
+      0.443,
+      0.43,
+      0.426,
+      0.424,
+      0.423,
+      0.422,
+      0.421,
+      0.423,
+      0.421,
+      0.42,
+      0.42,
+      0.429,
+      0.421,
+      0.42,
+      0.421,
+      0.441,
+      0.438,
+      0.438,
+      0.439,
+      0.42,
+      0.423,
+      0.42,
+      0.42,
+      0.423,
+      0.419,
+      0.42,
+      0.42,
+      0.42,
+      0.423
+    ],
+    "grounded": false,
+    "pointer_ms": [
+      0.46,
+      0.443,
+      0.439,
+      0.436,
+      0.434,
+      0.434,
+      0.432,
+      0.432,
+      0.431,
+      0.431,
+      0.43,
+      0.433,
+      0.43,
+      0.436,
+      0.434,
+      0.431,
+      0.43,
+      0.431,
+      0.43,
+      0.431,
+      0.436,
+      0.43,
+      0.431,
+      0.43,
+      0.429,
+      0.431,
+      0.432,
+      0.43,
+      0.43,
+      0.43
+    ],
+    "repeat": 1,
+    "seed_generated": false,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 10.817,
+        "main_ms": 10.813,
+        "operation": "selection",
+        "submit_ms": 10.813,
+        "worker": {
+          "prepare_ms": 31.407,
+          "preview_ms": 18.842
+        }
+      },
+      {
+        "apply_ms": 16.709,
+        "complete_ms": 78.606,
+        "main_ms": 16.709,
+        "operation": "move",
+        "submit_ms": 3.642,
+        "worker": {
+          "prepare_ms": 31.507,
+          "preview_ms": 19.341
+        }
+      },
+      {
+        "apply_ms": 16.756,
+        "complete_ms": 82.516,
+        "main_ms": 16.756,
+        "operation": "add",
+        "submit_ms": 3.131,
+        "worker": {
+          "prepare_ms": 31.433,
+          "preview_ms": 19.745
+        }
+      },
+      {
+        "apply_ms": 17.086,
+        "complete_ms": 82.866,
+        "main_ms": 17.086,
+        "operation": "property",
+        "submit_ms": 3.133,
+        "worker": {
+          "prepare_ms": 31.637,
+          "preview_ms": 19.864
+        }
+      },
+      {
+        "apply_ms": 11.871,
+        "complete_ms": 78.729,
+        "main_ms": 11.871,
+        "operation": "delete",
+        "submit_ms": 3.094,
+        "worker": {
+          "prepare_ms": 30.591,
+          "preview_ms": 19.155
+        }
+      },
+      {
+        "apply_ms": 10.997,
+        "complete_ms": 75.377,
+        "main_ms": 10.997,
+        "operation": "undo",
+        "submit_ms": 2.124,
+        "worker": {
+          "prepare_ms": 32.421,
+          "preview_ms": 20.06
+        }
+      },
+      {
+        "apply_ms": 10.907,
+        "complete_ms": 77.416,
+        "main_ms": 10.907,
+        "operation": "redo",
+        "submit_ms": 2.121,
+        "worker": {
+          "prepare_ms": 31.624,
+          "preview_ms": 18.899
+        }
+      }
+    ]
+  },
+  {
+    "count": 25,
+    "drag_ms": [
+      0.606,
+      0.445,
+      0.43,
+      0.425,
+      0.425,
+      0.453,
+      0.422,
+      0.422,
+      0.423,
+      0.421,
+      0.422,
+      0.429,
+      0.456,
+      0.441,
+      0.439,
+      0.424,
+      0.424,
+      0.42,
+      0.424,
+      0.421,
+      0.422,
+      0.421,
+      0.422,
+      0.424,
+      0.422,
+      0.421,
+      0.422,
+      0.42,
+      0.421,
+      0.424
+    ],
+    "grounded": false,
+    "pointer_ms": [
+      0.461,
+      0.446,
+      0.441,
+      0.438,
+      0.435,
+      0.434,
+      0.433,
+      0.432,
+      0.433,
+      0.438,
+      0.432,
+      0.431,
+      0.44,
+      0.432,
+      0.431,
+      0.432,
+      0.431,
+      0.431,
+      0.434,
+      0.431,
+      0.433,
+      0.431,
+      0.431,
+      0.433,
+      0.432,
+      0.431,
+      0.43,
+      0.435,
+      0.433,
+      0.432
+    ],
+    "repeat": 2,
+    "seed_generated": false,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 10.86,
+        "main_ms": 10.857,
+        "operation": "selection",
+        "submit_ms": 10.857,
+        "worker": {
+          "prepare_ms": 31.624,
+          "preview_ms": 18.899
+        }
+      },
+      {
+        "apply_ms": 16.795,
+        "complete_ms": 78.92,
+        "main_ms": 16.795,
+        "operation": "move",
+        "submit_ms": 3.72,
+        "worker": {
+          "prepare_ms": 31.869,
+          "preview_ms": 19.473
+        }
+      },
+      {
+        "apply_ms": 16.689,
+        "complete_ms": 82.272,
+        "main_ms": 16.689,
+        "operation": "add",
+        "submit_ms": 3.153,
+        "worker": {
+          "prepare_ms": 31.667,
+          "preview_ms": 19.789
+        }
+      },
+      {
+        "apply_ms": 16.733,
+        "complete_ms": 82.498,
+        "main_ms": 16.733,
+        "operation": "property",
+        "submit_ms": 3.166,
+        "worker": {
+          "prepare_ms": 31.849,
+          "preview_ms": 19.87
+        }
+      },
+      {
+        "apply_ms": 11.956,
+        "complete_ms": 78.675,
+        "main_ms": 11.956,
+        "operation": "delete",
+        "submit_ms": 3.13,
+        "worker": {
+          "prepare_ms": 30.849,
+          "preview_ms": 19.087
+        }
+      },
+      {
+        "apply_ms": 10.978,
+        "complete_ms": 75.357,
+        "main_ms": 10.978,
+        "operation": "undo",
+        "submit_ms": 2.267,
+        "worker": {
+          "prepare_ms": 31.951,
+          "preview_ms": 19.682
+        }
+      },
+      {
+        "apply_ms": 10.911,
+        "complete_ms": 77.309,
+        "main_ms": 10.911,
+        "operation": "redo",
+        "submit_ms": 2.2,
+        "worker": {
+          "prepare_ms": 31.647,
+          "preview_ms": 18.868
+        }
+      }
+    ]
+  },
+  {
+    "count": 49,
+    "drag_ms": [
+      0.706,
+      0.497,
+      0.483,
+      0.481,
+      0.478,
+      0.478,
+      0.477,
+      0.476,
+      0.478,
+      0.476,
+      0.476,
+      0.476,
+      0.475,
+      0.477,
+      0.477,
+      0.475,
+      0.474,
+      0.478,
+      0.48,
+      0.476,
+      0.475,
+      0.513,
+      0.49,
+      0.475,
+      0.474,
+      0.475,
+      0.474,
+      0.477,
+      0.475,
+      0.474
+    ],
+    "grounded": false,
+    "pointer_ms": [
+      0.518,
+      0.503,
+      0.494,
+      0.49,
+      0.496,
+      0.488,
+      0.489,
+      0.486,
+      0.487,
+      0.485,
+      0.488,
+      0.489,
+      0.486,
+      0.485,
+      0.486,
+      0.487,
+      0.486,
+      0.485,
+      0.486,
+      0.485,
+      0.485,
+      0.485,
+      0.486,
+      0.517,
+      0.488,
+      0.49,
+      0.485,
+      0.487,
+      0.485,
+      0.488
+    ],
+    "repeat": 0,
+    "seed_generated": false,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 12.27,
+        "main_ms": 12.264,
+        "operation": "selection",
+        "submit_ms": 12.264,
+        "worker": {
+          "prepare_ms": 31.647,
+          "preview_ms": 18.868
+        }
+      },
+      {
+        "apply_ms": 18.472,
+        "complete_ms": 127.118,
+        "main_ms": 18.472,
+        "operation": "move",
+        "submit_ms": 4.296,
+        "worker": {
+          "prepare_ms": 57.943,
+          "preview_ms": 36.87
+        }
+      },
+      {
+        "apply_ms": 18.449,
+        "complete_ms": 127.477,
+        "main_ms": 18.449,
+        "operation": "add",
+        "submit_ms": 3.641,
+        "worker": {
+          "prepare_ms": 57.926,
+          "preview_ms": 38.234
+        }
+      },
+      {
+        "apply_ms": 18.311,
+        "complete_ms": 126.976,
+        "main_ms": 18.311,
+        "operation": "property",
+        "submit_ms": 3.653,
+        "worker": {
+          "prepare_ms": 57.508,
+          "preview_ms": 37.635
+        }
+      },
+      {
+        "apply_ms": 12.276,
+        "complete_ms": 123.199,
+        "main_ms": 12.276,
+        "operation": "delete",
+        "submit_ms": 3.668,
+        "worker": {
+          "prepare_ms": 57.243,
+          "preview_ms": 37.557
+        }
+      },
+      {
+        "apply_ms": 11.521,
+        "complete_ms": 126.245,
+        "main_ms": 11.521,
+        "operation": "undo",
+        "submit_ms": 3.776,
+        "worker": {
+          "prepare_ms": 59.992,
+          "preview_ms": 37.719
+        }
+      },
+      {
+        "apply_ms": 11.577,
+        "complete_ms": 129.681,
+        "main_ms": 11.577,
+        "operation": "redo",
+        "submit_ms": 3.841,
+        "worker": {
+          "prepare_ms": 59.979,
+          "preview_ms": 37.14
+        }
+      }
+    ]
+  },
+  {
+    "count": 49,
+    "drag_ms": [
+      0.688,
+      0.492,
+      0.475,
+      0.473,
+      0.471,
+      0.472,
+      0.47,
+      0.469,
+      0.469,
+      0.469,
+      0.472,
+      0.472,
+      0.468,
+      0.469,
+      0.468,
+      0.469,
+      0.469,
+      0.469,
+      0.469,
+      0.469,
+      0.468,
+      0.476,
+      0.472,
+      0.474,
+      0.468,
+      0.467,
+      0.47,
+      0.467,
+      0.467,
+      0.468
+    ],
+    "grounded": false,
+    "pointer_ms": [
+      0.508,
+      0.488,
+      0.486,
+      0.48,
+      0.481,
+      0.478,
+      0.484,
+      0.477,
+      0.476,
+      0.476,
+      0.477,
+      0.476,
+      0.477,
+      0.476,
+      0.477,
+      0.476,
+      0.476,
+      0.478,
+      0.476,
+      0.475,
+      0.476,
+      0.476,
+      0.501,
+      0.476,
+      0.482,
+      0.476,
+      0.476,
+      0.497,
+      0.497,
+      0.493
+    ],
+    "repeat": 1,
+    "seed_generated": false,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 12.194,
+        "main_ms": 12.19,
+        "operation": "selection",
+        "submit_ms": 12.19,
+        "worker": {
+          "prepare_ms": 59.979,
+          "preview_ms": 37.14
+        }
+      },
+      {
+        "apply_ms": 18.363,
+        "complete_ms": 127.094,
+        "main_ms": 18.363,
+        "operation": "move",
+        "submit_ms": 4.316,
+        "worker": {
+          "prepare_ms": 59.202,
+          "preview_ms": 37.754
+        }
+      },
+      {
+        "apply_ms": 18.671,
+        "complete_ms": 127.516,
+        "main_ms": 18.671,
+        "operation": "add",
+        "submit_ms": 3.79,
+        "worker": {
+          "prepare_ms": 57.973,
+          "preview_ms": 38.626
+        }
+      },
+      {
+        "apply_ms": 18.712,
+        "complete_ms": 127.771,
+        "main_ms": 18.712,
+        "operation": "property",
+        "submit_ms": 3.86,
+        "worker": {
+          "prepare_ms": 58.701,
+          "preview_ms": 38.004
+        }
+      },
+      {
+        "apply_ms": 12.471,
+        "complete_ms": 123.62,
+        "main_ms": 12.471,
+        "operation": "delete",
+        "submit_ms": 3.907,
+        "worker": {
+          "prepare_ms": 57.608,
+          "preview_ms": 37.327
+        }
+      },
+      {
+        "apply_ms": 11.578,
+        "complete_ms": 126.545,
+        "main_ms": 11.578,
+        "operation": "undo",
+        "submit_ms": 4.384,
+        "worker": {
+          "prepare_ms": 60.771,
+          "preview_ms": 37.96
+        }
+      },
+      {
+        "apply_ms": 11.482,
+        "complete_ms": 129.996,
+        "main_ms": 11.482,
+        "operation": "redo",
+        "submit_ms": 4.126,
+        "worker": {
+          "prepare_ms": 60.852,
+          "preview_ms": 37.256
+        }
+      }
+    ]
+  },
+  {
+    "count": 49,
+    "drag_ms": [
+      0.677,
+      0.491,
+      0.478,
+      0.474,
+      0.477,
+      0.473,
+      0.469,
+      0.47,
+      0.469,
+      0.469,
+      0.468,
+      0.468,
+      0.468,
+      0.468,
+      0.467,
+      0.497,
+      0.494,
+      0.486,
+      0.474,
+      0.471,
+      0.476,
+      0.472,
+      0.467,
+      0.468,
+      0.467,
+      0.468,
+      0.468,
+      0.471,
+      0.47,
+      0.468
+    ],
+    "grounded": false,
+    "pointer_ms": [
+      0.508,
+      0.493,
+      0.485,
+      0.483,
+      0.484,
+      0.479,
+      0.486,
+      0.478,
+      0.48,
+      0.478,
+      0.478,
+      0.477,
+      0.477,
+      0.497,
+      0.48,
+      0.477,
+      0.483,
+      0.477,
+      0.478,
+      0.48,
+      0.478,
+      0.476,
+      0.477,
+      0.477,
+      0.479,
+      0.477,
+      0.476,
+      0.483,
+      0.477,
+      0.476
+    ],
+    "repeat": 2,
+    "seed_generated": false,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 12.105,
+        "main_ms": 12.101,
+        "operation": "selection",
+        "submit_ms": 12.101,
+        "worker": {
+          "prepare_ms": 60.852,
+          "preview_ms": 37.256
+        }
+      },
+      {
+        "apply_ms": 18.448,
+        "complete_ms": 134.208,
+        "main_ms": 18.448,
+        "operation": "move",
+        "submit_ms": 4.402,
+        "worker": {
+          "prepare_ms": 59.678,
+          "preview_ms": 37.987
+        }
+      },
+      {
+        "apply_ms": 18.681,
+        "complete_ms": 134.75,
+        "main_ms": 18.681,
+        "operation": "add",
+        "submit_ms": 4.049,
+        "worker": {
+          "prepare_ms": 59.18,
+          "preview_ms": 38.856
+        }
+      },
+      {
+        "apply_ms": 19.179,
+        "complete_ms": 135.09,
+        "main_ms": 19.179,
+        "operation": "property",
+        "submit_ms": 4.005,
+        "worker": {
+          "prepare_ms": 58.97,
+          "preview_ms": 38.202
+        }
+      },
+      {
+        "apply_ms": 12.452,
+        "complete_ms": 123.593,
+        "main_ms": 12.452,
+        "operation": "delete",
+        "submit_ms": 3.974,
+        "worker": {
+          "prepare_ms": 57.969,
+          "preview_ms": 37.591
+        }
+      },
+      {
+        "apply_ms": 11.552,
+        "complete_ms": 126.67,
+        "main_ms": 11.552,
+        "operation": "undo",
+        "submit_ms": 4.375,
+        "worker": {
+          "prepare_ms": 60.857,
+          "preview_ms": 38.094
+        }
+      },
+      {
+        "apply_ms": 11.723,
+        "complete_ms": 130.254,
+        "main_ms": 11.723,
+        "operation": "redo",
+        "submit_ms": 4.193,
+        "worker": {
+          "prepare_ms": 61.22,
+          "preview_ms": 37.312
+        }
+      }
+    ]
+  },
+  {
+    "count": 10,
+    "drag_ms": [
+      0.58,
+      0.431,
+      0.421,
+      0.417,
+      0.416,
+      0.414,
+      0.415,
+      0.413,
+      0.413,
+      0.413,
+      0.418,
+      0.413,
+      0.414,
+      0.412,
+      0.411,
+      0.412,
+      0.412,
+      0.415,
+      0.412,
+      0.412,
+      0.414,
+      0.411,
+      0.412,
+      0.411,
+      0.411,
+      0.411,
+      0.412,
+      0.411,
+      0.412,
+      0.415
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.456,
+      0.437,
+      0.43,
+      0.427,
+      0.428,
+      0.423,
+      0.424,
+      0.422,
+      0.422,
+      0.422,
+      0.43,
+      0.421,
+      0.421,
+      0.42,
+      0.422,
+      0.421,
+      0.421,
+      0.421,
+      0.42,
+      0.42,
+      0.421,
+      0.424,
+      0.42,
+      0.421,
+      0.42,
+      0.421,
+      0.421,
+      0.42,
+      0.438,
+      0.424
+    ],
+    "repeat": 0,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 11.146,
+        "main_ms": 11.141,
+        "operation": "selection",
+        "submit_ms": 11.141,
+        "worker": {
+          "prepare_ms": 61.22,
+          "preview_ms": 37.312
+        }
+      },
+      {
+        "apply_ms": 17.295,
+        "complete_ms": 135.687,
+        "main_ms": 17.295,
+        "operation": "move",
+        "submit_ms": 3.968,
+        "worker": {
+          "prepare_ms": 80.07,
+          "preview_ms": 25.712
+        }
+      },
+      {
+        "apply_ms": 16.965,
+        "complete_ms": 131.107,
+        "main_ms": 16.965,
+        "operation": "add",
+        "submit_ms": 3.107,
+        "worker": {
+          "prepare_ms": 76.922,
+          "preview_ms": 26.438
+        }
+      },
+      {
+        "apply_ms": 16.715,
+        "complete_ms": 130.864,
+        "main_ms": 16.715,
+        "operation": "property",
+        "submit_ms": 3.221,
+        "worker": {
+          "prepare_ms": 77.202,
+          "preview_ms": 26.424
+        }
+      },
+      {
+        "apply_ms": 12.675,
+        "complete_ms": 125.955,
+        "main_ms": 12.675,
+        "operation": "delete",
+        "submit_ms": 3.127,
+        "worker": {
+          "prepare_ms": 75.802,
+          "preview_ms": 25.597
+        }
+      },
+      {
+        "apply_ms": 11.797,
+        "complete_ms": 131.951,
+        "main_ms": 11.797,
+        "operation": "undo",
+        "submit_ms": 2.486,
+        "worker": {
+          "prepare_ms": 78.516,
+          "preview_ms": 26.276
+        }
+      },
+      {
+        "apply_ms": 11.874,
+        "complete_ms": 132.105,
+        "main_ms": 11.874,
+        "operation": "redo",
+        "submit_ms": 2.551,
+        "worker": {
+          "prepare_ms": 78.408,
+          "preview_ms": 25.583
+        }
+      }
+    ]
+  },
+  {
+    "count": 10,
+    "drag_ms": [
+      0.583,
+      0.425,
+      0.414,
+      0.409,
+      0.408,
+      0.409,
+      0.408,
+      0.411,
+      0.407,
+      0.407,
+      0.406,
+      0.405,
+      0.406,
+      0.409,
+      0.409,
+      0.406,
+      0.406,
+      0.406,
+      0.405,
+      0.406,
+      0.405,
+      0.405,
+      0.405,
+      0.408,
+      0.405,
+      0.406,
+      0.405,
+      0.405,
+      0.406,
+      0.405
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.461,
+      0.459,
+      0.44,
+      0.436,
+      0.423,
+      0.419,
+      0.416,
+      0.415,
+      0.414,
+      0.414,
+      0.413,
+      0.417,
+      0.414,
+      0.42,
+      0.414,
+      0.414,
+      0.416,
+      0.413,
+      0.413,
+      0.413,
+      0.413,
+      0.413,
+      0.414,
+      0.413,
+      0.414,
+      0.413,
+      0.412,
+      0.415,
+      0.413,
+      0.413
+    ],
+    "repeat": 1,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 10.767,
+        "main_ms": 10.763,
+        "operation": "selection",
+        "submit_ms": 10.763,
+        "worker": {
+          "prepare_ms": 78.408,
+          "preview_ms": 25.583
+        }
+      },
+      {
+        "apply_ms": 16.957,
+        "complete_ms": 134.063,
+        "main_ms": 16.957,
+        "operation": "move",
+        "submit_ms": 3.851,
+        "worker": {
+          "prepare_ms": 75.973,
+          "preview_ms": 25.532
+        }
+      },
+      {
+        "apply_ms": 16.849,
+        "complete_ms": 131.03,
+        "main_ms": 16.849,
+        "operation": "add",
+        "submit_ms": 3.193,
+        "worker": {
+          "prepare_ms": 76.674,
+          "preview_ms": 26.488
+        }
+      },
+      {
+        "apply_ms": 16.969,
+        "complete_ms": 131.274,
+        "main_ms": 16.969,
+        "operation": "property",
+        "submit_ms": 3.325,
+        "worker": {
+          "prepare_ms": 77.189,
+          "preview_ms": 26.457
+        }
+      },
+      {
+        "apply_ms": 12.647,
+        "complete_ms": 125.219,
+        "main_ms": 12.647,
+        "operation": "delete",
+        "submit_ms": 3.246,
+        "worker": {
+          "prepare_ms": 76.135,
+          "preview_ms": 25.64
+        }
+      },
+      {
+        "apply_ms": 11.819,
+        "complete_ms": 131.915,
+        "main_ms": 11.819,
+        "operation": "undo",
+        "submit_ms": 2.677,
+        "worker": {
+          "prepare_ms": 78.656,
+          "preview_ms": 26.406
+        }
+      },
+      {
+        "apply_ms": 11.667,
+        "complete_ms": 131.987,
+        "main_ms": 11.667,
+        "operation": "redo",
+        "submit_ms": 2.678,
+        "worker": {
+          "prepare_ms": 78.601,
+          "preview_ms": 25.589
+        }
+      }
+    ]
+  },
+  {
+    "count": 10,
+    "drag_ms": [
+      0.575,
+      0.423,
+      0.413,
+      0.409,
+      0.407,
+      0.407,
+      0.405,
+      0.409,
+      0.411,
+      0.405,
+      0.405,
+      0.407,
+      0.403,
+      0.409,
+      0.405,
+      0.403,
+      0.405,
+      0.404,
+      0.404,
+      0.404,
+      0.404,
+      0.403,
+      0.405,
+      0.404,
+      0.404,
+      0.406,
+      0.404,
+      0.407,
+      0.403,
+      0.404
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.449,
+      0.427,
+      0.42,
+      0.418,
+      0.416,
+      0.418,
+      0.414,
+      0.414,
+      0.413,
+      0.413,
+      0.413,
+      0.413,
+      0.413,
+      0.43,
+      0.429,
+      0.431,
+      0.427,
+      0.416,
+      0.412,
+      0.416,
+      0.412,
+      0.413,
+      0.412,
+      0.413,
+      0.415,
+      0.413,
+      0.415,
+      0.413,
+      0.435,
+      0.419
+    ],
+    "repeat": 2,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 10.911,
+        "main_ms": 10.907,
+        "operation": "selection",
+        "submit_ms": 10.907,
+        "worker": {
+          "prepare_ms": 78.601,
+          "preview_ms": 25.589
+        }
+      },
+      {
+        "apply_ms": 17.164,
+        "complete_ms": 133.942,
+        "main_ms": 17.164,
+        "operation": "move",
+        "submit_ms": 3.859,
+        "worker": {
+          "prepare_ms": 77.492,
+          "preview_ms": 26.144
+        }
+      },
+      {
+        "apply_ms": 16.981,
+        "complete_ms": 131.372,
+        "main_ms": 16.981,
+        "operation": "add",
+        "submit_ms": 3.3,
+        "worker": {
+          "prepare_ms": 77.303,
+          "preview_ms": 26.514
+        }
+      },
+      {
+        "apply_ms": 17.024,
+        "complete_ms": 131.721,
+        "main_ms": 17.024,
+        "operation": "property",
+        "submit_ms": 3.418,
+        "worker": {
+          "prepare_ms": 77.191,
+          "preview_ms": 26.403
+        }
+      },
+      {
+        "apply_ms": 12.689,
+        "complete_ms": 124.493,
+        "main_ms": 12.689,
+        "operation": "delete",
+        "submit_ms": 3.364,
+        "worker": {
+          "prepare_ms": 76.306,
+          "preview_ms": 25.575
+        }
+      },
+      {
+        "apply_ms": 11.873,
+        "complete_ms": 132.084,
+        "main_ms": 11.873,
+        "operation": "undo",
+        "submit_ms": 2.736,
+        "worker": {
+          "prepare_ms": 80.045,
+          "preview_ms": 26.817
+        }
+      },
+      {
+        "apply_ms": 11.703,
+        "complete_ms": 132.211,
+        "main_ms": 11.703,
+        "operation": "redo",
+        "submit_ms": 2.802,
+        "worker": {
+          "prepare_ms": 80.024,
+          "preview_ms": 25.994
+        }
+      }
+    ]
+  },
+  {
+    "count": 25,
+    "drag_ms": [
+      1.196,
+      0.9,
+      0.485,
+      0.478,
+      0.473,
+      0.479,
+      0.473,
+      0.475,
+      0.476,
+      0.472,
+      0.472,
+      0.474,
+      0.476,
+      0.471,
+      0.471,
+      0.472,
+      0.471,
+      0.471,
+      0.472,
+      0.472,
+      0.474,
+      0.47,
+      0.471,
+      0.471,
+      0.471,
+      0.476,
+      0.492,
+      0.477,
+      0.475,
+      0.471
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.515,
+      0.497,
+      0.487,
+      0.486,
+      0.483,
+      0.482,
+      0.481,
+      0.482,
+      0.481,
+      0.482,
+      0.481,
+      0.481,
+      0.481,
+      0.481,
+      0.481,
+      0.481,
+      0.485,
+      0.492,
+      0.5,
+      0.502,
+      0.493,
+      0.484,
+      0.48,
+      0.482,
+      0.48,
+      0.48,
+      0.479,
+      0.482,
+      0.481,
+      0.485
+    ],
+    "repeat": 0,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 14.569,
+        "main_ms": 14.563,
+        "operation": "selection",
+        "submit_ms": 14.563,
+        "worker": {
+          "prepare_ms": 80.024,
+          "preview_ms": 25.994
+        }
+      },
+      {
+        "apply_ms": 20.292,
+        "complete_ms": 460.696,
+        "main_ms": 20.292,
+        "operation": "move",
+        "submit_ms": 5.825,
+        "worker": {
+          "prepare_ms": 281.065,
+          "preview_ms": 136.053
+        }
+      },
+      {
+        "apply_ms": 21.199,
+        "complete_ms": 457.99,
+        "main_ms": 21.199,
+        "operation": "add",
+        "submit_ms": 5.339,
+        "worker": {
+          "prepare_ms": 281.866,
+          "preview_ms": 137.7
+        }
+      },
+      {
+        "apply_ms": 20.902,
+        "complete_ms": 464.721,
+        "main_ms": 20.902,
+        "operation": "property",
+        "submit_ms": 5.503,
+        "worker": {
+          "prepare_ms": 284.422,
+          "preview_ms": 137.602
+        }
+      },
+      {
+        "apply_ms": 15.597,
+        "complete_ms": 457.955,
+        "main_ms": 15.597,
+        "operation": "delete",
+        "submit_ms": 5.506,
+        "worker": {
+          "prepare_ms": 283.16,
+          "preview_ms": 137.08
+        }
+      },
+      {
+        "apply_ms": 14.733,
+        "complete_ms": 488.282,
+        "main_ms": 14.733,
+        "operation": "undo",
+        "submit_ms": 9.336,
+        "worker": {
+          "prepare_ms": 305.452,
+          "preview_ms": 137.709
+        }
+      },
+      {
+        "apply_ms": 14.541,
+        "complete_ms": 481.537,
+        "main_ms": 14.541,
+        "operation": "redo",
+        "submit_ms": 9.552,
+        "worker": {
+          "prepare_ms": 301.488,
+          "preview_ms": 139.354
+        }
+      }
+    ]
+  },
+  {
+    "count": 25,
+    "drag_ms": [
+      1.161,
+      0.476,
+      0.465,
+      0.461,
+      0.465,
+      0.458,
+      0.456,
+      0.455,
+      0.456,
+      0.459,
+      0.455,
+      0.458,
+      0.488,
+      0.455,
+      0.455,
+      0.455,
+      0.455,
+      0.455,
+      0.464,
+      0.455,
+      0.455,
+      0.457,
+      0.454,
+      0.454,
+      0.454,
+      0.455,
+      0.459,
+      0.455,
+      0.455,
+      0.457
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.631,
+      0.61,
+      0.603,
+      0.602,
+      0.6,
+      0.595,
+      0.6,
+      0.596,
+      0.6,
+      0.596,
+      0.595,
+      0.672,
+      0.675,
+      0.692,
+      0.572,
+      0.475,
+      0.471,
+      0.471,
+      0.472,
+      0.462,
+      0.462,
+      0.462,
+      0.461,
+      0.464,
+      0.462,
+      0.462,
+      0.462,
+      0.461,
+      0.463,
+      0.461
+    ],
+    "repeat": 1,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 13.769,
+        "main_ms": 13.762,
+        "operation": "selection",
+        "submit_ms": 13.762,
+        "worker": {
+          "prepare_ms": 301.488,
+          "preview_ms": 139.354
+        }
+      },
+      {
+        "apply_ms": 23.833,
+        "complete_ms": 475.827,
+        "main_ms": 23.833,
+        "operation": "move",
+        "submit_ms": 5.864,
+        "worker": {
+          "prepare_ms": 288.429,
+          "preview_ms": 139.952
+        }
+      },
+      {
+        "apply_ms": 21.133,
+        "complete_ms": 458.547,
+        "main_ms": 21.133,
+        "operation": "add",
+        "submit_ms": 5.681,
+        "worker": {
+          "prepare_ms": 280.0,
+          "preview_ms": 138.69
+        }
+      },
+      {
+        "apply_ms": 20.99,
+        "complete_ms": 465.576,
+        "main_ms": 20.99,
+        "operation": "property",
+        "submit_ms": 5.834,
+        "worker": {
+          "prepare_ms": 286.129,
+          "preview_ms": 138.483
+        }
+      },
+      {
+        "apply_ms": 15.89,
+        "complete_ms": 459.022,
+        "main_ms": 15.89,
+        "operation": "delete",
+        "submit_ms": 5.787,
+        "worker": {
+          "prepare_ms": 282.935,
+          "preview_ms": 138.063
+        }
+      },
+      {
+        "apply_ms": 15.107,
+        "complete_ms": 490.019,
+        "main_ms": 15.107,
+        "operation": "undo",
+        "submit_ms": 10.293,
+        "worker": {
+          "prepare_ms": 305.534,
+          "preview_ms": 139.161
+        }
+      },
+      {
+        "apply_ms": 14.612,
+        "complete_ms": 482.928,
+        "main_ms": 14.612,
+        "operation": "redo",
+        "submit_ms": 10.438,
+        "worker": {
+          "prepare_ms": 301.702,
+          "preview_ms": 137.707
+        }
+      }
+    ]
+  },
+  {
+    "count": 25,
+    "drag_ms": [
+      0.721,
+      0.483,
+      0.472,
+      0.47,
+      0.466,
+      0.472,
+      0.465,
+      0.465,
+      0.464,
+      0.464,
+      0.463,
+      0.463,
+      0.465,
+      0.466,
+      0.463,
+      0.463,
+      0.462,
+      0.486,
+      0.483,
+      0.473,
+      0.468,
+      0.466,
+      0.463,
+      0.466,
+      0.464,
+      0.463,
+      0.463,
+      0.472,
+      0.465,
+      0.463
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.663,
+      0.632,
+      0.607,
+      0.601,
+      0.603,
+      0.601,
+      0.603,
+      0.595,
+      0.596,
+      0.666,
+      0.664,
+      0.678,
+      0.577,
+      0.473,
+      0.486,
+      0.472,
+      0.472,
+      0.474,
+      0.472,
+      0.472,
+      0.471,
+      0.474,
+      0.471,
+      0.471,
+      0.471,
+      0.471,
+      0.471,
+      0.473,
+      0.472,
+      0.517
+    ],
+    "repeat": 2,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 13.694,
+        "main_ms": 13.688,
+        "operation": "selection",
+        "submit_ms": 13.688,
+        "worker": {
+          "prepare_ms": 301.702,
+          "preview_ms": 137.707
+        }
+      },
+      {
+        "apply_ms": 23.429,
+        "complete_ms": 475.716,
+        "main_ms": 23.429,
+        "operation": "move",
+        "submit_ms": 6.059,
+        "worker": {
+          "prepare_ms": 288.484,
+          "preview_ms": 140.399
+        }
+      },
+      {
+        "apply_ms": 21.416,
+        "complete_ms": 464.783,
+        "main_ms": 21.416,
+        "operation": "add",
+        "submit_ms": 5.912,
+        "worker": {
+          "prepare_ms": 282.721,
+          "preview_ms": 138.889
+        }
+      },
+      {
+        "apply_ms": 20.931,
+        "complete_ms": 465.618,
+        "main_ms": 20.931,
+        "operation": "property",
+        "submit_ms": 5.984,
+        "worker": {
+          "prepare_ms": 285.853,
+          "preview_ms": 139.151
+        }
+      },
+      {
+        "apply_ms": 20.441,
+        "complete_ms": 463.861,
+        "main_ms": 20.441,
+        "operation": "delete",
+        "submit_ms": 5.862,
+        "worker": {
+          "prepare_ms": 284.463,
+          "preview_ms": 138.267
+        }
+      },
+      {
+        "apply_ms": 14.767,
+        "complete_ms": 490.362,
+        "main_ms": 14.767,
+        "operation": "undo",
+        "submit_ms": 10.629,
+        "worker": {
+          "prepare_ms": 306.425,
+          "preview_ms": 139.461
+        }
+      },
+      {
+        "apply_ms": 14.535,
+        "complete_ms": 482.369,
+        "main_ms": 14.535,
+        "operation": "redo",
+        "submit_ms": 10.098,
+        "worker": {
+          "prepare_ms": 303.166,
+          "preview_ms": 138.554
+        }
+      }
+    ]
+  },
+  {
+    "count": 49,
+    "drag_ms": [
+      1.319,
+      0.958,
+      0.541,
+      0.534,
+      0.533,
+      0.531,
+      0.532,
+      0.531,
+      0.535,
+      0.53,
+      0.529,
+      0.535,
+      0.533,
+      0.53,
+      0.529,
+      0.532,
+      0.529,
+      0.53,
+      0.53,
+      0.531,
+      0.529,
+      0.529,
+      0.529,
+      0.53,
+      0.529,
+      0.529,
+      0.533,
+      0.534,
+      0.529,
+      0.529
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.603,
+      0.593,
+      0.591,
+      0.583,
+      0.58,
+      0.578,
+      0.574,
+      0.549,
+      0.541,
+      0.541,
+      0.541,
+      0.54,
+      0.54,
+      0.54,
+      0.539,
+      0.539,
+      0.54,
+      0.54,
+      0.539,
+      0.54,
+      0.54,
+      0.541,
+      0.539,
+      0.54,
+      0.541,
+      0.565,
+      0.548,
+      0.541,
+      0.542,
+      0.544
+    ],
+    "repeat": 0,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 16.178,
+        "main_ms": 16.171,
+        "operation": "selection",
+        "submit_ms": 16.171,
+        "worker": {
+          "prepare_ms": 303.166,
+          "preview_ms": 138.554
+        }
+      },
+      {
+        "apply_ms": 23.446,
+        "complete_ms": 921.69,
+        "main_ms": 23.446,
+        "operation": "move",
+        "submit_ms": 8.841,
+        "worker": {
+          "prepare_ms": 589.446,
+          "preview_ms": 281.135
+        }
+      },
+      {
+        "apply_ms": 23.782,
+        "complete_ms": 932.196,
+        "main_ms": 23.782,
+        "operation": "add",
+        "submit_ms": 8.161,
+        "worker": {
+          "prepare_ms": 589.862,
+          "preview_ms": 289.336
+        }
+      },
+      {
+        "apply_ms": 23.449,
+        "complete_ms": 932.431,
+        "main_ms": 23.449,
+        "operation": "property",
+        "submit_ms": 8.05,
+        "worker": {
+          "prepare_ms": 589.299,
+          "preview_ms": 289.354
+        }
+      },
+      {
+        "apply_ms": 16.756,
+        "complete_ms": 923.771,
+        "main_ms": 16.756,
+        "operation": "delete",
+        "submit_ms": 8.164,
+        "worker": {
+          "prepare_ms": 590.145,
+          "preview_ms": 290.347
+        }
+      },
+      {
+        "apply_ms": 15.761,
+        "complete_ms": 974.892,
+        "main_ms": 17.551,
+        "operation": "undo",
+        "submit_ms": 17.551,
+        "worker": {
+          "prepare_ms": 622.937,
+          "preview_ms": 287.402
+        }
+      },
+      {
+        "apply_ms": 16.812,
+        "complete_ms": 968.83,
+        "main_ms": 17.966,
+        "operation": "redo",
+        "submit_ms": 17.966,
+        "worker": {
+          "prepare_ms": 621.436,
+          "preview_ms": 286.336
+        }
+      }
+    ]
+  },
+  {
+    "count": 49,
+    "drag_ms": [
+      1.246,
+      0.545,
+      0.53,
+      0.527,
+      0.528,
+      0.524,
+      0.526,
+      0.534,
+      0.526,
+      0.523,
+      0.522,
+      0.526,
+      0.522,
+      0.522,
+      0.522,
+      0.525,
+      0.528,
+      0.523,
+      0.522,
+      0.522,
+      0.522,
+      0.523,
+      0.523,
+      0.522,
+      0.525,
+      0.522,
+      0.521,
+      0.522,
+      0.522,
+      0.525
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.566,
+      0.548,
+      0.538,
+      0.536,
+      0.537,
+      0.534,
+      0.533,
+      0.532,
+      0.534,
+      0.548,
+      0.531,
+      0.532,
+      0.537,
+      0.534,
+      0.532,
+      0.531,
+      0.531,
+      0.534,
+      0.53,
+      0.532,
+      0.534,
+      0.53,
+      0.532,
+      0.532,
+      0.531,
+      0.534,
+      0.533,
+      0.532,
+      0.531,
+      0.531
+    ],
+    "repeat": 1,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 15.237,
+        "main_ms": 15.234,
+        "operation": "selection",
+        "submit_ms": 15.234,
+        "worker": {
+          "prepare_ms": 621.436,
+          "preview_ms": 286.336
+        }
+      },
+      {
+        "apply_ms": 23.799,
+        "complete_ms": 928.169,
+        "main_ms": 23.799,
+        "operation": "move",
+        "submit_ms": 8.387,
+        "worker": {
+          "prepare_ms": 588.811,
+          "preview_ms": 287.179
+        }
+      },
+      {
+        "apply_ms": 33.535,
+        "complete_ms": 950.805,
+        "main_ms": 33.535,
+        "operation": "add",
+        "submit_ms": 8.498,
+        "worker": {
+          "prepare_ms": 597.905,
+          "preview_ms": 291.252
+        }
+      },
+      {
+        "apply_ms": 30.433,
+        "complete_ms": 947.033,
+        "main_ms": 30.433,
+        "operation": "property",
+        "submit_ms": 8.715,
+        "worker": {
+          "prepare_ms": 592.536,
+          "preview_ms": 290.713
+        }
+      },
+      {
+        "apply_ms": 23.512,
+        "complete_ms": 931.424,
+        "main_ms": 23.512,
+        "operation": "delete",
+        "submit_ms": 8.704,
+        "worker": {
+          "prepare_ms": 590.166,
+          "preview_ms": 289.592
+        }
+      },
+      {
+        "apply_ms": 16.243,
+        "complete_ms": 976.519,
+        "main_ms": 18.542,
+        "operation": "undo",
+        "submit_ms": 18.542,
+        "worker": {
+          "prepare_ms": 625.522,
+          "preview_ms": 286.819
+        }
+      },
+      {
+        "apply_ms": 16.463,
+        "complete_ms": 976.1,
+        "main_ms": 18.238,
+        "operation": "redo",
+        "submit_ms": 18.238,
+        "worker": {
+          "prepare_ms": 625.829,
+          "preview_ms": 288.251
+        }
+      }
+    ]
+  },
+  {
+    "count": 49,
+    "drag_ms": [
+      0.785,
+      0.545,
+      0.534,
+      0.528,
+      0.525,
+      0.524,
+      0.527,
+      0.524,
+      0.522,
+      0.523,
+      0.525,
+      0.53,
+      0.536,
+      0.534,
+      0.526,
+      0.524,
+      0.521,
+      0.523,
+      0.527,
+      0.524,
+      0.521,
+      0.522,
+      0.521,
+      0.522,
+      0.525,
+      0.522,
+      0.522,
+      0.522,
+      0.524,
+      0.521
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.565,
+      0.544,
+      0.54,
+      0.535,
+      0.534,
+      0.534,
+      0.55,
+      0.53,
+      0.535,
+      0.531,
+      0.531,
+      0.53,
+      0.531,
+      0.536,
+      0.531,
+      0.53,
+      0.531,
+      0.53,
+      0.53,
+      0.534,
+      0.531,
+      0.53,
+      0.531,
+      0.531,
+      0.531,
+      0.531,
+      0.53,
+      0.532,
+      0.53,
+      0.529
+    ],
+    "repeat": 2,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 15.1,
+        "main_ms": 15.096,
+        "operation": "selection",
+        "submit_ms": 15.096,
+        "worker": {
+          "prepare_ms": 625.829,
+          "preview_ms": 288.251
+        }
+      },
+      {
+        "apply_ms": 30.944,
+        "complete_ms": 937.054,
+        "main_ms": 30.944,
+        "operation": "move",
+        "submit_ms": 9.236,
+        "worker": {
+          "prepare_ms": 589.38,
+          "preview_ms": 286.684
+        }
+      },
+      {
+        "apply_ms": 30.611,
+        "complete_ms": 947.622,
+        "main_ms": 30.611,
+        "operation": "add",
+        "submit_ms": 9.116,
+        "worker": {
+          "prepare_ms": 592.544,
+          "preview_ms": 291.382
+        }
+      },
+      {
+        "apply_ms": 31.122,
+        "complete_ms": 948.208,
+        "main_ms": 31.122,
+        "operation": "property",
+        "submit_ms": 8.92,
+        "worker": {
+          "prepare_ms": 595.137,
+          "preview_ms": 291.322
+        }
+      },
+      {
+        "apply_ms": 24.192,
+        "complete_ms": 939.642,
+        "main_ms": 24.192,
+        "operation": "delete",
+        "submit_ms": 9.109,
+        "worker": {
+          "prepare_ms": 592.171,
+          "preview_ms": 290.922
+        }
+      },
+      {
+        "apply_ms": 16.197,
+        "complete_ms": 976.715,
+        "main_ms": 19.03,
+        "operation": "undo",
+        "submit_ms": 19.03,
+        "worker": {
+          "prepare_ms": 625.347,
+          "preview_ms": 288.019
+        }
+      },
+      {
+        "apply_ms": 16.71,
+        "complete_ms": 977.326,
+        "main_ms": 19.188,
+        "operation": "redo",
+        "submit_ms": 19.188,
+        "worker": {
+          "prepare_ms": 625.221,
+          "preview_ms": 286.673
+        }
+      }
+    ]
+  }
+]

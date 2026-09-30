@@ -141,6 +141,7 @@ var import_recovery: AcceptDialog
 var selected_field := ""
 var selected_record: Dictionary = {}
 var displayed_map_id := ""
+var displayed_session := -1
 
 const WORKBENCH_STYLE := preload("./workbench_style.gd")
 var roam_palette: VBoxContainer
@@ -667,6 +668,7 @@ func _continue_document_action() -> void:
 	elif request.action in ["open", "recover"]: _status("Ready: " + request.path)
 
 func _choose(action: String) -> void:
+	if store.track_edit_busy: _status(store.EDIT_BUSY); return
 	_cancel_editing()
 	dialog_action = action
 	dialog.filters = PackedStringArray()
@@ -747,6 +749,7 @@ func _path_selected(path: String) -> void:
 	if failure == "": _document_changed()
 
 func _save() -> void:
+	if store.track_edit_busy: _status(store.EDIT_BUSY); return
 	if busy:
 		_status("Wait for the active operation before saving.")
 		return
@@ -764,6 +767,7 @@ func _import_geojson() -> void:
 		import_dialog.popup_centered(Vector2i(760, 520))
 
 func _export() -> void:
+	if store.track_edit_busy: _status(store.EDIT_BUSY); return
 	var issues: Array=store.document.get("assembled_track",{}).get("issues",[])
 	if not issues.is_empty(): _status("Fix connections and courses before execution export: "+" / ".join(issues)); return
 	if busy:
@@ -906,7 +910,7 @@ func _apply_properties() -> void:
 	if failure == "": _selection(canvas.selected)
 
 func _document_changed() -> void:
-	if track_workbench != null: track_workbench.cancel_interaction()
+	if track_workbench != null: track_workbench.cancel_interaction(false)
 	if not density_deferred_package.is_empty():
 		density_deferred_package.clear()
 		busy = false
@@ -919,7 +923,7 @@ func _document_changed() -> void:
 	if preview_enabled: preview_due = Time.get_ticks_msec() + 150
 	canvas.cancel_interaction()
 	var map_id := str(store.document.get("map_id", ""))
-	if displayed_map_id != map_id:
+	if displayed_session != store.session_id:
 		_clear_preview_cache()
 		preview_enabled = false
 		preview_due = 0
@@ -927,6 +931,7 @@ func _document_changed() -> void:
 		canvas.layer_state = view_settings.get_value("layers", map_id, {}).duplicate(true)
 		canvas.fit_map()
 	displayed_map_id = map_id
+	displayed_session = store.session_id
 	canvas.normalize_selection()
 	layers.refresh()
 	_selection(canvas.selected)
@@ -1006,6 +1011,10 @@ func _cancel_editing() -> void:
 func _register_commands() -> void:
 	commands.context_source = func(): return "roam" if store.document.get("free_roam", false) else "track"
 	commands.blocked_source = _shortcuts_blocked
+	commands.availability_source = func(id: String):
+		if not store.track_edit_busy: return ""
+		if id.begins_with("view.") or id in ["tool.select", "edit.cancel_interaction", "edit.toggle_snap", "edit.shortcuts"]: return ""
+		return store.EDIT_BUSY
 	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Restore package", _choose.bind("reopen_package")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Import vector", _import_geojson], ["Export map", _export]]:
 		commands.register("File", entry[0], entry[1], "Primary+S" if entry[0] == "Save" else "")
 	commands.register("Edit", "Undo", _history.bind(false), "Primary+Z", {"enabled":func(): return not store.undo_stack.is_empty(), "reason":"No committed edit to undo."})
@@ -1136,6 +1145,7 @@ func _preview_cell_changed(_value: float) -> void:
 		preview_due = Time.get_ticks_msec() + 150
 
 func _start_package(operation: String, destination: String = "") -> void:
+	if store.track_edit_busy: _status(store.EDIT_BUSY); return
 	if busy:
 		_status("Another operation is running; cancel it or wait.")
 		return
@@ -1172,6 +1182,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 		_status(error_string(err))
 
 func _cancel_operation() -> void:
+	store.cancel_track_edit()
 	if density_panel != null: density_panel.cancel()
 	if not density_deferred_package.is_empty():
 		density_deferred_package.clear()
@@ -1457,14 +1468,15 @@ func _finish_terrain(job: RefCounted, result: Dictionary) -> void:
 	_status(failure if failure != "" else "Terrain stroke applied. Undo: " + commands.shortcut_text("edit.undo"))
 
 func _process(_delta: float) -> void:
+	store.poll_track_edit()
 	if track_workbench != null and track_workbench.placement.tool != "" and _popup_open(self): _cancel_editing()
 	if not density_deferred_package.is_empty() and density_panel.task == null:
 		var pending := density_deferred_package
 		density_deferred_package = {}
 		busy = false
 		_start_package(pending.operation,pending.destination)
-	cancel_button.disabled = not busy and pending_import == null
-	cancel_button.tooltip_text = "Cancel the running operation; keep prior preview and original files." if busy else "No running operation."
+	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy
+	cancel_button.tooltip_text = "Cancel the running operation; keep prior preview and original files." if busy or store.track_edit_busy else "No running operation."
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	if import_job != null:
 		if import_job is TERRAIN_NATIVE_JOB:
@@ -1662,7 +1674,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _history(forward: bool) -> void:
 	_cancel_editing()
-	var failure := store.redo() if forward else store.undo()
+	var failure := store.start_track_history(forward) if store.document.has("assembled_track") else store.redo() if forward else store.undo()
 	if failure != "":
 		_status(failure)
 
@@ -1677,6 +1689,7 @@ func _status(text: String) -> void:
 	status_label.text = text
 
 func _exit_tree() -> void:
+	store.shutdown_track_edit()
 	if import_job != null: import_job.shutdown()
 	_save_workbench()
 	if package_work != null: package_work.cancel()

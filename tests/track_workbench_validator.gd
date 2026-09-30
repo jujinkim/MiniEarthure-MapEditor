@@ -5,6 +5,11 @@ var failures: Array[String]=[]
 func _initialize() -> void: run.call_deferred()
 func check(value: bool,label: String) -> void:
 	if not value: failures.append(label); push_error(label)
+func settle(screen: Control) -> void:
+	var deadline := Time.get_ticks_msec() + 10000
+	while screen.store.track_edit_busy and Time.get_ticks_msec() < deadline: await process_frame
+	check(not screen.store.track_edit_busy, "bounded track command completion")
+
 func run() -> void:
 	var store:=STORE.new()
 	store.new_track()
@@ -42,27 +47,34 @@ func run() -> void:
 	var bench: Node=screen.track_workbench
 	bench.add_piece("straight")
 	check(bench.placement.preview_at(Vector3.ZERO) and bench.placement.commit(), "preview then place straight")
+	await settle(screen)
 	bench.add_piece("gentle45")
 	check(bench.placement.preview_at(bench.PREVIEW.point(screen.store.document.assembled_track.pieces[0].path.back().position_cm)) and bench.placement.commit(), "preview then snap gentle45")
+	await settle(screen)
 	check(bench.source.instances.size()==2 and bench.source.connections.size()==1,"palette placement and port snap commands")
 	bench.duplicate_piece()
+	await settle(screen)
 	check(bench.source.instances.size()==3,"duplicate command")
 	bench.delete_piece()
+	await settle(screen)
 	check(bench.source.instances.size()==2,"delete command")
 	bench.selected=1
 	bench._properties()
 	bench.controls[0].value=3.0
 	bench.controls[2].value=22.0
 	bench.apply_properties()
+	await settle(screen)
 	check(bench.source.instances[1].position_cm.map(func(v): return int(v))==[300,0,2200],"numeric free placement: "+str(bench.source.instances[1].position_cm))
 	bench.selected=0
 	bench._properties()
 	bench.connect_curve()
+	await settle(screen)
 	check(bench.source.instances.size()==3 and bench.source.instances.back().preset=="free_curve" and bench.source.connections.size()==2,"free cubic replaces disconnected direct edge")
 	bench.selected=0
 	bench._properties()
 	bench.add_action("jump_panel")
 	check(bench.placement.preview_attachment(0, 0) and bench.placement.commit(), "attach panel at road sample")
+	await settle(screen)
 	check(bench.source.actions.size()==1 and bench.source.actions[0].landing==null,"continuous road jump has no forced landing road")
 	check(screen.store.undo()=="" and bench.source.actions.is_empty(),"controller command undo")
 	screen._open_track_generator()

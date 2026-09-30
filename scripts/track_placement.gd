@@ -22,9 +22,44 @@ var geometry_builds := 0
 var last_point: Variant = null
 var last_screen: Variant = null
 var yaw_control: SpinBox
+var moving_index := -1
+var move_origin: Variant = null
+var move_item: Dictionary = {}
+var moved := false
+var hidden_nodes: Array[Node3D] = []
+var ghost_key := ""
+var pending_pointer: Variant = null
+var pointer_updates := 0
+
+func begin_move(index: int, point: Vector3) -> void:
+	cancel()
+	moving_index = index
+	move_origin = point
+	move_item = bench.source.instances[index].duplicate(true)
+	tool = move_item.preset
+	kind = "piece"
+	height = float(move_item.position_cm[1]) * 0.01
+	yaw = float(move_item.rotation_mdeg[1]) * 0.001
+	epoch = bench.editor.store.command_epoch
+	document_id = str(bench.editor.store.document.map_id)
+
+func resume_tool(state: Dictionary) -> void:
+	for field in ["tool", "kind", "height", "yaw", "width_cm", "landing", "jump_height_cm"]: set(field, state[field])
+	epoch = bench.editor.store.command_epoch
+	document_id = str(bench.editor.store.document.map_id)
+	hint = "Placed · Move to preview the next piece · Click to place"
+	bench.palette_tools.select_tool("track." + kind + "." + tool)
+
+func _process(_delta: float) -> void:
+	if pending_pointer == null: return
+	var screen: Vector2 = pending_pointer
+	pending_pointer = null
+	if current(): update_pointer(screen)
+	else: cancel()
+
 
 func activate(type: String, preset: String) -> void:
-	if not bench.active: return
+	if not bench.active or bench.editor.store.track_edit_busy or bench.editor.busy: return
 	bench.editor._cancel_editing()
 	if not bench.editor.preview_dock.visible: bench.editor._set_view_mode("split")
 	kind = type
@@ -48,6 +83,15 @@ func activate(type: String, preset: String) -> void:
 	bench.editor.commands.refresh_buttons()
 
 func cancel() -> void:
+	for node in hidden_nodes:
+		if is_instance_valid(node): node.show()
+	hidden_nodes.clear()
+	moving_index = -1
+	move_origin = null
+	move_item = {}
+	moved = false
+	pending_pointer = null
+	ghost_key = ""
 	serial += 1
 	tool = ""
 	candidate.clear()
@@ -60,6 +104,7 @@ func cancel() -> void:
 	guides = null
 
 func invalidate_candidate() -> void:
+	pending_pointer = null
 	serial += 1
 	candidate.clear()
 	if is_instance_valid(ghost): ghost.hide()
@@ -121,31 +166,78 @@ func _instance(preset: String, w: int) -> Dictionary:
 		"width_cm":w, "entry_width_cm":w, "exit_width_cm":w,
 		"control_points":[[0, 0, 0], [0, 0, 600], [600, 0, 1200], [1200, 0, 1200]] if preset in ["free_curve", "flight_curve"] else []}
 
-func preview_at(point: Vector3) -> bool:
-	if not current(): invalidate_candidate(); return false
-	last_point = point
-	serial += 1
-	var item := _instance(tool, width_cm)
-	item.position_cm = [roundi(point.x * 100), roundi(height * 100), roundi(-point.z * 100)]
-	item.rotation_mdeg[1] = roundi(yaw * 1000)
+func solve_item(item: Dictionary, excluded := -1) -> Dictionary:
 	var result: Dictionary = JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
-	if not result.ok: _failure(result.error.message); return false
+	if not result.ok: return {"error":result.error.message}
 	var snap_index := -1
 	var nearest := 3.0
 	if bench.snap.button_pressed:
 		for i in bench.source.instances.size():
+			if i == excluded: continue
 			var other: Dictionary = bench.editor.store.document.assembled_track.pieces[i]
 			var distance := PREVIEW.point(result.data.path[0].position_cm).distance_to(PREVIEW.point(other.path.back().position_cm))
 			if distance < nearest: nearest = distance; snap_index = i
 	if snap_index >= 0:
-		result = JSON.parse_string(bench.editor.store.bridge.snap_track_instance(JSON.stringify(item), JSON.stringify(bench.source.instances[snap_index])))
-		if not result.ok: _failure(result.error.message); return false
-		item = result.data
-	candidate = {"serial":serial, "epoch":epoch, "document":document_id, "kind":kind, "tool":tool, "item":item, "snap":snap_index}
-	if not _show_ghost(item): return false
-	hint = "Click to place · Rotate with the preview controls" + (" · Snap to " + bench.source.instances[snap_index].id if snap_index >= 0 else " · No port snap")
+		var snapped: Dictionary = JSON.parse_string(bench.editor.store.bridge.snap_track_instance(JSON.stringify(item), JSON.stringify(bench.source.instances[snap_index])))
+		if not snapped.ok: return {"error":snapped.error.message}
+		item = snapped.data
+		result = JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
+		if not result.ok: return {"error":result.error.message}
+	return {"item":item, "piece":result.data, "snap":snap_index}
+
+func preview_at(point: Vector3) -> bool:
+	if not current(): invalidate_candidate(); return false
+	last_point = point
+	pointer_updates += 1
+	serial += 1
+	var item: Dictionary
+	if moving_index >= 0:
+		var delta: Vector3 = point - move_origin
+		if not moved and delta.length() <= 0.01: return false
+		moved = true
+		item = move_item.duplicate(true)
+		item.position_cm[0] += roundi(delta.x * 100)
+		item.position_cm[2] -= roundi(delta.z * 100)
+	else:
+		item = _instance(tool, width_cm)
+		item.position_cm = [roundi(point.x * 100), roundi(height * 100), roundi(-point.z * 100)]
+		item.rotation_mdeg[1] = roundi(yaw * 1000)
+	var solved := solve_item(item, moving_index)
+	if solved.has("error"): _failure(solved.error); return false
+	candidate = {"serial":serial, "epoch":epoch, "document":document_id, "kind":kind, "tool":tool, "item":solved.item, "snap":solved.snap}
+	if moving_index >= 0: _show_move(solved.piece)
+	elif not _show_ghost(solved.item, -1, solved.piece): return false
+	hint = ("Release to move" if moving_index >= 0 else "Click to place · Rotate with the preview controls") + (" · Snap to " + bench.source.instances[solved.snap].id if solved.snap >= 0 else " · No port snap")
 	bench.show_hint()
 	return true
+
+func _show_move(piece: Dictionary) -> void:
+	if not is_instance_valid(ghost):
+		ghost = Node3D.new()
+		bench.editor.preview_world.add_child(ghost)
+		for node: MeshInstance3D in bench.view.get_meta("objects", {}).values():
+			if node.get_meta("owner", -1) != moving_index: continue
+			var copy := node.duplicate()
+			ghost.add_child(copy)
+			node.hide()
+			hidden_nodes.append(node)
+		_tint(ghost)
+	var original: Dictionary = bench.editor.store.document.assembled_track.pieces[moving_index]
+	ghost.transform = frame(piece.path[0]) * frame(original.path[0]).affine_inverse()
+	ghost.show()
+	_draw_guides(piece, -1)
+
+func commit_move() -> bool:
+	if not current() or not moved or candidate.is_empty() or candidate.epoch != epoch or candidate.serial != serial: return false
+	# Returning to the same transform is a click/no-op, even near a port.
+	if last_point != null and last_point.distance_to(move_origin) <= 0.01: return false
+	if candidate.item == move_item: return false
+	var next: Dictionary = bench.source.duplicate(true)
+	next.instances[moving_index] = candidate.item.duplicate(true)
+	if candidate.snap >= 0:
+		var edge := {"from":next.instances[candidate.snap].id, "to":candidate.item.id}
+		if not next.connections.has(edge): next.connections.append(edge)
+	return bench._commit(next)
 
 func preview_attachment(piece_index: int, sample: int) -> bool:
 	if not current() or kind == "piece": return false
@@ -188,36 +280,11 @@ func commit(expected_serial := -1) -> bool:
 			"piece":next.instances[candidate.target].id, "sample":candidate.sample, "height_cm":candidate.height_cm, "landing":candidate.landing})
 	else:
 		next.attachments.append(_attachment(next.instances[candidate.target], candidate.sample))
-	var keep_tool := tool
-	var keep_kind := kind
-	var keep_height: float = float(next.instances[next_selection].position_cm[1]) / 100.0 if kind == "piece" else height
-	var keep_yaw := yaw
-	var keep_width := width_cm
-	var keep_landing: Variant = landing
-	var keep_jump := jump_height_cm
-	var failure: String = bench.editor.store.edit_track(next, epoch)
-	if failure != "":
-		bench.editor._status(failure)
-		hint = "Placement rejected · " + failure
-		bench.show_hint()
-		return false
-	# The document changed signal invalidated all old candidates synchronously.
-	bench.selected = next_selection
-	tool = keep_tool
-	kind = keep_kind
-	height = keep_height
-	yaw = keep_yaw
-	width_cm = keep_width
-	landing = keep_landing
-	jump_height_cm = keep_jump
-	epoch = bench.editor.store.command_epoch
-	document_id = str(bench.editor.store.document.map_id)
-	serial += 1
-	candidate.clear()
-	hint = "Placed · Move to preview the next piece · Click to place"
-	bench.refresh()
-	bench.palette_tools.select_tool("track." + kind + "." + tool)
-	bench.editor.commands.refresh_buttons()
+	var state := {"tool":tool, "kind":kind, "height":float(next.instances[next_selection].position_cm[1]) / 100.0 if kind == "piece" else height,
+		"yaw":yaw, "width_cm":width_cm, "landing":landing, "jump_height_cm":jump_height_cm}
+	if not bench._commit(next, next_selection, {"repeat":state}): return false
+	# Admission consumes the candidate. Repeat placement resumes only after success.
+	cancel()
 	return true
 
 func _attachment(item: Dictionary, sample: int) -> Dictionary:
@@ -231,7 +298,7 @@ static func frame(sample: Dictionary) -> Transform3D:
 	var normal := PREVIEW.point(sample.normal).normalized()
 	return Transform3D(Basis(forward.cross(normal).normalized(), normal, -forward), PREVIEW.point(sample.position_cm))
 
-func _show_ghost(item: Dictionary, sample := -1) -> bool:
+func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}) -> bool:
 	# Cache a single isolated piece using MapKit's production tessellator. Pointer
 	# movement changes a rigid transform, never recompiles the document.
 	var local := item.duplicate(true)
@@ -257,13 +324,18 @@ func _show_ghost(item: Dictionary, sample := -1) -> bool:
 			cache.erase(cache.keys()[0])
 		cache[key] = {"node":template, "entry":compiled.data.document.assembled_track.pieces[0].path[0]}
 		geometry_builds += 1
-	if is_instance_valid(ghost): ghost.queue_free()
-	ghost = cache[key].node.duplicate()
-	bench.editor.preview_world.add_child(ghost)
-	var compiled_piece: Dictionary = JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
-	if not compiled_piece.ok: _failure(compiled_piece.error.message); return false
-	ghost.transform = frame(compiled_piece.data.path[0]) * frame(cache[key].entry).affine_inverse()
-	_draw_guides(compiled_piece.data, sample)
+	if ghost_key != key or not is_instance_valid(ghost):
+		if is_instance_valid(ghost): ghost.queue_free()
+		ghost = cache[key].node.duplicate()
+		bench.editor.preview_world.add_child(ghost)
+		ghost_key = key
+	if compiled_piece.is_empty():
+		var result: Dictionary = JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
+		if not result.ok: _failure(result.error.message); return false
+		compiled_piece = result.data
+	ghost.transform = frame(compiled_piece.path[0]) * frame(cache[key].entry).affine_inverse()
+	ghost.show()
+	_draw_guides(compiled_piece, sample)
 	return true
 
 func _tint(node: Node) -> void:
@@ -277,8 +349,18 @@ func _tint(node: Node) -> void:
 	for child in node.get_children(): _tint(child)
 
 func _draw_guides(piece: Dictionary, sample: int) -> void:
-	if is_instance_valid(guides): guides.queue_free()
-	var mesh := ImmediateMesh.new()
+	if not is_instance_valid(guides):
+		guides = MeshInstance3D.new()
+		guides.mesh = ImmediateMesh.new()
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.vertex_color_use_as_albedo = true
+		material.no_depth_test = true
+		guides.material_override = material
+		bench.editor.preview_world.add_child(guides)
+	guides.show()
+	var mesh: ImmediateMesh = guides.mesh
+	mesh.clear_surfaces()
 	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	# Flight curves deliberately have no solid surface; show the shared sampled
 	# trajectory as an editor guide instead of inventing road geometry.
@@ -302,14 +384,6 @@ func _draw_guides(piece: Dictionary, sample: int) -> void:
 		for points in [[Vector3(-1,0,0), Vector3(1,0,0)], [Vector3(0,-1,0), Vector3(0,1,0)]]:
 			mesh.surface_add_vertex(pose * points[0]); mesh.surface_add_vertex(pose * points[1])
 	mesh.surface_end()
-	guides = MeshInstance3D.new()
-	guides.mesh = mesh
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.vertex_color_use_as_albedo = true
-	material.no_depth_test = true
-	guides.material_override = material
-	bench.editor.preview_world.add_child(guides)
 
 static func _surface_triangle(origin: Vector3, ray: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Variant:
 	if (b - a).cross(c - a).length_squared() < 0.00000001: return null
@@ -354,22 +428,33 @@ func update_pointer(screen: Vector2) -> bool:
 	return preview_attachment(hit.piece, hit.sample)
 
 func input(event: InputEvent) -> bool:
+	if bench.editor.store.track_edit_busy: cancel(); return false
 	if not current(): cancel(); return false
 	if event is InputEventMouseMotion:
 		if event.button_mask & (MOUSE_BUTTON_MASK_RIGHT | MOUSE_BUTTON_MASK_MIDDLE):
-			invalidate_candidate()
+			if moving_index >= 0: cancel()
+			else: invalidate_candidate()
 			return false
-		update_pointer(event.position)
+		pending_pointer = event.position
 		return true
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
+			if moving_index >= 0:
+				if not event.pressed:
+					pending_pointer = null
+					if update_pointer(event.position): commit_move()
+					cancel()
+				return true
 			if event.pressed and not event.double_click:
 				# Refresh at the click position, using only the current generation.
 				if update_pointer(event.position): commit(serial)
 			return true
-		if event.button_index in [MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE, MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]: invalidate_candidate()
+		if event.button_index in [MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE, MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			if moving_index >= 0: cancel()
+			else: invalidate_candidate()
 	return false
 
 func _exit_tree() -> void:
+	cancel()
 	for entry: Dictionary in cache.values(): entry.node.free()
 	cache.clear()

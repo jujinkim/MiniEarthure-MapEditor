@@ -24,6 +24,11 @@ func key(code: int, primary := false, echo := false) -> InputEventKey:
 func release_focus() -> void:
 	var focus := root.gui_get_focus_owner()
 	if focus != null: focus.release_focus()
+func settle() -> void:
+	var deadline := Time.get_ticks_msec() + 10000
+	while ui.store.track_edit_busy and Time.get_ticks_msec() < deadline: await process_frame
+	check(not ui.store.track_edit_busy, "bounded track command completion")
+
 func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
@@ -48,15 +53,19 @@ func run() -> void:
 	check(placement.geometry_builds == builds, "mouse movement reuses compiled ghost geometry")
 	var serial: int = placement.serial
 	check(placement.commit(serial), "one placement commits")
+	await settle()
 	check(bench.source.instances.size() == 1 and ui.store.undo_stack.size() == 1, "one click is one command")
 	check(placement.tool == "straight" and not placement.commit(serial), "same tool remains; consumed candidate cannot repeat")
 	var end: Vector3 = bench.PREVIEW.point(ui.store.document.assembled_track.pieces[0].path.back().position_cm)
 	check(placement.preview_at(end), "continuous preview uses current source")
 	check(placement.candidate.snap == 0 and placement.commit(), "port snap uses current exit")
+	await settle()
 	check(bench.source.instances.size() == 2 and bench.source.connections.size() == 1 and ui.store.undo_stack.size() == 2, "continuous placement records one edge and one step")
 	ui._history(false)
+	await settle()
 	check(bench.source.instances.size() == 1 and placement.tool == "", "Undo cancels preview and reverses only last placement")
 	ui._history(true)
+	await settle()
 	check(bench.source.instances.size() == 2 and placement.tool == "", "Redo restores placement without restarting a tool")
 	commands.execute_id("track.piece.gentle90")
 	placement.preview_at(Vector3(40, 0, 0))
@@ -67,7 +76,10 @@ func run() -> void:
 	placement.preview_at(Vector3(40, 0, 0))
 	placement.candidate.item.width_cm = 999
 	var selected: int = bench.selected
-	check(not placement.commit() and state() == before and bench.selected == selected, "failed native validation preserves map, selection and history")
+	check(placement.commit(), "invalid edit admitted for worker validation")
+	await settle()
+	check(state() == before and bench.selected == selected, "failed native validation preserves map, selection and history")
+	check(bench.properties.get_meta("placement_tool") == placement.tool, "failed placement removes stale preview controls")
 	commands.execute_id("track.piece.straight")
 	placement.preview_at(Vector3(40, 0, 0))
 	serial = placement.serial
@@ -88,8 +100,10 @@ func run() -> void:
 	before = state()
 	check(not placement.preview_attachment(-1, 0) and not placement.commit() and state() == before, "attachment needs a surface")
 	check(placement.preview_attachment(0, 2) and placement.commit(), "attached jump panel commits against target road")
+	await settle()
 	check(bench.source.actions.size() == 1 and bench.source.actions[0].landing == null, "continuous road action has no forced landing")
 	ui._history(false)
+	await settle()
 	check(bench.source.actions.is_empty(), "attached action undoes atomically")
 	# Button, search, slot and shortcut all select the same tool without an edit.
 	before = state()
@@ -157,15 +171,21 @@ func run() -> void:
 	before = state()
 	check(not commands.execute_id("edit.delete") and state() == before, "hidden roam selection cannot enable track deletion")
 	bench.selected = 0
-	check(commands.execute_id("edit.duplicate") and bench.source.instances.size() == 3, "track duplicate resolves current selection")
-	check(commands.execute_id("edit.delete") and bench.source.instances.size() == 2, "track delete resolves current selection")
+	check(commands.execute_id("edit.duplicate"), "duplicate admitted")
+	await settle()
+	check(bench.source.instances.size() == 3, "track duplicate resolves current selection")
+	check(commands.execute_id("edit.delete"), "delete admitted")
+	await settle()
+	check(bench.source.instances.size() == 2, "track delete resolves current selection")
 	bench.selected = 0
 	bench._properties()
 	bench.route_list.select(0)
 	var route: Array = bench.source.paths[0].pieces.duplicate()
 	bench._route_move(1)
+	await settle()
 	check(bench.source.paths[0].pieces == [route[1], route[0]], "route list reorders IDs atomically")
 	ui._history(false)
+	await settle()
 	# Navigation-only plan cannot edit derived track roads.
 	before = state()
 	var click := InputEventMouseButton.new()

@@ -8,6 +8,7 @@ var query: LineEdit
 var results: ItemList
 var context_source: Callable
 var blocked_source: Callable
+var availability_source: Callable
 var bindings: Dictionary = {}
 var favorites: Dictionary = {}
 var buttons: Array[Dictionary] = []
@@ -88,6 +89,9 @@ func current_context() -> String:
 	return context_source.call() if context_source.is_valid() else "roam"
 
 func reason(id: String) -> String:
+	if availability_source.is_valid():
+		var unavailable: String = availability_source.call(id)
+		if unavailable != "": return unavailable
 	var index := index_of(id)
 	if index < 0: return "Command is unavailable."
 	var command := commands[index]
@@ -120,7 +124,10 @@ func button(parent: Node, id: String, tile := false) -> Button:
 	var result := STYLE.button(parent, command.label, execute_id.bind(id), "", command.icon, tile)
 	result.set_meta("command_id", id)
 	buttons.append({"control":weakref(result), "id":id})
-	refresh_buttons()
+	# Adding a control does not change command availability. Updating the entire
+	# palette for every inspector button made one selection quadratic in controls.
+	result.disabled = reason(id) != ""
+	result.tooltip_text = tooltip(id)
 	return result
 
 func refresh_buttons() -> void:

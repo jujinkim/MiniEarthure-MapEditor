@@ -1,6 +1,9 @@
 extends RefCounted
 ## MapDocument is authoritative; views never become saved state.
 signal changed
+signal track_edit_ready(context: Dictionary)
+signal track_edit_finished(failure: String)
+const TRACK_JOB := preload("./track_edit_job.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const FILES := preload("./document_files.gd")
@@ -25,6 +28,70 @@ var _autosaved_signature := ""
 var _gesture: Dictionary = {}
 # Monotonic even when undo/redo or a gesture restores the same document.
 var command_epoch := 0
+var session_id := 0
+var track_edit_busy := false
+var track_edit_job: RefCounted
+var track_request_id := 0
+var prepared_track_preview: Dictionary = {}
+# Published preparation is immutable and shared with the next worker.
+var track_preview_cache: Dictionary = {}
+var last_track_apply_ms := 0.0
+var last_track_timings: Dictionary = {}
+const EDIT_BUSY := "Wait for the current track edit, or cancel it first."
+
+func start_track_edit(source: Dictionary, expected_epoch := -1, context: Dictionary = {}) -> String:
+	if expected_epoch >= 0 and expected_epoch != command_epoch: return "Stale track edit; current map retained."
+	return _start_track_work("edit", source, context)
+
+func start_track_history(forward: bool) -> String:
+	return _start_track_work("redo" if forward else "undo", {}, {})
+
+func _start_track_work(operation: String, source: Dictionary, context: Dictionary) -> String:
+	if track_edit_busy: return EDIT_BUSY
+	if has_gesture(): return "Finish or cancel the current gesture first."
+	track_request_id += 1
+	track_edit_job = TRACK_JOB.new()
+	track_edit_busy = true
+	var failure: Error = track_edit_job.start(self, track_request_id, operation, source, context)
+	if failure != OK:
+		track_edit_busy = false
+		track_edit_job = null
+		return error_string(failure)
+	return ""
+
+func cancel_track_edit() -> void:
+	if track_edit_job != null:
+		track_request_id += 1
+		track_edit_job.cancel()
+
+func poll_track_edit() -> void:
+	if track_edit_job == null or track_edit_job.thread.is_alive(): return
+	var job: RefCounted = track_edit_job
+	var prepared: Dictionary = job.thread.wait_to_finish()
+	var valid: bool = job.matches(self, track_request_id)
+	job.consumed = true
+	track_edit_job = null
+	track_edit_busy = false
+	if not valid:
+		track_edit_finished.emit("Track edit cancelled or superseded; document retained.")
+		return
+	if prepared.has("error"):
+		track_edit_finished.emit(prepared.error)
+		return
+	var begin := Time.get_ticks_usec()
+	if not prepared.get("noop", false):
+		prepared_track_preview = prepared.preview
+		track_edit_ready.emit(job.context)
+		if prepared.operation == "edit": _install_command(prepared)
+		else: _install_history(prepared, prepared.operation == "undo")
+	last_track_apply_ms = (Time.get_ticks_usec() - begin) / 1000.0
+	last_track_timings = prepared.get("timings", {})
+	track_edit_finished.emit("")
+
+func shutdown_track_edit() -> void:
+	if track_edit_job != null: track_edit_job.shutdown()
+	track_edit_job = null
+	track_edit_busy = false
 
 func new_document() -> void:
 	bridge = ClassDB.instantiate("MapKitBridge")
@@ -64,6 +131,10 @@ func open_project(path: String) -> String:
 	return ""
 
 func _reset_session() -> void:
+	cancel_track_edit()
+	session_id += 1
+	prepared_track_preview = {}
+	track_preview_cache = {}
 	command_epoch += 1
 	undo_stack.clear()
 	redo_stack.clear()
@@ -171,6 +242,7 @@ func apply_command(label: String, patches: Array) -> String:
 	return _commit_command(label, patches)
 
 func _commit_command(label: String, patches: Array, binary_mementos: Dictionary = {}) -> String:
+	if track_edit_busy: return EDIT_BUSY
 	var prepared := _prepare_command(label, patches, binary_mementos)
 	if prepared.has("error"): return prepared.error
 	_install_command(prepared)
@@ -200,11 +272,11 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 		seen[key] = true
 		var before: Variant = _get_value(document, field, id)
 		var after: Variant = _get_value(candidate, field, id)
-		if _json_copy(before) != _json_copy(after):
+		if before != after:
 			mementos.append({"field": field, "id": id, "before": before, "after": after})
 	if mementos.is_empty():
 		return {"noop": true}
-	var command: Dictionary = _json_copy({"label": label, "patches": mementos})
+	var command: Dictionary = {"label": label, "patches": mementos.duplicate(true)}
 	var command_json := JSON.stringify(command)
 	var bytes := command_json.to_utf8_buffer().size()
 	for blob: PackedByteArray in binary_mementos.values(): bytes += blob.size()
@@ -218,6 +290,7 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 # Internal trusted preparation result only; never accepts adapter output directly.
 # The native job checks its one-shot ownership, epoch and immutable request first.
 func _install_command(prepared: Dictionary) -> String:
+	if track_edit_busy: return EDIT_BUSY
 	if prepared.get("noop", false): return ""
 	var command: Dictionary = prepared.command
 	var candidate: Dictionary = prepared.candidate
@@ -239,38 +312,49 @@ func redo() -> String:
 	return _travel_history(false)
 
 func _travel_history(reverse: bool) -> String:
+	if track_edit_busy: return EDIT_BUSY
 	if has_gesture():
 		return "Finish or cancel the current gesture first."
 	var source := undo_stack if reverse else redo_stack
 	if source.is_empty():
 		return ""
 	var command: Dictionary = source.back()
+	var prepared := _prepare_history(command, reverse)
+	if prepared.has("error"): return prepared.error
+	_install_history(prepared, reverse)
+	return ""
+
+func _prepare_history(command: Dictionary, reverse: bool) -> Dictionary:
 	var candidate := document.duplicate(true)
 	var failure := _apply(candidate, command.patches, reverse)
 	if failure != "":
-		return failure
+		return {"error":failure}
 	var validation := _validate(candidate)
 	if not validation.ok:
-		return reason(validation)
+		return {"error":reason(validation)}
 	if command.has("binary_mementos"):
 		# Detect external changes; never restore by rewriting an original source.
 		for path: String in command.binary_mementos:
 			var payload_source := PAYLOADS.read(project_path.path_join(path), HISTORY_BYTES)
 			if payload_source.has("error") or payload_source.bytes != command.binary_mementos[path]:
-				return "History payload changed or is missing: " + path
+				return {"error":"History payload changed or is missing: " + path}
 		failure = PAYLOADS.validate(self, candidate)
-		if failure != "": return failure
+		if failure != "": return {"error":failure}
+	return {"candidate":validation.data.document, "signature":_signature(validation.data.document)}
+
+func _install_history(prepared: Dictionary, reverse: bool) -> void:
 	# Transfer only after every patch and invariant passed.
-	source.pop_back()
+	var source := undo_stack if reverse else redo_stack
+	var command: Dictionary = source.pop_back()
 	(redo_stack if reverse else undo_stack).append(command)
-	document = validation.data.document
-	_after_edit()
-	return ""
+	document = prepared.candidate
+	_after_edit(prepared.signature)
 
 func has_gesture() -> bool:
 	return not _gesture.is_empty()
 
 func begin_gesture(label: String) -> String:
+	if track_edit_busy: return EDIT_BUSY
 	if has_gesture():
 		return "A gesture is already active."
 	command_epoch += 1
@@ -322,6 +406,7 @@ func _after_edit(prepared_signature: String = "") -> void:
 	changed.emit()
 
 func save_project(path: String) -> String:
+	if track_edit_busy: return EDIT_BUSY
 	if has_gesture():
 		return "Finish or cancel the current gesture before saving."
 	if path.is_empty():
@@ -354,6 +439,7 @@ func recovery_path() -> String:
 	return "user://recovery/" + str(document.get("map_id", "new")).sha256_text() + "-" + _recovery_id + ".json"
 
 func autosave() -> String:
+	if track_edit_busy: return "" # Defer the timer until the atomic edit completes.
 	if document.is_empty():
 		return ""
 	var validation := _validate(document)
@@ -417,6 +503,7 @@ func open_generated(value: Dictionary) -> String:
 	return ""
 
 func set_free_roam(value: bool) -> String:
+	if track_edit_busy: return EDIT_BUSY
 	var candidate := document.duplicate(true)
 	candidate.free_roam = value
 	var patches: Array = [{"field":"free_roam", "id":"", "before":document.free_roam, "after":value}]
@@ -430,25 +517,45 @@ func set_free_roam(value: bool) -> String:
 	return apply_command("Free roam map", patches)
 
 func track_source() -> Dictionary:
+	var assembly: Dictionary = document.get("assembled_track", {})
+	for field in ["authoring", "seed_source"]:
+		if assembly.get(field) is Dictionary: return assembly[field].duplicate(true)
 	var result: Dictionary = JSON.parse_string(bridge.track_authoring_source(JSON.stringify(document)))
 	return result.data if result.ok else {}
 
 func edit_track(source: Dictionary, expected_epoch: int = -1) -> String:
+	if track_edit_busy: return EDIT_BUSY
+	if has_gesture(): return "Finish or cancel the current gesture first."
+	if expected_epoch >= 0 and expected_epoch != command_epoch: return "Stale track edit; current map retained."
+	var prepared := _prepare_track(source)
+	if prepared.has("error"): return prepared.error
+	return _install_command(prepared)
+
+func _prepare_track(source: Dictionary) -> Dictionary:
 	if not document.has("assembled_track"):
 		for field: String in ["nodes","roads","heightmaps","surface_areas","water_bodies","buildings","zones","assets","placements","repetitions","gimmicks"]:
-			if not document.get(field,[]).is_empty(): return "Existing free roam geometry was preserved. Start a New Map to author track pieces."
-	if expected_epoch >= 0 and expected_epoch != command_epoch: return "Stale track edit; current map retained."
+			if not document.get(field,[]).is_empty(): return {"error":"Existing free roam geometry was preserved. Start a New Map to author track pieces."}
+	if document.get("assembled_track", {}).get("authoring") == source: return {"noop":true}
 	var result: Dictionary = JSON.parse_string(bridge.compile_track_source(JSON.stringify(source)))
-	if not result.ok: return reason(result)
+	if not result.ok: return {"error":reason(result)}
 	var candidate: Dictionary = result.data.document
 	candidate.free_roam = document.free_roam
 	candidate.provenance = document.provenance.duplicate(true)
 	candidate.attributions = document.get("attributions",[]).duplicate(true)
 	if candidate.free_roam:
 		result = JSON.parse_string(bridge.reseal_track_document(JSON.stringify(candidate)))
-		if not result.ok: return reason(result)
+		if not result.ok: return {"error":reason(result)}
 		candidate=result.data.document
-	return apply_command("Track assembly", [{"field":"track_document", "id":"", "before":document.duplicate(true), "after":candidate}])
+	var validation := _validate(candidate)
+	if not validation.ok: return {"error":reason(validation)}
+	candidate = validation.data.document
+	var command := {"label":"Track assembly", "patches":[{"field":"track_document", "id":"", "before":document, "after":candidate}]}
+	var text := JSON.stringify(command)
+	command.bytes = text.to_utf8_buffer().size()
+	if command.bytes > HISTORY_BYTES: return {"error":"Command exceeds the 16 MiB undo budget; split this operation."}
+	# Live edits replace documents, never mutate mementos; provenance is detached.
+	command = command.duplicate(true)
+	return {"candidate":candidate, "command":command, "signature":_signature(candidate)}
 
 func new_track(free_roam := false) -> void:
 	new_document()

@@ -1,0 +1,155 @@
+[
+  {
+    "count": 49,
+    "drag_ms": [
+      1.254,
+      0.953,
+      0.54,
+      0.534,
+      0.541,
+      0.555,
+      0.55,
+      0.541,
+      0.532,
+      0.53,
+      0.529,
+      0.535,
+      0.532,
+      0.535,
+      0.529,
+      0.529,
+      0.533,
+      0.535,
+      0.528,
+      0.529,
+      0.529,
+      0.53,
+      0.528,
+      0.529,
+      0.532,
+      0.528,
+      0.528,
+      0.53,
+      0.53,
+      0.529
+    ],
+    "grounded": true,
+    "pointer_ms": [
+      0.655,
+      0.562,
+      0.55,
+      0.556,
+      0.552,
+      0.542,
+      0.545,
+      0.563,
+      0.54,
+      0.543,
+      0.54,
+      0.55,
+      0.547,
+      0.54,
+      0.539,
+      0.539,
+      0.541,
+      0.538,
+      0.538,
+      0.545,
+      0.538,
+      0.538,
+      0.538,
+      0.539,
+      0.542,
+      0.539,
+      0.539,
+      0.542,
+      0.539,
+      0.543
+    ],
+    "repeat": 0,
+    "seed_generated": true,
+    "timings": [
+      {
+        "apply_ms": 0.0,
+        "complete_ms": 16.843,
+        "frame_gap_ms": 24.319,
+        "main_ms": 16.838,
+        "operation": "selection",
+        "submit_ms": 16.838,
+        "worker": {}
+      },
+      {
+        "apply_ms": 23.104,
+        "complete_ms": 925.605,
+        "frame_gap_ms": 43.87,
+        "main_ms": 23.104,
+        "operation": "move",
+        "submit_ms": 8.794,
+        "worker": {
+          "prepare_ms": 589.245,
+          "preview_ms": 285.959
+        }
+      },
+      {
+        "apply_ms": 23.059,
+        "complete_ms": 935.851,
+        "frame_gap_ms": 43.848,
+        "main_ms": 23.059,
+        "operation": "add",
+        "submit_ms": 8.012,
+        "worker": {
+          "prepare_ms": 589.451,
+          "preview_ms": 290.415
+        }
+      },
+      {
+        "apply_ms": 23.137,
+        "complete_ms": 935.687,
+        "frame_gap_ms": 43.7,
+        "main_ms": 23.137,
+        "operation": "property",
+        "submit_ms": 7.857,
+        "worker": {
+          "prepare_ms": 595.06,
+          "preview_ms": 288.423
+        }
+      },
+      {
+        "apply_ms": 16.406,
+        "complete_ms": 921.221,
+        "frame_gap_ms": 36.1,
+        "main_ms": 16.406,
+        "operation": "delete",
+        "submit_ms": 8.053,
+        "worker": {
+          "prepare_ms": 588.442,
+          "preview_ms": 289.585
+        }
+      },
+      {
+        "apply_ms": 15.821,
+        "complete_ms": 968.261,
+        "frame_gap_ms": 40.993,
+        "main_ms": 18.352,
+        "operation": "undo",
+        "submit_ms": 18.352,
+        "worker": {
+          "prepare_ms": 620.497,
+          "preview_ms": 284.515
+        }
+      },
+      {
+        "apply_ms": 16.307,
+        "complete_ms": 975.27,
+        "frame_gap_ms": 42.076,
+        "main_ms": 17.125,
+        "operation": "redo",
+        "submit_ms": 17.125,
+        "worker": {
+          "prepare_ms": 625.224,
+          "preview_ms": 285.299
+        }
+      }
+    ]
+  }
+]
