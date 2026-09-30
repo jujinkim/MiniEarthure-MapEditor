@@ -16,12 +16,12 @@
     },
     {
       "check": "icon_workbench_validator",
-      "scope": "146 assertions; shortcuts/favorites/placement; both modes at 1024x720, 1440x900, 1920x1080",
+      "scope": "147 assertions; shortcuts/favorites/placement; both modes at 1024x720, 1440x900, 1920x1080",
       "result": "passed with scope",
-      "seconds": 14.009,
+      "seconds": 13.942,
       "exit_code": 0,
       "unexpected_diagnostics": [],
-      "local_log": "/tmp/mapeditor-ux-final-preferences/editor-icon_workbench_validator.log"
+      "local_log": "/tmp/mapeditor-ux-snap-hints/editor-icon_workbench_validator.log"
     },
     {
       "check": "track_workbench_validator",
@@ -123,7 +123,7 @@
     "scripts/document_files.gd": "f013553c29526274c6914227db3a127c1aad0a17eb2fcbaf351bb41e01526fcd",
     "scripts/document_store.gd": "246862078d285f93ffd33f9f7e32cdce4c542afe1c832453b10fcbaffbcb7f35",
     "scripts/editor_entry.gd": "67972a117edf54c184a59eae396c8125b1efc7d283dc4a58e2caebf86d924913",
-    "scripts/editor_main.gd": "4bd62d469081bf6185a44f05da1ece78a68a7b25981cf8813b36998da0923bf1",
+    "scripts/editor_main.gd": "650417fe91045d107695e7fe5fa365aafca1698d111771b255378eab185145f8",
     "scripts/environment_panel.gd": "10b97c0b72945481c68ef40e2be2e83c30b3f863f5f3eacf87e8bec494d21828",
     "scripts/environment_preview.gd": "c747036dcd311d00ca14c421756b9350edc6344e780025e42a34e3741e39ecab",
     "scripts/export_report.gd": "c52b57478f8acbf2dbe2dde8cf63d13cb4a5b5a6378b587fc205fe4a60230af9",

@@ -115,7 +115,7 @@ record macOS arm64 / Godot 4.7.2.stable, using the unchanged MapKit pin
 | Automated check | Result |
 | --- | --- |
 | Palette entry validator | All 70 presets, action/obstacle previews, surface picking, pointer commit/replay passed |
-| Icon workbench validator | 146 checks passed: registry parity, mode ownership, input guards, settings/conflicts, favorites, placement/cancellation/failure, route order and layouts |
+| Icon workbench validator | 147 checks passed: registry parity, mode ownership, input guards, settings/conflicts, favorites, placement/cancellation/failure, route order and layouts |
 | Track workbench validator | Draft save/reopen/recovery, execution-export rejection, edits/Undo and late-generation protection passed |
 | Workspace commands / workbench | 32 / 66 checks passed |
 | Authoring safety / editor UX | 25 / 53 checks passed |

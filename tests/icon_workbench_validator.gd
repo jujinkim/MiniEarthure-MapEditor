@@ -113,9 +113,10 @@ func run() -> void:
 	check(commands.favorites.track[0] == "track.piece.loop", "filter and sort preserve slot identity")
 	commands.handle_key(key(KEY_1))
 	check(placement.tool == "loop", "slot executes assigned stable ID")
-	var custom := {"track.piece.loop":[REGISTRY.key("L")], "tool.road":[REGISTRY.key("L")]}
+	var custom := {"track.piece.loop":[REGISTRY.key("L")], "tool.road":[REGISTRY.key("L")], "edit.toggle_snap":[REGISTRY.key("H")]}
 	check(commands.conflicts(custom).is_empty(), "exclusive contexts can reuse a physical key")
 	check(commands.save_bindings(custom) == "", "custom keys persist")
+	check(ui.snap_toggle.tooltip_text == commands.tooltip("edit.toggle_snap") and bench.snap.tooltip_text == ui.snap_toggle.tooltip_text, "both snap hints follow remapped keys")
 	var conflict := custom.duplicate(true)
 	conflict["track.piece.straight"] = [REGISTRY.key("L")]
 	var settings_before := FileAccess.get_file_as_string(commands.settings_path)

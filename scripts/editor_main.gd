@@ -152,6 +152,9 @@ func _ready() -> void:
 	track_workbench=preload("./track_workbench.gd").new()
 	add_child(track_workbench)
 	track_workbench.build(self)
+	commands.settings_changed.connect(func():
+		snap_toggle.tooltip_text = commands.tooltip("edit.toggle_snap")
+		track_workbench.snap.tooltip_text = commands.tooltip("edit.toggle_snap"))
 	commands.load_settings()
 	commands.opening_popup.connect(_cancel_editing)
 	get_tree().node_added.connect(_watch_ui_node)
