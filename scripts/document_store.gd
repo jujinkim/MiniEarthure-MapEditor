@@ -99,6 +99,7 @@ func record_id(field: String, record: Dictionary) -> String:
 	return str(record.get("id", ""))
 
 func _get_value(target: Dictionary, field: String, id: String) -> Variant:
+	if field == "track_document": return target
 	if field in VALUE_FIELDS:
 		return target.get(field)
 	for record: Dictionary in target.get(field, []):
@@ -110,6 +111,8 @@ func _patch_error(patch: Variant) -> String:
 	if patch is not Dictionary or not patch.has_all(["field", "before", "after"]):
 		return "A command requires field, before and after mementos."
 	var field := str(patch.field)
+	if field == "track_document":
+		return "" if patch.before is Dictionary and patch.after is Dictionary else "Track document mementos required"
 	if field in VALUE_FIELDS:
 		if patch.get("id", "") != "":
 			return "Map-value commands have no record ID."
@@ -136,8 +139,12 @@ func _apply(target: Dictionary, patches: Array, reverse: bool) -> String:
 		var id := str(patch.get("id", ""))
 		var before: Variant = patch.after if reverse else patch.before
 		var after: Variant = patch.before if reverse else patch.after
-		if _json_copy(_get_value(target, field, id)) != _json_copy(before):
+		if (_signature(target) != _signature(before)) if field == "track_document" else (_json_copy(_get_value(target, field, id)) != _json_copy(before)):
 			return "Document changed since command creation."
+		if field == "track_document":
+			target.clear()
+			target.merge(_json_copy(after))
+			continue
 		if field in VALUE_FIELDS:
 			if field == "environment" and after == null: target.erase(field)
 			else: target[field] = _json_copy(after)
@@ -418,6 +425,39 @@ func set_free_roam(value: bool) -> String:
 		if not result.ok: return reason(result)
 		for course: Dictionary in document.get("courses",[]):
 			patches.append({"field":"courses", "id":course.course_id, "before":course, "after":null})
-		for course: Dictionary in result.data.document.courses:
+		for course: Dictionary in result.data.document.get("courses",[]):
 			patches.append({"field":"courses", "id":course.course_id, "before":null, "after":course})
 	return apply_command("자유주행형 맵", patches)
+
+func track_source() -> Dictionary:
+	var result: Dictionary = JSON.parse_string(bridge.track_authoring_source(JSON.stringify(document)))
+	return result.data if result.ok else {}
+
+func edit_track(source: Dictionary, expected_epoch: int = -1) -> String:
+	if not document.has("assembled_track"):
+		for field: String in ["nodes","roads","heightmaps","surface_areas","water_bodies","buildings","zones","assets","placements","repetitions","gimmicks"]:
+			if not document.get(field,[]).is_empty(): return "기존 자유주행 형상을 보존했습니다. 트랙 조각 제작은 New Map에서 시작하세요."
+	if expected_epoch >= 0 and expected_epoch != command_epoch: return "Stale track edit; current map retained."
+	var result: Dictionary = JSON.parse_string(bridge.compile_track_source(JSON.stringify(source)))
+	if not result.ok: return reason(result)
+	var candidate: Dictionary = result.data.document
+	candidate.free_roam = document.free_roam
+	candidate.provenance = document.provenance.duplicate(true)
+	candidate.attributions = document.get("attributions",[]).duplicate(true)
+	if candidate.free_roam:
+		result = JSON.parse_string(bridge.reseal_track_document(JSON.stringify(candidate)))
+		if not result.ok: return reason(result)
+		candidate=result.data.document
+	return apply_command("트랙 조립", [{"field":"track_document", "id":"", "before":document.duplicate(true), "after":candidate}])
+
+func new_track(free_roam := false) -> void:
+	new_document()
+	if free_roam:
+		document.free_roam=true
+	else:
+		var result: Dictionary=JSON.parse_string(bridge.compile_track_source(JSON.stringify(track_source())))
+		if result.ok:
+			result.data.document.provenance=document.provenance.duplicate(true)
+			document=result.data.document
+	_reset_session()
+	_after_edit()

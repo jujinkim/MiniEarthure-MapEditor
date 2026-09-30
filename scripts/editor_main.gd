@@ -26,6 +26,9 @@ var framed_cell := Vector2i(-1, -1)
 var preview_stats := {"generated": 0, "reused": 0, "attachment_frames": 0, "max_batch_usec": 0, "max_frame_usec": 0}
 var export_report: AcceptDialog
 var last_export_report := {}
+var track_workbench: Node
+var new_map_dialog: ConfirmationDialog
+var new_free_roam: CheckBox
 var track_job: Node
 var track_dialog: AcceptDialog
 var track_panel: Control
@@ -143,8 +146,11 @@ func _ready() -> void:
 	get_tree().auto_accept_quit = false
 	get_window().min_size = Vector2i(1024, 720)
 	_build_ui()
+	track_workbench=preload("./track_workbench.gd").new()
+	add_child(track_workbench)
+	track_workbench.build(self)
 	store.changed.connect(_document_changed)
-	store.new_document()
+	store.new_track()
 	_restore_workbench.call_deferred()
 	var timer := Timer.new()
 	timer.wait_time = 15
@@ -384,7 +390,9 @@ func _build_ui() -> void:
 	preview_container.custom_minimum_size = Vector2(200, 100)
 	preview_dock.add_child(preview_container)
 	preview_container.gui_input.connect(func(event: InputEvent):
-		if author_panel != null and author_panel.gimmick_panel != null and author_panel.gimmick_panel.surface_input(event):
+		if track_workbench != null and track_workbench.input(event):
+			preview_container.accept_event()
+		elif author_panel != null and author_panel.gimmick_panel != null and author_panel.gimmick_panel.surface_input(event):
 			preview_container.accept_event()
 		elif preview_camera.input(event): preview_container.accept_event())
 	viewport = SubViewport.new()
@@ -607,7 +615,16 @@ func _label(parent: Node, text: String) -> Label:
 	return label
 
 func _new() -> void:
-	_request_document_action("new")
+	if not is_instance_valid(new_map_dialog):
+		new_map_dialog=ConfirmationDialog.new()
+		new_map_dialog.title="New Map"
+		add_child(new_map_dialog)
+		new_free_roam=CheckBox.new()
+		new_free_roam.text="자유주행 맵 (기본: 트랙 조립)"
+		new_map_dialog.add_child(new_free_roam)
+		new_map_dialog.confirmed.connect(func(): _request_document_action("new"))
+	new_free_roam.button_pressed=false
+	new_map_dialog.popup_centered(Vector2i(400,160))
 
 func _request_document_action(action: String, path: String = "") -> void:
 	canvas.cancel_interaction()
@@ -659,7 +676,7 @@ func _continue_document_action() -> void:
 		return
 	match request.action:
 		"new":
-			store.new_document()
+			store.new_track(new_free_roam.button_pressed if is_instance_valid(new_free_roam) else false)
 			_status("New map. Previous unsaved changes remain in Recover.")
 		"open": failure = store.open_project(request.path)
 		"recover": failure = store.recover(request.path)
@@ -763,6 +780,8 @@ func _import_geojson() -> void:
 		import_dialog.popup_centered(Vector2i(760, 520))
 
 func _export() -> void:
+	var issues: Array=store.document.get("assembled_track",{}).get("issues",[])
+	if not issues.is_empty(): _status("실행용 내보내기 전 연결·코스를 수정하세요: "+" / ".join(issues)); return
 	if busy:
 		_status("Cancel the active operation or wait before exporting.")
 		return
@@ -772,6 +791,10 @@ func _export() -> void:
 	_choose("export")
 
 func _validate() -> void:
+	if track_workbench != null and track_workbench.active:
+		track_workbench.refresh()
+		_status(track_workbench.report.text)
+		return
 	_start_package("report")
 
 func _selection(ids: Array) -> void:
@@ -926,6 +949,7 @@ func _document_changed() -> void:
 	preview_y.max_value = ceili(float(bounds.max[1] - bounds.min[1]) / store.document.cell_size_cm) - 1
 	project_label.text = (store.project_path if store.project_path != "" else "Unsaved project") + ("  • modified" if store.dirty else "")
 	canvas.queue_redraw()
+	if track_workbench != null: track_workbench.refresh()
 
 func _tool_help(name: String) -> String:
 	var hints := {
@@ -999,10 +1023,18 @@ func _restore_workbench() -> void:
 	right_dock.split_offset = int(view_settings.get_value("panels", "vertical", 0))
 	snap_toggle.button_pressed = bool(view_settings.get_value("snap", "enabled", true))
 	snap_size.value = clampf(float(view_settings.get_value("snap", "metres", 1.0)), 0.01, 100.0)
-	author_panel.visible = bool(view_settings.get_value("panels", "authoring_visible", true))
+	author_panel.visible = store.document.get("free_roam",false) and bool(view_settings.get_value("panels", "authoring_visible", true))
 	if author_panel.visible and author_panel.tabs.get_tab_count() == 0: author_panel.open()
 	canvas.layer_state = view_settings.get_value("layers", displayed_map_id, {}).duplicate(true)
 	layers.refresh()
+	if not store.document.get("free_roam",false):
+		_set_view_mode("split")
+		workspace_views.move_child(preview_dock,0)
+		preview_dock.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		preview_dock.size_flags_stretch_ratio=3.0
+		canvas.size_flags_stretch_ratio=1.0
+		workspace_views.split_offset=300
+		track_workbench.refresh()
 
 func _save_workbench() -> void:
 	if canvas == null or left_dock == null: return
@@ -1758,14 +1790,14 @@ func _open_track_generator() -> void:
 		add_child(track_job)
 		track_job.completed.connect(func(_request: int, result: Dictionary):
 			if track_epoch != store.command_epoch: return
-			if not result.ok: _status(result.error.message); return
+			if not result.ok: _status(result.error.message); track_panel.note.text=result.error.message; return
 			var failure: String = store.open_generated(result.data.document)
 			if failure != "": _status(failure); return
 			_clear_preview_cache()
 			track_panel.show_result(result.data.document.assembled_track)
 			_status(track_panel.note.text)
 			track_dialog.hide()
-			_preview())
+			track_workbench.refresh())
 	if not is_instance_valid(track_dialog):
 		track_dialog = AcceptDialog.new()
 		track_dialog.title = "Seed Track"

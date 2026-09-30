@@ -4,7 +4,7 @@ func _initialize() -> void: run.call_deferred()
 func run() -> void:
 	var editor: Node = load("res://main.tscn").instantiate()
 	root.add_child(editor)
-	await process_frame
+	for _i in 4: await process_frame
 	assert(editor.store.document.recipe_version == 1)
 	assert(is_instance_valid(editor.canvas) and editor.canvas.visible)
 	var capture := OS.get_environment("MINIEARTHURE_INITIAL_SCREEN_CAPTURE")

@@ -11,6 +11,7 @@ var _defaults := {}
 var _duration_options := {}
 var note: Label
 var catalogue_ready := false
+var generate: Button
 
 func _load_catalogue() -> Dictionary:
 	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
@@ -64,18 +65,19 @@ func _ready() -> void:
 	var grid := GridContainer.new()
 	grid.columns = 2
 	form.add_child(grid)
-	var labels := {"sprint_lane":"질주코스 · 16m","cylinder":"원통","loop":"수직 루프","spiral_up":"상승 나선","spiral_down":"하강 나선","jump":"점프","obstacles":"장애물","acceleration_panel":"가속 패널","boost_chain":"연속 부스터","air_ring":"공중 링","banked_chicane":"U자 뱅크 코너","overpass":"고가 지름길","roller_waves":"연속 롤러 언덕","offset_jump":"옆으로 착지 점프"}
+	var labels := {"driving":"주행트랙", "gimmick":"기믹트랙", "action":"액션트랙"}
 	for id: String in catalogue.selection_ids:
 		var check := CheckBox.new()
 		check.text = labels.get(id,id)
-		check.button_pressed = id in _defaults.gimmicks
+		check.button_pressed = id in _defaults.categories
 		grid.add_child(check)
 		selections[id] = check
+		check.toggled.connect(func(_value: bool): _update_enabled())
 	note = Label.new()
-	note.text = "선택한 기믹은 모두 포함하며 필요하면 목표 시간보다 길어집니다. 도로와 원통 폭은 6·4·2m이고 seed에 따라 직선과 코너 비율이 달라집니다. 같은 기믹 계열은 최대 2개 연속입니다. 질주코스에는 자동 가속이 없습니다. 장애물은 기존 노면에 초급 약 64m·보통 32m·고급 16m당 하나씩 안전한 공간에 설치합니다."
+	note.text = "활성 카테고리에서 시드로 종류·폭·방향을 선택합니다. 모든 종류의 등장을 보장하지 않습니다. 목표는 기본 경로 예상 시간 ±10%이며, 기존 기준 속도에 따른 추정치입니다. 지름길 시간은 별도입니다."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	form.add_child(note)
-	var generate := Button.new()
+	generate = Button.new()
 	generate.text = "생성 / 재생성"
 	generate.pressed.connect(func():
 		if not seed_input.text.is_valid_int() or int(seed_input.text)<0 or int(seed_input.text)>9007199254740991:
@@ -83,6 +85,7 @@ func _ready() -> void:
 			return
 		requested.emit(settings()))
 	form.add_child(generate)
+	_update_enabled()
 	var cancel := Button.new()
 	cancel.text = "생성 취소"
 	cancel.pressed.connect(func(): cancelled.emit())
@@ -94,7 +97,7 @@ func settings() -> Dictionary:
 	for id: String in selections:
 		if selections[id].button_pressed: enabled.append(id)
 	return {"seed":int(seed_input.text),"circuit":circuit.button_pressed,"duration_seconds":duration.get_selected_id(),
-		"difficulty":["easy","normal","hard"][difficulty.selected],"time_minutes":roundi(time_input.value*60.0),"gimmicks":enabled}
+		"difficulty":["easy","normal","hard"][difficulty.selected],"time_minutes":roundi(time_input.value*60.0),"categories":enabled}
 
 func restore(value: Dictionary) -> void:
 	if not catalogue_ready: return
@@ -103,7 +106,8 @@ func restore(value: Dictionary) -> void:
 	_refresh_duration(int(value.duration_seconds))
 	difficulty.select(["easy","normal","hard"].find(value.difficulty))
 	time_input.value = float(value.time_minutes)/60.0
-	for id: String in selections: selections[id].button_pressed = id in value.gimmicks
+	for id: String in selections: selections[id].button_pressed = id in value.categories
+	_update_enabled()
 
 func _refresh_duration(seconds: int) -> void:
 	duration.clear()
@@ -118,6 +122,12 @@ func _refresh_duration(seconds: int) -> void:
 
 func show_result(assembly: Dictionary) -> void:
 	var seconds := float(assembly.estimated_msec) / 1000.0
-	var excess := maxf(0.0, seconds - float(assembly.settings.duration_seconds))
-	note.text = "생성 결과 · 길이 %.1fm · 예상 %.1f초 · 일반도로 직선 %.1f%%" % [float(assembly.length_cm)/100.0, seconds, 100.0*float(assembly.ordinary_straight_cm)/maxf(1.0,float(assembly.ordinary_length_cm))]
-	if excess > 0.0: note.text += " · 요청보다 %.1f초 초과 (필수 기믹·연결 유지)" % excess
+	note.text = "생성 결과 · 길이 %.1fm · 기본 경로 예상 %.1f초 / 목표 %d초 · 기준 속도 추정" % [float(assembly.length_cm)/100.0, seconds, int(assembly.settings.duration_seconds)]
+	for route: Dictionary in assembly.get("routes",[]).slice(1):
+		note.text += " · 지름길 %.1f초" % (float(route.estimated_msec)/1000.0)
+
+func _update_enabled() -> void:
+	if not is_instance_valid(generate): return
+	generate.disabled = true
+	for check: CheckBox in selections.values():
+		if check.button_pressed: generate.disabled = false
