@@ -12,6 +12,7 @@ var popup: PopupMenu
 var assigning := ""
 
 func build(commands: PopupPanel, context: String, items: Array[Dictionary]) -> void:
+	STYLE.outline(self)
 	registry = commands
 	mode = context
 	entries = items
@@ -23,6 +24,7 @@ func build(commands: PopupPanel, context: String, items: Array[Dictionary]) -> v
 	favorites_scroll.custom_minimum_size.y = 64
 	favorites_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(favorites_scroll)
+	STYLE.outline(favorites_scroll)
 	favorites_row = HBoxContainer.new()
 	favorites_scroll.add_child(favorites_row)
 	var row := HBoxContainer.new()

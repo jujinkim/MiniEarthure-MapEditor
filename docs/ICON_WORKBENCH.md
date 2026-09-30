@@ -210,3 +210,24 @@ This is an implementation delivery, not product-wide release acceptance.
 
 Changes are delivered on `main`, MapEditor first and root gitlink/compatibility pin
 last. The root's §44.234 explicitly replaces §44.233's appearance requirement.
+
+
+## Section boundaries — 2026-10-01
+
+Following user review, the Luna appearance now adds a consistent 1px light blue-grey
+`#B8C2CF` boundary to the menu, toolbar groups, project strip, palettes/favorites,
+object-layer controls, central workspace and views, properties/expanded sections,
+snap controls and output controls. Existing panel backgrounds share the lighter
+border. Frames are drawn in existing container gaps, retaining the menu dimensions,
+52px four-column palette, split handles, focus and pointer routing. No document,
+command, icon-loading or MapKit contract changed.
+
+[Initial screen](validation/section-borders-2026-10-01/initial-screen.png) and
+[scoped results](validation/section-borders-2026-10-01/results.json) record the change.
+The existing icon workbench validator passed 297 assertions, including both modes
+at 1024×720, 1440×900 and 1920×1080. The standalone initial screen rendered with
+visible icons and no blocking load errors or unexpected diagnostics. Valid native
+and import artifacts were reused. There are no known failures in this scope;
+detailed editing, Godot Editor/OS/DPI/device acceptance remain user verification.
+The confirmed visual refinement is recorded in root architecture §44.235 and is
+delivered on main, child first, then the root gitlink and compatibility pin.

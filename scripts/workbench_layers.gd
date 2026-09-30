@@ -13,6 +13,7 @@ var selection_queued := false
 var pending_layer := ""
 
 func _ready() -> void:
+	preload("./workbench_style.gd").outline(self)
 	search = LineEdit.new()
 	search.placeholder_text = "Filter object ID…"
 	search.text_changed.connect(func(_value): refresh())

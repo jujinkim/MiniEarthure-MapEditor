@@ -8,6 +8,7 @@ const SELECTION := Color("dcebff")
 const YELLOW := Color("ffcc66")
 const CORAL := Color("df704b")
 const BORDER := Color("8a9aaf")
+const SECTION_BORDER := Color("b8c2cf")
 const GRID := Color("d3dce7")
 const CANVAS := Color("f4f6fa")
 static var textures: Dictionary = {}
@@ -46,6 +47,16 @@ static func box(color: Color, border := BORDER, inset := 6) -> StyleBoxFlat:
 	style.set_content_margin_all(inset)
 	style.set_corner_radius_all(3)
 	return style
+
+static func outline(control: Control) -> void:
+	# Paint in the existing container gap; keep layout, split handles and input intact.
+	if control.has_meta("section_outline"): return
+	control.set_meta("section_outline", true)
+	var frame := box(Color.TRANSPARENT, SECTION_BORDER, 0)
+	frame.set_corner_radius_all(2)
+	control.draw.connect(func(): control.draw_style_box(frame, Rect2(Vector2(-1, -1), control.size + Vector2(2, 2))))
+	control.resized.connect(control.queue_redraw)
+	control.queue_redraw()
 
 static func bevel(top: Color, bottom: Color, border := BORDER, pressed := false) -> StyleBoxTexture:
 	# Nine-slice artwork is made in memory so even cold source launches have chrome.
@@ -109,7 +120,7 @@ static func create_theme() -> Theme:
 			var state := "checked" if checked else "unchecked"
 			result.set_icon(state, type, checkbox(checked))
 			result.set_icon(state + "_disabled", type, checkbox(checked, true))
-	for type in ["PanelContainer", "PopupPanel", "TabContainer", "AcceptDialog"]: result.set_stylebox("panel", type, box(PANEL))
+	for type in ["PanelContainer", "PopupPanel", "TabContainer", "AcceptDialog"]: result.set_stylebox("panel", type, box(PANEL, SECTION_BORDER))
 	for type in ["PopupMenu", "Tree", "ItemList"]: result.set_stylebox("panel", type, box(PAPER))
 	result.set_stylebox("hover", "PopupMenu", box(SELECTION, Color("9db8dc"), 3))
 	result.set_stylebox("panel", "TooltipPanel", box(Color("ffffe1"), Color("66738a")))

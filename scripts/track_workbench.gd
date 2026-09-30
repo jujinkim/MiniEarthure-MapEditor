@@ -76,6 +76,7 @@ func build(owner: Control) -> void:
 	palette_tools.build(editor.commands, "track", entries)
 	var actions := HBoxContainer.new()
 	palette.add_child(actions)
+	STYLE.outline(actions)
 	editor.commands.button(actions, "tool.select")
 	editor.commands.button(actions, "view.frame")
 	editor.commands.button(actions, "edit.duplicate")
@@ -98,6 +99,7 @@ func build(owner: Control) -> void:
 	snap.button_pressed = true
 	snap.toggled.connect(func(_on: bool): placement.invalidate_candidate())
 	palette.add_child(snap)
+	STYLE.outline(snap)
 	properties = VBoxContainer.new()
 	properties.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	editor.properties.get_parent().add_child(properties)
@@ -186,6 +188,7 @@ func _section(title: String) -> VBoxContainer:
 	var content := VBoxContainer.new()
 	content.visible = section_open[title]
 	properties.add_child(content)
+	STYLE.outline(content)
 	header.pressed.connect(func():
 		section_open[title] = not section_open[title]
 		content.visible = section_open[title]

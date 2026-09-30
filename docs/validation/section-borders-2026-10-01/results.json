@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-01",
+  "baseline_map_editor": "0af31b81e657f6929e17575261566902d9ed481c",
+  "platform": "macOS arm64",
+  "godot": "4.7.2.stable.mono.official.ed1daf0bf",
+  "mapkit_pin": "ccead3e31ec469f5fde93103b369d7a2a8f29c8e",
+  "checks": {
+    "layout": {
+      "local_record": "/tmp/mapeditor-section-layout/editor-icon_workbench_validator.json",
+      "result": {
+        "command": [
+          "/Applications/Godot_mono.app/Contents/MacOS/Godot",
+          "--headless",
+          "--path",
+          "/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/miniearthure-check-a_2m43vt",
+          "--script",
+          "res://tests/icon_workbench_validator.gd"
+        ],
+        "elapsed_seconds": 11.767,
+        "exit_code": 0,
+        "unexpected_diagnostics": [],
+        "strict_applied": true,
+        "import_cache": "/private/tmp/mapeditor-luna-import",
+        "owned_children": {}
+      }
+    },
+    "standalone_initial": {
+      "local_record": "/tmp/mapeditor-section-initial/editor-initial_screen_validator.json",
+      "result": {
+        "command": [
+          "/Applications/Godot_mono.app/Contents/MacOS/Godot",
+          "--path",
+          "/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/miniearthure-check-xcczynwj",
+          "--script",
+          "res://tests/initial_screen_validator.gd"
+        ],
+        "elapsed_seconds": 1.975,
+        "exit_code": 0,
+        "unexpected_diagnostics": [],
+        "strict_applied": true,
+        "import_cache": "/private/tmp/mapeditor-luna-import",
+        "owned_children": {}
+      }
+    }
+  },
+  "source_sha256": {
+    "scripts/editor_main.gd": "ec24c0f9f05f11e64f1b3d8b3c527c52fc57e60623ff81c76f354f78a7fad71c",
+    "scripts/track_workbench.gd": "db9e89f4688186ce323182856fa76879aa929b995b0963dc7328299ac7cd7a89",
+    "scripts/workbench_layers.gd": "5afb3c462b4af9a6f476feee70321278279056043ef95ccb3f7b6dfb15efb9c3",
+    "scripts/workbench_palette.gd": "4560b3376dc7f321c689b82ebdd99a68a4720fe7ac29e27397a68328f6d5a2de",
+    "scripts/workbench_style.gd": "d7505cf55d3ba620ca3148197ebee83cd779d3cd32fc7c9ee931008ee97b1073"
+  },
+  "implementation": "One-pixel #B8C2CF section outlines, painted in existing container gaps without changing input or split layout. Toolbar groups have explicit boxes. Existing panel chrome shares the light border.",
+  "known_failures": [],
+  "user_verification": [
+    "Detailed editing comfort",
+    "Godot Editor/OS/DPI/device acceptance"
+  ],
+  "scope": "297 existing command/placement/layout assertions, both modes at three sizes, standalone initial-screen render and load diagnostics. Valid native/import caches reused; no full or platform export suite."
+}

@@ -194,6 +194,7 @@ func _build_ui() -> void:
 	var title_row := HBoxContainer.new()
 	title_row.name = "MenuRow"
 	column.add_child(title_row)
+	WORKBENCH_STYLE.outline(title_row)
 	commands = preload("./workspace_commands.gd").new()
 	add_child(commands)
 	_register_commands()
@@ -206,9 +207,14 @@ func _build_ui() -> void:
 	title_row.add_child(title)
 	var bar := HBoxContainer.new()
 	column.add_child(bar)
+	var toolbar_groups := {}
 	for group in [["File", ["file.new", "file.open", "file.save", "file.export_map"]], ["Edit", ["edit.undo", "edit.redo", "edit.duplicate", "edit.delete"]], ["Create", ["create.seed_track"]], ["Inspect", ["validate.validate", "view.commands", "edit.shortcuts"]]]:
-		_label(bar, group[0])
-		for id: String in group[1]: commands.button(bar, id)
+		var group_row := HBoxContainer.new()
+		bar.add_child(group_row)
+		toolbar_groups[group[0]] = group_row
+		WORKBENCH_STYLE.outline(group_row)
+		_label(group_row, group[0])
+		for id: String in group[1]: commands.button(group_row, id)
 	regional_grouping = SpinBox.new()
 	regional_grouping.min_value = 1
 	regional_grouping.max_value = 128
@@ -218,7 +224,7 @@ func _build_ui() -> void:
 	var import_work_button := Button.new()
 	WORKBENCH_STYLE.decorate(import_work_button, "Import work", "Inspect leftover import work.", "import")
 	import_work_button.tooltip_text = "Inspect leftover local import work without changing files."
-	bar.add_child(import_work_button)
+	toolbar_groups["Inspect"].add_child(import_work_button)
 	import_recovery = IMPORT_RECOVERY.new()
 	import_recovery.banner = import_work_button
 	add_child(import_recovery)
@@ -226,6 +232,7 @@ func _build_ui() -> void:
 	project_label = Label.new()
 	project_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	column.add_child(project_label)
+	WORKBENCH_STYLE.outline(project_label)
 	outer_split = HSplitContainer.new()
 	var split := outer_split
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -254,11 +261,13 @@ func _build_ui() -> void:
 	author_panel.hide()
 	var edits := HBoxContainer.new()
 	left.add_child(edits)
+	WORKBENCH_STYLE.outline(edits)
 	_button(edits, "Authoring settings…", func(): author_panel.open())
 	commands.button(edits, "edit.duplicate")
 	commands.button(edits, "edit.delete")
 	var snap := HBoxContainer.new()
 	left.add_child(snap)
+	WORKBENCH_STYLE.outline(snap)
 	snap_toggle = CheckButton.new()
 	snap_toggle.text = "Snap (m)"
 	snap_toggle.button_pressed = true
@@ -289,6 +298,7 @@ func _build_ui() -> void:
 	var center := VBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_split.add_child(center)
+	WORKBENCH_STYLE.outline(center)
 	selection_label = Label.new()
 	selection_label.add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
 	selection_label.text = "2D MAP  ·  Select  ·  0 selected"
@@ -302,6 +312,7 @@ func _build_ui() -> void:
 	workspace_views.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center.add_child(workspace_views)
 	workspace_views.add_child(canvas)
+	WORKBENCH_STYLE.outline(canvas)
 	tool_hint = Label.new()
 	tool_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tool_hint.max_lines_visible = 2
@@ -315,6 +326,7 @@ func _build_ui() -> void:
 	property_dock.custom_minimum_size.y = 140
 	property_dock.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_dock.add_child(property_dock)
+	WORKBENCH_STYLE.outline(property_dock)
 	_label(property_dock, "PROPERTIES").add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -328,6 +340,7 @@ func _build_ui() -> void:
 	preview_dock.custom_minimum_size = Vector2(200, 160)
 	preview_dock.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	workspace_views.add_child(preview_dock)
+	WORKBENCH_STYLE.outline(preview_dock)
 	var controls := HFlowContainer.new()
 	preview_dock.add_child(controls)
 	_label(controls, "Cell")
@@ -412,6 +425,7 @@ func _build_ui() -> void:
 	output_tabs.add_child(activity)
 	var view_bar := HFlowContainer.new()
 	activity.add_child(view_bar)
+	WORKBENCH_STYLE.outline(view_bar)
 	cancel_button = _button(view_bar, "Cancel operation", _cancel_operation)
 	cancel_button.disabled = true
 	retry_import_button = _button(view_bar, "Retry import…", _import_geojson)
