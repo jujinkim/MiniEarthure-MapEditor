@@ -1,0 +1,108 @@
+extends SceneTree
+const STYLE := preload("res://style.gd")
+var output := OS.get_environment("POPUP_PROBE_OUTPUT")
+var report := {"windows":[], "hover_colors":{}, "hover_states":[]}
+var hovered := {"tab":-1, "nested_tab":-1}
+func _initialize() -> void: run.call_deferred()
+func settle() -> void:
+	for _i in 4: await process_frame
+	await RenderingServer.frame_post_draw
+func motion(view: Viewport, position: Vector2) -> void:
+	var event := InputEventMouseMotion.new()
+	event.position = position
+	event.global_position = position
+	event.relative = Vector2.ONE
+	view.push_input(event)
+func run() -> void:
+	root.size = Vector2i(1024, 720)
+	root.gui_embed_subwindows = true
+	RenderingServer.set_default_clear_color(STYLE.CANVAS)
+	var theme := STYLE.create_theme()
+	var sheet := Image.create(620, 60 * 4, false, Image.FORMAT_RGBA8)
+	var windows: Array[Window] = [Window.new(), AcceptDialog.new(), ConfirmationDialog.new(), FileDialog.new()]
+	for i in windows.size():
+		var popup := windows[i]
+		popup.theme = theme
+		popup.title = popup.get_class() + " · Close button"
+		if popup is FileDialog:
+			popup.access = FileDialog.ACCESS_RESOURCES
+			popup.current_dir = "res://"
+		root.add_child(popup)
+		popup.popup_centered(Vector2i(600, 320))
+		await settle()
+		var border: StyleBoxFlat = popup.get_theme_stylebox("embedded_border")
+		var frame := Rect2(Vector2(popup.position), Vector2(popup.size)).grow_individual(border.expand_margin_left, border.expand_margin_top, border.expand_margin_right, border.expand_margin_bottom)
+		var close := Rect2(Vector2(popup.position) + Vector2(popup.size.x - popup.get_theme_constant("close_h_offset"), -popup.get_theme_constant("close_v_offset")), popup.get_theme_icon("close").get_size())
+		var title := Rect2(Vector2(popup.position) - Vector2(0, popup.get_theme_constant("title_height")), Vector2(popup.size.x, popup.get_theme_constant("title_height")))
+		var pixels := root.get_texture().get_image()
+		var sample := popup.position + Vector2i(8, -popup.get_theme_constant("title_height") + 8)
+		report.windows.append({"type":popup.get_class(), "close_inside_painted_frame":frame.encloses(close), "close_inside_title_bar":title.encloses(close), "title_background_painted":pixels.get_pixelv(sample).is_equal_approx(border.bg_color), "frame":str(frame), "close":str(close)})
+		var region := Rect2i(popup.position - Vector2i(10, 42), Vector2i(620, 60))
+		sheet.blit_rect(pixels, region, Vector2i(0, i * 60))
+		popup.hide()
+		popup.queue_free()
+		await process_frame
+	sheet.save_png(output.path_join("dialog-headers.png"))
+	var surface := SubViewport.new()
+	surface.size = Vector2i(600, 300)
+	surface.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(surface)
+	var panel := Panel.new()
+	panel.size = Vector2(600, 300)
+	panel.theme = theme
+	panel.add_theme_stylebox_override("panel", STYLE.box(STYLE.PANEL))
+	surface.add_child(panel)
+	var tabs := TabBar.new()
+	tabs.position = Vector2(12, 12)
+	tabs.size = Vector2(560, 34)
+	tabs.add_tab("Selected")
+	tabs.add_tab("Hover tab")
+	panel.add_child(tabs)
+	tabs.tab_hovered.connect(func(index: int): hovered.tab = index)
+	var nested := TabContainer.new()
+	nested.position = Vector2(12, 52)
+	nested.size = Vector2(560, 48)
+	for name in ["Selected", "Hover nested tab"]:
+		var page := Control.new()
+		page.name = name
+		nested.add_child(page)
+	panel.add_child(nested)
+	nested.get_tab_bar().tab_hovered.connect(func(index: int): hovered.nested_tab = index)
+	var tree := Tree.new()
+	tree.position = Vector2(12, 110)
+	tree.size = Vector2(275, 95)
+	tree.hide_root = true
+	panel.add_child(tree)
+	var tree_root := tree.create_item()
+	for title in ["Hover tree row", "Selected tree row", "Other tree row"]: tree.create_item(tree_root).set_text(0, title)
+	var list := ItemList.new()
+	list.position = Vector2(300, 110)
+	list.size = Vector2(275, 95)
+	for title in ["Hover list item", "Selected list item", "Other list item"]: list.add_item(title)
+	panel.add_child(list)
+	var button := Button.new()
+	button.text = "Hover button"
+	button.position = Vector2(12, 220)
+	button.size = Vector2(180, 40)
+	panel.add_child(button)
+	await settle()
+	var targets := [tabs.get_global_position() + tabs.get_tab_rect(1).get_center(), nested.get_tab_bar().get_global_position() + nested.get_tab_bar().get_tab_rect(1).get_center(), tree.position + Vector2(70, 17), list.position + list.get_item_rect(0).get_center(), tree.position + Vector2(70, 37), list.position + list.get_item_rect(1).get_center(), button.position + button.size / 2]
+	var hover_sheet := Image.create(600 * 2, 300 * 4, false, Image.FORMAT_RGBA8)
+	for i in targets.size():
+		if i == 4: tree_root.get_child(1).select(0)
+		if i == 5: list.select(1)
+		motion(surface, targets[i])
+		await settle()
+		report.hover_states.append({"index":i, "tab":hovered.tab, "nested_tab":hovered.nested_tab, "button":button.get_draw_mode(), "tabs_size":str(tabs.size), "mouse":str(surface.get_mouse_position()), "target":str(targets[i])})
+		hover_sheet.blit_rect(surface.get_texture().get_image(), Rect2i(0,0,600,300), Vector2i((i % 2) * 600, (i / 2) * 300))
+	hover_sheet.save_png(output.path_join("hover-controls.png"))
+	for type in ["TabBar", "TabContainer", "Tree", "ItemList"]:
+		for key in ["font_hovered_color", "font_hovered_selected_color"]:
+			if ThemeDB.get_default_theme().has_color(key, type):
+				var control: Control = {"TabBar":tabs, "TabContainer":nested, "Tree":tree, "ItemList":list}[type]
+				report.hover_colors[type + "/" + key] = control.get_theme_color(key, type).to_html()
+	FileAccess.open(output.path_join("results.json"), FileAccess.WRITE).store_string(JSON.stringify(report, "  "))
+	surface.queue_free()
+	for _i in 3: await process_frame
+	print("popup_style_probe: PASS")
+	quit()

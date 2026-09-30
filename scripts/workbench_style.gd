@@ -11,6 +11,8 @@ const BORDER := Color("8a9aaf")
 const SECTION_BORDER := Color("b8c2cf")
 const GRID := Color("d3dce7")
 const CANVAS := Color("f4f6fa")
+const DIALOG_TITLE_HEIGHT := 32
+const DIALOG_CLOSE_SIZE := 24
 static var textures: Dictionary = {}
 const ICON_NAMES := [
 	"2d", "3d", "area", "building", "cancel",
@@ -86,12 +88,26 @@ static func checkbox(checked: bool, disabled := false) -> Texture2D:
 	var mark := '<path d="M4 8l3 3 5-7" fill="none" stroke="#3d8e36" stroke-width="2"/>' if checked else ""
 	return svg_texture('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect x="1" y="1" width="13" height="13" rx="2" fill="#ffffff" stroke="#' + ink + '"/>' + mark + '</svg>')
 
+static func window_border(color: Color) -> StyleBoxFlat:
+	var style := box(color, Color("1945a4"))
+	# Embedded windows draw this box around the content rect; the title and X
+	# live above it. Paint that area as well so the whole window has one frame.
+	style.expand_margin_top = DIALOG_TITLE_HEIGHT
+	style.expand_margin_left = 1
+	style.expand_margin_right = 1
+	style.expand_margin_bottom = 1
+	return style
+
+static func window_close(pressed: bool) -> Texture2D:
+	var fill := SELECTION.to_html(false) if pressed else PAPER.to_html(false)
+	return svg_texture('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect x="0.5" y="0.5" width="23" height="23" rx="3" fill="#' + fill + '" stroke="#8a9aaf"/><path d="M8 8l8 8M16 8l-8 8" fill="none" stroke="#1f2b3d" stroke-width="2" stroke-linecap="round"/></svg>')
+
 static func create_theme() -> Theme:
 	var result := Theme.new()
 	result.default_font_size = 14
 	var focus := box(Color.TRANSPARENT, BLUE, 0)
-	for type in ["Label", "Button", "CheckBox", "CheckButton", "MenuButton", "OptionButton", "LineEdit", "TextEdit", "Tree", "ItemList", "TabBar", "TabContainer", "PopupMenu", "Window", "TooltipLabel", "RichTextLabel"]:
-		for color in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_selected_color", "font_hover_pressed_color", "font_readonly_color", "font_unselected_color"]:
+	for type in ["Label", "Button", "CheckBox", "CheckButton", "MenuButton", "OptionButton", "LinkButton", "LineEdit", "TextEdit", "Tree", "ItemList", "TabBar", "TabContainer", "PopupMenu", "Window", "TooltipLabel", "RichTextLabel"]:
+		for color in ["font_color", "font_hover_color", "font_hovered_color", "font_hovered_dimmed_color", "font_hovered_selected_color", "font_pressed_color", "font_focus_color", "font_selected_color", "font_hover_pressed_color", "font_readonly_color", "font_uneditable_color", "font_unselected_color"]:
 			result.set_color(color, type, INK)
 		result.set_color("font_disabled_color", type, Color("858a92"))
 		result.set_color("font_placeholder_color", type, Color("687588"))
@@ -123,6 +139,9 @@ static func create_theme() -> Theme:
 	for type in ["PanelContainer", "PopupPanel", "TabContainer", "AcceptDialog"]: result.set_stylebox("panel", type, box(PANEL, SECTION_BORDER))
 	for type in ["PopupMenu", "Tree", "ItemList"]: result.set_stylebox("panel", type, box(PAPER))
 	result.set_stylebox("hover", "PopupMenu", box(SELECTION, Color("9db8dc"), 3))
+	result.set_color("font_accelerator_color", "PopupMenu", Color("55647a"))
+	result.set_color("font_separator_color", "PopupMenu", INK)
+	result.set_color("custom_button_font_highlight", "Tree", INK)
 	result.set_stylebox("panel", "TooltipPanel", box(Color("ffffe1"), Color("66738a")))
 	for type in ["LineEdit", "TextEdit"]:
 		result.set_stylebox("normal", type, box(PAPER))
@@ -130,6 +149,13 @@ static func create_theme() -> Theme:
 	for type in ["Tree", "ItemList"]:
 		result.set_stylebox("selected", type, box(SELECTION, BORDER, 2))
 		result.set_stylebox("selected_focus", type, box(SELECTION, BLUE, 2))
+		result.set_stylebox("hovered", type, box(Color("eef5ff"), SECTION_BORDER, 2))
+		result.set_stylebox("hovered_selected", type, box(SELECTION, BORDER, 2))
+		result.set_stylebox("hovered_selected_focus", type, box(SELECTION, BLUE, 2))
+	result.set_color("title_button_color", "Tree", INK)
+	result.set_stylebox("title_button_normal", "Tree", box(PANEL))
+	for state in ["title_button_hover", "title_button_pressed", "custom_button_hover"]:
+		result.set_stylebox(state, "Tree", box(SELECTION, BORDER, 2))
 	for type in ["TabContainer", "TabBar"]:
 		result.set_stylebox("tab_selected", type, bevel(Color("ffffff"), PANEL, Color("7a9ac4")))
 		result.set_stylebox("tab_unselected", type, box(Color("deded6")))
@@ -139,9 +165,15 @@ static func create_theme() -> Theme:
 		result.set_stylebox("grabber", type, bevel(Color("ebf3ff"), Color("bbcee8")))
 		result.set_stylebox("grabber_highlight", type, bevel(Color("ffffff"), SELECTION, BLUE))
 		result.set_stylebox("grabber_pressed", type, bevel(SELECTION, Color("a8bfdf"), BLUE, true))
-	result.set_stylebox("embedded_border", "Window", box(BLUE, Color("1945a4")))
+	result.set_stylebox("embedded_border", "Window", window_border(BLUE))
+	result.set_stylebox("embedded_unfocused_border", "Window", window_border(Color("41658f")))
 	result.set_color("title_color", "Window", Color.WHITE)
-	result.set_constant("title_height", "Window", 28)
+	result.set_font_size("title_font_size", "Window", 14)
+	result.set_constant("title_height", "Window", DIALOG_TITLE_HEIGHT)
+	result.set_constant("close_h_offset", "Window", DIALOG_CLOSE_SIZE + 4)
+	result.set_constant("close_v_offset", "Window", DIALOG_CLOSE_SIZE + 4)
+	result.set_icon("close", "Window", window_close(false))
+	result.set_icon("close_pressed", "Window", window_close(true))
 	result.set_constant("h_separation", "GridContainer", 6)
 	result.set_constant("v_separation", "GridContainer", 6)
 	result.set_constant("h_separation", "HFlowContainer", 4)

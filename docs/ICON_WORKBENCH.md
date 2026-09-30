@@ -310,3 +310,39 @@ then root gitlink/compatibility pin. There are no known failures in the scoped
 checks. Actual Windows Godot → Client → Editor launch, detailed editing, OS/device
 and exported-application acceptance remain user verification. No full bootstrap,
 export matrix, recursive clone or detailed interactive acceptance was performed.
+
+## Popup frames and readable hover text — 2026-10-01
+
+User review confirmed the source-startup correction, then reported floating popup
+close buttons and near-white hover text on light backgrounds. The common theme
+painted `Window.embedded_border` only over the content rectangle; Godot draws the
+title and close icon above it. Tabs, trees and item lists also use
+`font_hovered_color` / `font_hovered_selected_color`, which the earlier
+`font_hover_color` override did not cover.
+
+The shared theme now paints a 32px title bar in both focused and unfocused frames.
+A 24px close control sits within it with 4px insets, a light button face and a dark
+X in normal and pressed states. Tab/tree/list hover and selected-hover labels keep
+the ink color; tree column headers, menu separator/shortcut text and read-only
+inputs also have explicit light-theme colors. Tree/list hover backgrounds remain
+light. Main-menu spacing, editor commands, popup lifecycle and native APIs do not
+change. All product changes are in `workbench_style.gd`.
+
+[Before/after evidence](validation/popup-theme-2026-10-01/results.json) includes
+[popup title bars](validation/popup-theme-2026-10-01/dialog-headers.png), generated
+with synthetic controls and isolated user data on macOS / Godot 4.7.2. For Window,
+AcceptDialog, ConfirmationDialog and FileDialog, the prior frame excluded the X
+and had no painted title background; after the fix both containment and sampled
+title pixels passed. Live control theme lookups for the six affected hover colors
+changed from `#F2F2F2` / white to `#1F2B3D`.
+
+The existing six-state icon-rendering regression and standalone initial-screen
+check passed without unexpected diagnostics. Native/import results were reused;
+no full suite or export matrix ran. The disposable rendering probe initially
+used an unavailable geometry/hover getter and was corrected; its offscreen tab
+mouse injection did not activate tab hover, so the hover evidence is explicitly
+resolved control theme values, not an OS pointer acceptance result. Detailed
+Windows pointer hover, popup dragging and DPI behavior remain user verification.
+There are no known product failures in the scoped checks. Baseline MapEditor is
+`6dac9404936d5829c16eb0519830b5918eb26df7`; deliver on main, child first and root pin
+last. Root architecture §44.237 records this presentation correction.
