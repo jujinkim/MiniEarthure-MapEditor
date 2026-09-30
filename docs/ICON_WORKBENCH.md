@@ -231,3 +231,82 @@ and import artifacts were reused. There are no known failures in this scope;
 detailed editing, Godot Editor/OS/DPI/device acceptance remain user verification.
 The confirmed visual refinement is recorded in root architecture §44.235 and is
 delivered on main, child first, then the root gitlink and compatibility pin.
+
+## Source launch without import metadata — 2026-10-01
+
+### Reproduction and implementation
+
+The user reported **Drawing tools / 2D MAP**, only Select enabled, and unavailable
+Seed Track generation after a successful Windows native build, opening MapEditor
+from Godot → Client → Map editor. The current Client correctly launches the sibling
+source project with `--path`; the build helper includes its debug MapKit DLL and
+checks copied hashes. Neither path performs a Godot import scan.
+
+A disposable project with the current native library but no `.godot` directory
+reproduced the symptoms: `MapKitBridge` was not registered, `track_catalogue()`
+failed during workbench construction, and the base free-roam screen remained while
+the document/commands selected track mode. Earlier “cold” icon checks removed
+compiled textures but retained `extension_list.cfg`, so they did not cover this
+startup condition. The Windows user's actual log was not available; this is a
+matching local reproduction, not a claimed test on that PC.
+
+`editor_entry.gd` now calls `mapkit_startup.gd` before dynamically loading the
+editor or private worker scene. It explicitly loads the installed extension when
+needed, reuses an already registered one, and checks the required native classes,
+track methods and catalogue shape. It uses Godot's
+[GDExtensionManager](https://docs.godotengine.org/en/stable/classes/class_gdextensionmanager.html).
+There is no alternate native implementation, format conversion or import-cache
+rewrite. Client, the build helper, MapKit and all v1 contracts remain unchanged.
+
+Failure opens a startup error with copyable reason/project/engine diagnostics,
+without constructing a document store or editable workbench. A private worker
+reports the failure and exits nonzero without opening UI. The successful source
+launch requires no new native build when the existing binding is current.
+
+### Scoped automated results
+
+[Results and retained logs](validation/source-startup-2026-10-01/results.json) and
+the [initial screen](validation/source-startup-2026-10-01/initial-screen.png) use
+Godot 4.7.2 on macOS arm64, synthetic fixtures and isolated user data. The installed
+MapKit pin `ccead3e31ec469f5fde93103b369d7a2a8f29c8e` and native binary were reused.
+
+- No import metadata: actual entry, track palette/title, Seed Track controls,
+  asynchronous Seed 42 generation and adoption passed (10 assertions).
+- Existing extension registration: normal entry and repeated initialization reuse
+  passed (6 assertions).
+- Missing native library: a single error screen, actionable diagnostics and no
+  document/recovery/preferences initialization passed (5 assertions). Expected
+  engine library-load diagnostics were retained; no cascading script errors.
+- Private worker: cold startup reaches argument validation (exit 2); missing
+  native binding exits at bootstrap (exit 1), with no editor session.
+- Independent initial-screen render with no extension list or texture cache passed.
+- Existing native-import review/adoption/cancel/deadline and ownership regression:
+  117 checks passed, without unexpected diagnostics (8.447 s).
+- Build-helper audit: current preflight includes the Editor DLL destination;
+  17 unit tests passed and the Windows-only file-lock test was skipped on macOS.
+
+Reproduction commands:
+
+```sh
+python tests/test_source_startup.py --godot /path/to/godot --log-dir /new/path/startup --rendered
+```
+
+The native-import check used the root isolated runner, the existing import cache,
+and `MAPEDITOR_TEST_IMPORT_PYTHON` pointing at the root `.venv` interpreter.
+Its fixture now explicitly creates a free-roam document: the default assembled
+track rejects its unrelated seed/terrain edits. The first diagnostic run lacked
+that fixture initialization and Python environment and stopped before a native
+job; it was interrupted, corrected and rerun. The missing-library harness also
+initially rejected the expected macOS loader error spelling; the assertion was
+corrected and only the failing cases rerun. These are corrected test failures,
+not unresolved product failures. Passed startup/render checks were not repeated
+for documentation or pin changes.
+
+### Delivery and user verification
+
+Baseline MapEditor `d2892f86ae3d65492934f6b30c846656448c4050`, root
+`d89db9b1122dc983a4351a1abddfdf428a157ad1`; delivery is on main, owning child first,
+then root gitlink/compatibility pin. There are no known failures in the scoped
+checks. Actual Windows Godot → Client → Editor launch, detailed editing, OS/device
+and exported-application acceptance remain user verification. No full bootstrap,
+export matrix, recursive clone or detailed interactive acceptance was performed.

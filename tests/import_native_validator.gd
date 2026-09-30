@@ -75,6 +75,8 @@ func run() -> void:
 	ui = entry.get_child(0)
 	check(ui is Control,"default product entry routes to Editor UI")
 	await process_frame
+	# Import fixtures author free-roam geometry, not the default assembled track.
+	ui.store.new_track(true)
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	if structural_case():
 		ui.import_source_format.select(1); ui.import_source_format.item_selected.emit(1)

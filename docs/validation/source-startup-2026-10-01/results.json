@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-01",
+  "baseline_editor": "d2892f86ae3d65492934f6b30c846656448c4050",
+  "baseline_root": "d89db9b1122dc983a4351a1abddfdf428a157ad1",
+  "godot": "4.7.2.stable.mono.official.ed1daf0bf",
+  "platform": "macOS arm64",
+  "mapkit_pin": "ccead3e31ec469f5fde93103b369d7a2a8f29c8e",
+  "native_sha256": "adc48d10a587a176802eb601cb90facb176d052bd782dbaa53a888f13abb561c",
+  "source_sha256": {
+    "scripts/editor_entry.gd": "dd1f1681760f31333daa0d90e926b1d004544c1a18ba483db5390de585b11d74",
+    "scripts/mapkit_startup.gd": "9035f1f347908c661d5f2eb63f78a0780efec83914a31a3cdc8d89d6e84195a7",
+    "tests/source_startup_validator.gd": "903c838608c5d9cbaf35050fd65b5261ecd4ad14cb5db5efa5c0982c2afa82b6",
+    "tests/test_source_startup.py": "e3cf8128a08301fcf229bdefddf22dfa3139017b9178c7be2e3271249a588f70",
+    "tests/import_native_validator.gd": "9940b15ccfedb77362e79ce8d17394798776b6eeb34a2be45b84790855a6d44c"
+  },
+  "checks": [
+    {
+      "name": "cold-source",
+      "assertions": 10,
+      "passed": true,
+      "covers": "no import cache; real entry, track palette, Seed 42 async generation and adoption"
+    },
+    {
+      "name": "registered-source",
+      "assertions": 6,
+      "passed": true,
+      "covers": "existing native registration and idempotent initialization"
+    },
+    {
+      "name": "cold-initial-screen",
+      "passed": true,
+      "covers": "1280x800 standalone initial render and icon pixels, no extension list or texture imports"
+    },
+    {
+      "name": "missing-native",
+      "seconds": 0.353,
+      "exit_code": 0,
+      "expected_diagnostics": [
+        "ERROR: Can't open dynamic library: /private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib. Error: dlopen(/private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib, 0x0002): tried: '/private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib' (no such file), '/private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib' (no such file).",
+        "ERROR: Can't open GDExtension dynamic library: 'res://addons/mapkit/mapkit.gdextension'."
+      ],
+      "passed": true
+    },
+    {
+      "name": "worker-missing-native",
+      "seconds": 0.258,
+      "exit_code": 1,
+      "expected_diagnostics": [
+        "ERROR: Can't open dynamic library: /private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib. Error: dlopen(/private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib, 0x0002): tried: '/private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib' (no such file), '/private/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/mapeditor-startup-jjle_ciy/addons/mapkit/target/debug/libmapkit_godot.dylib' (no such file).",
+        "ERROR: Can't open GDExtension dynamic library: 'res://addons/mapkit/mapkit.gdextension'."
+      ],
+      "passed": true
+    },
+    {
+      "name": "worker-cold-source",
+      "seconds": 1.075,
+      "exit_code": 2,
+      "expected_diagnostics": [],
+      "passed": true
+    },
+    {
+      "name": "import-native-worker",
+      "assertions": 117,
+      "passed": true,
+      "seconds": 8.447,
+      "unexpected_diagnostics": []
+    },
+    {
+      "name": "build-helper-audit",
+      "passed": 17,
+      "skipped": 1,
+      "skip_reason": "Windows-only file-lock check; executing on macOS",
+      "editor_dll_destination": "map-editor/addons/mapkit/target/debug/mapkit_godot.dll"
+    }
+  ],
+  "known_failures": [],
+  "corrected_test_failures": [
+    "Missing-library fixture expected different platform loader diagnostic wording; failing cases rerun after correcting the allowed diagnostics.",
+    "Native-import fixture implicitly used the new default assembled track and diagnostic invocation omitted its Python environment. Explicit free-roam initialization and root venv fixed the fixture; all 117 checks passed."
+  ],
+  "user_verification": [
+    "Actual Windows Godot → Client → MapEditor launch",
+    "Detailed editing, OS/device behavior and exported applications"
+  ],
+  "scope": "Affected startup/unit/worker regressions and standalone initial screen only; unchanged native build reused; no full bootstrap, export matrix or clean clone."
+}

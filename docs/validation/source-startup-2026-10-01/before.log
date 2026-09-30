@@ -1,0 +1,73 @@
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+
+ERROR: Cannot get class 'MapKitBridge'.
+   at: _instantiate_internal (core/object/class_db.cpp:587)
+   GDScript backtrace (most recent call first):
+       [0] @implicit_new (res://scripts/document_store.gd:18)
+       [1] @implicit_new (res://scripts/editor_main.gd:55)
+       [2] _ready (res://scripts/editor_entry.gd:6)
+SCRIPT ERROR: Invalid call. Nonexistent function 'track_catalogue' in base 'Nil'.
+          at: build (res://scripts/track_workbench.gd:37)
+          GDScript backtrace (most recent call first):
+              [0] build (res://scripts/track_workbench.gd:37)
+              [1] _ready (res://scripts/editor_main.gd:154)
+              [2] _ready (res://scripts/editor_entry.gd:6)
+SCRIPT ERROR: Invalid assignment of property or key 'tooltip_text' with value of type 'String' on a base object of type 'Nil'.
+          at: <anonymous lambda> (res://scripts/editor_main.gd:157)
+          GDScript backtrace (most recent call first):
+              [0] <anonymous lambda> (res://scripts/editor_main.gd:157)
+              [1] load_settings (res://scripts/workspace_commands.gd:224)
+              [2] _ready (res://scripts/editor_main.gd:158)
+              [3] _ready (res://scripts/editor_entry.gd:6)
+ERROR: Cannot get class 'MapKitBridge'.
+   at: _instantiate_internal (core/object/class_db.cpp:587)
+   GDScript backtrace (most recent call first):
+       [0] new_document (res://scripts/document_store.gd:30)
+       [1] new_track (res://scripts/document_store.gd:454)
+       [2] _ready (res://scripts/editor_main.gd:163)
+       [3] _ready (res://scripts/editor_entry.gd:6)
+SCRIPT ERROR: Invalid call. Nonexistent function 'validate_document' in base 'Nil'.
+          at: _validate (res://scripts/document_store.gd:79)
+          GDScript backtrace (most recent call first):
+              [0] _validate (res://scripts/document_store.gd:79)
+              [1] new_document (res://scripts/document_store.gd:40)
+              [2] new_track (res://scripts/document_store.gd:454)
+              [3] _ready (res://scripts/editor_main.gd:163)
+              [4] _ready (res://scripts/editor_entry.gd:6)
+SCRIPT ERROR: Invalid access to property or key 'data' on a base object of type 'Dictionary'.
+          at: new_document (res://scripts/document_store.gd:40)
+          GDScript backtrace (most recent call first):
+              [0] new_document (res://scripts/document_store.gd:40)
+              [1] new_track (res://scripts/document_store.gd:454)
+              [2] _ready (res://scripts/editor_main.gd:163)
+              [3] _ready (res://scripts/editor_entry.gd:6)
+SCRIPT ERROR: Invalid call. Nonexistent function 'track_authoring_source' in base 'Nil'.
+          at: track_source (res://scripts/document_store.gd:433)
+          GDScript backtrace (most recent call first):
+              [0] track_source (res://scripts/document_store.gd:433)
+              [1] new_track (res://scripts/document_store.gd:458)
+              [2] _ready (res://scripts/editor_main.gd:163)
+              [3] _ready (res://scripts/editor_entry.gd:6)
+SCRIPT ERROR: Invalid call. Nonexistent function 'compile_track_source' in base 'Nil'.
+          at: new_track (res://scripts/document_store.gd:458)
+          GDScript backtrace (most recent call first):
+              [0] new_track (res://scripts/document_store.gd:458)
+              [1] _ready (res://scripts/editor_main.gd:163)
+              [2] _ready (res://scripts/editor_entry.gd:6)
+SCRIPT ERROR: Invalid assignment of property or key 'visible' with value of type 'bool' on a base object of type 'Nil'.
+          at: refresh (res://scripts/track_workbench.gd:135)
+          GDScript backtrace (most recent call first):
+              [0] refresh (res://scripts/track_workbench.gd:135)
+              [1] _restore_workbench (res://scripts/editor_main.gd:1107)
+SCRIPT ERROR: Invalid access to property or key 'tool' on a base object of type 'Nil'.
+          at: _process (res://scripts/editor_main.gd:1460)
+          GDScript backtrace (most recent call first):
+              [0] _process (res://scripts/editor_main.gd:1460)
+SCRIPT ERROR: Invalid access to property or key 'tool' on a base object of type 'Nil'.
+          at: _process (res://scripts/editor_main.gd:1460)
+          GDScript backtrace (most recent call first):
+              [0] _process (res://scripts/editor_main.gd:1460)
+SCRIPT ERROR: Invalid access to property or key 'tool' on a base object of type 'Nil'.
+          at: _process (res://scripts/editor_main.gd:1460)
+          GDScript backtrace (most recent call first):
+              [0] _process (res://scripts/editor_main.gd:1460)

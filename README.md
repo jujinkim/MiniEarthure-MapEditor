@@ -19,6 +19,12 @@ godot --headless --import --frame-delay 1000 --path .
 godot --path .
 ```
 
+Direct source launch (including the Client's **Map editor** button) also works
+before the first import: the entry scene loads the installed MapKit extension
+before constructing a document. A missing or incompatible binding shows a startup
+error with copyable diagnostics. This still requires a current native build;
+see [source-startup evidence](docs/ICON_WORKBENCH.md#source-launch-without-import-metadata--2026-10-01).
+
 Use Godot **4.7.2**. Run the editor validator with:
 
 ```sh
