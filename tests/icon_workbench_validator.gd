@@ -197,6 +197,12 @@ func run() -> void:
 			check(ui.size == Vector2(window_size), "root fits requested window")
 			check(ui.right_dock.get_global_rect().end.x <= window_size.x + 1 and ui.status_label.get_global_rect().end.y <= window_size.y + 1, "docks/footer fit requested window")
 			check(ui.workspace_views.size.x >= 300 and ui.workspace_views.size.y >= 100, "workspace retains usable area")
+			var menu: Control = ui.find_child("MenuRow", true, false)
+			check(menu.get_global_rect().position.y == 4 and menu.size.y == 28, "compact menu keeps four-pixel top margin and 28-pixel row")
+			for tile: Dictionary in (bench.palette_tools.tiles if not roam else ui.roam_palette.tiles):
+				if not tile.button.is_visible_in_tree(): continue
+				check(tile.button.icon != null and tile.button.size.x >= 52 and tile.button.size.y >= 52, "visible palette has artwork and full tile bounds")
+				check(tile.button.get_global_rect().encloses(tile.badge.get_global_rect()), "shortcut badge stays inside its tile")
 	ui.store.dirty = false
 	ui.queue_free()
 	for _i in 3: await process_frame

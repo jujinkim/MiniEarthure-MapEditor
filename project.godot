@@ -15,4 +15,4 @@ window/size/window_height_override=800
 [rendering]
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-environment/defaults/default_clear_color=Color(1, 0.9686, 0.902, 1)
+environment/defaults/default_clear_color=Color(0.9255, 0.9137, 0.8471, 1)

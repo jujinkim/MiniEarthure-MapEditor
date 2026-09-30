@@ -183,15 +183,16 @@ func _notification(what: int) -> void:
 
 func _build_ui() -> void:
 	theme = WORKBENCH_STYLE.create_theme()
-	RenderingServer.set_default_clear_color(WORKBENCH_STYLE.CREAM)
+	RenderingServer.set_default_clear_color(WORKBENCH_STYLE.PANEL)
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 10)
+		margin.add_theme_constant_override("margin_" + side, 4 if side == "top" else 8)
 	add_child(margin)
 	var column := VBoxContainer.new()
 	margin.add_child(column)
 	var title_row := HBoxContainer.new()
+	title_row.name = "MenuRow"
 	column.add_child(title_row)
 	commands = preload("./workspace_commands.gd").new()
 	add_child(commands)
@@ -199,6 +200,7 @@ func _build_ui() -> void:
 	commands.menus(title_row)
 	var title := Label.new()
 	title.text = "MAP EDITOR"
+	title.add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
@@ -216,7 +218,7 @@ func _build_ui() -> void:
 	var import_work_button := Button.new()
 	WORKBENCH_STYLE.decorate(import_work_button, "Import work", "Inspect leftover import work.", "import")
 	import_work_button.tooltip_text = "Inspect leftover local import work without changing files."
-	title_row.add_child(import_work_button)
+	bar.add_child(import_work_button)
 	import_recovery = IMPORT_RECOVERY.new()
 	import_recovery.banner = import_work_button
 	add_child(import_recovery)
@@ -288,6 +290,7 @@ func _build_ui() -> void:
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_split.add_child(center)
 	selection_label = Label.new()
+	selection_label.add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
 	selection_label.text = "2D MAP  ·  Select  ·  0 selected"
 	center.add_child(selection_label)
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -312,7 +315,7 @@ func _build_ui() -> void:
 	property_dock.custom_minimum_size.y = 140
 	property_dock.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_dock.add_child(property_dock)
-	_label(property_dock, "PROPERTIES")
+	_label(property_dock, "PROPERTIES").add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED

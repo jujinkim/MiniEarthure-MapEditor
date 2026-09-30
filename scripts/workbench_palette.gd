@@ -17,6 +17,7 @@ func build(commands: PopupPanel, context: String, items: Array[Dictionary]) -> v
 	entries = items
 	var favorite_title := Label.new()
 	favorite_title.text = "FAVORITES · 1–9"
+	favorite_title.add_theme_color_override("font_color", STYLE.BLUE)
 	add_child(favorite_title)
 	var favorites_scroll := ScrollContainer.new()
 	favorites_scroll.custom_minimum_size.y = 64

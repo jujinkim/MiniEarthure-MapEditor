@@ -137,7 +137,7 @@ func menus(parent: Control) -> void:
 	for group in ["File", "Edit", "View", "Create", "Validate"]:
 		var menu := MenuButton.new()
 		menu.text = group
-		menu.custom_minimum_size.y = 40
+		menu.custom_minimum_size.y = 28
 		parent.add_child(menu)
 		var popup := menu.get_popup()
 		menus_by_group[group] = popup

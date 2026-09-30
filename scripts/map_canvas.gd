@@ -1,4 +1,5 @@
 extends Control
+const STYLE := preload("./workbench_style.gd")
 signal course_point_selected(point: Vector2)
 var course_points: Array = []
 signal selection_changed(ids: Array)
@@ -109,15 +110,15 @@ func fit_map() -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color("fff7e6"))
+	draw_rect(Rect2(Vector2.ZERO, size), STYLE.CANVAS)
 	if store == null or store.document.is_empty(): return
 	var doc: Dictionary = store.document
 	var bounds: Dictionary = doc.bounds
 	var cell := int(doc.cell_size_cm)
 	for x in range(int(bounds.min[0]), int(bounds.max[0]) + 1, cell):
-		draw_line(screen([x, bounds.min[1]]), screen([x, bounds.max[1]]), Color("d5cdbc"))
+		draw_line(screen([x, bounds.min[1]]), screen([x, bounds.max[1]]), STYLE.GRID)
 	for y in range(int(bounds.min[1]), int(bounds.max[1]) + 1, cell):
-		draw_line(screen([bounds.min[0], y]), screen([bounds.max[0], y]), Color("d5cdbc"))
+		draw_line(screen([bounds.min[0], y]), screen([bounds.max[0], y]), STYLE.GRID)
 	if doc.get("assembled_track") is Dictionary:
 		for piece: Dictionary in doc.assembled_track.pieces:
 			for path: Array in [piece.path,piece.get("alternate_path",[])]:

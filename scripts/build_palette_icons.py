@@ -31,10 +31,10 @@ for preset, samples in frames.items():
              (tip[0]-4*dx-2*dy, tip[1]-4*dy+2*dx)]
     arrow_path = 'M' + 'L'.join(f'{x:.2f},{y:.2f}' for x, y in arrow)
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-<path d="{path}" fill="none" stroke="#202020" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="{path}" fill="none" stroke="#85c7f2" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="{xy[0][0]:.2f}" cy="{xy[0][1]:.2f}" r="2.1" fill="#ff947e" stroke="#202020" stroke-width=".8"/>
-<path d="{arrow_path}" fill="none" stroke="#202020" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="{path}" fill="none" stroke="#344f73" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="{path}" fill="none" stroke="#99c8ed" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="{xy[0][0]:.2f}" cy="{xy[0][1]:.2f}" r="2.1" fill="#df704b" stroke="#344f73" stroke-width=".8"/>
+<path d="{arrow_path}" fill="none" stroke="#344f73" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 '''
     (output / f'piece_{preset}.svg').write_text(svg)

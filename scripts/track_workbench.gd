@@ -232,8 +232,8 @@ func _properties() -> void:
 	_button(route_actions, "Add alternative route", _route_new)
 	_selected_button(route_actions, "Append selected piece", _route_add)
 	_button(route_actions, "Remove route item", _route_remove)
-	_button(route_actions, "Move route item up", _route_move.bind(-1)).icon = STYLE.icon("up")
-	_button(route_actions, "Move route item down", _route_move.bind(1)).icon = STYLE.icon("down")
+	STYLE.button(route_actions, "Move route item up", _route_move.bind(-1), "", "up")
+	STYLE.button(route_actions, "Move route item down", _route_move.bind(1), "", "down")
 	route_list = ItemList.new()
 	route_list.custom_minimum_size.y = 96
 	routes_box.add_child(route_list)

@@ -1,4 +1,4 @@
-# Icon workbench — 2026-09-30
+# Icon workbench — Luna appearance updated 2026-10-01
 
 This replaces the immediate-add palette and fixed shortcut UI described in
 [Track authoring](TRACK_AUTHORING.md) and [Workbench](WORKBENCH.md). Product changes
@@ -8,16 +8,19 @@ rewritten by preferences, tool selection or preview.
 
 ## Implemented behavior
 
-The shared cream `#FFF7E6` / ink `#202020` theme uses 2px borders, offset shadows,
-yellow hover, blue selection, explicit focus and muted disabled controls. Action
-buttons use owned MIT SVG icons, accessible names and descriptive tooltips. Menus,
+The shared Luna-inspired theme uses ivory `#ECE9D8` panels, white inputs, blue
+`#245EDB` accents, 1px borders and shallow bevels. Warm hover, pale blue selection,
+explicit focus and muted disabled controls replace the original cream/ink theme
+and offset shadows. Action buttons use owned MIT color SVG icons, accessible names
+and descriptive tooltips. Menus,
 property/input labels and confirmation actions retain text. Application-authored
 text is English; user names, source IDs and external diagnostics are not translated.
 70 road tile diagrams are generated from public MapKit sample frames, with a coral
 entry point and a direction arrow. They are checked-in SVG resources, not another
 runtime geometry implementation. General actions are at least 40px; tiles 52px.
 
-The top bar groups File, Edit, Create and Inspect actions. Both left palettes have
+The menu row is 28px high with a 4px top margin; Import work sits with the Inspect
+toolbar actions. The top bar groups File, Edit, Create and Inspect actions. Both left palettes have
 search, optional alphabetical sorting, a horizontally scrollable favorite strip
 and an object list. Track retains Driving / Gimmick / Action tabs, with road pieces
 separate from attached obstacles/actions. The center retains 3D and a navigation
@@ -105,7 +108,7 @@ isolated Godot project with `MAPEDITOR_ICON_SOURCE=/absolute/path/frames.json`, 
 `python scripts/build_palette_icons.py /absolute/path/frames.json`. This reads only
 MapKit's public catalogue/frames and writes Editor-owned SVG artwork.
 
-### Delivery evidence
+### Original 2026-09-30 delivery evidence
 
 [Machine-readable results and source hashes](validation/icon-workbench-2026-09-30/results.json)
 and the [standalone initial screen](validation/icon-workbench-2026-09-30/initial-screen.png)
@@ -135,3 +138,75 @@ non-solid guide, exact shared surface seams, and integer/JSON-number comparison
 for the 4m default. No executed failure remains unresolved in the recorded scope.
 Raw local diagnostic paths are in the results file; they are not required inputs
 for later sessions. Detailed user verification above remains unperformed.
+
+## Luna appearance and missing icons — 2026-10-01
+
+The user's review replaces the original neobrutalist appearance with a Luna-inspired
+desktop editor. The functional icon/shortcut/placement decisions above remain.
+All changes belong to MapEditor; MapKit APIs and all own v1 formats remain unchanged.
+
+### Implementation
+
+- Panels, menus, tabs, inputs, checkboxes, scrollbars, dialogs, tooltips and the
+  auxiliary plan share the new palette. Button bevels are small in-memory textures,
+  with no dependency on imported theme artwork. Text remains 14px, action targets
+  40px, palette tiles 52px; the standard left palette retains four columns.
+- All 48 action icons now use original color artwork, while 70 road diagrams keep
+  their native-frame geometry, entry marks and direction arrows with revised colors.
+- The local source checkout contained all SVGs and import descriptors but none of
+  their 118 compiled texture targets. A minimal test reproduced `load()` returning
+  null without the cache and succeeding with it. The preceding isolated screenshot
+  had a populated cache, so that evidence did not cover the user's failure mode.
+- The common loader reads valid imported textures, rasterizes raw SVGs when their
+  cache is absent, and accepts remapped PCK resources without requiring raw SVGs.
+  A stable icon-name catalogue prevents source-file checks from changing IDs in a
+  package. Successful textures are cached; missing or invisible artwork is diagnosed,
+  leaves the action name visible and is not cached as a successful result. Route
+  reorder buttons use the same common decoration and failure behavior.
+
+### Automated results
+
+[Results, timings and source hashes](validation/luna-workbench-2026-10-01/results.json),
+[cold-cache initial screen](validation/luna-workbench-2026-10-01/initial-screen.png)
+and [six rendered button states](validation/luna-workbench-2026-10-01/control-states.png)
+record macOS arm64 / Godot 4.7.2. The unchanged MapKit native build was reused.
+
+| Check | Result |
+| --- | --- |
+| SVG/import/resource-pack fixture | All 118 icons passed with no cache, stale descriptors, valid imports and PCK-only resources; missing, empty raw and empty imported artwork showed text and recovered |
+| Control rendering | Normal, hover, pressed, selected, disabled and keyboard focus each rendered measurable icon pixels, compared with the same button without its icon |
+| Icon workbench | 297 checks passed, including commands, preference/input protection, placement safety, routes, compact menu and tile/badge bounds |
+| Workspace commands | 32 checks passed |
+| Free-roam workbench | 66 assertions passed with independent test/user state |
+| Layout | Both modes fit 1024×720, 1440×900 and 1920×1080; menu top/height are 4/28px |
+| Standalone initial screen | Actual entry scene rendered at 1280×800 after deleting all icon cache artifacts in an isolated copy; visible icon actions contain nonempty artwork; no blocking load errors or unexpected diagnostics |
+
+The resource-only PCK is an asset-resolution fixture, not a native distribution or
+platform export matrix. Missing/empty-artwork fixtures intentionally assert their
+diagnostic warning; normal execution has no unexpected diagnostics.
+
+Local reproduction commands, from the superproject with its existing native build:
+
+```sh
+rtk proxy .venv/bin/python map-editor/tests/test_workbench_icons.py --godot /path/to/godot --log-dir /new/path/icon-checks
+rtk proxy .venv/bin/python scripts/run_godot_checks.py --project editor --godot /path/to/godot --script icon_workbench_validator --import-cache /isolated/cache --log-dir /new/path/layout-checks --strict-diagnostics
+rtk proxy .venv/bin/python scripts/run_godot_checks.py --project editor --godot /path/to/godot --script workbench_appearance_validator --rendered --import-cache /isolated/cache --reuse-import --log-dir /new/path/control-checks --strict-diagnostics
+```
+
+Reuse an import cache only when its resource/native inputs are unchanged. Use a
+fresh runner invocation for workbench fixtures that persist view preferences: the
+root runner shares user state between scripts in one invocation. One initial
+free-roam failure came from a preceding fixture's saved 3D-only view; a separate
+isolated run passed. The new startup assertion also needed a typed string message
+and exclusion of intentionally textual section headers. These test failures were
+corrected or isolated; no executed failure remains unresolved.
+
+### User verification and delivery boundary
+
+Godot Editor reload/session behavior, detailed editing comfort, continuous placement,
+OS/IME/DPI/device acceptance and packaged platform distributions remain user checks.
+No full bootstrap, recursive clean clone, export matrix or prolonged test was run.
+This is an implementation delivery, not product-wide release acceptance.
+
+Changes are delivered on `main`, MapEditor first and root gitlink/compatibility pin
+last. The root's §44.234 explicitly replaces §44.233's appearance requirement.
