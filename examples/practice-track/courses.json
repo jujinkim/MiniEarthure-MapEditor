@@ -20,7 +20,7 @@
         0,
         1000000
       ],
-      "lateral_cm": 600,
+      "lateral_cm": 400,
       "min_speed_cmps": 0,
       "mode": "drive",
       "normal": [
@@ -44,7 +44,7 @@
         0,
         1000000
       ],
-      "lateral_cm": 600,
+      "lateral_cm": 400,
       "min_speed_cmps": 0,
       "mode": "drive",
       "normal": [
@@ -55,7 +55,7 @@
       "position_cm": [
         0,
         0,
-        5320
+        3920
       ],
       "safe": true,
       "tube_radius_cm": 0
@@ -68,7 +68,7 @@
         0,
         0
       ],
-      "lateral_cm": 600,
+      "lateral_cm": 400,
       "min_speed_cmps": 0,
       "mode": "drive",
       "normal": [
@@ -77,9 +77,9 @@
         0
       ],
       "position_cm": [
-        7120,
+        5120,
         0,
-        12800
+        8800
       ],
       "safe": true,
       "tube_radius_cm": 0
@@ -101,9 +101,9 @@
         0
       ],
       "position_cm": [
-        14600,
+        10000,
         0,
-        19920
+        13924
       ],
       "safe": true,
       "tube_radius_cm": 0
@@ -125,9 +125,9 @@
         0
       ],
       "position_cm": [
-        17920,
+        13324,
         0,
-        23200
+        17200
       ],
       "safe": true,
       "tube_radius_cm": 0
@@ -149,9 +149,9 @@
         0
       ],
       "position_cm": [
-        21200,
+        16600,
         0,
-        26520
+        20524
       ],
       "safe": true,
       "tube_radius_cm": 0
@@ -173,9 +173,9 @@
         0
       ],
       "position_cm": [
-        21200,
+        16600,
         0,
-        31920
+        25924
       ],
       "safe": true,
       "tube_radius_cm": 0
@@ -197,9 +197,9 @@
         0
       ],
       "position_cm": [
-        21200,
+        16600,
         0,
-        38120
+        32124
       ],
       "safe": true,
       "tube_radius_cm": 0
@@ -212,7 +212,7 @@
         0,
         1000000
       ],
-      "lateral_cm": 100,
+      "lateral_cm": 200,
       "min_speed_cmps": 0,
       "mode": "drive",
       "normal": [
@@ -221,9 +221,9 @@
         0
       ],
       "position_cm": [
-        21200,
+        16600,
         0,
-        46920
+        40924
       ],
       "safe": true,
       "tube_radius_cm": 0
@@ -245,9 +245,9 @@
         0
       ],
       "position_cm": [
-        26420,
+        21824,
         0,
-        50000
+        44000
       ],
       "safe": true,
       "tube_radius_cm": 0
@@ -269,9 +269,9 @@
         0
       ],
       "position_cm": [
-        32420,
-        240,
-        50000
+        27820,
+        360,
+        44000
       ],
       "safe": true,
       "tube_radius_cm": 0

@@ -9,6 +9,7 @@ import json
 import math
 from pathlib import Path
 import subprocess
+import tempfile
 
 NAMES = ["Drive, brake and reverse", "Gentle right turn", "Gentle left turn",
          "Right drift", "Left drift", "Jump", "Jump and glide", "Grind and balance",
@@ -22,7 +23,7 @@ def source():
              grind_lines=[], structures=[])
     pos = [0, 0, 0]
     heading = 0
-    width = 1200
+    width = 800
     def add(name, points, flight=False, target_width=None):
         nonlocal pos, width
         w = width if target_width is None else target_width
@@ -44,8 +45,8 @@ def source():
         return add(name, [[0,0,0],[0,0,round(length/3)],[0,0,round(length*2/3)],[0,0,length]], **kw)
     def start(number, target_width=None):
         # Three metres behind each gate is a quiet stopped-start apron.
-        road=straight("course-%02d"%number, 3000, target_width=target_width)
-        d["checkpoints"].append(dict(piece=road["id"],sample=8))
+        road=straight("course-%02d"%number, 2000 if number<=3 else 3000, target_width=target_width)
+        d["checkpoints"].append(dict(piece=road["id"],sample=0))
         return road
     def turn(name, radius, right):
         nonlocal heading
@@ -78,7 +79,7 @@ def source():
         if corner: heading+=90
         landing=straight("landing-%02d"%number,2000)
         d["actions"].append(dict(id="manual-%02d"%number,kind="manual_flight",piece=launch["id"],
-            sample=65,height_cm=800,landing=dict(piece=landing["id"],sample=0)))
+            sample=0,height_cm=800,landing=dict(piece=landing["id"],sample=0)))
         if beam:
             center=[(a+b)//2 for a,b in zip(start_point,end_point)]
             center[1]-=10
@@ -88,9 +89,10 @@ def source():
         if rise:
             center=end_point[:];center[1]-=rise//2
             box("high-wall",center,[width,rise,50],heading)
-    start(1);straight("runout-01",2000)
-    start(2);turn("right-wide",4800,True);straight("runout-02",2000)
-    start(3);turn("left-wide",4800,False);straight("runout-03",2000,target_width=800)
+    box("start-wall",[0,50,-20],[width+40,100,40])
+    start(1);straight("runout-01",1600)
+    start(2);turn("right-wide",3200,True);straight("runout-02",1600)
+    start(3);turn("left-wide",3200,False);straight("runout-03",1600)
     start(4);turn("right-sharp",600,True);straight("runout-04",2400)
     start(5);turn("left-sharp",600,False);straight("runout-05",2400)
     start(6)
@@ -99,18 +101,40 @@ def source():
     straight("runout-06",2400)
     start(7);flight(7,1200)
     start(8);flight(8,1800,beam=True)
-    straight("narrow-approach",2000,target_width=200)
+    straight("narrow-approach",2000,target_width=400)
     start(9);flight(9,400,corner=True)
     straight("wide-approach",2500,target_width=800)
-    start(10);flight(10,1000,rise=240)
+    start(10);flight(10,1000,rise=360)
     end=straight("completion",2000)
-    d["checkpoints"].append(dict(piece=end["id"],sample=8))
+    d["checkpoints"].append(dict(piece=end["id"],sample=0))
+    end_wall=[pos[0]+round(20*math.sin(math.radians(heading))),pos[1]+50,pos[2]+round(20*math.cos(math.radians(heading)))]
+    box("finish-wall",end_wall,[width+40,100,40],heading)
     d["paths"]=[dict(id="practice",pieces=[i["id"] for i in d["instances"]])]
     return d
 
 def build(destination, cli):
     destination.mkdir(parents=True,exist_ok=False)
     original=source()
+    # Source references use compiler-owned tessellation. Resolve metres from its
+    # actual samples instead of copying a generator's sample spacing constants.
+    with tempfile.TemporaryDirectory(prefix="practice-reference-") as temp:
+        preview=Path(temp)
+        (preview/"source.json").write_text(json.dumps(original))
+        subprocess.run([str(cli),"compile-track",str(preview/"source.json"),str(preview/"preview.memap")],check=True)
+        subprocess.run([str(cli),"unpack",str(preview/"preview.memap"),str(preview/"project")],check=True)
+        assembled=json.loads((preview/"project/document.json").read_text())["assembled_track"]
+        paths={instance["id"]:piece["path"] for instance,piece in zip(original["instances"],assembled["pieces"])}
+        def at_station(piece, station, from_end=False):
+            path=paths[piece]
+            distances=[0.0]
+            for a,b in zip(path,path[1:]):
+                distances.append(distances[-1]+math.dist(a["position_cm"],b["position_cm"]))
+            target=distances[-1]-station if from_end else station
+            return min(range(len(path)),key=lambda i:abs(distances[i]-target))
+        for checkpoint in original["checkpoints"]:
+            checkpoint["sample"]=at_station(checkpoint["piece"],300)
+        for action in original["actions"]:
+            action["sample"]=at_station(action["piece"],400,from_end=True)
     (destination/"source.json").write_text(json.dumps(original,ensure_ascii=False,indent=2)+"\n")
     package=destination/"practice.memap"
     subprocess.run([str(cli),"compile-track",str(destination/"source.json"),str(package)],check=True)

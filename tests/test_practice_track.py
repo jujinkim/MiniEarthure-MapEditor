@@ -24,6 +24,21 @@ class PracticeTrack(unittest.TestCase):
         self.assertTrue(all(g["motion"]["kind"]=="static" and g.get("effect") is None for g in source["structures"]))
         self.assertFalse(source["grounded_supports"])
 
+    def test_reduced_early_courses_wider_air_turn_and_solid_ends(self):
+        source=track.source()
+        pieces={p["id"]:p for p in source["instances"]}
+        for number in range(1,4):
+            self.assertEqual(pieces[f"course-{number:02d}"]["width_cm"],800)
+            self.assertAlmostEqual(sum(v*v for v in pieces[f"course-{number:02d}"]["control_points"][-1])**.5,2000)
+        self.assertEqual(pieces["right-wide"]["control_points"][-1],[3200,0,3200])
+        self.assertEqual(pieces["course-09"]["width_cm"],400)
+        self.assertEqual(pieces["flight-10"]["control_points"][-1][1],360)
+        for name in ["start-wall","finish-wall"]:
+            wall=next(g for g in source["structures"] if g["id"]=="authored-"+name)
+            vertices=wall["parts"][0]["vertices"]
+            self.assertEqual(max(v[1] for v in vertices)-min(v[1] for v in vertices),100)
+            self.assertEqual(max(v[0] for v in vertices)-min(v[0] for v in vertices),840)
+
     def test_export_roundtrip_and_repeatability(self):
         cli=Path(os.environ.get("MAPKIT_CLI",ROOT/"addons/mapkit/target/debug/mapkit")).resolve()
         with tempfile.TemporaryDirectory(prefix="practice-source-") as temp:
@@ -33,9 +48,14 @@ class PracticeTrack(unittest.TestCase):
             result=subprocess.run([str(cli),"verify-track",str(a/"practice.memap")],capture_output=True,text=True,check=True)
             assembly=json.loads(result.stdout)["assembly"]
             self.assertFalse(assembly["issues"])
-            self.assertEqual(assembly["authoring"],track.source())
+            self.assertEqual(assembly["authoring"],json.loads((a/"source.json").read_text()))
             document=json.loads((a/"project/document.json").read_text())
             self.assertEqual(len(document["courses"][0]["definition"]["checkpoints"]),11)
+            source=assembly["authoring"]
+            ids=[p["id"] for p in source["instances"]]
+            for cp in source["checkpoints"]:
+                path=assembly["pieces"][ids.index(cp["piece"])]["path"]
+                self.assertAlmostEqual(sum((a-b)**2 for a,b in zip(path[0]["position_cm"],path[cp["sample"]]["position_cm"]))**.5,300,delta=40)
             self.assertIsNone(document["courses"][0].get("validation"))
             for piece in assembly["pieces"]:
                 if piece["id"]=="flight_curve":

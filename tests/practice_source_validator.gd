@@ -14,7 +14,7 @@ func run() -> void:
 	var store:=STORE.new()
 	check(store.open_project(path)=="","reopen original project")
 	var source: Dictionary=store.track_source()
-	check(source.checkpoints.size()==11 and source.structures.size()==3 and source.grind_lines.size()==1,"source retains checkpoints, real shapes and independent line")
+	check(source.checkpoints.size()==11 and source.structures.size()==5 and source.grind_lines.size()==1,"source retains checkpoints, real shapes and independent line")
 	check(source.actions.all(func(a):return a.kind=="manual_flight"),"manual flight declarations preserved")
 	check(store.edit_track(source)=="","unmodified source recompiles through editor")
 	var saved:=ProjectSettings.globalize_path("user://practice-saved")

@@ -18,19 +18,19 @@ application may use it separately from its ordinary map catalogue.
 
 | Course | Fixed geometry |
 | --- | --- |
-| 1 | 12 m wide straight, drive/brake/reverse |
-| 2–3 | 12 m wide, 48 m radius right/left turns |
+| 1 | 8 m wide straight, 20 m approach / 16 m runout, drive/brake/reverse |
+| 2–3 | 8 m wide, 32 m radius right/left turns |
 | 4–5 | 8 m wide, 6 m radius right/left turns |
 | 6 | 0.36 m high, 0.24 m deep low barrier |
 | 7 | 12 m unsupported glide gap, 20 m landing |
 | 8 | 18 m gap, one solid 0.20 × 0.20 m beam and one independent grind line |
-| 9 | 2 m narrow right-angle route with the corner missing |
-| 10 | 10 m gap, 2.40 m wall and raised 20 m landing |
+| 9 | 4 m right-angle route with the corner missing |
+| 10 | 10 m gap, 3.60 m wall and raised 20 m landing |
 
 The supported road ends at each flight gap: no ground supports or invisible road
 bridge are generated. Manual-flight actions reference a supported takeoff and
-landing. They create neither jump nor boost panels. The three static structures
-are the low barrier, beam and high wall; all go through shared source compilation.
+landing. They create neither jump nor boost panels. The five static structures
+are the low barrier, beam, high wall and 1m-high start/end lane barriers; all go through shared source compilation.
 The fixed environment is noon, with no per-entry random generation.
 
 ## Verification (2026-10-01)
@@ -43,3 +43,12 @@ project open, edit/save and reopen with strict diagnostics. See
 The isolated placement preview omits whole-track static structures when showing
 one piece; full compilation retains them. Editor interaction and human driving
 acceptance are separate, unperformed user checks.
+
+## Playtest dimensions — 2026-10-02 / T10
+
+The first three approach straights shrink from30m to20m and runouts from20m to16m.
+Checkpoint gates are located near3m into each supported start; manual flight
+references near4m before departure. A temporary MapKit compilation resolves
+indices from real distances, so this script copies no tessellation constants.
+The final original records those indices and reproduces byte-identical exports.
+[Current focused results](../../docs/validation/playtest-2026-10-02/README.md).

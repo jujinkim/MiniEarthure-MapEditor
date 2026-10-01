@@ -25,281 +25,8 @@
         0,
         0
       ],
-      "width_cm": 1200,
-      "entry_width_cm": 1200,
-      "exit_width_cm": 1200,
-      "control_points": [
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          1000
-        ],
-        [
-          0,
-          0,
-          2000
-        ],
-        [
-          0,
-          0,
-          3000
-        ]
-      ]
-    },
-    {
-      "id": "runout-01",
-      "preset": "free_curve",
-      "position_cm": [
-        0,
-        0,
-        3000
-      ],
-      "rotation_mdeg": [
-        0,
-        0,
-        0
-      ],
-      "width_cm": 1200,
-      "entry_width_cm": 1200,
-      "exit_width_cm": 1200,
-      "control_points": [
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          667
-        ],
-        [
-          0,
-          0,
-          1333
-        ],
-        [
-          0,
-          0,
-          2000
-        ]
-      ]
-    },
-    {
-      "id": "course-02",
-      "preset": "free_curve",
-      "position_cm": [
-        0,
-        0,
-        5000
-      ],
-      "rotation_mdeg": [
-        0,
-        0,
-        0
-      ],
-      "width_cm": 1200,
-      "entry_width_cm": 1200,
-      "exit_width_cm": 1200,
-      "control_points": [
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          1000
-        ],
-        [
-          0,
-          0,
-          2000
-        ],
-        [
-          0,
-          0,
-          3000
-        ]
-      ]
-    },
-    {
-      "id": "right-wide",
-      "preset": "free_curve",
-      "position_cm": [
-        0,
-        0,
-        8000
-      ],
-      "rotation_mdeg": [
-        0,
-        0,
-        0
-      ],
-      "width_cm": 1200,
-      "entry_width_cm": 1200,
-      "exit_width_cm": 1200,
-      "control_points": [
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          2651
-        ],
-        [
-          2149,
-          0,
-          4800
-        ],
-        [
-          4800,
-          0,
-          4800
-        ]
-      ]
-    },
-    {
-      "id": "runout-02",
-      "preset": "free_curve",
-      "position_cm": [
-        4800,
-        0,
-        12800
-      ],
-      "rotation_mdeg": [
-        0,
-        0,
-        0
-      ],
-      "width_cm": 1200,
-      "entry_width_cm": 1200,
-      "exit_width_cm": 1200,
-      "control_points": [
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          667,
-          0,
-          0
-        ],
-        [
-          1333,
-          0,
-          0
-        ],
-        [
-          2000,
-          0,
-          0
-        ]
-      ]
-    },
-    {
-      "id": "course-03",
-      "preset": "free_curve",
-      "position_cm": [
-        6800,
-        0,
-        12800
-      ],
-      "rotation_mdeg": [
-        0,
-        0,
-        0
-      ],
-      "width_cm": 1200,
-      "entry_width_cm": 1200,
-      "exit_width_cm": 1200,
-      "control_points": [
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          1000,
-          0,
-          0
-        ],
-        [
-          2000,
-          0,
-          0
-        ],
-        [
-          3000,
-          0,
-          0
-        ]
-      ]
-    },
-    {
-      "id": "left-wide",
-      "preset": "free_curve",
-      "position_cm": [
-        9800,
-        0,
-        12800
-      ],
-      "rotation_mdeg": [
-        0,
-        0,
-        0
-      ],
-      "width_cm": 1200,
-      "entry_width_cm": 1200,
-      "exit_width_cm": 1200,
-      "control_points": [
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          2651,
-          0,
-          0
-        ],
-        [
-          4800,
-          0,
-          2149
-        ],
-        [
-          4800,
-          0,
-          4800
-        ]
-      ]
-    },
-    {
-      "id": "runout-03",
-      "preset": "free_curve",
-      "position_cm": [
-        14600,
-        0,
-        17600
-      ],
-      "rotation_mdeg": [
-        0,
-        0,
-        0
-      ],
       "width_cm": 800,
-      "entry_width_cm": 1200,
+      "entry_width_cm": 800,
       "exit_width_cm": 800,
       "control_points": [
         [
@@ -325,12 +52,285 @@
       ]
     },
     {
+      "id": "runout-01",
+      "preset": "free_curve",
+      "position_cm": [
+        0,
+        0,
+        2000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          533
+        ],
+        [
+          0,
+          0,
+          1067
+        ],
+        [
+          0,
+          0,
+          1600
+        ]
+      ]
+    },
+    {
+      "id": "course-02",
+      "preset": "free_curve",
+      "position_cm": [
+        0,
+        0,
+        3600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          667
+        ],
+        [
+          0,
+          0,
+          1333
+        ],
+        [
+          0,
+          0,
+          2000
+        ]
+      ]
+    },
+    {
+      "id": "right-wide",
+      "preset": "free_curve",
+      "position_cm": [
+        0,
+        0,
+        5600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1767
+        ],
+        [
+          1433,
+          0,
+          3200
+        ],
+        [
+          3200,
+          0,
+          3200
+        ]
+      ]
+    },
+    {
+      "id": "runout-02",
+      "preset": "free_curve",
+      "position_cm": [
+        3200,
+        0,
+        8800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          533,
+          0,
+          0
+        ],
+        [
+          1067,
+          0,
+          0
+        ],
+        [
+          1600,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "course-03",
+      "preset": "free_curve",
+      "position_cm": [
+        4800,
+        0,
+        8800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          667,
+          0,
+          0
+        ],
+        [
+          1333,
+          0,
+          0
+        ],
+        [
+          2000,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "left-wide",
+      "preset": "free_curve",
+      "position_cm": [
+        6800,
+        0,
+        8800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1767,
+          0,
+          0
+        ],
+        [
+          3200,
+          0,
+          1433
+        ],
+        [
+          3200,
+          0,
+          3200
+        ]
+      ]
+    },
+    {
+      "id": "runout-03",
+      "preset": "free_curve",
+      "position_cm": [
+        10000,
+        0,
+        12000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          533
+        ],
+        [
+          0,
+          0,
+          1067
+        ],
+        [
+          0,
+          0,
+          1600
+        ]
+      ]
+    },
+    {
       "id": "course-04",
       "preset": "free_curve",
       "position_cm": [
-        14600,
+        10000,
         0,
-        19600
+        13600
       ],
       "rotation_mdeg": [
         0,
@@ -367,9 +367,9 @@
       "id": "right-sharp",
       "preset": "free_curve",
       "position_cm": [
-        14600,
+        10000,
         0,
-        22600
+        16600
       ],
       "rotation_mdeg": [
         0,
@@ -406,9 +406,9 @@
       "id": "runout-04",
       "preset": "free_curve",
       "position_cm": [
-        15200,
+        10600,
         0,
-        23200
+        17200
       ],
       "rotation_mdeg": [
         0,
@@ -445,9 +445,9 @@
       "id": "course-05",
       "preset": "free_curve",
       "position_cm": [
-        17600,
+        13000,
         0,
-        23200
+        17200
       ],
       "rotation_mdeg": [
         0,
@@ -484,9 +484,9 @@
       "id": "left-sharp",
       "preset": "free_curve",
       "position_cm": [
-        20600,
+        16000,
         0,
-        23200
+        17200
       ],
       "rotation_mdeg": [
         0,
@@ -523,9 +523,9 @@
       "id": "runout-05",
       "preset": "free_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        23800
+        17800
       ],
       "rotation_mdeg": [
         0,
@@ -562,9 +562,9 @@
       "id": "course-06",
       "preset": "free_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        26200
+        20200
       ],
       "rotation_mdeg": [
         0,
@@ -601,9 +601,9 @@
       "id": "runout-06",
       "preset": "free_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        29200
+        23200
       ],
       "rotation_mdeg": [
         0,
@@ -640,9 +640,9 @@
       "id": "course-07",
       "preset": "free_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        31600
+        25600
       ],
       "rotation_mdeg": [
         0,
@@ -679,9 +679,9 @@
       "id": "flight-07",
       "preset": "flight_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        34600
+        28600
       ],
       "rotation_mdeg": [
         0,
@@ -718,9 +718,9 @@
       "id": "landing-07",
       "preset": "free_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        35800
+        29800
       ],
       "rotation_mdeg": [
         0,
@@ -757,9 +757,9 @@
       "id": "course-08",
       "preset": "free_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        37800
+        31800
       ],
       "rotation_mdeg": [
         0,
@@ -796,9 +796,9 @@
       "id": "flight-08",
       "preset": "flight_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        40800
+        34800
       ],
       "rotation_mdeg": [
         0,
@@ -835,9 +835,9 @@
       "id": "landing-08",
       "preset": "free_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        42600
+        36600
       ],
       "rotation_mdeg": [
         0,
@@ -874,18 +874,18 @@
       "id": "narrow-approach",
       "preset": "free_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        44600
+        38600
       ],
       "rotation_mdeg": [
         0,
         0,
         0
       ],
-      "width_cm": 200,
+      "width_cm": 400,
       "entry_width_cm": 800,
-      "exit_width_cm": 200,
+      "exit_width_cm": 400,
       "control_points": [
         [
           0,
@@ -913,18 +913,18 @@
       "id": "course-09",
       "preset": "free_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        46600
+        40600
       ],
       "rotation_mdeg": [
         0,
         0,
         0
       ],
-      "width_cm": 200,
-      "entry_width_cm": 200,
-      "exit_width_cm": 200,
+      "width_cm": 400,
+      "entry_width_cm": 400,
+      "exit_width_cm": 400,
       "control_points": [
         [
           0,
@@ -952,18 +952,18 @@
       "id": "flight-09",
       "preset": "flight_curve",
       "position_cm": [
-        21200,
+        16600,
         0,
-        49600
+        43600
       ],
       "rotation_mdeg": [
         0,
         0,
         0
       ],
-      "width_cm": 200,
-      "entry_width_cm": 200,
-      "exit_width_cm": 200,
+      "width_cm": 400,
+      "entry_width_cm": 400,
+      "exit_width_cm": 400,
       "control_points": [
         [
           0,
@@ -991,18 +991,18 @@
       "id": "landing-09",
       "preset": "free_curve",
       "position_cm": [
-        21600,
+        17000,
         0,
-        50000
+        44000
       ],
       "rotation_mdeg": [
         0,
         0,
         0
       ],
-      "width_cm": 200,
-      "entry_width_cm": 200,
-      "exit_width_cm": 200,
+      "width_cm": 400,
+      "entry_width_cm": 400,
+      "exit_width_cm": 400,
       "control_points": [
         [
           0,
@@ -1030,9 +1030,9 @@
       "id": "wide-approach",
       "preset": "free_curve",
       "position_cm": [
-        23600,
+        19000,
         0,
-        50000
+        44000
       ],
       "rotation_mdeg": [
         0,
@@ -1040,7 +1040,7 @@
         0
       ],
       "width_cm": 800,
-      "entry_width_cm": 200,
+      "entry_width_cm": 400,
       "exit_width_cm": 800,
       "control_points": [
         [
@@ -1069,9 +1069,9 @@
       "id": "course-10",
       "preset": "free_curve",
       "position_cm": [
-        26100,
+        21500,
         0,
-        50000
+        44000
       ],
       "rotation_mdeg": [
         0,
@@ -1108,9 +1108,9 @@
       "id": "flight-10",
       "preset": "flight_curve",
       "position_cm": [
-        29100,
+        24500,
         0,
-        50000
+        44000
       ],
       "rotation_mdeg": [
         0,
@@ -1133,12 +1133,12 @@
         ],
         [
           666,
-          240,
+          360,
           0
         ],
         [
           1000,
-          240,
+          360,
           0
         ]
       ]
@@ -1147,9 +1147,9 @@
       "id": "landing-10",
       "preset": "free_curve",
       "position_cm": [
-        30100,
-        240,
-        50000
+        25500,
+        360,
+        44000
       ],
       "rotation_mdeg": [
         0,
@@ -1186,9 +1186,9 @@
       "id": "completion",
       "preset": "free_curve",
       "position_cm": [
-        32100,
-        240,
-        50000
+        27500,
+        360,
+        44000
       ],
       "rotation_mdeg": [
         0,
@@ -1385,47 +1385,47 @@
   "checkpoints": [
     {
       "piece": "course-01",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "course-02",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "course-03",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "course-04",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "course-05",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "course-06",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "course-07",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "course-08",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "course-09",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "course-10",
-      "sample": 8
+      "sample": 4
     },
     {
       "piece": "completion",
-      "sample": 8
+      "sample": 4
     }
   ],
   "actions": [
@@ -1433,7 +1433,7 @@
       "id": "manual-07",
       "kind": "manual_flight",
       "piece": "course-07",
-      "sample": 65,
+      "sample": 32,
       "height_cm": 800,
       "landing": {
         "piece": "landing-07",
@@ -1444,7 +1444,7 @@
       "id": "manual-08",
       "kind": "manual_flight",
       "piece": "course-08",
-      "sample": 65,
+      "sample": 32,
       "height_cm": 800,
       "landing": {
         "piece": "landing-08",
@@ -1455,7 +1455,7 @@
       "id": "manual-09",
       "kind": "manual_flight",
       "piece": "course-09",
-      "sample": 65,
+      "sample": 32,
       "height_cm": 800,
       "landing": {
         "piece": "landing-09",
@@ -1466,7 +1466,7 @@
       "id": "manual-10",
       "kind": "manual_flight",
       "piece": "course-10",
-      "sample": 65,
+      "sample": 32,
       "height_cm": 800,
       "landing": {
         "piece": "landing-10",
@@ -1480,14 +1480,14 @@
       "id": "practice-beam",
       "control_points": [
         [
-          21200,
+          16600,
           0,
-          40800
+          34800
         ],
         [
-          21200,
+          16600,
           0,
-          42600
+          36600
         ]
       ],
       "up": [
@@ -1502,11 +1502,171 @@
   ],
   "structures": [
     {
+      "id": "authored-start-wall",
+      "position": [
+        0,
+        50,
+        -20
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "scale_per_mille": [
+        1000,
+        1000,
+        1000
+      ],
+      "parts": [
+        {
+          "vertices": [
+            [
+              -420,
+              -50,
+              -20
+            ],
+            [
+              420,
+              -50,
+              -20
+            ],
+            [
+              420,
+              50,
+              -20
+            ],
+            [
+              -420,
+              50,
+              -20
+            ],
+            [
+              -420,
+              -50,
+              20
+            ],
+            [
+              420,
+              -50,
+              20
+            ],
+            [
+              420,
+              50,
+              20
+            ],
+            [
+              -420,
+              50,
+              20
+            ]
+          ],
+          "faces": [
+            [
+              0,
+              2,
+              1
+            ],
+            [
+              0,
+              3,
+              2
+            ],
+            [
+              4,
+              5,
+              6
+            ],
+            [
+              4,
+              6,
+              7
+            ],
+            [
+              0,
+              1,
+              5
+            ],
+            [
+              0,
+              5,
+              4
+            ],
+            [
+              3,
+              7,
+              6
+            ],
+            [
+              3,
+              6,
+              2
+            ],
+            [
+              0,
+              4,
+              7
+            ],
+            [
+              0,
+              7,
+              3
+            ],
+            [
+              1,
+              2,
+              6
+            ],
+            [
+              1,
+              6,
+              5
+            ]
+          ]
+        }
+      ],
+      "surface": "asphalt",
+      "color": [
+        245,
+        168,
+        35,
+        255
+      ],
+      "motion": {
+        "kind": "static",
+        "delta_cm": [
+          0,
+          0,
+          0
+        ],
+        "axis": 1,
+        "period_ms": 4000,
+        "phase_ms": 0,
+        "impulse_cmps": [
+          0,
+          0,
+          0
+        ],
+        "cooldown_ms": 1500
+      },
+      "safety_min_cm": [
+        -490,
+        -440,
+        -510
+      ],
+      "safety_max_cm": [
+        490,
+        540,
+        470
+      ]
+    },
+    {
       "id": "authored-low-barrier",
       "position": [
-        21200,
+        16600,
         18,
-        29200
+        23200
       ],
       "rotation_mdeg": [
         0,
@@ -1651,22 +1811,22 @@
         "cooldown_ms": 1500
       },
       "safety_min_cm": [
-        20770,
+        16170,
         -412,
-        28770
+        22770
       ],
       "safety_max_cm": [
-        21630,
+        17030,
         448,
-        29630
+        23630
       ]
     },
     {
       "id": "authored-single-beam",
       "position": [
-        21200,
+        16600,
         -10,
-        41700
+        35700
       ],
       "rotation_mdeg": [
         0,
@@ -1811,22 +1971,22 @@
         "cooldown_ms": 1500
       },
       "safety_min_cm": [
-        20230,
+        15630,
         -980,
-        40730
+        34730
       ],
       "safety_max_cm": [
-        22170,
+        17570,
         960,
-        42670
+        36670
       ]
     },
     {
       "id": "authored-high-wall",
       "position": [
-        30100,
-        120,
-        50000
+        25500,
+        180,
+        44000
       ],
       "rotation_mdeg": [
         0,
@@ -1843,42 +2003,42 @@
           "vertices": [
             [
               -400,
-              -120,
+              -180,
               -25
             ],
             [
               400,
-              -120,
+              -180,
               -25
             ],
             [
               400,
-              120,
-              -25
-            ],
-            [
-              -400,
-              120,
+              180,
               -25
             ],
             [
               -400,
-              -120,
+              180,
+              -25
+            ],
+            [
+              -400,
+              -180,
               25
             ],
             [
               400,
-              -120,
+              -180,
               25
             ],
             [
               400,
-              120,
+              180,
               25
             ],
             [
               -400,
-              120,
+              180,
               25
             ]
           ],
@@ -1971,14 +2131,174 @@
         "cooldown_ms": 1500
       },
       "safety_min_cm": [
-        29555,
+        24895,
         -425,
-        49455
+        43395
       ],
       "safety_max_cm": [
-        30645,
-        665,
-        50545
+        26105,
+        785,
+        44605
+      ]
+    },
+    {
+      "id": "authored-finish-wall",
+      "position": [
+        29520,
+        410,
+        44000
+      ],
+      "rotation_mdeg": [
+        0,
+        90000,
+        0
+      ],
+      "scale_per_mille": [
+        1000,
+        1000,
+        1000
+      ],
+      "parts": [
+        {
+          "vertices": [
+            [
+              -420,
+              -50,
+              -20
+            ],
+            [
+              420,
+              -50,
+              -20
+            ],
+            [
+              420,
+              50,
+              -20
+            ],
+            [
+              -420,
+              50,
+              -20
+            ],
+            [
+              -420,
+              -50,
+              20
+            ],
+            [
+              420,
+              -50,
+              20
+            ],
+            [
+              420,
+              50,
+              20
+            ],
+            [
+              -420,
+              50,
+              20
+            ]
+          ],
+          "faces": [
+            [
+              0,
+              2,
+              1
+            ],
+            [
+              0,
+              3,
+              2
+            ],
+            [
+              4,
+              5,
+              6
+            ],
+            [
+              4,
+              6,
+              7
+            ],
+            [
+              0,
+              1,
+              5
+            ],
+            [
+              0,
+              5,
+              4
+            ],
+            [
+              3,
+              7,
+              6
+            ],
+            [
+              3,
+              6,
+              2
+            ],
+            [
+              0,
+              4,
+              7
+            ],
+            [
+              0,
+              7,
+              3
+            ],
+            [
+              1,
+              2,
+              6
+            ],
+            [
+              1,
+              6,
+              5
+            ]
+          ]
+        }
+      ],
+      "surface": "asphalt",
+      "color": [
+        245,
+        168,
+        35,
+        255
+      ],
+      "motion": {
+        "kind": "static",
+        "delta_cm": [
+          0,
+          0,
+          0
+        ],
+        "axis": 1,
+        "period_ms": 4000,
+        "phase_ms": 0,
+        "impulse_cmps": [
+          0,
+          0,
+          0
+        ],
+        "cooldown_ms": 1500
+      },
+      "safety_min_cm": [
+        29030,
+        -80,
+        43510
+      ],
+      "safety_max_cm": [
+        30010,
+        900,
+        44490
       ]
     }
   ]
