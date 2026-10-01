@@ -1,4 +1,5 @@
 extends VBoxContainer
+const I18N := preload("./locale_text.gd")
 signal state_changed
 const EDIT := preload("./workbench_edit.gd")
 var canvas: Control
@@ -15,19 +16,20 @@ var pending_layer := ""
 func _ready() -> void:
 	preload("./workbench_style.gd").outline(self)
 	search = LineEdit.new()
-	search.placeholder_text = "Filter object ID…"
+	search.placeholder_text = I18N.t("Filter object ID…")
 	search.text_changed.connect(func(_value): refresh())
 	add_child(search)
 	tree = Tree.new()
+	tree.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	tree.columns = 3
 	tree.hide_root = true
 	tree.select_mode = Tree.SELECT_MULTI
 	tree.column_titles_visible = true
-	tree.set_column_title(0, "Objects")
+	tree.set_column_title(0, I18N.t("Objects"))
 	tree.set_column_clip_content(0, true)
 	tree.set_column_custom_minimum_width(0, 80)
-	tree.set_column_title(1, "Show")
-	tree.set_column_title(2, "Lock")
+	tree.set_column_title(1, I18N.t("Show"))
+	tree.set_column_title(2, I18N.t("Lock"))
 	for col in [1, 2]:
 		tree.set_column_expand(col, false)
 		tree.set_column_custom_minimum_width(col, 45)
@@ -43,7 +45,7 @@ func _ready() -> void:
 	var row := HBoxContainer.new()
 	add_child(row)
 	var label := Label.new()
-	label.text = "Layer opacity"
+	label.text = I18N.t("Layer opacity")
 	row.add_child(label)
 	opacity_control = HSlider.new()
 	opacity_control.min_value = 0.15
@@ -62,13 +64,13 @@ func _ready() -> void:
 	row.add_child(opacity_control)
 	var hint := Label.new()
 	hint.text = ""
-	tree.tooltip_text = "Show / lock affect 2D editing only. Shift/Ctrl-click for multiple objects."
+	tree.tooltip_text = I18N.t("Show / lock affect 2D editing only. Shift/Ctrl-click for multiple objects.")
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.free()
 
 func _layer(parent: TreeItem, key: String, title: String, count: int) -> TreeItem:
 	var item := tree.create_item(parent)
-	item.set_text(0, "%s (%d)" % [title, count])
+	item.set_text(0, "%s (%d)" % [title if key.begins_with("import/") else I18N.t(title), count])
 	item.set_metadata(0, key)
 	item.collapsed = bool(collapsed.get(key, key.begins_with("import/")))
 	var state: Dictionary = canvas.layer_state.get(key, {})
@@ -106,7 +108,7 @@ func refresh() -> void:
 			for col in [1, 2]: item.set_selectable(col, false)
 			rows[entry.key] = item
 	for key: String in imports:
-		_layer(root, key, "Import " + key.trim_prefix("import/").left(8), imports[key])
+		_layer(root, key, I18N.t("Import") + " " + key.trim_prefix("import/").left(8), imports[key])
 	updating = false
 	sync_selection()
 

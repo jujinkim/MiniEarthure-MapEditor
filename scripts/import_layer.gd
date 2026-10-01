@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Untrusted adapter output can only add a fresh, explicitly adopted vector layer.
 const MAX_BYTES := 12 * 1024 * 1024
 const FIELDS := ["nodes", "roads", "buildings", "zones"]
@@ -201,7 +202,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	# reopening the review does not parse raw JSON or traverse large mappings.
 	if value.coordinates.has("vertical"):
 		if value.coordinates.has("osm_ground_loops") and value.coordinates.vertical.explicit_points == 0:
-			_review_prefix = "No explicit OSM node heights. Ground heights are estimates; roads follow terrain. No source height datum was applied.\n"
+			_review_prefix = I18N.t("No explicit OSM node heights. Ground heights are estimates; roads follow terrain. No source height datum was applied.\n")
 		else:
 			_review_prefix = preload("./import_vertical.gd").summary(value.coordinates.vertical) + "\n"
 	if value.coordinates.has("osm_height_supplement"):
@@ -447,7 +448,7 @@ func adopt(store: RefCounted) -> String:
 	return failure if failure != "" else store.apply_command("Adopt import " + str(value.source.name), patches(store))
 
 func summary() -> String:
-	if value.is_empty(): return "No import candidate."
+	if value.is_empty(): return I18N.t("No import candidate.")
 	var text := preload("./import_review_text.gd")
 	var coordinates := {}
 	for key in ["mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
@@ -460,9 +461,9 @@ func summary() -> String:
 		count += 1
 	var warnings := ""
 	for index in range(mini(50, value.warnings.size())): warnings += value.warnings[index] + "\n"
-	var result := "%s · %d bytes\nLicense: %s · source accuracy: %s\nSHA-256: %s\n%d features / %d records · local extent (cm): %s\n" % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.source.sha256, value.feature_count, value.patches.size(), str(value.extent_cm)]
-	result += _review_prefix + "\nProjection / processing summary:\n" + text.metadata(coordinates)
-	if value.adapter == "osm-extract-v1": result += "\nOSM adoption: source lengths, widths and heights ÷ 8, rounded to authored centimetres. One authored metre = one game metre. Source provenance above is retained.\n"
-	result += "\nEstimated fields (counts; showing %d of %d):\n%sWarnings: %d (showing %d of %d retained):\n%s" % [count, value.estimates.size(), estimates, value.warning_count, mini(50, value.warnings.size()), value.warnings.size(), warnings]
+	var result := I18N.t("%s · %d bytes\nLicense: %s · source accuracy: %s\nSHA-256: %s\n%d features / %d records · local extent (cm): %s\n") % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.source.sha256, value.feature_count, value.patches.size(), str(value.extent_cm)]
+	result += _review_prefix + I18N.t("\nProjection / processing summary:\n") + text.metadata(coordinates)
+	if value.adapter == "osm-extract-v1": result += I18N.t("\nOSM adoption: source lengths, widths and heights ÷ 8, rounded to authored centimetres. One authored metre = one game metre. Source provenance above is retained.\n")
+	result += I18N.t("\nEstimated fields (counts; showing %d of %d):\n%sWarnings: %d (showing %d of %d retained):\n%s") % [count, value.estimates.size(), estimates, value.warning_count, mini(50, value.warnings.size()), value.warnings.size(), warnings]
 	result = result.substr(0, text.MAX_SUMMARY_CHARS - 320)
-	return result + "\nSummary is limited. Browse exact details for every retained field, mapping, warning and captured source JSON. Adapter warning samples may omit source warnings.\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged."
+	return result + I18N.t("\nSummary is limited. Browse exact details for every retained field, mapping, warning and captured source JSON. Adapter warning samples may omit source warnings.\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged.")

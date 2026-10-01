@@ -1,4 +1,5 @@
 extends Node
+const I18N := preload("./locale_text.gd")
 ## Route the private worker before constructing any Editor UI or user session.
 const STARTUP := preload("./mapkit_startup.gd")
 
@@ -29,11 +30,11 @@ func _show_startup_error(failure: String) -> void:
 	var column := VBoxContainer.new()
 	margin.add_child(column)
 	var title := Label.new()
-	title.text = "MapEditor could not start"
+	title.text = I18N.t("MapEditor could not start")
 	title.add_theme_font_size_override("font_size", 22)
 	column.add_child(title)
 	var explanation := Label.new()
-	explanation.text = "MapKit is unavailable or does not match this editor. Close Godot and rebuild MapKit for this project, then restart."
+	explanation.text = I18N.t("MapKit is unavailable or does not match this editor. Close Godot and rebuild MapKit for this project, then restart.")
 	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(explanation)
 	var details := TextEdit.new()
@@ -41,15 +42,15 @@ func _show_startup_error(failure: String) -> void:
 	details.editable = false
 	details.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	details.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	details.text = "%s\n\nProject: %s\nEngine: %s\nGodot: %s\nExtension: %s" % [failure, ProjectSettings.globalize_path("res://"), OS.get_executable_path(), Engine.get_version_info().string, STARTUP.EXTENSION]
+	details.text = I18N.t("%s\n\nProject: %s\nEngine: %s\nGodot: %s\nExtension: %s") % [I18N.diagnostic(failure), ProjectSettings.globalize_path("res://"), OS.get_executable_path(), Engine.get_version_info().string, STARTUP.EXTENSION]
 	column.add_child(details)
 	var actions := HBoxContainer.new()
 	column.add_child(actions)
 	var copy := Button.new()
-	copy.text = "Copy diagnostics"
+	copy.text = I18N.t("Copy diagnostics")
 	copy.pressed.connect(func(): DisplayServer.clipboard_set(details.text))
 	actions.add_child(copy)
 	var close := Button.new()
-	close.text = "Close"
+	close.text = I18N.t("Close")
 	close.pressed.connect(func(): get_tree().quit(1))
 	actions.add_child(close)

@@ -1,4 +1,5 @@
 extends Node
+const I18N := preload("./locale_text.gd")
 ## Commands edit public authoring source; the native compiler owns every derived frame.
 const PREVIEW := preload("res://addons/mapkit/godot/track_authoring_preview.gd")
 var editor: Control
@@ -38,9 +39,9 @@ func build(owner: Control) -> void:
 	editor.store.track_edit_ready.connect(func(context: Dictionary): apply_context = context)
 	editor.store.track_edit_finished.connect(func(failure: String):
 		if failure != "":
-			editor._status(failure)
+			editor._status(I18N.diagnostic(failure))
 			if properties.get_meta("placement_tool", "") != placement.tool: _properties()
-		else: editor._status("Track edit complete · Draft saved in document history.")
+		else: editor._status(I18N.t("Track edit complete · Draft saved in document history."))
 		editor.commands.refresh_buttons())
 	catalogue = JSON.parse_string(editor.store.bridge.track_catalogue()).data
 	placement = preload("./track_placement.gd").new()
@@ -93,14 +94,15 @@ func build(owner: Control) -> void:
 	editor.commands.button(actions, "edit.delete")
 	_button(actions, "Zigzag + jump shortcut", _shortcut_example)
 	selection = ItemList.new()
+	selection.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	selection.custom_minimum_size.y = 60
 	selection.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	selection.size_flags_stretch_ratio = 0.6
 	palette.add_child(selection)
 	selection.item_selected.connect(select_piece)
 	snap = CheckButton.new()
-	snap.text = "Port snap"
-	snap.tooltip_text = "Snap entry to a nearby exit within 3 m · S"
+	snap.text = I18N.t("Port snap")
+	snap.tooltip_text = I18N.t("Snap entry to a nearby exit within 3 m · S")
 	snap.button_pressed = true
 	snap.toggled.connect(func(_on: bool): placement.invalidate_candidate())
 	palette.add_child(snap)
@@ -117,10 +119,10 @@ static func piece_name(id: String) -> String:
 func show_hint() -> void:
 	if not active: return
 	if placement.tool != "":
-		editor.tool_hint.text = piece_name(placement.tool) + " · " + placement.hint
-		editor.tool_hint.text += " · Cancel: " + editor.commands.shortcut_text("edit.cancel_interaction")
+		editor.tool_hint.text = I18N.t(piece_name(placement.tool)) + " · " + I18N.display(placement.hint)
+		editor.tool_hint.text += I18N.t(" · Cancel: ") + editor.commands.shortcut_text("edit.cancel_interaction")
 	else:
-		editor.tool_hint.text = "Select · Click a piece; drag to move · Choose a palette tool to preview · Right drag orbits · Wheel zooms"
+		editor.tool_hint.text = I18N.t("Select · Click a piece; drag to move · Choose a palette tool to preview · Right drag orbits · Wheel zooms")
 	editor.tool_hint.tooltip_text = editor.tool_hint.text
 
 func select_piece(index: int) -> void:
@@ -154,9 +156,9 @@ func refresh() -> void:
 	editor.regional_grouping.visible=not active
 	editor.preview_dock.get_child(0).visible=not active
 	if active:
-		editor.selection_label.text="TRACK WORKSPACE · 3D + navigation plan"
+		editor.selection_label.text=I18N.t("TRACK WORKSPACE · 3D + navigation plan")
 		show_hint()
-		editor.status_label.text="Choose a piece to preview, or generate a Seed Track." if source.get("instances",[]).is_empty() else "Draft can be saved · Execution export requires valid connections and courses."
+		editor.status_label.text=I18N.t("Choose a piece to preview, or generate a Seed Track.") if source.get("instances",[]).is_empty() else I18N.t("Draft can be saved · Execution export requires valid connections and courses.")
 	for child in editor.left_dock.get_children():
 		if child!=palette: child.visible=not active
 	editor.properties.visible=not active
@@ -179,14 +181,14 @@ func refresh() -> void:
 			if apply_context.has("repeat") and apply_context.get("interaction_serial", -1) == interaction_serial: placement.resume_tool(apply_context.repeat)
 		apply_context = {}
 	selection.clear()
-	for i: Dictionary in source.instances: selection.add_item(i.id+" · "+i.preset)
+	for i: Dictionary in source.instances: selection.add_item(i.id+" · "+I18N.t(piece_name(i.preset)))
 	selected=mini(selected,source.instances.size()-1)
 	if selected>=0: selection.select(selected)
 	_properties()
 	if route_item >= 0 and route_item < route_list.item_count: route_list.select(route_item)
 	var a: Dictionary=editor.store.document.get("assembled_track",{})
 	var issues: Array=a.get("issues",[])
-	report.text="Connections & courses: "+("Geometry ready · Manual courses need player completion" if issues.is_empty() and not a.is_empty() else " / ".join(issues))
+	report.text=I18N.t("Connections & courses: ")+(I18N.t("Geometry ready · Manual courses need player completion") if issues.is_empty() and not a.is_empty() else " / ".join(issues.map(func(issue): return I18N.diagnostic(str(issue)))))
 	_draw()
 
 func _button(parent: Node, text: String, callback: Callable) -> Button:
@@ -196,7 +198,7 @@ func _button(parent: Node, text: String, callback: Callable) -> Button:
 
 func _spin(parent: Node, label: String, value: float, low := -100000.0, high := 100000.0, step := 0.01) -> SpinBox:
 	var s:=SpinBox.new()
-	s.prefix=label+" "
+	s.prefix=I18N.t(label)+" "
 	s.min_value=low
 	s.max_value=high
 	s.step=step
@@ -206,7 +208,7 @@ func _spin(parent: Node, label: String, value: float, low := -100000.0, high := 
 
 func _section(title: String) -> VBoxContainer:
 	var header := Button.new()
-	header.text = ("▾ " if section_open[title] else "▸ ") + title
+	header.text = ("▼ " if section_open[title] else "▶ ") + I18N.t(title)
 	header.set_meta("action_label", title)
 	header.custom_minimum_size.y = 40
 	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -218,7 +220,7 @@ func _section(title: String) -> VBoxContainer:
 	header.pressed.connect(func():
 		section_open[title] = not section_open[title]
 		content.visible = section_open[title]
-		header.text = ("▾ " if section_open[title] else "▸ ") + title)
+		header.text = ("▼ " if section_open[title] else "▶ ") + I18N.t(title))
 	return content
 
 func _selected_button(parent: Node, label: String, callback: Callable, enabled := true, reason := "Select a track piece first.") -> Button:
@@ -234,12 +236,12 @@ func _properties() -> void:
 	port_widths.clear()
 	if source.is_empty(): return
 	var policy := CheckButton.new()
-	policy.text = "Switch to free roam"
+	policy.text = I18N.t("Switch to free roam")
 	properties.add_child(policy)
 	policy.toggled.connect(func(value: bool):
 		cancel_interaction()
 		var failure: String = editor.store.set_free_roam(value)
-		if failure != "": editor._status(failure))
+		if failure != "": editor._status(I18N.diagnostic(failure)))
 	if placement.tool != "" and placement.moving_index < 0:
 		placement.build_controls(properties)
 	var transform := _section("Transform")
@@ -247,7 +249,7 @@ func _properties() -> void:
 	var routes_box := _section("Routes & Checkpoints")
 	var actions_box := _section("Actions")
 	var circuit := CheckButton.new()
-	circuit.text = "Circuit"
+	circuit.text = I18N.t("Circuit")
 	circuit.button_pressed = source.settings.circuit
 	routes_box.add_child(circuit)
 	circuit.toggled.connect(func(value: bool): var next := source.duplicate(true); next.settings.circuit = value; _commit(next))
@@ -265,6 +267,7 @@ func _properties() -> void:
 	STYLE.button(route_actions, "Move route item up", _route_move.bind(-1), "", "up")
 	STYLE.button(route_actions, "Move route item down", _route_move.bind(1), "", "down")
 	route_list = ItemList.new()
+	route_list.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	route_list.custom_minimum_size.y = 96
 	routes_box.add_child(route_list)
 	if not source.paths.is_empty():
@@ -275,14 +278,14 @@ func _properties() -> void:
 		for j in range(2, 5):
 			var button: Button = route_actions.get_child(j)
 			button.disabled = at < 0 or (j == 3 and at == 0) or (j == 4 and at == route_list.item_count - 1)
-			if button.disabled: button.tooltip_text = str(button.get_meta("action_label")) + "\nSelect an eligible route list item."
+			if button.disabled: button.tooltip_text = str(button.get_meta("action_label")) + I18N.t("\nSelect an eligible route list item.")
 	route_list.item_selected.connect(func(_i: int): sync_route.call(); editor.commands.refresh_buttons())
 	sync_route.call()
 	for n in source.checkpoints.size():
 		var cp: Dictionary = source.checkpoints[n]
 		var row := HBoxContainer.new()
 		routes_box.add_child(row)
-		editor._label(row, "CP %d · %s / %d" % [n, cp.piece, int(cp.sample)])
+		editor._label(row, I18N.t("CP %d · %s / %d") % [n, cp.piece, int(cp.sample)])
 		_button(row, "Delete checkpoint", func(): var next := source.duplicate(true); next.checkpoints.remove_at(n); _commit(next))
 	for n in source.actions.size():
 		var row := HBoxContainer.new()
@@ -301,7 +304,7 @@ func _properties() -> void:
 	for entry: Dictionary in catalogue.entries:
 		if entry.id != item.preset: continue
 		for w in entry.widths_cm:
-			width.add_item("Width %dm" % (float(w) / 100.0), int(w))
+			width.add_item(I18N.t("Width %dm") % (float(w) / 100.0), int(w))
 			if int(w) == int(item.width_cm): width.select(width.item_count - 1)
 	transform.add_child(width)
 	port_widths.append(_spin(transform, "Entry width (m)", float(item.entry_width_cm) / 100.0, 2.0, 12.0))
@@ -309,14 +312,15 @@ func _properties() -> void:
 	_button(transform, "Apply transform and widths", apply_properties)
 	if item.preset in ["free_curve", "flight_curve"]:
 		for n in item.control_points.size():
-			for j in 3: controls.append(_spin(transform, "Point %d %s" % [n, ["X", "Y", "Z"][j]], float(item.control_points[n][j]) / 100.0))
+			for j in 3: controls.append(_spin(transform, I18N.t("Point %d %s") % [n, ["X", "Y", "Z"][j]], float(item.control_points[n][j]) / 100.0))
 		_button(transform, "Apply curve points", apply_properties)
 	target = OptionButton.new()
+	target.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	for i in source.instances.size():
 		if i != selected: target.add_item(source.instances[i].id, i)
 	connections.add_child(target)
-	_selected_button(connections, "Snap entry to target exit", snap_to_target, target.item_count > 0, "Add another piece to connect.")
-	_selected_button(connections, "Connect exit to target entry", connect_curve, target.item_count > 0, "Add another piece to connect.")
+	_selected_button(connections, "Snap entry to target exit", snap_to_target, target.item_count > 0, I18N.t("Add another piece to connect."))
+	_selected_button(connections, "Connect exit to target entry", connect_curve, target.item_count > 0, I18N.t("Add another piece to connect."))
 	var piece: Dictionary = editor.store.document.assembled_track.pieces[selected]
 	sample_input = _spin(routes_box, "Path sample", 0, 0, piece.path.size() - 1, 1)
 	var cp_actions := HBoxContainer.new()
@@ -325,8 +329,9 @@ func _properties() -> void:
 	_button(cp_actions, "Add finish / common checkpoint", checkpoint.bind(false))
 	action_height = _spin(actions_box, "Jump height (m)", 2.0, 0.5, 10.0, 0.1)
 	landing_target = OptionButton.new()
-	landing_target.add_item("Continuous road jump", -2)
-	for i in source.instances.size(): landing_target.add_item("Landing · " + source.instances[i].id, i)
+	landing_target.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	landing_target.add_item(I18N.t("Continuous road jump"), -2)
+	for i in source.instances.size(): landing_target.add_item(I18N.t("Landing · ") + source.instances[i].id, i)
 	actions_box.add_child(landing_target)
 	landing_sample = _spin(actions_box, "Landing sample", 0, 0, 1024, 1)
 	var action_row := HBoxContainer.new()
@@ -378,12 +383,12 @@ func _route_move(delta: int) -> void:
 	_commit(next, -2, {"route_item":at + delta})
 
 func _commit(next: Dictionary, next_selection := -2, extra: Dictionary = {}) -> bool:
-	if editor.busy: editor._status("Wait for the current operation."); return false
+	if editor.busy: editor._status(I18N.t("Wait for the current operation.")); return false
 	var context := {"selection_serial":selection_serial, "interaction_serial":interaction_serial, "selected":selected if next_selection == -2 else next_selection}
 	context.merge(extra)
 	var failure: String = editor.store.start_track_edit(next, editor.store.command_epoch, context)
-	if failure != "": editor._status(failure); return false
-	editor._status("Applying track edit… Camera and selection remain available · Cancel stops this edit.")
+	if failure != "": editor._status(I18N.diagnostic(failure)); return false
+	editor._status(I18N.t("Applying track edit… Camera and selection remain available · Cancel stops this edit."))
 	editor.commands.refresh_buttons()
 	return true
 
@@ -429,7 +434,7 @@ func snap_to_target() -> void:
 	var next:=source.duplicate(true)
 	var other: Dictionary=next.instances[target.get_selected_id()]
 	var result: Dictionary=JSON.parse_string(editor.store.bridge.snap_track_instance(JSON.stringify(next.instances[selected]),JSON.stringify(other)))
-	if not result.ok: editor._status(result.error.message); return
+	if not result.ok: editor._status(I18N.error(result.error)); return
 	next.instances[selected]=result.data
 	next.connections.append({"from":other.id,"to":result.data.id})
 	_commit(next)

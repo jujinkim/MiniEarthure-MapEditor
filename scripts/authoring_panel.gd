@@ -1,4 +1,5 @@
 extends PanelContainer
+const I18N := preload("./locale_text.gd")
 const HEIGHTMAP_JOB := preload("./heightmap_native_job.gd")
 const ASSET_JOB := preload("./asset_native_job.gd")
 var asset_revision := 0
@@ -54,12 +55,12 @@ func _ready() -> void:
 	feedback.custom_minimum_size.y = 40
 	column.add_child(feedback)
 	heightmap_cancel = Button.new()
-	heightmap_cancel.text = "Cancel PNG validation"
+	heightmap_cancel.text = I18N.t("Cancel PNG validation")
 	heightmap_cancel.visible = false
 	heightmap_cancel.pressed.connect(_discard_heightmap)
 	column.add_child(heightmap_cancel)
 	asset_cancel = Button.new()
-	asset_cancel.text = "Cancel asset validation"
+	asset_cancel.text = I18N.t("Cancel asset validation")
 	asset_cancel.visible = false
 	asset_cancel.pressed.connect(_discard_asset)
 	column.add_child(asset_cancel)
@@ -68,9 +69,9 @@ func _ready() -> void:
 	source_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	add_child(source_picker)
 	heightmap_review = ConfirmationDialog.new()
-	heightmap_review.title = "Review new heightmap source layer"
-	heightmap_review.ok_button_text = "Adopt and activate tile"
-	heightmap_review.cancel_button_text = "Discard"
+	heightmap_review.title = I18N.t("Review new heightmap source layer")
+	heightmap_review.ok_button_text = I18N.t("Adopt and activate tile")
+	heightmap_review.cancel_button_text = I18N.t("Discard")
 	heightmap_review.min_size = Vector2i(640, 420)
 	add_child(heightmap_review)
 	heightmap_summary = RichTextLabel.new()
@@ -123,10 +124,10 @@ func _start_asset(record: Dictionary, source: String) -> void:
 	editor.busy = true
 	editor.import_progress.visible = true
 	asset_cancel.visible = true
-	feedback.text = "Checking asset and preparing Undo · 120s deadline · Cancel preserves the map."
+	feedback.text = I18N.t("Checking asset and preparing Undo · 120s deadline · Cancel preserves the map.")
 
 func asset_progress(progress: Dictionary) -> void:
-	if not progress.is_empty(): feedback.text = "Asset %s · %d / %d %s · 120s deadline" % [progress.stage, progress.completed, progress.total, progress.unit]
+	if not progress.is_empty(): feedback.text = I18N.t("Asset %s · %d / %d %s · 120s deadline") % [I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
 
 func finish_asset(job: RefCounted, result: Dictionary) -> void:
 	asset_cancel.visible = false
@@ -194,11 +195,11 @@ func _start_heightmap(adopting: bool) -> void:
 	editor.busy = true
 	editor.import_progress.visible = true
 	heightmap_cancel.visible = true
-	feedback.text = "Checking PNG before %s · 120s deadline · Cancel preserves the map." % ("adoption" if adopting else "review")
+	feedback.text = I18N.t("Checking PNG before %s · 120s deadline · Cancel preserves the map.") % (I18N.t("adoption") if adopting else I18N.t("review"))
 
 func heightmap_progress(progress: Dictionary) -> void:
 	if progress.is_empty(): return
-	feedback.text = "PNG %s · %d / %d %s · 120s deadline" % [progress.stage, progress.completed, progress.total, progress.unit]
+	feedback.text = I18N.t("PNG %s · %d / %d %s · 120s deadline") % [I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
 
 func finish_heightmap(job: RefCounted, result: Dictionary) -> void:
 	heightmap_cancel.visible = false
@@ -224,7 +225,7 @@ func finish_heightmap(job: RefCounted, result: Dictionary) -> void:
 	heightmap_candidate.recheck_source = true
 	heightmap_summary.text = heightmap_candidate.summary()
 	heightmap_review.popup_centered(Vector2i(680, 460))
-	feedback.text = "Validated candidate; document unchanged. Review then adopt or discard."
+	feedback.text = I18N.t("Validated candidate; document unchanged. Review then adopt or discard.")
 
 func _adopt_heightmap() -> void:
 	if heightmap_candidate == null or editor.busy: return
@@ -250,7 +251,7 @@ func open() -> void:
 		child.queue_free()
 	page_picker.clear()
 	fields.clear()
-	feedback.text = "Choose an explicit recipe before using its features. All edits pass MapKit validation."
+	feedback.text = I18N.t("Choose an explicit recipe before using its features. All edits pass MapKit validation.")
 	_setup()
 	_drawing()
 	_terrain()
@@ -273,7 +274,7 @@ func open() -> void:
 func page(name: String) -> VBoxContainer:
 	var scroll := ScrollContainer.new()
 	scroll.name = name
-	page_picker.add_item(name)
+	page_picker.add_item(I18N.t(name))
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	tabs.add_child(scroll)
 	var box := VBoxContainer.new()
@@ -284,7 +285,7 @@ func page(name: String) -> VBoxContainer:
 
 func hint(box: Node, text: String) -> void:
 	var label := Label.new()
-	label.text = text
+	label.text = I18N.t(text)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(label)
 
@@ -292,7 +293,7 @@ func row(box: Node, title: String) -> VBoxContainer:
 	var result := VBoxContainer.new()
 	box.add_child(result)
 	var label := Label.new()
-	label.text = title
+	label.text = I18N.t(title)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	result.add_child(label)
 	return result
@@ -309,6 +310,7 @@ func number(box: Node, title: String, value: float, minimum: float, maximum: flo
 
 func text(box: Node, title: String, value: String) -> LineEdit:
 	var control := LineEdit.new()
+	control.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	control.text = value
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row(box, title).add_child(control)
@@ -317,7 +319,13 @@ func text(box: Node, title: String, value: String) -> LineEdit:
 func choice(box: Node, title: String, values: Array, value: String) -> OptionButton:
 	var control := OptionButton.new()
 	control.fit_to_longest_item = false
-	for item in values: control.add_item(str(item))
+	control.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	var authored_values := title in ["Placement / repetition asset", "Planting tree", "Asset library", "Map courses", "Object"]
+	for item in values:
+		var label := str(item)
+		if not authored_values or label.begins_with("builtin:") or (control.item_count == 0 and label in ["New asset", "New course", "New structure"]): label = I18N.builtin(label)
+		control.add_item(label)
+		control.set_item_metadata(control.item_count - 1, item)
 	control.selected = maxi(0, values.find(value))
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row(box, title).add_child(control)
@@ -325,15 +333,15 @@ func choice(box: Node, title: String, values: Array, value: String) -> OptionBut
 
 func button(box: Node, title: String, callback: Callable) -> Button:
 	var control := Button.new()
-	control.text = title
+	control.text = I18N.t(title)
 	control.clip_text = true
-	control.tooltip_text = title
+	control.tooltip_text = I18N.t(title)
 	control.pressed.connect(callback)
 	box.add_child(control)
 	return control
 
 func report(failure: String) -> void:
-	feedback.text = failure if failure != "" else "Applied. Undo/Redo retain this as one operation."
+	feedback.text = I18N.diagnostic(failure) if failure != "" else I18N.t("Applied. Undo/Redo retain this as one operation.")
 	feedback.modulate = Color("ffab91") if failure != "" else Color("c5e1a5")
 	editor._status(feedback.text)
 	if failure == "": session_signature = editor.store._signature(editor.store.document)
@@ -348,12 +356,12 @@ func _setup() -> void:
 	var box := page("Map")
 	var theme := choice(box, "Theme", ["default", "urban", "rural"], editor.store.document.theme)
 	button(box, "Apply theme", func():
-		if fresh(): report(author.set_theme(theme.get_item_text(theme.selected)))
+		if fresh(): report(author.set_theme(str(theme.get_item_metadata(theme.selected))))
 	)
 	var bounds: Dictionary = editor.store.document.bounds.duplicate(true)
 	var coordinates: Array = []
 	for key in ["min", "max"]:
-		for axis in range(2): coordinates.append(number(box, key.capitalize() + " " + ["X", "Y"][axis] + " (m)", float(bounds[key][axis]) / 100, -100000, 100000, 0.01))
+		for axis in range(2): coordinates.append(number(box, I18N.t("Minimum %s (m)" if key == "min" else "Maximum %s (m)") % ["X", "Y"][axis], float(bounds[key][axis]) / 100, -100000, 100000, 0.01))
 	var base := number(box, "Implicit terrain base (m)", float(editor.store.document.terrain_base_cm) / 100, -10000, 10000, 0.01)
 	button(box, "Apply bounds and terrain base", func():
 		if not fresh(): return
@@ -514,7 +522,7 @@ func _asset_form(box: Node) -> void:
 		convexes.text = JSON.stringify([{"vertices": [[-w,0,-d],[w,0,-d],[-w,0,d],[-w,h,-d]], "faces": [[0,1,2],[0,3,1],[0,2,3],[1,3,2]]}], "  ")
 	)
 	var material_on := CheckButton.new()
-	material_on.text = "Override material"
+	material_on.text = I18N.t("Override material")
 	material_on.button_pressed = current.has("material")
 	box.add_child(material_on)
 	var material: Dictionary = current.get("material", {"albedo_rgba": [255,255,255,255], "metallic_per_mille":0, "roughness_per_mille":800, "double_sided":false})
@@ -525,7 +533,7 @@ func _asset_form(box: Node) -> void:
 	var metallic := number(box, "Metallic (per mille)", material.metallic_per_mille, 0, 1000)
 	var roughness := number(box, "Roughness (per mille)", material.roughness_per_mille, 0, 1000)
 	var double_sided := CheckButton.new()
-	double_sided.text = "Double sided"
+	double_sided.text = I18N.t("Double sided")
 	double_sided.button_pressed = material.double_sided
 	box.add_child(double_sided)
 	var texture := text(box, "Texture asset ID (optional)", str(material.get("albedo_texture", "")))
@@ -566,7 +574,7 @@ func _selected() -> void:
 		var clearance := number(box, "Clearance (cm)", float(record.clearance_cm) if record.clearance_cm != null else 400, 1, 10000)
 		var sidewalk := number(box, "Sidewalk (cm; 0 none)", float(record.sidewalk_cm) if record.sidewalk_cm != null else 0, 0, 2000)
 		var markings_on := CheckButton.new()
-		markings_on.text = "Road markings"
+		markings_on.text = I18N.t("Road markings")
 		markings_on.button_pressed = record.has("markings")
 		box.add_child(markings_on)
 		var appearance: Dictionary = record.get("markings", {"lanes":2,"center_line":true,"edge_lines":true,"crosswalk_start":false,"crosswalk_end":false})
@@ -574,7 +582,7 @@ func _selected() -> void:
 		var mark_controls := {}
 		for key in ["center_line", "edge_lines", "crosswalk_start", "crosswalk_end"]:
 			var control := CheckButton.new()
-			control.text = str(key).replace("_", " ").capitalize()
+			control.text = I18N.t(str(key).replace("_", " ").capitalize())
 			control.button_pressed = appearance[key]
 			box.add_child(control)
 			mark_controls[key] = control
@@ -590,7 +598,7 @@ func _selected() -> void:
 		)
 		var points: Array = []
 		for i in range(record.points.size()):
-			hint(box, "Point %d (cm)" % i)
+			hint(box, I18N.t("Point %d (cm)") % i)
 			var controls: Array = []
 			for axis in range(3): controls.append(number(box, ["X", "Height", "Y"][axis], record.points[i][axis], -1000000, 10000000))
 			points.append(controls)
@@ -599,8 +607,8 @@ func _selected() -> void:
 		var widths: Array = []
 		var surfaces: Array = []
 		for i in range(record.widths_cm.size()):
-			widths.append(number(box, "Segment %d width (cm)" % i, record.widths_cm[i], 20, 10000))
-			surfaces.append(choice(box, "Segment %d surface" % i, ["asphalt", "concrete", "dirt", "gravel", "grass"], record.surfaces[i]))
+			widths.append(number(box, I18N.t("Segment %d width (cm)") % i, record.widths_cm[i], 20, 10000))
+			surfaces.append(choice(box, I18N.t("Segment %d surface") % i, ["asphalt", "concrete", "dirt", "gravel", "grass"], record.surfaces[i]))
 		var snow := number(box, "Snow retention (%)", record.get("snow_retention_percent", 100), 0, 100)
 		button(box, "Apply road structure", func():
 			if not fresh(): return
@@ -609,8 +617,8 @@ func _selected() -> void:
 			var ws: Array = []
 			var ss: Array = []
 			for control: SpinBox in widths: ws.append(int(control.value))
-			for control: OptionButton in surfaces: ss.append(control.get_item_text(control.selected))
-			var structure := kind.get_item_text(kind.selected)
+			for control: OptionButton in surfaces: ss.append(str(control.get_item_metadata(control.selected)))
+			var structure := str(kind.get_item_metadata(kind.selected))
 			report(author.edit_road(record, vertices, ws, ss, structure, int(clearance.value) if structure in ["tunnel", "underpass"] else null, int(sidewalk.value) if sidewalk.value > 0 else null, [int(levels[0].value), int(levels[1].value)], int(snow.value)))
 		)
 	else:

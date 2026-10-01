@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 var ui: Control
 var dialog: AcceptDialog
 var target: OptionButton
@@ -12,38 +13,38 @@ var revision := 0
 func setup(owner_ui: Control) -> void:
 	ui = owner_ui
 	dialog = AcceptDialog.new()
-	dialog.title = "OSM height reference"
-	dialog.ok_button_text = "Keep selection"
+	dialog.title = I18N.t("OSM height reference")
+	dialog.ok_button_text = I18N.t("Keep selection")
 	var column := VBoxContainer.new()
 	column.custom_minimum_size.x = 690
 	dialog.add_child(column)
 	ui._label(column, "Explicit OSM and local supplemental heights are converted; no heights are inferred.\nMatch the existing DEM's EGM2008 local-zero height and WGS84 origins.\nGround follows terrain; source heights are not fitted to it.")
 	target = OptionButton.new()
-	target.add_item("EGM96 · subtract local-zero height (default 0 m)")
-	target.add_item("EGM2008 · apply local correction grid, subtract local-zero height")
+	target.add_item(I18N.t("EGM96 · subtract local-zero height (default 0 m)"))
+	target.add_item(I18N.t("EGM2008 · apply local correction grid, subtract local-zero height"))
 	column.add_child(target)
 	var fields := GridContainer.new()
 	fields.columns = 2
 	column.add_child(fields)
 	zero = ui._import_number(fields, "Target datum height at local zero (m)", -10000, 10000, 0, 0.01)
 	path = LineEdit.new()
-	path.placeholder_text = "Local height-delta JSON grid (EGM2008 only; ≤64 KiB)"
+	path.placeholder_text = I18N.t("Local height-delta JSON grid (EGM2008 only; ≤64 KiB)")
 	column.add_child(path)
 	picker = FileDialog.new()
 	picker.access = FileDialog.ACCESS_FILESYSTEM
 	picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	picker.filters = PackedStringArray(["*.json ; Local height-delta grid"])
+	picker.filters = I18N.filters(["*.json ; Local height-delta grid"])
 	ui.add_child(picker)
 	picker.file_selected.connect(func(value): path.text = value; changed())
 	ui._button(column, "Choose local correction grid…", func(): picker.popup_centered(Vector2i(800,550)))
 	ui._label(column, "Grid values are H(EGM2008) − H(EGM96), in metres; rows run south to north.\nPrepare the bounded grid externally from licensed local datum material.\nReview retains its exact bytes, source, license and declared accuracy.\nNo download, extrapolation, nodata repair or accuracy certification. See docs/IMPORTS.md.")
 	supplement_path = LineEdit.new()
-	supplement_path.placeholder_text = "Optional local node-height JSON (EGM96; ≤256 KiB); empty disables"
+	supplement_path.placeholder_text = I18N.t("Optional local node-height JSON (EGM96; ≤256 KiB); empty disables")
 	column.add_child(supplement_path)
 	supplement_picker = FileDialog.new()
 	supplement_picker.access = FileDialog.ACCESS_FILESYSTEM
 	supplement_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	supplement_picker.filters = PackedStringArray(["*.json ; Missing structural node heights"])
+	supplement_picker.filters = I18N.filters(["*.json ; Missing structural node heights"])
 	ui.add_child(supplement_picker)
 	supplement_picker.file_selected.connect(func(value): supplement_path.text = value; changed())
 	ui._button(column, "Choose missing-node heights…", func(): supplement_picker.popup_centered(Vector2i(800,550)))

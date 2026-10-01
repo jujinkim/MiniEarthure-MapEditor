@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Editor-local raster candidate. No vector interchange or package schema changes.
 const FILES := preload("./authoring_files.gd")
 const PNG := preload("./terrain_png.gd")
@@ -96,5 +97,5 @@ func adopt(terrain: RefCounted) -> String:
 	return failure
 
 func summary() -> String:
-	if value.is_empty(): return "No staged heightmap."
-	return "%s · %d bytes\nLicense: %s\nSHA-256: %s\nNew source layer: %s\nCell: %s · %d × %d samples\nSpacing / offset / step (cm): %d / %d / %d\nSource accuracy (cm; null unknown): %s\nRestored height range (cm): %s\n%s · no resampling\nPrevious active tile: %s\n\nAdopt explicitly activates this tile and retains its source notice. Previous file references and bytes remain available to Undo/Redo. %s" % [value.source.name,value.source.bytes,value.source.license,value.source.sha256,value.layer_id,str(value.heightmap.cell),value.sample_side,value.sample_side,value.heightmap.spacing_cm,value.heightmap.offset_cm,value.heightmap.step_cm,str(value.heightmap.source_accuracy_cm),str(value.height_range_cm),value.axes,str(value.previous),"Adopt rechecks the original PNG and project files; changed sources require a new review." if recheck_source else "Source changes after staging do not change this captured candidate."]
+	if value.is_empty(): return I18N.t("No staged heightmap.")
+	return I18N.t("%s · %d bytes\nLicense: %s\nSHA-256: %s\nNew source layer: %s\nCell: %s · %d × %d samples\nSpacing / offset / step (cm): %d / %d / %d\nSource accuracy (cm; null unknown): %s\nRestored height range (cm): %s\n%s · no resampling\nPrevious active tile: %s\n\nAdopt explicitly activates this tile and retains its source notice. Previous file references and bytes remain available to Undo/Redo. %s") % [value.source.name,value.source.bytes,value.source.license,value.source.sha256,value.layer_id,str(value.heightmap.cell),value.sample_side,value.sample_side,value.heightmap.spacing_cm,value.heightmap.offset_cm,value.heightmap.step_cm,str(value.heightmap.source_accuracy_cm),str(value.height_range_cm),value.axes,str(value.previous),I18N.t("Adopt rechecks the original PNG and project files; changed sources require a new review.") if recheck_source else I18N.t("Source changes after staging do not change this captured candidate.")]

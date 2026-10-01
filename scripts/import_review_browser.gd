@@ -1,4 +1,5 @@
 extends AcceptDialog
+const I18N := preload("./locale_text.gd")
 ## Read-only view over the current candidate; no deep copy or full serialization.
 const TEXT := preload("./import_review_text.gd")
 const PAGE_ITEMS := 24
@@ -23,8 +24,8 @@ var copy_text: Button
 var exact_page := ""
 
 func _ready() -> void:
-	title = "Exact import details"
-	ok_button_text = "Back to review"
+	title = I18N.t("Exact import details")
+	ok_button_text = I18N.t("Back to review")
 	var box := VBoxContainer.new()
 	box.custom_minimum_size = Vector2(640, 380)
 	add_child(box)
@@ -126,7 +127,7 @@ func show_page(number: int) -> void:
 	content.visible = not container
 	var label := "ImportLayer" if parents.is_empty() else str(parents.back().label).substr(0, 100)
 	var start := number * width
-	location.text = "%s · depth %d · page %d / %d\n%d %s; showing %d–%d. Read-only captured candidate." % [label, parents.size(), number + 1, pages, count, "entries" if container else "characters", mini(start + 1, count), mini(start + width, count)]
+	location.text = I18N.t("%s · depth %d · page %d / %d\n%d %s; showing %d–%d. Read-only captured candidate.") % [label, parents.size(), number + 1, pages, count, I18N.t("entries") if container else I18N.t("characters"), mini(start + 1, count), mini(start + width, count)]
 	scanning = true
 	if current is Dictionary:
 		# Dictionary has no indexed key access. Scan without keys()/full indexing,
@@ -148,7 +149,7 @@ func show_page(number: int) -> void:
 			# control character remains represented and Copy returns original text.
 			exact_page = current.substr(start, PAGE_CHARS)
 			content.text = JSON.stringify(exact_page)
-			location.text += "\nText is JSON-quoted; Copy exact text page keeps original whitespace."
+			location.text += I18N.t("\nText is JSON-quoted; Copy exact text page keeps original whitespace.")
 		else: content.text = JSON.stringify(current)
 	if not _live(token): return
 	for key in page_keys:

@@ -1,4 +1,5 @@
 extends Window
+const I18N := preload("./locale_text.gd")
 ## Independent line authoring uses the same cancellable source transaction as roads.
 var bench: Node
 var list: ItemList
@@ -13,7 +14,7 @@ var selected := -1
 
 func open(owner: Node) -> void:
 	bench=owner
-	title="Grind Lines"
+	title=I18N.t("Grind Lines")
 	size=Vector2i(640,600)
 	var box:=VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -55,7 +56,7 @@ func refresh() -> void:
 	if list.item_count>0: select(clampi(selected,0,list.item_count-1))
 	else: selected=-1
 func _finished(error: String) -> void:
-	status.text=error if error!="" else "Line saved · Undo/Redo and package save retain the source."
+	status.text=I18N.diagnostic(error) if error!="" else I18N.t("Line saved · Undo/Redo and package save retain the source.")
 	if error=="": refresh.call_deferred()
 func select(index: int) -> void:
 	selected=index; list.select(index)
@@ -75,10 +76,10 @@ func add_line(fence: bool) -> void:
 	var lines: Array=next.get_or_add("grind_lines",[])
 	var cp: Array=[[0,100,0],[0,100,800]];var normal: Array=[0,1000000,0]
 	if fence:
-		if bench.selected<0: status.text="Select a road piece before placing a fence line.";return
+		if bench.selected<0: status.text=I18N.t("Select a road piece before placing a fence line.");return
 		var path: Array=bench.editor.store.document.assembled_track.pieces[bench.selected].path
 		if path.is_empty() or path.any(func(sample: Dictionary):return sample.mode in ["flight","loop","cylinder","halfpipe"]):
-			status.text="This piece has no ordinary side fence.";return
+			status.text=I18N.t("This piece has no ordinary side fence.");return
 		cp=fence_points(path);normal=path[0].normal
 	var suffix:=lines.size()+1
 	while lines.any(func(l: Dictionary):return l.id=="grind-%d"%suffix): suffix+=1
@@ -114,11 +115,11 @@ func apply_line() -> void:
 	var cp:=[]
 	for row: String in points.text.split("\n",false):
 		var v:=_vector(row)
-		if v.is_empty():status.text="Each path point needs three finite coordinates.";return
+		if v.is_empty():status.text=I18N.t("Each path point needs three finite coordinates.");return
 		cp.append([roundi(v[0]),roundi(v[1]),roundi(v[2])])
 	var n:=_vector(up.text)
 	var starts: Variant=_links(start_links.text);var ends: Variant=_links(end_links.text)
-	if n.is_empty() or starts==null or ends==null:status.text="Check the up vector and endpoint connections.";return
+	if n.is_empty() or starts==null or ends==null:status.text=I18N.t("Check the up vector and endpoint connections.");return
 	var next: Dictionary=bench.source.duplicate(true)
 	var old: String=next.grind_lines[selected].id
 	next.grind_lines[selected]={"id":identifier.text.strip_edges(),"control_points":cp,"up":[roundi(n[0]*1e6),roundi(n[1]*1e6),roundi(n[2]*1e6)],"capture_width_cm":int(width.value),"start_connections":starts,"end_connections":ends}

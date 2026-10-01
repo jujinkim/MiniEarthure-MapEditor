@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Import provenance only. No changes to authored terrain or MapKit coordinates.
 const MAX_GRID_BYTES := 64 * 1024
 const CRS := {"EGM96":"EPSG:5773 / EGM96 metres", "EGM2008":"EPSG:3855 / EGM2008 metres"}
@@ -114,8 +115,8 @@ static func frame_error(doc: Dictionary, frame: Dictionary, coordinates: Diction
 	return ""
 
 static func summary(v: Dictionary) -> String:
-	var result := "%s → %s minus %s m at local zero\nMethod: %s · %d source vertices / %d roads · delta range (m): %s\n%s\nUnreferenced authored data is not certified. Ground roads follow terrain; structural aprons still require native terrain agreement.\n" % [v.source_crs, v.target_crs, str(v.vertical_zero_m), v.method, v.explicit_points, v.explicit_roads, str(v.delta_range_m), v.order]
+	var result := I18N.t("%s → %s minus %s m at local zero\nMethod: %s · %d source vertices / %d roads · delta range (m): %s\n%s\nUnreferenced authored data is not certified. Ground roads follow terrain; structural aprons still require native terrain agreement.\n") % [v.source_crs, v.target_crs, str(v.vertical_zero_m), v.method, v.explicit_points, v.explicit_roads, str(v.delta_range_m), v.order]
 	if v.grid_source is Dictionary:
 		var grid: Dictionary = JSON.parse_string(v.grid_source.json)
-		result += "Correction source: %s\nLicense: %s\nDeclared accuracy: %s (not independently verified)\n%s bytes · SHA-256: %s\nBounds: %s · %s × %s nodes; south-to-north rows, west-to-east columns.\n" % [grid.source, grid.license, grid.accuracy, v.grid_source.bytes, v.grid_source.sha256, str(grid.bbox), grid.columns, grid.rows]
+		result += I18N.t("Correction source: %s\nLicense: %s\nDeclared accuracy: %s (not independently verified)\n%s bytes · SHA-256: %s\nBounds: %s · %s × %s nodes; south-to-north rows, west-to-east columns.\n") % [grid.source, grid.license, grid.accuracy, v.grid_source.bytes, v.grid_source.sha256, str(grid.bbox), grid.columns, grid.rows]
 	return result

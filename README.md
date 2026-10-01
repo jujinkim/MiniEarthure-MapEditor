@@ -10,6 +10,10 @@ Independent Godot 4.7.2 Windows/Linux editor foundation, licensed MIT. Requires
 only this repository and its public MapKit submodule; no game installation or
 private repository is needed to build or edit.
 
+English, Korean and Japanese UI are bundled. Choose **View → Language** and
+restart to apply; preferences are independent of the game Client. See
+[localization, fonts and validation](docs/LOCALIZATION.md).
+
 ## Build and run
 
 ```sh

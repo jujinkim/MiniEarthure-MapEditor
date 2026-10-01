@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Public environment authoring; commands retain ordinary undo/redo and validation.
 const PROFILE := preload("res://addons/mapkit/godot/environment_profile.gd")
 var panel: PanelContainer
@@ -20,7 +21,7 @@ func setup(owner: PanelContainer) -> void:
 	_pick(box,"Climate","climate",["","temperate","polar","arid","tropical"],str(value.get("climate","")))
 	_pick(box,"Settlement","settlement",["","urban","village","sparse","wilderness"],str(value.get("settlement","")))
 	var tint_row:VBoxContainer=panel.row(box,"Ground color")
-	var tint_enabled:=CheckButton.new();tint_enabled.text="Use authored color";tint_enabled.button_pressed=value.has("ground_color");tint_row.add_child(tint_enabled)
+	var tint_enabled:=CheckButton.new();tint_enabled.text=I18N.t("Use authored color");tint_enabled.button_pressed=value.has("ground_color");tint_row.add_child(tint_enabled)
 	var tint:=ColorPickerButton.new();tint.edit_alpha=false
 	var rgb:Array=value.get("ground_color",[117,148,86]);tint.color=Color(float(rgb[0])/255,float(rgb[1])/255,float(rgb[2])/255);tint_row.add_child(tint)
 	fields.ground_color=func():return [roundi(tint.color.r*255),roundi(tint.color.g*255),roundi(tint.color.b*255)] if tint_enabled.button_pressed else null
@@ -35,14 +36,14 @@ func setup(owner: PanelContainer) -> void:
 	panel.hint(box,'Light bindings · explicit asset/material indices. Empty lists add no lights. Example: [{"asset_id":"lamp","window_materials":[],"bulb_materials":[1],"position_cm":[0,400,0],"range_cm":1400,"color":[255,216,158]}]. Building window materials use a stable nightly schedule.')
 	lights = _json(box,value.get("lights",[]))
 	var apply := Button.new()
-	apply.text = "Apply environment design"
+	apply.text = I18N.t("Apply environment design")
 	box.add_child(apply)
 	apply.pressed.connect(_apply)
 
 func _pick(box: Node, title: String, key: String, values: Array, current: String) -> void:
 	var row: VBoxContainer = panel.row(box,title)
 	var picker := OptionButton.new()
-	for value: String in values: picker.add_item("From concept" if value.is_empty() else value.capitalize())
+	for value: String in values: picker.add_item(I18N.t("From concept") if value.is_empty() else I18N.builtin(value))
 	picker.select(maxi(0,values.find(current)))
 	row.add_child(picker)
 	fields[key] = func(): return values[picker.selected]
@@ -67,19 +68,19 @@ func _json(box: Node, value: Array) -> TextEdit:
 func _apply() -> void:
 	var store: RefCounted = panel.editor.store
 	if store.command_epoch != epoch:
-		panel.feedback.text = "Document changed; reopen Environment before applying."
+		panel.feedback.text = I18N.t("Document changed; reopen Environment before applying.")
 		return
 	if regions.text.length() > 131072 or lights.text.length() > 131072:
-		panel.feedback.text = "Environment metadata exceeds the editor budget."
+		panel.feedback.text = I18N.t("Environment metadata exceeds the editor budget.")
 		return
 	var value := {"version":1,"regions":JSON.parse_string(regions.text),"lights":JSON.parse_string(lights.text)}
 	for key: String in fields: value[key] = fields[key].call()
 	if not value.regions is Array or not value.lights is Array:
-		panel.feedback.text = "Regions and light bindings must be JSON arrays."
+		panel.feedback.text = I18N.t("Regions and light bindings must be JSON arrays.")
 		return
 	var patches := [{"field":"environment","before":before,"after":value}]
 	var failure: String = store.apply_command("Environment design",patches)
-	panel.feedback.text = "Environment saved in document · Undo is available" if failure.is_empty() else failure
+	panel.feedback.text = I18N.t("Environment saved in document · Undo is available") if failure.is_empty() else I18N.diagnostic(failure)
 	if failure.is_empty():
 		before = store.document.environment.duplicate(true)
 		epoch = store.command_epoch

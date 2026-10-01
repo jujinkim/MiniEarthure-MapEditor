@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Bounded supplemental source provenance; authored MapKit contracts are unchanged.
 const VERTICAL := preload("./import_vertical.gd")
 const MAX_BYTES := 256 * 1024
@@ -77,4 +78,4 @@ static func validate(raw: Dictionary, requested: Dictionary) -> String:
 
 static func summary(meta: Dictionary) -> String:
 	var source: Dictionary = JSON.parse_string(meta.source.json)
-	return "Local height supplement: %d originally missing structural/approach nodes\nSource: %s\nLicense: %s\nDeclared accuracy: %s (not independently verified)\nAbsolute %s · OSM SHA-256: %s\n%d bytes · supplement SHA-256: %s\n%s. Existing OSM elevations are preserved; no inferred heights.\n" % [meta.applied_nodes, source.source, source.license, source.accuracy, source.vertical_crs, source.osm_sha256, meta.source.bytes, meta.source.sha256, meta.order]
+	return I18N.t("Local height supplement: %d originally missing structural/approach nodes\nSource: %s\nLicense: %s\nDeclared accuracy: %s (not independently verified)\nAbsolute %s · OSM SHA-256: %s\n%d bytes · supplement SHA-256: %s\n%s. Existing OSM elevations are preserved; no inferred heights.\n") % [meta.applied_nodes, source.source, source.license, source.accuracy, source.vertical_crs, source.osm_sha256, meta.source.bytes, meta.source.sha256, meta.order]

@@ -1,4 +1,5 @@
 extends Control
+const I18N := preload("./locale_text.gd")
 const STYLE := preload("./workbench_style.gd")
 signal course_point_selected(point: Vector2)
 var course_points: Array = []
@@ -150,7 +151,7 @@ func _draw() -> void:
 		if texture != null:
 			draw_texture_rect(texture, area, false, Color(1,1,1,0.8 * opacity({"field":"heightmaps", "record":{"id":"terrain"}})))
 			visible_tiles[key] = texture
-		draw_string(ThemeDB.fallback_font, Vector2(start.x + 4, end.y + 18), "PNG16 %d,%d · offset %.2fm" % [tile.cell.x, tile.cell.y, tile.offset_cm / 100.0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("a4c88c"))
+		draw_string(get_theme_default_font(), Vector2(start.x + 4, end.y + 18), I18N.t("PNG16 %d,%d · offset %.2fm") % [tile.cell.x, tile.cell.y, tile.offset_cm / 100.0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("a4c88c"))
 	terrain_textures = visible_tiles
 	if tool == "Terrain":
 		var center := screen([brush_cursor.x, brush_cursor.y])
@@ -214,7 +215,7 @@ func _draw() -> void:
 		var p: Array = cp.position_cm
 		var center := screen([p[0],p[2]])
 		draw_arc(center, float(cp.radius_cm)*_scale(), 0, TAU, 32, Color.CYAN, 2.0)
-		draw_string(ThemeDB.fallback_font,center, str(index+1),HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color.CYAN)
+		draw_string(get_theme_default_font(),center, str(index+1),HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color.CYAN)
 
 func _hit(p: Vector2) -> String:
 	var objects := EDIT.entries(store.document)

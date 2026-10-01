@@ -1,4 +1,5 @@
 extends VBoxContainer
+const I18N := preload("./locale_text.gd")
 ## Immutable worker results are published only for the current document generation.
 const WORK := preload("./package_work.gd")
 var store: RefCounted
@@ -31,7 +32,7 @@ func configure(document_store: RefCounted, map_canvas: Control) -> void:
 func invalidate() -> void:
 	cancel()
 	due = Time.get_ticks_msec() + 350
-	details.text = "Chunk cost analysis pending"
+	details.text = I18N.t("Chunk cost analysis pending")
 
 func cancel() -> void:
 	generation += 1
@@ -55,7 +56,7 @@ func _process(_delta: float) -> void:
 				rows = result.data.chunk_costs
 				cached = rows.duplicate(true)
 				_show_rows()
-			else: details.text = "Chunk analysis: " + str(result.error.message)
+			else: details.text = I18N.t("Chunk analysis: ") + I18N.error(result.error)
 	if due == 0 or Time.get_ticks_msec() < due or store.has_gesture() or (busy_source.is_valid() and busy_source.call()): return
 	due = 0
 	task = WORK.new()
@@ -67,7 +68,7 @@ func _process(_delta: float) -> void:
 	var error := worker.start(func(): return job.run(document,source,"density",Vector2i.ZERO,previous,false))
 	if error != OK:
 		task = null
-		details.text = "Chunk analysis could not start: " + error_string(error)
+		details.text = I18N.t("Chunk analysis could not start: ") + error_string(error)
 
 func _show_rows() -> void:
 	listing.clear()
@@ -76,10 +77,10 @@ func _show_rows() -> void:
 	keys.sort_custom(func(a: String,b: String): return int(rows[a].work_bytes) > int(rows[b].work_bytes))
 	for key: String in keys:
 		var row: Dictionary = rows[key]
-		listing.add_item("%s · %.1f MiB estimated · %s" % [key,float(row.work_bytes)/1048576.0,row.warning])
+		listing.add_item(I18N.t("%s · %.1f MiB estimated · %s") % [key,float(row.work_bytes)/1048576.0,row.warning])
 		listing.set_item_metadata(listing.item_count - 1,key)
 		if not row.warning.is_empty(): canvas.density_cells.append(row.cell)
-	details.text = "Estimated work memory: warning at 192 MiB; limit 256 MiB. Warnings do not block Save or Export."
+	details.text = I18N.t("Estimated work memory: warning at 192 MiB; limit 256 MiB. Warnings do not block Save or Export.")
 	canvas.queue_redraw()
 
 func _select(index: int) -> void:
@@ -89,17 +90,17 @@ func _select(index: int) -> void:
 	var center := [bounds.min[0]+(row.cell.x+0.5)*size_cm,bounds.min[1]+(row.cell.y+0.5)*size_cm]
 	canvas.pan += canvas.size * 0.5 - canvas.screen(center)
 	canvas.queue_redraw()
-	details.text = "Cell %s · objects %d · triangles %d · building prisms %d · asset convexes %d · display %.1f MiB · work %.1f MiB (estimates)" % [listing.get_item_metadata(index),row.objects,row.triangles,row.building_prisms,row.asset_convexes,float(row.presentation_bytes)/1048576.0,float(row.work_bytes)/1048576.0]
+	details.text = I18N.t("Cell %s · objects %d · triangles %d · building prisms %d · asset convexes %d · display %.1f MiB · work %.1f MiB (estimates)") % [listing.get_item_metadata(index),row.objects,row.triangles,row.building_prisms,row.asset_convexes,float(row.presentation_bytes)/1048576.0,float(row.work_bytes)/1048576.0]
 	var key: String = listing.get_item_metadata(index)
-	if measured_delays.has(key): details.text += " · measured preview preparation %.2f seconds" % measured_delays[key].seconds
+	if measured_delays.has(key): details.text += I18N.t(" · measured preview preparation %.2f seconds") % measured_delays[key].seconds
 
 func record_preview(cell: Vector2i, signature: String, seconds: float) -> void:
 	measured_delays.erase("%d/%d" % [cell.x,cell.y])
 	if seconds <= 5.0:
-		details.text = "Preview ready: cell %s took %.2f seconds (measured preparation and attachment)." % [cell,seconds]
+		details.text = I18N.t("Preview ready: cell %s took %.2f seconds (measured preparation and attachment).") % [cell,seconds]
 		return
 	measured_delays["%d/%d" % [cell.x,cell.y]] = {"signature":signature,"seconds":seconds}
-	details.text = "Slow preview: cell %s took %.2f seconds (measured preparation and attachment, separate from memory estimates)." % [cell,seconds]
+	details.text = I18N.t("Slow preview: cell %s took %.2f seconds (measured preparation and attachment, separate from memory estimates).") % [cell,seconds]
 
 func _exit_tree() -> void:
 	if task != null: task.cancel()

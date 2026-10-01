@@ -1,4 +1,5 @@
 extends Node
+const I18N := preload("./locale_text.gd")
 ## Uncommitted placement owns only view state. MapKit owns all frames and geometry.
 const PREVIEW := preload("res://addons/mapkit/godot/track_authoring_preview.gd")
 const STYLE := preload("./workbench_style.gd")
@@ -118,7 +119,7 @@ func current() -> bool:
 
 func build_controls(parent: Node) -> void:
 	var heading := Label.new()
-	heading.text = "PREVIEW · " + bench.piece_name(tool)
+	heading.text = I18N.t("PREVIEW · ") + I18N.t(bench.piece_name(tool))
 	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(heading)
 	if kind == "piece":
@@ -130,7 +131,7 @@ func build_controls(parent: Node) -> void:
 		for entry: Dictionary in bench.catalogue.entries:
 			if entry.id != tool: continue
 			for w in entry.widths_cm:
-				width.add_item("Preview width %dm" % (float(w) / 100.0), int(w))
+				width.add_item(I18N.t("Preview width %dm") % (float(w) / 100.0), int(w))
 				if int(w) == width_cm: width.select(width.item_count - 1)
 		parent.add_child(width)
 		width.item_selected.connect(func(_i: int): width_cm = width.get_selected_id(); invalidate_candidate())
@@ -142,9 +143,9 @@ func build_controls(parent: Node) -> void:
 		var jump: SpinBox = bench._spin(parent, "Jump height (m)", float(jump_height_cm) / 100.0, 0.5, 10.0, 0.1)
 		jump.value_changed.connect(func(value: float): jump_height_cm = roundi(value * 100); invalidate_candidate())
 		var target := OptionButton.new()
-		target.add_item("Continuous road jump", -2)
+		target.add_item(I18N.t("Continuous road jump"), -2)
 		for i in bench.source.instances.size():
-			target.add_item("Landing · " + bench.source.instances[i].id, i)
+			target.add_item(I18N.t("Landing · ") + bench.source.instances[i].id, i)
 			if landing != null and landing.piece == bench.source.instances[i].id: target.select(target.item_count - 1)
 		parent.add_child(target)
 		var station: SpinBox = bench._spin(parent, "Landing sample", 0 if landing == null else landing.sample, 0, 1024, 1)
@@ -168,7 +169,7 @@ func _instance(preset: String, w: int) -> Dictionary:
 
 func solve_item(item: Dictionary, excluded := -1) -> Dictionary:
 	var result: Dictionary = JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
-	if not result.ok: return {"error":result.error.message}
+	if not result.ok: return {"error":I18N.error(result.error)}
 	var snap_index := -1
 	var nearest := 3.0
 	if bench.snap.button_pressed:
@@ -179,10 +180,10 @@ func solve_item(item: Dictionary, excluded := -1) -> Dictionary:
 			if distance < nearest: nearest = distance; snap_index = i
 	if snap_index >= 0:
 		var snapped: Dictionary = JSON.parse_string(bench.editor.store.bridge.snap_track_instance(JSON.stringify(item), JSON.stringify(bench.source.instances[snap_index])))
-		if not snapped.ok: return {"error":snapped.error.message}
+		if not snapped.ok: return {"error":I18N.error(snapped.error)}
 		item = snapped.data
 		result = JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
-		if not result.ok: return {"error":result.error.message}
+		if not result.ok: return {"error":I18N.error(result.error)}
 	return {"item":item, "piece":result.data, "snap":snap_index}
 
 func preview_at(point: Vector3) -> bool:
@@ -207,7 +208,7 @@ func preview_at(point: Vector3) -> bool:
 	candidate = {"serial":serial, "epoch":epoch, "document":document_id, "kind":kind, "tool":tool, "item":solved.item, "snap":solved.snap}
 	if moving_index >= 0: _show_move(solved.piece)
 	elif not _show_ghost(solved.item, -1, solved.piece): return false
-	hint = ("Release to move" if moving_index >= 0 else "Click to place · Rotate with the preview controls") + (" · Snap to " + bench.source.instances[solved.snap].id if solved.snap >= 0 else " · No port snap")
+	hint = (I18N.t("Release to move") if moving_index >= 0 else I18N.t("Click to place · Rotate with the preview controls")) + (I18N.t(" · Snap to ") + bench.source.instances[solved.snap].id if solved.snap >= 0 else I18N.t(" · No port snap"))
 	bench.show_hint()
 	return true
 
@@ -252,13 +253,13 @@ func preview_attachment(piece_index: int, sample: int) -> bool:
 	candidate = {"serial":serial, "epoch":epoch, "document":document_id, "kind":kind, "tool":tool,
 		"target":piece_index, "sample":sample, "height_cm":jump_height_cm, "landing":landing.duplicate(true) if landing is Dictionary else null}
 	if not _show_ghost(bench.source.instances[piece_index], sample): return false
-	hint = "Click to attach · " + str(bench.source.instances[piece_index].id) + " / " + str(sample) + ""
+	hint = I18N.t("Click to attach · ") + str(bench.source.instances[piece_index].id) + " / " + str(sample) + ""
 	bench.show_hint()
 	return true
 
 func _failure(reason: String) -> void:
 	invalidate_candidate()
-	hint = reason
+	hint = I18N.display(reason)
 	bench.show_hint()
 
 func commit(expected_serial := -1) -> bool:
@@ -283,7 +284,7 @@ func commit(expected_serial := -1) -> bool:
 		next.attachments.append(attachment)
 		if tool=="grind_rail":
 			var result: Dictionary=JSON.parse_string(bench.editor.store.bridge.track_attachment_lines(JSON.stringify(next.instances[candidate.target]),JSON.stringify(attachment)))
-			if not result.ok:_failure(result.error.message);return false
+			if not result.ok:_failure(I18N.error(result.error));return false
 			for line: Dictionary in result.data:
 				line.id="grind-"+Crypto.new().generate_random_bytes(6).hex_encode()
 				next.get_or_add("grind_lines",[]).append(line)
@@ -325,10 +326,10 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 			source.attachments = [_attachment(local, sample)]
 			if tool=="grind_rail":
 				var lines: Dictionary=JSON.parse_string(bench.editor.store.bridge.track_attachment_lines(JSON.stringify(local),JSON.stringify(source.attachments[0])))
-				if not lines.ok:_failure(lines.error.message);return false
+				if not lines.ok:_failure(I18N.error(lines.error));return false
 				source.grind_lines=lines.data
 		var compiled: Dictionary = JSON.parse_string(bench.editor.store.bridge.compile_track_source(JSON.stringify(source)))
-		if not compiled.ok: _failure(compiled.error.message); return false
+		if not compiled.ok: _failure(I18N.error(compiled.error)); return false
 		var template := PREVIEW.create(compiled.data.document)
 		_tint(template)
 		if cache.size() >= 24:
@@ -343,7 +344,7 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 		ghost_key = key
 	if compiled_piece.is_empty():
 		var result: Dictionary = JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
-		if not result.ok: _failure(result.error.message); return false
+		if not result.ok: _failure(I18N.error(result.error)); return false
 		compiled_piece = result.data
 	ghost.transform = frame(compiled_piece.path[0]) * frame(cache[key].entry).affine_inverse()
 	ghost.show()

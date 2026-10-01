@@ -1,4 +1,5 @@
 extends Control
+const I18N := preload("./locale_text.gd")
 const PACKAGE_WORK := preload("./package_work.gd")
 const PAYLOAD_FILES := preload("./authoring_files.gd")
 const REPORT := preload("./export_report.gd")
@@ -169,13 +170,13 @@ func _ready() -> void:
 	add_child(timer)
 	timer.start()
 	if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path("user://recovery")):
-		_status("Recovery snapshots are available. Use Recover to inspect one; saved projects stay unchanged.")
+		_status(I18N.t("Recovery snapshots are available. Use Recover to inspect one; saved projects stay unchanged."))
 
 func _autosave() -> void:
 	if store.dirty:
 		var failure := store.autosave()
 		if failure != "":
-			_status(failure)
+			_status(I18N.diagnostic(failure))
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT: _cancel_editing()
@@ -201,7 +202,7 @@ func _build_ui() -> void:
 	_register_commands()
 	commands.menus(title_row)
 	var title := Label.new()
-	title.text = "MAP EDITOR"
+	title.text = I18N.t("MAP EDITOR")
 	title.add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -220,17 +221,18 @@ func _build_ui() -> void:
 	regional_grouping.min_value = 1
 	regional_grouping.max_value = 128
 	regional_grouping.value = 8
-	regional_grouping.prefix = "Regional cells "
-	regional_grouping.tooltip_text = "Storage grouping only. Execution cell size and map quality stay unchanged."
+	regional_grouping.prefix = I18N.t("Regional cells ")
+	regional_grouping.tooltip_text = I18N.t("Storage grouping only. Execution cell size and map quality stay unchanged.")
 	var import_work_button := Button.new()
 	WORKBENCH_STYLE.decorate(import_work_button, "Import work", "Inspect leftover import work.", "import")
-	import_work_button.tooltip_text = "Inspect leftover local import work without changing files."
+	import_work_button.tooltip_text = I18N.t("Inspect leftover local import work without changing files.")
 	toolbar_groups["Inspect"].add_child(import_work_button)
 	import_recovery = IMPORT_RECOVERY.new()
 	import_recovery.banner = import_work_button
 	add_child(import_recovery)
 	import_work_button.pressed.connect(import_recovery.show_report)
 	project_label = Label.new()
+	project_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	project_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	column.add_child(project_label)
 	WORKBENCH_STYLE.outline(project_label)
@@ -270,7 +272,7 @@ func _build_ui() -> void:
 	left.add_child(snap)
 	WORKBENCH_STYLE.outline(snap)
 	snap_toggle = CheckButton.new()
-	snap_toggle.text = "Snap (m)"
+	snap_toggle.text = I18N.t("Snap (m)")
 	snap_toggle.button_pressed = true
 	snap_toggle.toggled.connect(func(value):
 		canvas.cancel_interaction()
@@ -302,7 +304,7 @@ func _build_ui() -> void:
 	WORKBENCH_STYLE.outline(center)
 	selection_label = Label.new()
 	selection_label.add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
-	selection_label.text = "2D MAP  ·  Select  ·  0 selected"
+	selection_label.text = I18N.t("2D MAP  ·  Select  ·  0 selected")
 	center.add_child(selection_label)
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var view_modes := HBoxContainer.new()
@@ -356,13 +358,13 @@ func _build_ui() -> void:
 	preview_x.value_changed.connect(_preview_cell_changed)
 	preview_y.value_changed.connect(_preview_cell_changed)
 	var preview_hint := Label.new()
-	preview_hint.text = "Orbit / pan / zoom"
-	preview_hint.tooltip_text = "Right drag: orbit · Middle drag: pan · Wheel: zoom · Refresh loads only the selected cell"
+	preview_hint.text = I18N.t("Orbit / pan / zoom")
+	preview_hint.tooltip_text = I18N.t("Right drag: orbit · Middle drag: pan · Wheel: zoom · Refresh loads only the selected cell")
 	preview_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	preview_hint.add_theme_font_size_override("font_size", 12)
 	preview_dock.add_child(preview_hint)
 	full_generation = CheckButton.new()
-	full_generation.text = "Full 3D check on Validate / Export"
+	full_generation.text = I18N.t("Full 3D check on Validate / Export")
 	full_generation.add_theme_font_size_override("font_size", 12)
 	property_dock.add_child(full_generation)
 	property_dock.add_child(regional_grouping)
@@ -411,7 +413,7 @@ func _build_ui() -> void:
 	controls.add_child(time)
 	time.value_changed.connect(func(value: float): environment_preview.seconds = value*3600.0)
 	var weather := OptionButton.new()
-	for value in ["Clear","Cloudy","Rain","Snow"]: weather.add_item(value)
+	for value in [I18N.t("Clear"),I18N.t("Cloudy"),I18N.t("Rain"),I18N.t("Snow")]: weather.add_item(value)
 	controls.add_child(weather)
 	weather.item_selected.connect(func(index: int):
 		environment_preview.weather = ["clear","cloudy","rain","snow"][index]
@@ -447,7 +449,7 @@ func _build_ui() -> void:
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.custom_minimum_size.y = 20
-	status_label.text = "Choose a tool. Search commands or open Shortcuts for keyboard controls."
+	status_label.text = I18N.t("Choose a tool. Search commands or open Shortcuts for keyboard controls.")
 	activity.add_child(status_label)
 	import_progress = ProgressBar.new()
 	import_progress.visible = false
@@ -462,10 +464,10 @@ func _build_ui() -> void:
 	dialog.file_selected.connect(_path_selected)
 	add_child(dialog)
 	unsaved_dialog = ConfirmationDialog.new()
-	unsaved_dialog.title = "Unsaved changes"
-	unsaved_dialog.ok_button_text = "Save and continue"
-	unsaved_dialog.cancel_button_text = "Keep editing"
-	recovery_continue_button = unsaved_dialog.add_button("Keep recovery and continue", false, "recovery")
+	unsaved_dialog.title = I18N.t("Unsaved changes")
+	unsaved_dialog.ok_button_text = I18N.t("Save and continue")
+	unsaved_dialog.cancel_button_text = I18N.t("Keep editing")
+	recovery_continue_button = unsaved_dialog.add_button(I18N.t("Keep recovery and continue"), false, "recovery")
 	unsaved_dialog.confirmed.connect(_save_before_document_action)
 	unsaved_dialog.custom_action.connect(func(action):
 		if action == "recovery":
@@ -475,10 +477,10 @@ func _build_ui() -> void:
 	unsaved_dialog.canceled.connect(func(): pending_document_action.clear())
 	add_child(unsaved_dialog)
 	import_dialog = ConfirmationDialog.new()
-	import_dialog.title = "Import vector source"
-	import_dialog.ok_button_text = "Choose source…"
+	import_dialog.title = I18N.t("Import vector source")
+	import_dialog.ok_button_text = I18N.t("Choose source…")
 	import_license = LineEdit.new()
-	import_license.placeholder_text = "Source license (required)"
+	import_license.placeholder_text = I18N.t("Source license (required)")
 	import_license.custom_minimum_size = Vector2(540, 40)
 	var import_fields := VBoxContainer.new()
 	import_fields.custom_minimum_size.x = 700
@@ -486,7 +488,7 @@ func _build_ui() -> void:
 	_label(import_fields, "Local sources up to 32 MiB; PBF streaming in OSM crop supports up to 2 GiB.\nWGS84 needs pyproj 3.7.2; OSM also needs osmium 4.3.1 in the selected Python.")
 	import_fields.get_child(0).custom_minimum_size.x = 700
 	import_source_format = OptionButton.new()
-	for format_title in ["GeoJSON", "OSM PBF extract (.osm.pbf)", "OSM XML extract (.osm)", "Overture building area snapshot (.overture.json)", "Overture transportation snapshot (.overture-roads.json)", "Overture land cover snapshot (.overture-land-cover.json)"]: import_source_format.add_item(format_title)
+	for format_title in [I18N.t("GeoJSON"), I18N.t("OSM PBF extract (.osm.pbf)"), I18N.t("OSM XML extract (.osm)"), I18N.t("Overture building area snapshot (.overture.json)"), I18N.t("Overture transportation snapshot (.overture-roads.json)"), I18N.t("Overture land cover snapshot (.overture-land-cover.json)")]: import_source_format.add_item(format_title)
 	import_fields.add_child(import_source_format)
 	osm_crop_button = _button(import_fields, "OSM crop area…", func(): osm_panel.open())
 	vertical_panel = preload("./vertical_panel.gd").new()
@@ -495,17 +497,17 @@ func _build_ui() -> void:
 	_button(import_fields, "Import Copernicus DEM…", func(): dem_panel.open())
 	import_fields.add_child(import_license)
 	import_accuracy = LineEdit.new()
-	import_accuracy.placeholder_text = "Source accuracy / resolution (unknown if omitted)"
+	import_accuracy.placeholder_text = I18N.t("Source accuracy / resolution (unknown if omitted)")
 	import_fields.add_child(import_accuracy)
 	import_python = LineEdit.new()
-	import_python.placeholder_text = "Python 3 executable (name or absolute path)"
+	import_python.placeholder_text = I18N.t("Python 3 executable (name or absolute path)")
 	var settings := ConfigFile.new()
 	settings.load("user://editor_tools.cfg")
 	import_python.text = str(settings.get_value("import", "python", "python" if OS.get_name() == "Windows" else "python3"))
 	import_fields.add_child(import_python)
 	import_coordinate_mode = OptionButton.new()
-	import_coordinate_mode.add_item("Local x/y metres (explicit extension)")
-	import_coordinate_mode.add_item("WGS84 longitude/latitude → local map (UTM)")
+	import_coordinate_mode.add_item(I18N.t("Local x/y metres (explicit extension)"))
+	import_coordinate_mode.add_item(I18N.t("WGS84 longitude/latitude → local map (UTM)"))
 	import_fields.add_child(import_coordinate_mode)
 	var geographic := GridContainer.new()
 	geographic.columns = 2
@@ -530,7 +532,7 @@ func _build_ui() -> void:
 
 	_button(import_fields, "Import / retry last source", func():
 		import_dialog.hide()
-		if last_import_source == "": _status("Choose a source file first.")
+		if last_import_source == "": _status(I18N.t("Choose a source file first."))
 		else: _start_import(last_import_source, import_license.text.strip_edges())
 	)
 	import_dialog.get_ok_button().disabled = true
@@ -538,9 +540,9 @@ func _build_ui() -> void:
 	import_dialog.confirmed.connect(func(): _choose("import"))
 	add_child(import_dialog)
 	import_review = ConfirmationDialog.new()
-	import_review.title = "Review imported layer"
-	import_review.ok_button_text = "Adopt new layer"
-	import_review.cancel_button_text = "Discard"
+	import_review.title = I18N.t("Review imported layer")
+	import_review.ok_button_text = I18N.t("Adopt new layer")
+	import_review.cancel_button_text = I18N.t("Discard")
 	var review_fields := VBoxContainer.new()
 	import_review.add_child(review_fields)
 	import_summary = TextEdit.new()
@@ -553,8 +555,8 @@ func _build_ui() -> void:
 	import_review.confirmed.connect(_adopt_import)
 	import_review.canceled.connect(func():
 		_discard_import()
-		validation_label.text = "Import discarded · document unchanged"
-		_status("Imported layer discarded. Use Retry import to prepare it again.")
+		validation_label.text = I18N.t("Import discarded · document unchanged")
+		_status(I18N.t("Imported layer discarded. Use Retry import to prepare it again."))
 	)
 	add_child(import_review)
 	import_details = preload("./import_review_browser.gd").new()
@@ -589,7 +591,7 @@ func _button(parent: Node, text: String, action: Callable) -> Button:
 
 func _label(parent: Node, text: String) -> Label:
 	var label := Label.new()
-	label.text = text
+	label.text = I18N.t(text)
 	if parent is VBoxContainer:
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(label)
@@ -599,10 +601,10 @@ func _new() -> void:
 	_cancel_editing()
 	if not is_instance_valid(new_map_dialog):
 		new_map_dialog=ConfirmationDialog.new()
-		new_map_dialog.title="New Map"
+		new_map_dialog.title=I18N.t("New Map")
 		add_child(new_map_dialog)
 		new_free_roam=CheckBox.new()
-		new_free_roam.text="Free roam map (default: track assembly)"
+		new_free_roam.text=I18N.t("Free roam map (default: track assembly)")
 		new_map_dialog.add_child(new_free_roam)
 		new_map_dialog.confirmed.connect(func(): _request_document_action("new"))
 	new_free_roam.button_pressed=false
@@ -614,13 +616,13 @@ func _request_document_action(action: String, path: String = "") -> void:
 	if store.dirty:
 		var failure := store.autosave()
 		if failure != "":
-			_status(("Cannot close safely: " if action == "close" else "Cannot leave document: ") + failure)
+			_status((I18N.t("Cannot close safely: ") if action == "close" else I18N.t("Cannot leave document: ")) + I18N.diagnostic(failure))
 			return
 	pending_document_action = {"action": action, "path": path, "map_id": str(store.document.map_id)}
 	if not store.dirty:
 		_continue_document_action()
 		return
-	unsaved_dialog.dialog_text = "Save changes before %s?\nA recovery snapshot retains committed changes and file references.\nKeep original imported files available. Keep editing cancels this action." % {"new":"creating a new map", "open":"opening another project", "recover":"recovering another document", "close":"closing the editor"}[action]
+	unsaved_dialog.dialog_text = I18N.t("Save changes before %s?\nA recovery snapshot retains committed changes and file references.\nKeep original imported files available. Keep editing cancels this action.") % {"new":I18N.t("creating a new map"), "open":I18N.t("opening another project"), "recover":I18N.t("recovering another document"), "close":I18N.t("closing the editor")}[action]
 	unsaved_dialog.popup_centered(Vector2i(700, 200))
 	unsaved_dialog.get_cancel_button().grab_focus()
 
@@ -628,10 +630,10 @@ func _save_before_document_action() -> void:
 	if pending_document_action.is_empty(): return
 	if pending_document_action.map_id != str(store.document.map_id):
 		pending_document_action.clear()
-		_status("Document changed; request the action again.")
+		_status(I18N.t("Document changed; request the action again."))
 		return
 	if busy:
-		_status("Cancel the active operation or wait, then try again. Your document stays open.")
+		_status(I18N.t("Cancel the active operation or wait, then try again. Your document stays open."))
 		pending_document_action.clear()
 		return
 	if store.project_path == "":
@@ -640,7 +642,7 @@ func _save_before_document_action() -> void:
 	var failure := store.save_project(store.project_path)
 	if failure != "":
 		pending_document_action.clear()
-		_status(failure + " Use Save As to a new directory, then try again.")
+		_status(I18N.diagnostic(failure) + I18N.t(" Use Save As to a new directory, then try again."))
 		return
 	_document_changed()
 	_continue_document_action()
@@ -650,46 +652,46 @@ func _continue_document_action() -> void:
 	var request := pending_document_action.duplicate()
 	pending_document_action.clear()
 	if request.map_id != str(store.document.map_id):
-		_status("Document changed; request the action again.")
+		_status(I18N.t("Document changed; request the action again."))
 		return
 	# Recheck retention at consumption, including edits since the prompt opened.
 	var failure := store.autosave() if store.dirty else ""
 	if failure != "":
-		_status("Cannot leave document: " + failure)
+		_status(I18N.t("Cannot leave document: ") + I18N.diagnostic(failure))
 		return
 	match request.action:
 		"new":
 			store.new_track(new_free_roam.button_pressed if is_instance_valid(new_free_roam) else false)
-			_status("New map. Previous unsaved changes remain in Recover.")
+			_status(I18N.t("New map. Previous unsaved changes remain in Recover."))
 		"open": failure = store.open_project(request.path)
 		"recover": failure = store.recover(request.path)
 		"close": get_tree().quit()
-	if failure != "": _status(failure + " Current document retained. Use Recover to inspect a backup.")
-	elif request.action in ["open", "recover"]: _status("Ready: " + request.path)
+	if failure != "": _status(I18N.diagnostic(failure) + I18N.t(" Current document retained. Use Recover to inspect a backup."))
+	elif request.action in ["open", "recover"]: _status(I18N.t("Ready: ") + request.path)
 
 func _choose(action: String) -> void:
 	if store.track_edit_busy: _status(store.EDIT_BUSY); return
 	_cancel_editing()
 	dialog_action = action
 	dialog.filters = PackedStringArray()
-	dialog.title = {"open":"Open project directory", "save":"Save project to directory", "save_transition":"Save before continuing", "save_for_export":"Save project before export", "save_for_drive":"Save project before test drive", "export":"Export package — choose a new filename", "recover":"Recover a document", "import":"Choose source to review"}.get(action, "Choose file")
+	dialog.title = {"open":I18N.t("Open project directory"), "save":I18N.t("Save project to directory"), "save_transition":I18N.t("Save before continuing"), "save_for_export":I18N.t("Save project before export"), "save_for_drive":I18N.t("Save project before test drive"), "export":I18N.t("Export package — choose a new filename"), "recover":I18N.t("Recover a document"), "import":I18N.t("Choose source to review")}.get(action, I18N.t("Choose file"))
 	if action in ["open", "save", "save_for_drive", "save_transition", "save_for_export"]:
 		dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 	else:
 		dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE if action == "export" else FileDialog.FILE_MODE_OPEN_FILE
-		dialog.filters = PackedStringArray(["*.memap ; Map package", "*.mkregions ; Indexed regional map"] if action == "export" else ["*.json ; Recovery snapshot"])
+		dialog.filters = I18N.filters(["*.memap ; Map package", "*.mkregions ; Indexed regional map"] if action == "export" else ["*.json ; Recovery snapshot"])
 		if action == "import":
-			dialog.filters = PackedStringArray(["*.geojson,*.json ; GeoJSON (explicit coordinates)"])
-			if import_source_format.selected == 1: dialog.filters = PackedStringArray(["*.osm.pbf,*.pbf ; OSM PBF snapshot"])
-			if import_source_format.selected == 3: dialog.filters = PackedStringArray(["*.overture.json ; Overture building snapshot"])
-			if import_source_format.selected == 5: dialog.filters = PackedStringArray(["*.overture-land-cover.json ; Overture land cover snapshot"])
-			if import_source_format.selected == 4: dialog.filters = PackedStringArray(["*.overture-roads.json ; Overture transportation snapshot"])
-			if import_source_format.selected == 2: dialog.filters = PackedStringArray(["*.osm ; OSM XML snapshot"])
+			dialog.filters = I18N.filters(["*.geojson,*.json ; GeoJSON (explicit coordinates)"])
+			if import_source_format.selected == 1: dialog.filters = I18N.filters(["*.osm.pbf,*.pbf ; OSM PBF snapshot"])
+			if import_source_format.selected == 3: dialog.filters = I18N.filters(["*.overture.json ; Overture building snapshot"])
+			if import_source_format.selected == 5: dialog.filters = I18N.filters(["*.overture-land-cover.json ; Overture land cover snapshot"])
+			if import_source_format.selected == 4: dialog.filters = I18N.filters(["*.overture-roads.json ; Overture transportation snapshot"])
+			if import_source_format.selected == 2: dialog.filters = I18N.filters(["*.osm ; OSM XML snapshot"])
 		if action == "reopen_package":
-			dialog.title = "Restore package into a new adjacent .source directory"
-			dialog.filters = PackedStringArray(["*.memap ; Map package", "*.mkregions ; Indexed regional map"])
+			dialog.title = I18N.t("Restore package into a new adjacent .source directory")
+			dialog.filters = I18N.filters(["*.memap ; Map package", "*.mkregions ; Indexed regional map"])
 		if action == "recover":
-			dialog.filters = PackedStringArray(["* ; Recovery, previous or pending document"])
+			dialog.filters = I18N.filters(["* ; Recovery, previous or pending document"])
 			dialog.current_dir = ProjectSettings.globalize_path("user://recovery")
 	dialog.popup_centered_ratio(0.8)
 
@@ -700,7 +702,7 @@ func _path_selected(path: String) -> void:
 			if busy: return
 			var destination := path + ".source"
 			if DirAccess.dir_exists_absolute(destination):
-				_status("Destination already exists: " + destination + ". Open it as a project or choose a different package copy.")
+				_status(I18N.t("Destination already exists: ") + destination + I18N.t(". Open it as a project or choose a different package copy."))
 				return
 			package_work = PACKAGE_WORK.new()
 			var task: RefCounted = package_work
@@ -710,7 +712,7 @@ func _path_selected(path: String) -> void:
 			if error != OK:
 				busy = false
 				package_work = null
-				_status(error_string(error))
+				_status(I18N.diagnostic(error_string(error)))
 			return
 		"import":
 			_start_worker("import", path, import_license.text.strip_edges())
@@ -722,7 +724,7 @@ func _path_selected(path: String) -> void:
 		"save_transition", "save_for_export":
 			if dialog_action == "save_transition" and (pending_document_action.is_empty() or pending_document_action.map_id != str(store.document.map_id)):
 				pending_document_action.clear()
-				_status("Document changed or action cancelled; choose Save again.")
+				_status(I18N.t("Document changed or action cancelled; choose Save again."))
 				return
 			failure = store.save_project(path)
 			if failure == "":
@@ -731,7 +733,7 @@ func _path_selected(path: String) -> void:
 				else: _choose.call_deferred("export")
 			else:
 				pending_document_action.clear()
-				_status(failure + " Choose Save As to a new directory and try again.")
+				_status(I18N.diagnostic(failure) + I18N.t(" Choose Save As to a new directory and try again."))
 			return
 		"save_for_drive":
 			failure = store.save_project(path)
@@ -741,23 +743,23 @@ func _path_selected(path: String) -> void:
 				return
 		"export":
 			if busy:
-				_status("Wait for the current preview or export.")
+				_status(I18N.t("Wait for the current preview or export."))
 				return
 			_start_package("export", path)
 			return
-	_status(failure if failure != "" else "Ready: " + path)
+	_status(I18N.diagnostic(failure) if failure != "" else I18N.t("Ready: ") + path)
 	if failure == "": _document_changed()
 
 func _save() -> void:
 	if store.track_edit_busy: _status(store.EDIT_BUSY); return
 	if busy:
-		_status("Wait for the active operation before saving.")
+		_status(I18N.t("Wait for the active operation before saving."))
 		return
 	if store.project_path == "":
 		_choose("save")
 	else:
 		var failure := store.save_project(store.project_path)
-		_status(failure if failure != "" else "Project saved.")
+		_status(I18N.diagnostic(failure) if failure != "" else I18N.t("Project saved."))
 		if failure == "": _document_changed()
 
 func _import_geojson() -> void:
@@ -769,9 +771,9 @@ func _import_geojson() -> void:
 func _export() -> void:
 	if store.track_edit_busy: _status(store.EDIT_BUSY); return
 	var issues: Array=store.document.get("assembled_track",{}).get("issues",[])
-	if not issues.is_empty(): _status("Fix connections and courses before execution export: "+" / ".join(issues)); return
+	if not issues.is_empty(): _status(I18N.t("Fix connections and courses before execution export: ")+" / ".join(issues)); return
 	if busy:
-		_status("Cancel the active operation or wait before exporting.")
+		_status(I18N.t("Cancel the active operation or wait before exporting."))
 		return
 	if store.project_path == "":
 		_choose("save_for_export")
@@ -798,19 +800,19 @@ func _selection(ids: Array) -> void:
 		properties.remove_child(child)
 		child.queue_free()
 	if layers != null: layers.sync_selection()
-	tool_hint.text = canvas.tool + " · " + _tool_help(canvas.tool)
-	tool_hint.text += "\nCancel: " + commands.shortcut_text("edit.cancel_interaction")
+	tool_hint.text = I18N.t(canvas.tool) + " · " + I18N.t(_tool_help(canvas.tool))
+	tool_hint.text += I18N.t("\nCancel: ") + commands.shortcut_text("edit.cancel_interaction")
 	tool_hint.tooltip_text = tool_hint.text
-	selection_label.text = "2D MAP  ·  %s  ·  %d selected" % [canvas.tool, property_records.size()]
+	selection_label.text = I18N.t("2D MAP  ·  %s  ·  %d selected") % [I18N.t(canvas.tool), property_records.size()]
 	apply_button.disabled = property_records.is_empty()
 	if property_records.is_empty():
 		var free_roam := CheckBox.new()
-		free_roam.text = "Free roam map"
-		free_roam.tooltip_text = "Show results after finishing, then return to free roam."
+		free_roam.text = I18N.t("Free roam map")
+		free_roam.tooltip_text = I18N.t("Show results after finishing, then return to free roam.")
 		free_roam.button_pressed = store.document.free_roam
 		free_roam.toggled.connect(func(value: bool):
 			var failure: String = store.set_free_roam(value)
-			if failure != "": _status(failure))
+			if failure != "": _status(I18N.diagnostic(failure)))
 		properties.add_child(free_roam)
 		_label(properties, "Select objects on the map or in layers.")
 		_label(properties, "Shift toggles; drag empty space to box-select.")
@@ -818,7 +820,8 @@ func _selection(ids: Array) -> void:
 	selected_field = property_records[0].field
 	selected_record = property_records[0].record.duplicate(true)
 	var title := Label.new()
-	title.text = str(selected_record.id) if property_records.size() == 1 else "%d objects selected" % property_records.size()
+	title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	title.text = str(selected_record.id) if property_records.size() == 1 else I18N.t("%d objects selected") % property_records.size()
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	properties.add_child(title)
 	_number_property("Move X (m)", 0, -100000, 100000, func(v): property_changes.move_x = int(round(v * 100)))
@@ -839,20 +842,20 @@ func _selection(ids: Array) -> void:
 		"roads":
 			_number_property("All widths (m)", float(selected_record.widths_cm[0]) / 100.0, 0.2, 100.0, func(v): property_changes.width_cm = int(round(v * 100)))
 			_choice_property("All surfaces", ["asphalt", "concrete", "dirt", "gravel", "grass"], str(selected_record.surfaces[0]), func(v): property_changes.surface = v)
-			_label(properties, "Structure: " + str(selected_record.kind))
+			_label(properties, I18N.t("Structure: ") + I18N.builtin(str(selected_record.kind)))
 			_label(properties, "Moving endpoints also moves incident road ends.")
 		"zones":
 			_number_property("Spacing (m)", float(selected_record.spacing_cm) / 100.0, 2.0, 200.0, func(v): property_changes.spacing_cm = int(round(v * 100)))
 			_number_property("Density (%)", float(selected_record.density_per_mille) / 10.0, 0.0, 100.0, func(v): property_changes.density_per_mille = int(round(v * 10)))
 			_choice_property("Planting", ["forest", "orchard"], str(selected_record.kind), func(v): property_changes.kind = v)
 		"placements":
-			_label(properties, "Asset: " + str(selected_record.asset_id))
+			_label(properties, I18N.t("Asset: ") + str(selected_record.asset_id))
 			_choice_property("Rotation", ["0", "90", "180", "270"], str(int(selected_record.quarter_turns) * 90), func(v): property_changes.quarter_turns = int(v) / 90)
 		"repetitions":
-			_label(properties, "Asset: " + str(selected_record.asset_id))
+			_label(properties, I18N.t("Asset: ") + str(selected_record.asset_id))
 			_number_property("Spacing (m)", float(selected_record.spacing_cm) / 100.0, 0.01, 1000.0, func(v): property_changes.spacing_cm = int(round(v * 100)))
 		"nodes":
-			_label(properties, "Shared road endpoint · level " + str(selected_record.level))
+			_label(properties, I18N.t("Shared road endpoint · level ") + str(selected_record.level))
 
 func _number_property(label: String, value: float, minimum: float, maximum: float, change: Callable) -> void:
 	var row := HBoxContainer.new()
@@ -873,7 +876,7 @@ func _choice_property(label: String, values: Array, current: String, change: Cal
 	_label(row, label)
 	var select := OptionButton.new()
 	for value: String in values:
-		select.add_item(value.capitalize())
+		select.add_item(I18N.builtin(value))
 	select.selected = values.find(current)
 	select.item_selected.connect(func(index): change.call(values[index]))
 	row.add_child(select)
@@ -886,7 +889,7 @@ func _apply_properties() -> void:
 	var patches: Array = plan.patches
 	for entry in property_records:
 		if not canvas.available(entry, true):
-			_status("Selection is hidden or locked.")
+			_status(I18N.t("Selection is hidden or locked."))
 			return
 		var after: Dictionary = entry.record.duplicate(true)
 		var existing := -1
@@ -903,10 +906,10 @@ func _apply_properties() -> void:
 		elif after != entry.record: patches.append(EDIT.patch(entry.field, entry.record, after))
 	for entry in EDIT.entries(store.document):
 		if entry.key in plan.affected and not canvas.available(entry, true):
-			_status("Movement affects a hidden or locked layer: " + entry.key)
+			_status(I18N.t("Movement affects a hidden or locked layer: ") + entry.key)
 			return
 	var failure: String = canvas.author.apply("Edit selection properties", patches, selected_field == "roads")
-	_status(failure if failure != "" else "Properties updated.")
+	_status(I18N.diagnostic(failure) if failure != "" else I18N.t("Properties updated."))
 	if failure == "": _selection(canvas.selected)
 
 func _document_changed() -> void:
@@ -935,11 +938,11 @@ func _document_changed() -> void:
 	canvas.normalize_selection()
 	layers.refresh()
 	_selection(canvas.selected)
-	validation_label.text = "Document valid · Preview needs refresh"
+	validation_label.text = I18N.t("Document valid · Preview needs refresh")
 	var bounds: Dictionary = store.document.bounds
 	preview_x.max_value = ceili(float(bounds.max[0] - bounds.min[0]) / store.document.cell_size_cm) - 1
 	preview_y.max_value = ceili(float(bounds.max[1] - bounds.min[1]) / store.document.cell_size_cm) - 1
-	project_label.text = (store.project_path if store.project_path != "" else "Unsaved project") + ("  • modified" if store.dirty else "")
+	project_label.text = (store.project_path if store.project_path != "" else I18N.t("Unsaved project")) + (I18N.t("  • modified") if store.dirty else "")
 	canvas.queue_redraw()
 	if track_workbench != null: track_workbench.refresh()
 	commands.refresh_buttons()
@@ -1130,7 +1133,7 @@ func _save_workbench() -> void:
 	view_settings.set_value("snap", "metres", canvas.snap_cm / 100.0)
 	if displayed_map_id != "": view_settings.set_value("layers", displayed_map_id, canvas.layer_state)
 	var failure := view_settings.save("user://workbench.cfg")
-	if failure != OK: _status("Workbench settings could not be saved: " + error_string(failure))
+	if failure != OK: _status(I18N.t("Workbench settings could not be saved: ") + error_string(failure))
 
 func _preview() -> void:
 	preview_enabled = true
@@ -1147,10 +1150,10 @@ func _preview_cell_changed(_value: float) -> void:
 func _start_package(operation: String, destination: String = "") -> void:
 	if store.track_edit_busy: _status(store.EDIT_BUSY); return
 	if busy:
-		_status("Another operation is running; cancel it or wait.")
+		_status(I18N.t("Another operation is running; cancel it or wait."))
 		return
 	if store.has_gesture():
-		_status("Finish or cancel the current gesture first.")
+		_status(I18N.t("Finish or cancel the current gesture first."))
 		return
 	if density_panel.task != null:
 		density_panel.cancel()
@@ -1158,7 +1161,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 		busy = true
 		return
 	if operation == "export" and FileAccess.file_exists(destination):
-		_operation_status("Export failed · E_EXPORT_EXISTS", "Choose a new package filename; existing files are preserved.")
+		_operation_status(I18N.t("Export failed · E_EXPORT_EXISTS"), I18N.t("Choose a new package filename; existing files are preserved."))
 		return
 	package_work = PACKAGE_WORK.new()
 	package_work.regional_side_cells = int(regional_grouping.value) if destination.get_extension().to_lower() == "mkregions" else 0
@@ -1179,7 +1182,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 	if err != OK:
 		busy = false
 		package_work = null
-		_status(error_string(err))
+		_status(I18N.diagnostic(error_string(err)))
 
 func _cancel_operation() -> void:
 	store.cancel_track_edit()
@@ -1194,7 +1197,7 @@ func _cancel_operation() -> void:
 	preview_due = 0
 	if package_work != null: package_work.cancel()
 	_cancel_attachment()
-	_status("Operation cancelled; previous preview and original files retained.")
+	_status(I18N.t("Operation cancelled; previous preview and original files retained."))
 
 func _cancel_attachment() -> void:
 	if render_job.is_empty(): return
@@ -1218,7 +1221,7 @@ func _clear_preview_cache() -> void:
 
 func _frame_selection() -> void:
 	if property_records.is_empty():
-		_status("Select an object in the map or tree before framing it.")
+		_status(I18N.t("Select an object in the map or tree before framing it."))
 		return
 	var points: Array[Vector2] = []
 	var height := 0.0
@@ -1253,7 +1256,7 @@ func _show_cached(cell: Vector2i) -> void:
 	if framed_cell != cell:
 		preview_camera.frame(center, Vector3(35, 55, 45).length() * cell_size / 51200.0)
 		framed_cell = cell
-	validation_label.text = "Preview ready · cell %d / %d" % [cell.x, cell.y]
+	validation_label.text = I18N.t("Preview ready · cell %d / %d") % [cell.x, cell.y]
 	_status(validation_label.text)
 
 func _package_finished(result: Dictionary) -> void:
@@ -1261,10 +1264,10 @@ func _package_finished(result: Dictionary) -> void:
 	package_work = null
 	if stale:
 		if result.ok and result.data.has("scratch"): PAYLOAD_FILES.remove_scratch(result.data.scratch)
-		_status("Operation cancelled or document changed; prior preview and files retained.")
+		_status(I18N.t("Operation cancelled or document changed; prior preview and files retained."))
 		return
 	if not result.ok:
-		_operation_status(package_operation.capitalize() + " failed · Prior preview and original files retained", store.reason(result))
+		_operation_status(I18N.t(package_operation.capitalize()) + I18N.t(" failed · Prior preview and original files retained"), I18N.result(result))
 		return
 	if package_operation != "preview":
 		result.data.preview_delays = density_panel.measured_delays.duplicate(true)
@@ -1273,11 +1276,11 @@ func _package_finished(result: Dictionary) -> void:
 			var failure := _publish_package(result.data.path, package_destination)
 			PAYLOAD_FILES.remove_scratch(result.data.scratch)
 			if failure != "":
-				_operation_status("Export failed · Choose a new filename and retry", failure)
+				_operation_status(I18N.t("Export failed · Choose a new filename and retry"), I18N.diagnostic(failure))
 				return
 			last_export_report.path = package_destination
-		_status("Exported validated package: " + package_destination if package_operation == "export" else "Validated immutable snapshot; capacity report ready.")
-		validation_label.text = "Validated · %d bytes · base goal %s" % [result.data.package_bytes, "met" if result.data.base_target_met else "exceeded"]
+		_status(I18N.t("Exported validated package: ") + package_destination if package_operation == "export" else I18N.t("Validated immutable snapshot; capacity report ready."))
+		validation_label.text = I18N.t("Validated · %d bytes · base goal %s") % [result.data.package_bytes, "met" if result.data.base_target_met else "exceeded"]
 		export_report.show_report(result.data)
 		return
 	if result.data.get("reused", false):
@@ -1330,7 +1333,7 @@ func _advance_attachment() -> void:
 			if not render_job.error.is_empty():
 				var failure := store.reason({"ok": false, "error": render_job.error})
 				_cancel_attachment()
-				_status(failure)
+				_status(I18N.diagnostic(failure))
 				return
 			# Publish once; keep the old root visible throughout candidate attachment.
 			if preview_cache.has(package_cell): preview_cache[package_cell].root.queue_free()
@@ -1362,11 +1365,11 @@ func _trim_preview_cache(keep: Vector2i) -> void:
 
 func _start_import(source: String, license_name: String) -> void:
 	if busy:
-		_status("Another operation is running; wait for cancellation to finish.")
+		_status(I18N.t("Another operation is running; wait for cancellation to finish."))
 		return
 	_discard_import()
 	if not IMPORT_LAYER._text(license_name):
-		_status("A source license is required.")
+		_status(I18N.t("A source license is required."))
 		return
 	last_import_source = source
 	var settings := ConfigFile.new()
@@ -1383,29 +1386,29 @@ func _start_import(source: String, license_name: String) -> void:
 	if input_format in ["osm", "pbf"]:
 		var vertical: Dictionary = vertical_panel.capture()
 		if vertical.has("error"):
-			_status("E_IMPORT: " + vertical.error)
+			_status(I18N.t("E_IMPORT: ") + I18N.diagnostic(vertical.error))
 			return
 		import_coordinates_request.vertical = vertical
 		var supplement: Dictionary = vertical_panel.capture_supplement()
 		if supplement.has("error"):
-			_status("E_IMPORT: " + supplement.error)
+			_status(I18N.t("E_IMPORT: ") + I18N.diagnostic(supplement.error))
 			return
 		import_coordinates_request.merge(supplement)
 	if osm_panel.streaming.button_pressed:
 		if input_format != "pbf" or osm_panel.error() != "":
-			_status("PBF streaming requires PBF input and an enabled valid crop area.")
+			_status(I18N.t("PBF streaming requires PBF input and an enabled valid crop area."))
 			return
 		import_coordinates_request.osm_stream = true
 	if input_format in ["osm", "pbf"] and osm_panel.enabled.button_pressed:
 		if osm_panel.error() != "":
-			_status(osm_panel.error())
+			_status(I18N.diagnostic(osm_panel.error()))
 			return
 		import_coordinates_request.osm_bbox = osm_panel.bbox()
 	import_coordinates_request.adapter = "overture-land-cover-v1" if input_format == "overture-land-cover" else "overture-transportation-v1" if input_format == "overture-transportation" else "overture-buildings-v1" if input_format == "overture" else ("geojson-v1" if input_format == "geojson" else "osm-extract-v1")
 	if input_format != "geojson": license_name = IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if input_format == "overture-land-cover" else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if input_format == "overture-transportation" else IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
 	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, "")
 	if failure != "":
-		_operation_status("Import failed · Use Retry import to adjust settings", "E_IMPORT: " + failure)
+		_operation_status(I18N.t("Import failed · Use Retry import to adjust settings"), I18N.t("E_IMPORT: ") + I18N.diagnostic(failure))
 		return
 	import_job = job
 	import_selection_signature = _import_selection_signature()
@@ -1413,14 +1416,14 @@ func _start_import(source: String, license_name: String) -> void:
 	busy = true
 	import_progress.value = 0
 	import_progress.visible = true
-	_status("Starting import · %d source bytes · %ds deadline. Cancel stops the child; Retry last source starts a new layer." % [job.progress.total, job.timeout_seconds])
+	_status(I18N.t("Starting import · %d source bytes · %ds deadline. Cancel stops the child; Retry last source starts a new layer.") % [job.progress.total, job.timeout_seconds])
 
 func _start_worker(operation: String, source: String, destination: String) -> void:
 	if operation == "import":
 		_start_import(source, destination)
 		return
 	if busy:
-		_status("Another operation is running.")
+		_status(I18N.t("Another operation is running."))
 		return
 	busy = true
 	worker_generation = generation
@@ -1432,40 +1435,40 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 	)
 	if err != OK:
 		busy = false
-		_status(error_string(err))
-	else: _status("Preparing test drive…")
+		_status(I18N.diagnostic(error_string(err)))
+	else: _status(I18N.t("Preparing test drive…"))
 
 func _terrain_selection() -> String:
 	return JSON.stringify([canvas.interaction_revision, canvas.authoring_revision, canvas.tool, canvas.author.options, canvas.layer_state]).sha256_text()
 
 func _start_terrain(request: Dictionary) -> void:
 	if busy:
-		_status("Finish the running operation before painting terrain.")
+		_status(I18N.t("Finish the running operation before painting terrain."))
 		return
 	if not canvas.available({"field":"heightmaps", "record":{"id":"terrain"}}, true):
-		_status("Show and unlock terrain before painting.")
+		_status(I18N.t("Show and unlock terrain before painting."))
 		return
 	var job := TERRAIN_NATIVE_JOB.new()
 	job.editor_generation = generation
 	var failure := job.start_terrain(store, request, _terrain_selection(), Crypto.new().generate_random_bytes(16).hex_encode())
 	if failure != "":
-		_status(failure)
+		_status(I18N.diagnostic(failure))
 		return
 	import_job = job
 	worker_generation = generation
 	busy = true
 	import_progress.visible = true
-	_status("Preparing terrain stroke · 120s deadline · Cancel preserves the map.")
+	_status(I18N.t("Preparing terrain stroke · 120s deadline · Cancel preserves the map."))
 
 func _finish_terrain(job: RefCounted, result: Dictionary) -> void:
 	if job.editor_generation != generation or not job.matches(store, _terrain_selection()):
-		_status("Terrain stroke cancelled or stale; nothing was changed.")
+		_status(I18N.t("Terrain stroke cancelled or stale; nothing was changed."))
 		return
 	if not result.get("ok", false) or not result.get("data", {}).get("ok", false):
-		_status(store.reason(result.get("data", result)))
+		_status(I18N.result(result.get("data", result)))
 		return
 	var failure: String = job.commit(store)
-	_status(failure if failure != "" else "Terrain stroke applied. Undo: " + commands.shortcut_text("edit.undo"))
+	_status(I18N.diagnostic(failure) if failure != "" else I18N.t("Terrain stroke applied. Undo: ") + commands.shortcut_text("edit.undo"))
 
 func _process(_delta: float) -> void:
 	store.poll_track_edit()
@@ -1476,7 +1479,7 @@ func _process(_delta: float) -> void:
 		busy = false
 		_start_package(pending.operation,pending.destination)
 	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy
-	cancel_button.tooltip_text = "Cancel the running operation; keep prior preview and original files." if busy or store.track_edit_busy else "No running operation."
+	cancel_button.tooltip_text = I18N.t("Cancel the running operation; keep prior preview and original files.") if busy or store.track_edit_busy else I18N.t("No running operation.")
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	if import_job != null:
 		if import_job is TERRAIN_NATIVE_JOB:
@@ -1494,7 +1497,7 @@ func _process(_delta: float) -> void:
 		var progress: Dictionary = import_job.progress
 		if not progress.is_empty():
 			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
-			validation_label.text = "%s %s · %d / %d %s" % ["Terrain" if import_job is TERRAIN_NATIVE_JOB else "DEM" if dem_mode.begins_with("dem") else "Import", progress.stage, progress.completed, progress.total, progress.unit]
+			validation_label.text = "%s %s · %d / %d %s" % [I18N.t("Terrain") if import_job is TERRAIN_NATIVE_JOB else I18N.t("DEM") if dem_mode.begins_with("dem") else I18N.t("Import"), I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
 		if import_job.done:
 			var completed: RefCounted = import_job
 			var result: Dictionary = import_job.result
@@ -1516,7 +1519,7 @@ func _process(_delta: float) -> void:
 		if preview_due > 0 and Time.get_ticks_msec() >= preview_due: _preview()
 		return
 	if worker.is_alive():
-		if package_work != null: validation_label.text = package_work.status()
+		if package_work != null: validation_label.text = I18N.display(package_work.status())
 		return
 	var output: Dictionary = worker.wait_to_finish()
 	busy = false
@@ -1524,8 +1527,8 @@ func _process(_delta: float) -> void:
 	if output.operation == "reopen_package":
 		var stale: bool = generation != worker_generation or package_work.stopped()
 		package_work = null
-		if not result.ok: _status(store.reason(result))
-		elif stale: _status("Reopen cancelled; restored project retained at " + str(result.data.path))
+		if not result.ok: _status(I18N.result(result))
+		elif stale: _status(I18N.t("Reopen cancelled; restored project retained at ") + str(result.data.path))
 		else: _request_document_action("open", result.data.path)
 		return
 	if output.operation == "package":
@@ -1534,36 +1537,36 @@ func _process(_delta: float) -> void:
 	if not result.ok:
 		if output.operation == "test_drive":
 			last_drive_result = result
-		_status(store.reason(result))
+		_status(I18N.result(result))
 		return
 	if output.operation == "test_drive":
 		if generation != worker_generation:
 			last_drive_result = TEST_DRIVE.error("E_DOCUMENT_CHANGED", "Document changed during packaging; snapshot retained. Start test drive again.")
-			_status(store.reason(last_drive_result))
+			_status(I18N.result(last_drive_result))
 			return
 		last_drive_result = test_drive_launcher.launch(drive_request.client, result.data.path, drive_request.x_cm, drive_request.y_cm, drive_request.surface)
-		_status("Client launched (PID %d). Close Client to end the test. Snapshot: %s" % [last_drive_result.data.pid, result.data.path] if last_drive_result.ok else store.reason(last_drive_result))
+		_status(I18N.t("Client launched (PID %d). Close Client to end the test. Snapshot: %s") % [last_drive_result.data.pid, result.data.path] if last_drive_result.ok else I18N.result(last_drive_result))
 		return
 func _finish_import(result: Dictionary) -> void:
 	if import_selection_signature != _import_selection_signature():
-		_status("Import selection changed; retry. Original source retained.")
+		_status(I18N.t("Import selection changed; retry. Original source retained."))
 		return
 	if vertical_import_revision != vertical_panel.revision:
-		_status("Height reference changed during import; retry. Original source retained.")
+		_status(I18N.t("Height reference changed during import; retry. Original source retained."))
 		return
 	if osm_import_revision != osm_panel.revision:
-		_status("OSM crop selection changed during import; retry. Original source retained.")
+		_status(I18N.t("OSM crop selection changed during import; retry. Original source retained."))
 		return
 	if not result.ok:
-		_operation_status("Import stopped · Use Retry import to review settings", store.reason(result))
+		_operation_status(I18N.t("Import stopped · Use Retry import to review settings"), I18N.result(result))
 		return
 	if generation != worker_generation:
-		_status("Document changed during import; retry to add the new layer.")
+		_status(I18N.t("Document changed during import; retry to add the new layer."))
 		return
 	var layer := IMPORT_LAYER.new()
 	var failure := layer.load_value(result.data, import_identity, import_coordinates_request)
 	if failure != "":
-		_status("E_IMPORT: " + failure)
+		_status(I18N.t("E_IMPORT: ") + I18N.diagnostic(failure))
 		return
 	_start_native_import(layer, false)
 
@@ -1579,13 +1582,13 @@ func _import_selection_signature() -> String:
 
 func _start_native_import(layer: RefCounted, adopting: bool) -> void:
 	if busy:
-		_status("Another operation is running; wait for it to finish.")
+		_status(I18N.t("Another operation is running; wait for it to finish."))
 		return
 	var job := IMPORT_NATIVE_JOB.new()
 	job.editor_generation = generation
 	var failure := job.start_validation(store, layer, adopting, _import_selection_signature(), last_import_source, Crypto.new().generate_random_bytes(16).hex_encode())
 	if failure != "":
-		_operation_status("Native import validation stopped · Retry import", "E_IMPORT_NATIVE: " + failure)
+		_operation_status(I18N.t("Native import validation stopped · Retry import"), I18N.t("E_IMPORT_NATIVE: ") + I18N.diagnostic(failure))
 		return
 	import_job = job
 	native_request_identity = job.identity
@@ -1593,34 +1596,34 @@ func _start_native_import(layer: RefCounted, adopting: bool) -> void:
 	busy = true
 	import_progress.visible = true
 	import_progress.value = 0
-	_status("Checking %s before %s · 120s deadline · Cancel retains the current map." % ["structural surfaces" if layer.has_structures() else "import candidate", "adoption" if adopting else "review"])
+	_status(I18N.t("Checking %s before %s · 120s deadline · Cancel retains the current map.") % [I18N.t("structural surfaces") if layer.has_structures() else I18N.t("import candidate"), "adoption" if adopting else "review"])
 
 func _finish_native_import(job: RefCounted, result: Dictionary) -> void:
 	if native_request_identity != job.identity or generation != job.editor_generation or not job.done or not job.exited or not job.matches(store, _import_selection_signature()):
-		_status("E_IMPORT_STALE: Document or import selection changed; import again.")
+		_status(I18N.t("E_IMPORT_STALE: Document or import selection changed; import again."))
 		return
 	native_request_identity = ""
 	if not result.get("ok", false):
-		_operation_status("Native import validation stopped · Retry import", store.reason(result))
+		_operation_status(I18N.t("Native import validation stopped · Retry import"), I18N.result(result))
 		return
 	var checked: Variant = result.get("data")
 	if checked is not Dictionary or checked.get("request") != job.identity or checked.get("ok") is not bool:
-		_status("E_IMPORT_NATIVE: Invalid validation result; import again.")
+		_status(I18N.t("E_IMPORT_NATIVE: Invalid validation result; import again."))
 		return
 	if not checked.ok:
 		if checked.get("error") is not Dictionary or checked.error.get("code") != "E_IMPORT_NATIVE" or checked.error.get("message") is not String:
-			_status("E_IMPORT_NATIVE: Invalid validation failure; import again.")
+			_status(I18N.t("E_IMPORT_NATIVE: Invalid validation failure; import again."))
 			return
-		_operation_status("Native import validation rejected · Prior map retained", store.reason(checked))
+		_operation_status(I18N.t("Native import validation rejected · Prior map retained"), I18N.result(checked))
 		return
 	if not IMPORT_LAYER._hex(checked.get("payloads"), 64):
-		_status("E_IMPORT_NATIVE: Missing validation snapshot identity.")
+		_status(I18N.t("E_IMPORT_NATIVE: Missing validation snapshot identity."))
 		return
 	if job.adopting:
 		# The owned child prepared the canonical document and exact Undo command.
 		# Commit once against its unchanged document/history epoch.
 		var failure: String = job.commit(store)
-		_status(failure if failure != "" else "Imported new layer. Undo removes only this adoption.")
+		_status(I18N.diagnostic(failure) if failure != "" else I18N.t("Imported new layer. Undo removes only this adoption."))
 	else:
 		job.layer.native_payload_digest = checked.payloads
 		_review_import(job.layer)
@@ -1630,10 +1633,10 @@ func _review_import(layer: RefCounted) -> void:
 	pending_import = layer
 	import_review_generation = generation
 	import_review_controls = _review_controls()
-	validation_label.text = "Import ready for review · document unchanged until Adopt"
+	validation_label.text = I18N.t("Import ready for review · document unchanged until Adopt")
 	import_summary.text = layer.summary()
 	import_review.popup_centered(Vector2i(760, 460))
-	_status("Import prepared. Review and adopt the new layer, or discard it.")
+	_status(I18N.t("Import prepared. Review and adopt the new layer, or discard it."))
 	return
 
 func _import_review_current() -> bool:
@@ -1649,7 +1652,7 @@ func _review_controls() -> Array:
 func _open_import_details() -> void:
 	if not _import_review_current() or import_selection_signature != _import_selection_signature():
 		_discard_import()
-		_status("E_IMPORT_STALE: Document or import selection changed; import again.")
+		_status(I18N.t("E_IMPORT_STALE: Document or import selection changed; import again."))
 		return
 	import_details.open(pending_import.value, _import_review_current)
 
@@ -1663,7 +1666,7 @@ func _discard_import() -> void:
 func _adopt_import() -> void:
 	if pending_import == null or generation != import_review_generation or import_selection_signature != _import_selection_signature():
 		_discard_import()
-		_status("E_IMPORT_STALE: Document changed; import again.")
+		_status(I18N.t("E_IMPORT_STALE: Document changed; import again."))
 		return
 	var candidate: RefCounted = pending_import
 	_discard_import()
@@ -1676,7 +1679,7 @@ func _history(forward: bool) -> void:
 	_cancel_editing()
 	var failure := store.start_track_history(forward) if store.document.has("assembled_track") else store.redo() if forward else store.undo()
 	if failure != "":
-		_status(failure)
+		_status(I18N.diagnostic(failure))
 
 func _operation_status(summary: String, details: String) -> void:
 	_status(details)
@@ -1685,8 +1688,8 @@ func _operation_status(summary: String, details: String) -> void:
 func _status(text: String) -> void:
 	if busy and text.begins_with("x "): return
 	if validation_label != null and text.contains("E_"):
-		validation_label.text = "Edit/operation rejected · " + text
-	status_label.text = text
+		validation_label.text = I18N.t("Edit/operation rejected · ") + text
+	status_label.text = I18N.display(text)
 
 func _exit_tree() -> void:
 	store.shutdown_track_edit()
@@ -1704,8 +1707,8 @@ func _exit_tree() -> void:
 
 func _build_test_drive_dialog() -> void:
 	drive_dialog = ConfirmationDialog.new()
-	drive_dialog.title = "Test Drive"
-	drive_dialog.ok_button_text = "Save, Package and Launch"
+	drive_dialog.title = I18N.t("Test Drive")
+	drive_dialog.ok_button_text = I18N.t("Save, Package and Launch")
 	drive_dialog.theme = theme
 	var layout := VBoxContainer.new()
 	layout.custom_minimum_size = Vector2(650, 270)
@@ -1714,7 +1717,7 @@ func _build_test_drive_dialog() -> void:
 	var path_row := HBoxContainer.new()
 	layout.add_child(path_row)
 	client_path = LineEdit.new()
-	client_path.placeholder_text = "Installed MiniEarthure Client executable"
+	client_path.placeholder_text = I18N.t("Installed MiniEarthure Client executable")
 	client_path.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	path_row.add_child(client_path)
 	_button(path_row, "Browse", func(): client_dialog.popup_centered_ratio(0.8))
@@ -1739,7 +1742,7 @@ func _build_test_drive_dialog() -> void:
 	client_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	client_dialog.use_native_dialog = true
 	if OS.get_name() == "Windows":
-		client_dialog.filters = PackedStringArray(["*.exe ; MiniEarthure Client"])
+		client_dialog.filters = I18N.filters(["*.exe ; MiniEarthure Client"])
 	client_dialog.file_selected.connect(func(path: String): client_path.text = path)
 	add_child(client_dialog)
 	var settings := ConfigFile.new()
@@ -1750,10 +1753,10 @@ func _build_test_drive_dialog() -> void:
 func _test_drive() -> void:
 	_cancel_editing()
 	if busy:
-		_status("Wait for the current operation before starting test drive.")
+		_status(I18N.t("Wait for the current operation before starting test drive."))
 		return
 	if store.project_path == "":
-		_status("Choose a project directory before test drive.")
+		_status(I18N.t("Choose a project directory before test drive."))
 		_choose("save_for_drive")
 		return
 	var bounds: Dictionary = store.document.bounds
@@ -1764,7 +1767,7 @@ func _test_drive() -> void:
 	drive_x.value = (drive_x.min_value + drive_x.max_value) * 0.5
 	drive_y.value = (drive_y.min_value + drive_y.max_value) * 0.5
 	drive_surface.clear()
-	drive_surface.add_item("Terrain")
+	drive_surface.add_item(I18N.t("Terrain"))
 	drive_surface.set_item_metadata(0, "terrain")
 	for road: Dictionary in store.document.roads:
 		drive_surface.add_item(str(road.id) + " · " + str(road.kind))
@@ -1779,26 +1782,26 @@ func _test_drive() -> void:
 func _launch_test_drive() -> void:
 	last_drive_result = {}
 	if busy:
-		_status("Another operation is running.")
+		_status(I18N.t("Another operation is running."))
 		return
 	var checked := TEST_DRIVE.check_client(client_path.text)
 	if not checked.ok:
 		last_drive_result = checked
-		_status(store.reason(checked))
+		_status(I18N.result(checked))
 		return
 	var failure := store.save_project(store.project_path)
 	if failure != "":
-		_status(failure)
+		_status(I18N.diagnostic(failure))
 		return
 	_document_changed()
 	var validation: Dictionary = JSON.parse_string(store.bridge.validate_document(JSON.stringify(store.document)))
 	if not validation.ok:
-		_status(store.reason(validation))
+		_status(I18N.result(validation))
 		return
 	var directory := ProjectSettings.globalize_path("user://test-drives")
 	var error := DirAccess.make_dir_recursive_absolute(directory)
 	if error != OK:
-		_status(error_string(error))
+		_status(I18N.diagnostic(error_string(error)))
 		return
 	var snapshot := directory.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + ".memap")
 	drive_request = {"client": client_path.text, "x_cm": roundi(drive_x.value * 100),
@@ -1809,10 +1812,10 @@ func _launch_test_drive() -> void:
 	settings.set_value("test_drive", "client_executable", client_path.text)
 	error = settings.save("user://editor_tools.cfg")
 	if error != OK:
-		_status("Cannot save Client tool setting: " + error_string(error))
+		_status(I18N.t("Cannot save Client tool setting: ") + error_string(error))
 		return
 	_start_worker("test_drive", store.project_path, snapshot)
-	_status("Validating and packaging test-drive snapshot…")
+	_status(I18N.t("Validating and packaging test-drive snapshot…"))
 
 func _begin_dem(request: Dictionary) -> void:
 	if busy: return
@@ -1820,7 +1823,7 @@ func _begin_dem(request: Dictionary) -> void:
 	var job := DEM_JOB.new()
 	var failure: String = job.start_local(request, import_python.text.strip_edges(), Crypto.new().generate_random_bytes(16).hex_encode())
 	if failure != "":
-		_status("E_DEM: " + failure)
+		_status(I18N.t("E_DEM: ") + I18N.diagnostic(failure))
 		return
 	dem_mode = request.mode
 	import_job = job
@@ -1849,9 +1852,9 @@ func _open_track_generator() -> void:
 		add_child(track_job)
 		track_job.completed.connect(func(_request: int, result: Dictionary):
 			if track_epoch != store.command_epoch: return
-			if not result.ok: _status(result.error.message); track_panel.note.text=result.error.message; return
+			if not result.ok: _status(I18N.error(result.error)); track_panel.note.text=I18N.error(result.error); return
 			var failure: String = store.open_generated(result.data.document)
-			if failure != "": _status(failure); return
+			if failure != "": _status(I18N.diagnostic(failure)); return
 			_clear_preview_cache()
 			track_panel.show_result(result.data.document.assembled_track)
 			_status(track_panel.note.text)
@@ -1859,7 +1862,7 @@ func _open_track_generator() -> void:
 			track_workbench.refresh())
 	if not is_instance_valid(track_dialog):
 		track_dialog = AcceptDialog.new()
-		track_dialog.title = "Seed Track"
+		track_dialog.title = I18N.t("Seed Track")
 		add_child(track_dialog)
 		var scroll := ScrollContainer.new()
 		scroll.custom_minimum_size = Vector2(460,520)
@@ -1869,13 +1872,13 @@ func _open_track_generator() -> void:
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		scroll.add_child(panel)
 		panel.requested.connect(func(settings: Dictionary):
-			if busy: _status("Finish or cancel the current operation first."); return
+			if busy: _status(I18N.t("Finish or cancel the current operation first.")); return
 			track_epoch = store.command_epoch
 			var directory := ProjectSettings.globalize_path("user://generated-tracks")
 			DirAccess.make_dir_recursive_absolute(directory)
 			track_job.begin(settings,directory.path_join(Crypto.new().generate_random_bytes(12).hex_encode()+".memap"))
-			_status("Assembling track…"))
-		panel.cancelled.connect(func(): track_job.cancel(); _status("Generation cancelled. Current document retained."))
+			_status(I18N.t("Assembling track…")))
+		panel.cancelled.connect(func(): track_job.cancel(); _status(I18N.t("Generation cancelled. Current document retained.")))
 		track_dialog.canceled.connect(track_job.cancel)
 		track_dialog.confirmed.connect(track_job.cancel)
 	if store.document.get("assembled_track") is Dictionary:

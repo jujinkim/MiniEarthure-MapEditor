@@ -2,6 +2,7 @@ extends PopupPanel
 ## All command surfaces resolve the same stable ID, context and availability.
 signal settings_changed
 signal opening_popup
+const I18N := preload("./locale_text.gd")
 const STYLE := preload("./workbench_style.gd")
 var commands: Array[Dictionary] = []
 var query: LineEdit
@@ -25,7 +26,7 @@ func _ready() -> void:
 	var column := VBoxContainer.new()
 	add_child(column)
 	query = LineEdit.new()
-	query.placeholder_text = "Search commands · Enter to run · Escape to close"
+	query.placeholder_text = I18N.t("Search commands · Enter to run · Escape to close")
 	column.add_child(query)
 	results = ItemList.new()
 	results.custom_minimum_size = Vector2(560, 280)
@@ -93,11 +94,11 @@ func reason(id: String) -> String:
 		var unavailable: String = availability_source.call(id)
 		if unavailable != "": return unavailable
 	var index := index_of(id)
-	if index < 0: return "Command is unavailable."
+	if index < 0: return I18N.t("Command is unavailable.")
 	var command := commands[index]
 	if command.context != "global" and command.context != current_context():
-		return "Available in %s mode." % ("track" if command.context == "track" else "free roam")
-	if command.enabled.is_valid() and not command.enabled.call(): return command.reason
+		return I18N.t("Available in %s mode.") % (I18N.t("Track") if command.context == "track" else I18N.t("Free roam"))
+	if command.enabled.is_valid() and not command.enabled.call(): return I18N.t(command.reason)
 	return ""
 
 func keys_for(id: String, custom: Variant = null) -> Array:
@@ -112,7 +113,7 @@ func shortcut_text(id: String) -> String:
 
 func tooltip(id: String) -> String:
 	var command := commands[index_of(id)]
-	var result: String = command.label + "\n" + command.description
+	var result: String = display_label(command) + "\n" + I18N.t(command.description)
 	var shortcut := shortcut_text(id)
 	if shortcut != "": result += "\n" + shortcut
 	var why := reason(id)
@@ -121,7 +122,7 @@ func tooltip(id: String) -> String:
 
 func button(parent: Node, id: String, tile := false) -> Button:
 	var command := commands[index_of(id)]
-	var result := STYLE.button(parent, command.label, execute_id.bind(id), "", command.icon, tile)
+	var result := STYLE.button(parent, display_label(command), execute_id.bind(id), "", command.icon, tile)
 	result.set_meta("command_id", id)
 	buttons.append({"control":weakref(result), "id":id})
 	# Adding a control does not change command availability. Updating the entire
@@ -143,22 +144,25 @@ func refresh_buttons() -> void:
 func menus(parent: Control) -> void:
 	for group in ["File", "Edit", "View", "Create", "Validate"]:
 		var menu := MenuButton.new()
-		menu.text = group
+		menu.text = I18N.t(group)
 		menu.custom_minimum_size.y = 28
 		parent.add_child(menu)
 		var popup := menu.get_popup()
 		menus_by_group[group] = popup
 		popup.about_to_popup.connect(func(): opening_popup.emit(); _fill_menu(group))
 		popup.id_pressed.connect(execute)
+		if group == "View": _add_language_menu(popup)
 
 func _fill_menu(group: String) -> void:
 	var popup: PopupMenu = menus_by_group[group]
 	popup.clear()
+	if group == "View":
+		popup.add_submenu_node_item(I18N.t("Language"), popup.get_node("Language"))
 	for i in commands.size():
 		var command := commands[i]
 		if command.group != group or not command.menu: continue
 		var shortcut := shortcut_text(command.id)
-		popup.add_icon_item(STYLE.icon(command.icon), command.label + ("    " + shortcut if shortcut != "" else ""), i)
+		popup.add_icon_item(STYLE.icon(command.icon), display_label(command) + ("    " + shortcut if shortcut != "" else ""), i)
 		popup.set_item_disabled(popup.item_count - 1, reason(command.id) != "")
 		popup.set_item_tooltip(popup.item_count - 1, tooltip(command.id))
 
@@ -189,12 +193,12 @@ func conflicts(custom: Dictionary) -> PackedStringArray:
 			var b := commands[j]
 			if a.context != b.context and a.context != "global" and b.context != "global": continue
 			for code in keys_for(a.id, custom):
-				if code in keys_for(b.id, custom): issues.append("%s: %s / %s" % [key_text(code), a.label, b.label])
+				if code in keys_for(b.id, custom): issues.append("%s: %s / %s" % [key_text(code), display_label(a), display_label(b)])
 	return issues
 
 func save_bindings(custom: Dictionary) -> String:
 	var issues := conflicts(custom)
-	if not issues.is_empty(): return "Resolve shortcut conflicts before saving:\n" + "\n".join(issues)
+	if not issues.is_empty(): return I18N.t("Resolve shortcut conflicts before saving:\n") + "\n".join(issues)
 	var old := bindings
 	bindings = custom.duplicate(true)
 	var failure := save_settings()
@@ -208,7 +212,7 @@ func save_settings() -> String:
 	config.set_value("commands", "bindings", bindings)
 	config.set_value("commands", "favorites", favorites)
 	var result := config.save(settings_path)
-	return "" if result == OK else "Could not save workbench settings: " + error_string(result)
+	return "" if result == OK else I18N.t("Could not save workbench settings: ") + error_string(result)
 
 func load_settings() -> void:
 	var config := ConfigFile.new()
@@ -236,7 +240,7 @@ func favorite_allowed(mode: String, id: String) -> bool:
 	return i >= 0 and (commands[i].context == mode or id == "tool.select") and (id.begins_with("tool.") or id.begins_with("track.piece.") or id.begins_with("track.action.") or id.begins_with("track.obstacle."))
 
 func assign_favorite(mode: String, slot: int, id: String) -> String:
-	if slot < 0 or slot >= 9 or not favorite_allowed(mode, id): return "Invalid favorite assignment."
+	if slot < 0 or slot >= 9 or not favorite_allowed(mode, id): return I18N.t("Invalid favorite assignment.")
 	var old: String = favorites[mode][slot]
 	favorites[mode][slot] = id
 	var failure := save_settings()
@@ -267,8 +271,8 @@ func _filter(value: String) -> void:
 	for index in commands.size():
 		var command := commands[index]
 		if command.context != "global" and command.context != current_context(): continue
-		var label := "%s / %s  %s" % [command.group, command.label, shortcut_text(command.id)]
-		if value.is_empty() or value.to_lower() in (label + " " + command.description + " " + command.id).to_lower():
+		var label := "%s / %s  %s" % [I18N.t(command.group), display_label(command), shortcut_text(command.id)]
+		if value.is_empty() or value.to_lower() in (label + " " + I18N.t(command.description) + " " + command.label + " " + command.description + " " + command.id).to_lower():
 			results.add_item(label, STYLE.icon(command.icon))
 			results.set_item_metadata(results.item_count - 1, index)
 			results.set_item_tooltip(results.item_count - 1, tooltip(command.id))
@@ -277,3 +281,29 @@ func _filter(value: String) -> void:
 
 func _run(index: int) -> void:
 	if index >= 0 and index < results.item_count: execute(int(results.get_item_metadata(index)))
+
+func _add_language_menu(parent: PopupMenu) -> void:
+	var popup := PopupMenu.new()
+	popup.name = "Language"
+	popup.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	parent.add_child(popup)
+	var locale := get_node("/root/Locale")
+	for code: String in locale.LANGUAGES:
+		popup.add_radio_check_item(locale.LANGUAGES[code])
+		popup.set_item_metadata(popup.item_count - 1, code)
+	popup.about_to_popup.connect(func():
+		for i in popup.item_count: popup.set_item_checked(i, popup.get_item_metadata(i) == locale.selected_locale))
+	popup.id_pressed.connect(func(id: int):
+		var saved: bool = locale.set_language(popup.get_item_metadata(id))
+		var notice := AcceptDialog.new()
+		notice.title = I18N.t("Language")
+		notice.dialog_text = I18N.t("Language saved. Restart the app to apply.") if saved else I18N.t("Could not save language preference")
+		notice.confirmed.connect(notice.queue_free)
+		notice.canceled.connect(notice.queue_free)
+		get_parent().add_child(notice)
+		notice.popup_centered(Vector2i(440, 160)))
+
+func display_label(command: Dictionary) -> String:
+	if str(command.id).begins_with("favorite."):
+		return I18N.t("Favorite %d") % int(str(command.id).get_slice(".", 1))
+	return I18N.t(command.label)

@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Public authoring only. Evidence is opaque and never created by an editor action.
 var panel: Control
 var courses: OptionButton
@@ -39,6 +40,7 @@ func setup(owner: Control) -> void:
 	radius = panel.number(box, "Radius (m)", 12, 1, 1000, 0.1)
 	shape = panel.choice(box, "Checkpoint shape", ["sphere", "hemisphere"], "sphere")
 	points = ItemList.new()
+	points.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	points.custom_minimum_size.y = 120
 	box.add_child(points)
 	points.item_selected.connect(func(i: int):
@@ -60,7 +62,7 @@ func setup(owner: Control) -> void:
 	picker = FileDialog.new()
 	picker.access = FileDialog.ACCESS_FILESYSTEM
 	picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	picker.filters = PackedStringArray(["*.mecourse ; Course v1"])
+	picker.filters = I18N.filters(["*.mecourse ; Course v1"])
 	panel.add_child(picker)
 	picker.file_selected.connect(import_course)
 	panel.editor.canvas.course_point_selected.connect(_point)
@@ -107,7 +109,7 @@ func _point(point: Vector2) -> void:
 			return
 		elevation = ground.height
 	_remember()
-	var cp := {"position_cm":[roundi(point.x),elevation,roundi(point.y)],"radius_cm":roundi(radius.value*100),"shape":shape.get_item_text(shape.selected),"placement_mode":"free","surface_id":"terrain"}
+	var cp := {"position_cm":[roundi(point.x),elevation,roundi(point.y)],"radius_cm":roundi(radius.value*100),"shape":str(shape.get_item_metadata(shape.selected)),"placement_mode":"free","surface_id":"terrain"}
 	if _replace < 0:
 		if draft.size() >= 64: return
 		draft.append(cp)
@@ -122,7 +124,7 @@ func _attributes() -> void:
 	var cp := draft[points.get_selected_items()[0]]
 	cp.position_cm[1] = roundi(height.value*100)
 	cp.radius_cm = roundi(radius.value*100)
-	cp.shape = shape.get_item_text(shape.selected)
+	cp.shape = str(shape.get_item_metadata(shape.selected))
 	_refresh()
 
 func _delete() -> void:
@@ -144,7 +146,7 @@ func _move(delta: int) -> void:
 
 func _refresh() -> void:
 	points.clear()
-	for i in draft.size(): points.add_item("%d · %s · height %.1f m · radius %.1f m" % [i+1,draft[i].shape,draft[i].position_cm[1]/100.0,draft[i].radius_cm/100.0])
+	for i in draft.size(): points.add_item(I18N.t("%d · %s · height %.1f m · radius %.1f m") % [i+1,I18N.builtin(draft[i].shape),draft[i].position_cm[1]/100.0,draft[i].radius_cm/100.0])
 	panel.editor.canvas.course_points = draft.duplicate(true)
 	panel.editor.canvas.queue_redraw()
 	if is_instance_valid(_preview): _preview.queue_free()
@@ -158,10 +160,10 @@ func _save() -> void:
 	var angle := deg_to_rad(heading.value)
 	var direction: Array = original.definition.start_direction.duplicate() if not original.is_empty() and heading.value == _loaded_heading else [roundi(cos(angle)*1000000),roundi(sin(angle)*1000000)]
 	var body := {"map_id":store.document.map_id,"display_name":name_input.text,"world_content_hash":original.get("definition",{}).get("world_content_hash","0".repeat(64)),
-		"mode":mode.get_item_text(mode.selected),"start_mode":start.get_item_text(start.selected),"start_direction":direction,"checkpoints":draft}
+		"mode":str(mode.get_item_metadata(mode.selected)),"start_mode":str(start.get_item_metadata(start.selected)),"start_direction":direction,"checkpoints":draft}
 	var result: Dictionary = JSON.parse_string(store.bridge.seal_course(JSON.stringify(body),PackedInt64Array([b.min[0],b.min[1],b.max[0],b.max[1]])))
 	if not result.ok:
-		panel.report(store.reason(result))
+		panel.report(panel.editor.store.reason(result))
 		return
 	var course: Dictionary = result.data.document
 	if original.has("validation"): course.validation = original.validation.duplicate(true)
@@ -176,7 +178,7 @@ func _adopt(course: Dictionary) -> void:
 	if failure == "":
 		original = course.duplicate(true)
 		courses.clear()
-		courses.add_item("New course")
+		courses.add_item(I18N.t("New course"))
 		for entry: Dictionary in panel.editor.store.document.get("courses",[]):
 			courses.add_item(entry.definition.display_name)
 			if entry.course_id == course.course_id: courses.select(courses.item_count-1)

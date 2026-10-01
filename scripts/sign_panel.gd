@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 const SIGNS := preload("./sign_authoring.gd")
 const FILES := preload("./authoring_files.gd")
 var panel: PanelContainer
@@ -48,7 +49,7 @@ func selection() -> Dictionary:
 	var spec := {}
 	for key: String in controls:
 		var control: Control = controls[key]
-		if control is OptionButton: spec[key] = control.get_item_text(control.selected)
+		if control is OptionButton: spec[key] = str(control.get_item_metadata(control.selected))
 		elif control is SpinBox: spec[key] = control.value
 		else: spec[key] = control.text
 	return spec
@@ -58,7 +59,7 @@ func _bake() -> void:
 	var spec := selection()
 	var epoch := revision
 	baking = true
-	panel.feedback.text = "Shaping and drawing sign…"
+	panel.feedback.text = I18N.t("Shaping and drawing sign…")
 	var result := await SIGNS.bake(panel, spec, func(): return panel.visible and epoch == revision and spec == selection())
 	baking = false
 	if result.has("error"):

@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Project-owned Luna-inspired chrome. No OS theme or import cache is required.
 const PANEL := Color("ece9d8")
 const PAPER := Color("ffffff")
@@ -105,6 +106,7 @@ static func window_close(pressed: bool) -> Texture2D:
 static func create_theme() -> Theme:
 	var result := Theme.new()
 	result.default_font_size = 14
+	result.default_font = preload("./ui_font.gd").create()
 	var focus := box(Color.TRANSPARENT, BLUE, 0)
 	for type in ["Label", "Button", "CheckBox", "CheckButton", "MenuButton", "OptionButton", "LinkButton", "LineEdit", "TextEdit", "Tree", "ItemList", "TabBar", "TabContainer", "PopupMenu", "Window", "TooltipLabel", "RichTextLabel"]:
 		for color in ["font_color", "font_hover_color", "font_hovered_color", "font_hovered_dimmed_color", "font_hovered_selected_color", "font_pressed_color", "font_focus_color", "font_selected_color", "font_hover_pressed_color", "font_readonly_color", "font_uneditable_color", "font_unselected_color"]:
@@ -219,13 +221,13 @@ static func icon(id: String) -> Texture2D:
 static func decorate(button: Button, label: String, description := "", icon_id := "", tile := false) -> void:
 	button.set_meta("action_label", label)
 	button.icon = icon(icon_id if icon_id != "" else label)
-	button.text = label if button.icon == null else ""
+	button.text = I18N.t(label) if button.icon == null else ""
 	button.expand_icon = true
 	button.add_theme_constant_override("icon_max_width", 30 if tile else 24)
 	button.custom_minimum_size = Vector2(52, 52) if tile else Vector2(40, 40)
-	button.tooltip_text = label + ("\n" + description if description != "" else "")
+	button.tooltip_text = I18N.t(label) + ("\n" + I18N.t(description) if description != "" else "")
 	button.focus_mode = Control.FOCUS_ALL
-	button.accessibility_name = label
+	button.accessibility_name = I18N.t(label)
 
 static func button(parent: Node, label: String, action: Callable, description := "", icon_id := "", tile := false) -> Button:
 	var control := Button.new()

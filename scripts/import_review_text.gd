@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Presentation-only bounds. Never truncate or change the retained import value.
 const MAX_SUMMARY_CHARS := 49152
 const MAX_METADATA_CHARS := 8192
@@ -7,21 +8,21 @@ const MAX_CHILDREN := 16
 const MAX_TEXT_CHARS := 256
 
 static func preview(value: Variant, limit: int = MAX_TEXT_CHARS) -> String:
-	if value is Dictionary: return "Object · %d fields" % value.size()
+	if value is Dictionary: return I18N.t("Object · %d fields") % value.size()
 	if value is Array:
 		var scalar: bool = value.size() <= 4
 		for index in range(mini(4, value.size())):
 			if value[index] is Dictionary or value[index] is Array or value[index] is String: scalar = false
-		return "Array · %d items" % value.size() + (" " + JSON.stringify(value) if scalar else "")
+		return I18N.t("Array · %d items") % value.size() + (" " + JSON.stringify(value) if scalar else "")
 	if value is String:
 		# Slice before escaping; never serialize an unbounded string or container.
-		return JSON.stringify(value.substr(0, limit)) + (" … [%d characters; open details]" % value.length() if value.length() > limit else "")
+		return JSON.stringify(value.substr(0, limit)) + (I18N.t(" … [%d characters; open details]") % value.length() if value.length() > limit else "")
 	return JSON.stringify(value)
 
 static func metadata(value: Dictionary) -> String:
 	var state := {"text":"", "visits":0, "limited":false}
 	_append(value, "", 0, state)
-	return state.text + ("\nMore metadata is available in Browse exact details.\n" if state.limited else "")
+	return state.text + (I18N.t("\nMore metadata is available in Browse exact details.\n") if state.limited else "")
 
 static func _append(value: Variant, path: String, depth: int, state: Dictionary) -> void:
 	if state.visits >= MAX_VISITS or state.text.length() >= MAX_METADATA_CHARS:

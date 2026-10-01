@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Source selection is separate from derived geometry crop and map adoption.
 var ui: Control
 var dialog: AcceptDialog
@@ -12,17 +13,17 @@ var revision := 0
 func setup(owner_ui: Control) -> void:
 	ui = owner_ui
 	dialog = AcceptDialog.new()
-	dialog.title = "OSM derived geometry crop"
-	dialog.ok_button_text = "Keep selection"
+	dialog.title = I18N.t("OSM derived geometry crop")
+	dialog.ok_button_text = I18N.t("Keep selection")
 	var layout := VBoxContainer.new()
 	layout.custom_minimum_size = Vector2(690, 400)
 	dialog.add_child(layout)
 	enabled = CheckBox.new()
-	enabled.text = "Crop OSM PBF/XML during import (source stays unchanged)"
+	enabled.text = I18N.t("Crop OSM PBF/XML during import (source stays unchanged)")
 	layout.add_child(enabled)
 	ui._label(layout, "Road centerlines and building/vegetation polygons are intersected with this box.\nHoles and split parts survive. Road width may extend outside; new cut walls are artificial.")
 	streaming = CheckBox.new()
-	streaming.text = "PBF streaming · local source up to 2 GiB (requires crop)"
+	streaming.text = I18N.t("PBF streaming · local source up to 2 GiB (requires crop)")
 	layout.add_child(streaming)
 	ui._label(layout, "Streaming: source bytes + 2 GiB index + 64 MiB free disk; 15-minute deadline.\nThree byte-counted passes; complete candidate ways/relations before crop.\nOther vector inputs stay at 32 MiB.")
 	var grid := GridContainer.new()
@@ -71,9 +72,9 @@ func error() -> String:
 func changed() -> void:
 	revision += 1
 	ui._discard_import()
-	ui.osm_crop_button.text = "OSM crop: %s…" % ("on" if enabled.button_pressed else "off")
+	ui.osm_crop_button.text = I18N.t("OSM crop: %s…") % (I18N.t("on") if enabled.button_pressed else I18N.t("off"))
 	area.set_bounds(bbox())
-	status.text = error() if error() != "" else ("Crop enabled. Import next, review counts/estimates, then explicitly adopt." if enabled.button_pressed else "Crop disabled: import the complete supported snapshot.")
+	status.text = I18N.diagnostic(error()) if error() != "" else (I18N.t("Crop enabled. Import next, review counts/estimates, then explicitly adopt.") if enabled.button_pressed else I18N.t("Crop disabled: import the complete supported snapshot."))
 
 func open() -> void:
 	if ui.busy: return

@@ -1,4 +1,5 @@
 extends RefCounted
+const I18N := preload("./locale_text.gd")
 ## Focused authoring for the current declarative structure contract.
 const GEOMETRY := preload("res://addons/mapkit/godot/gimmick_geometry.gd")
 var panel: Control
@@ -21,7 +22,7 @@ func setup(owner: Control) -> void:
 	templates = JSON.parse_string(FileAccess.get_file_as_string("res://addons/mapkit/godot/driving_templates.json"))
 	template = panel.choice(box, "Template", templates.keys(), templates.keys()[0])
 	for axis in ["X", "Y", "Z"]:
-		controls[axis] = panel.number(box, "Position " + axis + " (m)", 32 if axis != "Y" else 0, -10000, 10000, 0.01)
+		controls[axis] = panel.number(box, I18N.t("Position %s (m)") % axis, 32 if axis != "Y" else 0, -10000, 10000, 0.01)
 	controls.pitch = panel.number(box, "Pitch (degrees)", 0, -360, 360, 0.1)
 	controls.roll = panel.number(box, "Roll (degrees)", 0, -360, 360, 0.1)
 	controls.yaw = panel.number(box, "Yaw (degrees)", 0, -360, 360, 1)
@@ -35,22 +36,22 @@ func setup(owner: Control) -> void:
 		panel.report("Click a road or the inner face of a static track. Yaw sets the travel direction."))
 	controls.period = panel.number(box, "Period (seconds)", 5, 0.25, 120, 0.25)
 	controls.phase = panel.number(box, "Initial phase (seconds)", 0, 0, 119.75, 0.25)
-	for axis in ["X", "Y", "Z"]: controls["delta"+axis] = panel.number(box, "Travel " + axis + " (m)", 0, -32, 32, 0.1)
-	for axis in ["X", "Y", "Z"]: controls["impulse"+axis] = panel.number(box, "Pad impulse " + axis + " (m/s)", 0, -50, 50, 0.1)
+	for axis in ["X", "Y", "Z"]: controls["delta"+axis] = panel.number(box, I18N.t("Travel %s (m)") % axis, 0, -32, 32, 0.1)
+	for axis in ["X", "Y", "Z"]: controls["impulse"+axis] = panel.number(box, I18N.t("Pad impulse %s (m/s)") % axis, 0, -50, 50, 0.1)
 	controls.landing = panel.number(box, "Extra landing margin (m)", 20, 0, 64, 1)
 	controls.time = panel.number(box, "Preview time (seconds)", 0, 0, 120, 0.05)
 	controls.time.value_changed.connect(func(_v): show_preview())
 	picker.item_selected.connect(select_record)
 	template.item_selected.connect(func(_i):
-		if before.is_empty(): load_controls(templates[template.get_item_text(template.selected)]))
+		if before.is_empty(): load_controls(templates[str(template.get_item_metadata(template.selected))]))
 	panel.button(box, "Preview motion and full bounds", show_preview)
 	panel.button(box, "Save structure", save_record)
 	panel.button(box, "Remove selected structure", remove_record)
-	load_controls(templates[template.get_item_text(template.selected)])
+	load_controls(templates[str(template.get_item_metadata(template.selected))])
 
 func select_record(index: int) -> void:
 	before = {} if index == 0 else records[index - 1].duplicate(true)
-	load_controls(templates[template.get_item_text(template.selected)] if before.is_empty() else before)
+	load_controls(templates[str(template.get_item_metadata(template.selected))] if before.is_empty() else before)
 
 func load_controls(g: Dictionary) -> void:
 	for i in 3:
@@ -72,7 +73,7 @@ func load_controls(g: Dictionary) -> void:
 	controls.phase.value = g.motion.phase_ms / 1000.0
 
 func draft() -> Dictionary:
-	var g: Dictionary = (templates[template.get_item_text(template.selected)] if before.is_empty() else before).duplicate(true)
+	var g: Dictionary = (templates[str(template.get_item_metadata(template.selected))] if before.is_empty() else before).duplicate(true)
 	if before.is_empty(): g.id = "structure-" + Crypto.new().generate_random_bytes(6).hex_encode()
 	for i in 3:
 		var axis: String = ["X","Y","Z"][i]

@@ -1,4 +1,5 @@
 extends VBoxContainer
+const I18N := preload("./locale_text.gd")
 ## Stable favorite IDs are independent of palette filtering and sorting.
 const STYLE := preload("./workbench_style.gd")
 var registry: PopupPanel
@@ -17,7 +18,7 @@ func build(commands: PopupPanel, context: String, items: Array[Dictionary]) -> v
 	mode = context
 	entries = items
 	var favorite_title := Label.new()
-	favorite_title.text = "FAVORITES · 1–9"
+	favorite_title.text = I18N.t("FAVORITES · 1–9")
 	favorite_title.add_theme_color_override("font_color", STYLE.BLUE)
 	add_child(favorite_title)
 	var favorites_scroll := ScrollContainer.new()
@@ -30,13 +31,13 @@ func build(commands: PopupPanel, context: String, items: Array[Dictionary]) -> v
 	var row := HBoxContainer.new()
 	add_child(row)
 	search = LineEdit.new()
-	search.placeholder_text = "Search palette"
+	search.placeholder_text = I18N.t("Search palette")
 	search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(search)
 	search.text_changed.connect(_filter)
 	var sort_button := CheckButton.new()
 	sort_button.text = "A–Z"
-	sort_button.tooltip_text = "Sort palette by name. Favorite slot numbers stay fixed."
+	sort_button.tooltip_text = I18N.t("Sort palette by name. Favorite slot numbers stay fixed.")
 	row.add_child(sort_button)
 	sort_button.toggled.connect(func(value: bool): _build_tiles(value))
 	tabs = TabContainer.new()
@@ -45,7 +46,7 @@ func build(commands: PopupPanel, context: String, items: Array[Dictionary]) -> v
 	add_child(tabs)
 	popup = PopupMenu.new()
 	add_child(popup)
-	for i in 9: popup.add_item("Assign to favorite %d" % (i + 1), i)
+	for i in 9: popup.add_item(I18N.t("Assign to favorite %d") % (i + 1), i)
 	popup.id_pressed.connect(func(slot: int):
 		var failure: String = registry.assign_favorite(mode, slot, assigning)
 		if failure != "": registry.get_parent()._status(failure))
@@ -66,6 +67,7 @@ func _build_tiles(alphabetical: bool) -> void:
 			scroll.name = entry.group
 			scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 			tabs.add_child(scroll)
+			tabs.set_tab_title(tabs.get_tab_count() - 1, I18N.t(entry.group))
 			var column := VBoxContainer.new()
 			column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			scroll.add_child(column)
@@ -73,7 +75,7 @@ func _build_tiles(alphabetical: bool) -> void:
 		var section: String = entry.group + "/" + entry.get("section", "Tools")
 		if not sections.has(section):
 			var label := Label.new()
-			label.text = entry.get("section", "Tools")
+			label.text = I18N.t(entry.get("section", "Tools"))
 			groups[entry.group].add_child(label)
 			var flow := HFlowContainer.new()
 			groups[entry.group].add_child(flow)
@@ -122,7 +124,7 @@ func refresh_favorites() -> void:
 		var b: Button = registry.button(favorites_row, id, true)
 		_badge(b, str(i + 1))
 		_context(b, id)
-		b.tooltip_text += "\nFavorite %d" % (i + 1)
+		b.tooltip_text += I18N.t("\nFavorite %d") % (i + 1)
 	for tile in tiles:
 		var slots: PackedStringArray = []
 		for i in 9:
@@ -135,4 +137,4 @@ func select_tool(id: String) -> void:
 func _filter(value: String) -> void:
 	for tile in tiles:
 		var command: Dictionary = registry.commands[registry.index_of(tile.id)]
-		tile.button.visible = value.is_empty() or value.to_lower() in (command.label + " " + command.id).to_lower()
+		tile.button.visible = value.is_empty() or value.to_lower() in (I18N.t(command.label) + " " + I18N.t(command.description) + " " + command.label + " " + command.id).to_lower()

@@ -13,14 +13,14 @@ func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, de
 	return _stage_cells(terrain,result,reviewed,destination,context)
 
 func summary() -> String:
-	if value.is_empty(): return "No DEM candidate."
-	var text := "Copernicus 2021 DSM · %d sources → %d cells\nAdopt all terrain cells atomically; one Undo restores every previous cell.\nEGM2008 height minus %s m at local zero; explicit bilinear sampling.\nSource accuracy unknown. Shared PNG quantization error ≤ %s cm.\nNo missing-data or seam repair. Save explicitly after adoption.\n" % [value.dem.receipt.sources.size(),value.heightmaps.size(),str(value.dem.sampling.vertical_zero_m),str(value.dem.sampling.max_quantization_error_cm)]
+	if value.is_empty(): return I18N.t("No DEM candidate.")
+	var text := I18N.t("Copernicus 2021 DSM · %d sources → %d cells\nAdopt all terrain cells atomically; one Undo restores every previous cell.\nEGM2008 height minus %s m at local zero; explicit bilinear sampling.\nSource accuracy unknown. Shared PNG quantization error ≤ %s cm.\nNo missing-data or seam repair. Save explicitly after adoption.\n") % [value.dem.receipt.sources.size(),value.heightmaps.size(),str(value.dem.sampling.vertical_zero_m),str(value.dem.sampling.max_quantization_error_cm)]
 	for index in range(value.heightmaps.size()):
 		var record: Dictionary=value.heightmaps[index]
-		text+="\nCell (%d, %d) · spacing %d cm · %s\nDerived PNG SHA-256: %s\n" % [record.cell.x,record.cell.y,record.spacing_cm,"replaces an active tile (Undo retained)" if value.previous[index]!=null else "new active terrain",str(record.path).get_file().get_basename()]
+		text+=I18N.t("\nCell (%d, %d) · spacing %d cm · %s\nDerived PNG SHA-256: %s\n") % [record.cell.x,record.cell.y,record.spacing_cm,I18N.t("replaces an active tile (Undo retained)") if value.previous[index]!=null else I18N.t("new active terrain"),str(record.path).get_file().get_basename()]
 	for item: Dictionary in value.dem.receipt.sources:
-		text+="\nSource tile %s · GLO-%d%s · %d bytes\nSHA-256: %s\n%s\n%s\n" % [str(item.tile),item.resolution_m," (404 fallback)" if item.fallback90 else "",item.source.bytes,item.source.sha256,item.source.get("path",item.source.get("url","")),item.notice]
-	return text+"\nLicense: "+LICENSE
+		text+=I18N.t("\nSource tile %s · GLO-%d%s · %d bytes\nSHA-256: %s\n%s\n%s\n") % [str(item.tile),item.resolution_m,I18N.t(" (404 fallback)") if item.fallback90 else "",item.source.bytes,item.source.sha256,item.source.get("path",item.source.get("url","")),item.notice]
+	return text+I18N.t("\nLicense: ")+LICENSE
 
 
 func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String, context: Dictionary = {}) -> String:

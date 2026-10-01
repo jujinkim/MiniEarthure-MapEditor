@@ -1,5 +1,6 @@
 extends ConfirmationDialog
 ## Edits a private working copy; conflicts never reach persistent settings.
+const I18N := preload("./locale_text.gd")
 const STYLE := preload("./workbench_style.gd")
 var registry: PopupPanel
 var search: LineEdit
@@ -10,14 +11,14 @@ var capturing := false
 var selected_id := ""
 
 func _ready() -> void:
-	title = "Keyboard shortcuts"
-	ok_button_text = "Save shortcuts"
-	cancel_button_text = "Cancel"
+	title = I18N.t("Keyboard shortcuts")
+	ok_button_text = I18N.t("Save shortcuts")
+	cancel_button_text = I18N.t("Cancel")
 	var column := VBoxContainer.new()
 	column.custom_minimum_size = Vector2(680, 440)
 	add_child(column)
 	search = LineEdit.new()
-	search.placeholder_text = "Search commands, keys or context"
+	search.placeholder_text = I18N.t("Search commands, keys or context")
 	column.add_child(search)
 	search.text_changed.connect(_filter)
 	list = ItemList.new()
@@ -27,10 +28,10 @@ func _ready() -> void:
 	list.item_selected.connect(func(i: int): selected_id = list.get_item_metadata(i); capturing = false)
 	var actions := HBoxContainer.new()
 	column.add_child(actions)
-	STYLE.button(actions, "Assign key", begin_capture, "Select a command, then press its new shortcut.", "keyboard")
+	STYLE.button(actions, "Assign key", begin_capture, I18N.t("Select a command, then press its new shortcut."), "keyboard")
 	STYLE.button(actions, "Clear keys", func():
 		if selected_id != "": pending[selected_id] = []; capturing = false; _filter(search.text), "", "delete")
-	STYLE.button(actions, "Restore defaults", func(): pending.clear(); capturing = false; _filter(search.text), "Restore all default shortcuts.", "undo")
+	STYLE.button(actions, "Restore defaults", func(): pending.clear(); capturing = false; _filter(search.text), I18N.t("Restore all default shortcuts."), "undo")
 	feedback = Label.new()
 	feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	feedback.custom_minimum_size.y = 60
@@ -57,21 +58,21 @@ func _filter(value: String) -> void:
 	for command: Dictionary in registry.commands:
 		var keys: PackedStringArray = []
 		for code in registry.keys_for(command.id, pending): keys.append(registry.key_text(code))
-		var label := "%s · %s    %s" % [command.context, command.label, " / ".join(keys)]
-		if not value.is_empty() and value.to_lower() not in (label + " " + command.id).to_lower(): continue
+		var label := "%s · %s    %s" % [I18N.t(command.context), I18N.t(command.label), " / ".join(keys)]
+		if not value.is_empty() and value.to_lower() not in (label + " " + command.label + " " + command.description + " " + I18N.t(command.description) + " " + command.id).to_lower(): continue
 		list.add_item(label)
 		list.set_item_metadata(list.item_count - 1, command.id)
 		if selected_id == command.id: list.select(list.item_count - 1)
 	var issues: PackedStringArray = registry.conflicts(pending)
 	get_ok_button().disabled = not issues.is_empty()
-	feedback.text = "Select a command to assign or clear keys. Physical keys are used for tools." if issues.is_empty() else "Conflicts — save blocked:\n" + "\n".join(issues)
+	feedback.text = I18N.t("Select a command to assign or clear keys. Physical keys are used for tools.") if issues.is_empty() else I18N.t("Conflicts — save blocked:\n") + "\n".join(issues)
 
 func begin_capture() -> void:
-	if selected_id == "": feedback.text = "Select a command first."; return
+	if selected_id == "": feedback.text = I18N.t("Select a command first."); return
 	capturing = true
 	var focus := get_viewport().gui_get_focus_owner()
 	if focus != null: focus.release_focus()
-	feedback.text = "Press a shortcut · Escape cancels assignment"
+	feedback.text = I18N.t("Press a shortcut · Escape cancels assignment")
 
 func _input(event: InputEvent) -> void:
 	if not visible or not capturing or not event is InputEventKey: return

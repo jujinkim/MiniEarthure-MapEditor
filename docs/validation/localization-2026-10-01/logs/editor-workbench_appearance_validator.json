@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/Applications/Godot_mono.app/Contents/MacOS/Godot",
+    "--path",
+    "/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/miniearthure-check-bcajka8r",
+    "--script",
+    "res://tests/workbench_appearance_validator.gd"
+  ],
+  "elapsed_seconds": 0.842,
+  "exit_code": 0,
+  "unexpected_diagnostics": [],
+  "strict_applied": true,
+  "import_cache": "/private/tmp/miniearthure-i18n/editor-cache",
+  "owned_children": {}
+}

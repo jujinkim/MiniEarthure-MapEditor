@@ -1,4 +1,5 @@
 extends Control
+const I18N := preload("./locale_text.gd")
 ## Offline WGS84 diagram, not a basemap or a source coverage claim.
 signal bounds_selected(bounds: Array)
 var bounds: Array = [0.0, 0.0, 0.001, 0.001]
@@ -63,4 +64,4 @@ func _draw() -> void:
 		var a := screen(anchor)
 		var b := screen(cursor)
 		draw_rect(Rect2(a,b-a).abs(),Color("ffffff"),false,2)
-	draw_string(ThemeDB.fallback_font,Vector2(8,20),"N ↑   W ←    Offline coordinate diagram · drag to select",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color.WHITE)
+	draw_string(get_theme_default_font(),Vector2(8,20),I18N.t("N ↑   W ←    Offline coordinate diagram · drag to select"),HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color.WHITE)
