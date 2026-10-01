@@ -315,7 +315,7 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 	var key := JSON.stringify([local, kind, tool if kind != "piece" else "", sample, jump_height_cm if kind == "action" else 0])
 	if not cache.has(key):
 		var source: Dictionary = bench.source.duplicate(true)
-		for field in ["connections", "paths", "checkpoints", "actions", "attachments", "grind_lines"]: source[field] = []
+		for field in ["connections", "paths", "checkpoints", "actions", "attachments", "grind_lines", "structures"]: source[field] = []
 		source.instances = [local]
 		source.original_seed = null
 		source.grounded_supports = false

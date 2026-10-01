@@ -1,0 +1,25 @@
+extends SceneTree
+const STORE:=preload("res://scripts/document_store.gd")
+var failures: Array[String]=[]
+func _initialize() -> void: run.call_deferred()
+func check(value: bool,label: String) -> void:
+	if not value:failures.append(label);push_error(label)
+func run() -> void:
+	var bridge: RefCounted=ClassDB.instantiate("MapKitBridge")
+	var result: Dictionary=JSON.parse_string(bridge.open_package(OS.get_environment("MINIEARTHURE_TEST_MEMAP")))
+	check(result.ok,"public practice package opens")
+	var path:=ProjectSettings.globalize_path("user://practice-source")
+	result=JSON.parse_string(bridge.unpack_source(path))
+	check(result.ok,"restore authored project")
+	var store:=STORE.new()
+	check(store.open_project(path)=="","reopen original project")
+	var source: Dictionary=store.track_source()
+	check(source.checkpoints.size()==11 and source.structures.size()==3 and source.grind_lines.size()==1,"source retains checkpoints, real shapes and independent line")
+	check(source.actions.all(func(a):return a.kind=="manual_flight"),"manual flight declarations preserved")
+	check(store.edit_track(source)=="","unmodified source recompiles through editor")
+	var saved:=ProjectSettings.globalize_path("user://practice-saved")
+	check(store.save_project(saved)=="","save authored practice")
+	var reopen:=STORE.new()
+	check(reopen.open_project(saved)=="" and reopen.track_source()==source,"save and reopen preserve editable source")
+	print("practice_source_validator: ","PASS" if failures.is_empty() else failures)
+	quit(0 if failures.is_empty() else 1)

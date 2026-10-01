@@ -81,3 +81,5 @@ renamed with link updates. Invalid edits retain the current document. Focused
 `grind_line_validator` and existing `track_workbench_validator` cover editing,
 connections, deletion, undo, save/reopen and cancellation. Detailed editor
 interaction and game driving remain user verification.
+
+Reproducible manual-flight/static-structure example: [Practice track](../examples/practice-track/README.md).
