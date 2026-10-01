@@ -17,3 +17,8 @@ stable-ID replacement, time/bounds preview, ordinary cell preview and undo/redo.
 `tests/test_compact_maps.py` passed deterministic creation of the seven new maps
 in [compact-driving](../examples/compact-driving/README.md). Godot import/load
 passed. Actual interactive editing and driving acceptance remain user checks.
+
+Quarterpipe inner-face roles now come from the pinned MapKit current-v1 source,
+using the shared renderer/resolver. Initial-screen validation locates visible
+Driving tools by the selected tab, rather than assuming the first registered
+command is visible; the new Grind Line command belongs to the Gimmick tab.

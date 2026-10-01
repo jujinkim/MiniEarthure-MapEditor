@@ -13,7 +13,14 @@ func run() -> void:
 	root.add_child(entry)
 	var editor: Node = entry.get_child(0)
 	for _i in 4: await process_frame
-	assert(editor.track_workbench.palette_tools.tiles[0].button.is_visible_in_tree())
+	var palette: VBoxContainer = editor.track_workbench.palette_tools
+	assert(palette.tabs.get_tab_title(palette.tabs.current_tab) == "Driving")
+	var visible_tools := 0
+	var grind_tool := false
+	for tile: Dictionary in palette.tiles:
+		if tile.button.is_visible_in_tree(): visible_tools += 1
+		if tile.id == "track.grind_line": grind_tool = true
+	assert(visible_tools > 0 and grind_tool, "Driving tools are visible; the Grind Line remains in the Gimmick tab")
 	assert(editor.store.document.recipe_version == 1)
 	assert(is_instance_valid(editor.canvas) and editor.canvas.visible)
 	assert(check_icons(editor) > 20, "Initial controls contain visible artwork")
