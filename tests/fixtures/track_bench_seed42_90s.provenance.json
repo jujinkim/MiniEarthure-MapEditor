@@ -1,0 +1,28 @@
+{
+  "origin": "MapKit 930ee37b5760c4883e439643ef5d106382ef334c catalogue defaults, seed 42, duration_seconds 90; generated once and converted by track_authoring_source",
+  "editor_revision": "ff11682cd1e60ebea3f74caee2c930217dd3083d",
+  "file_sha256": "05bd86f917026f3dacf130c8d3d36cc4233ae4b415a94631ab4f5df4dd2508a4",
+  "pieces": 48,
+  "shapes": {
+    "straight": 6,
+    "air_ring": 1,
+    "sharp135_left": 1,
+    "tube_entry": 5,
+    "cylinder_curve_left": 2,
+    "tube_exit": 5,
+    "right90": 5,
+    "spiral180_right_up": 1,
+    "gentle45_left": 5,
+    "cylinder": 1,
+    "loop": 1,
+    "overpass": 1,
+    "acceleration_panel": 1,
+    "cylinder_uturn_left": 1,
+    "gentle45": 4,
+    "slope_down": 4,
+    "cylinder_s_rise": 1,
+    "right90_left": 2,
+    "free_curve": 1
+  },
+  "license": "MIT; synthetic only; no user or external data"
+}

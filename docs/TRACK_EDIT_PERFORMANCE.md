@@ -1,4 +1,105 @@
-# Responsive Track Mode editing — 2026-10-01
+# Responsive Track Mode editing
+
+## Fixed-input latency improvement — 2026-10-03
+
+MapKit now prepares connected-road clipping planes once per piece, the opposite
+branch once per path, and reuses ribbon edges, outward offsets and rotation
+bases. The sequential worker, full external validation, request/session/epoch
+checks, exact-once installation, selection and Undo contracts are unchanged.
+The 49-piece commit p95 improved **728.987 → 557.715 ms (23.5%)**, but the
+**500 ms completion target remains failed**. Drag and main responsiveness pass
+within the measured scope; this is not detailed interactive/platform acceptance.
+
+The [fixed synthetic source](../tests/fixtures/track_bench_seed42_90s.json) is the
+current seed 42 / 90-second authoring source: **48 pieces, 19 preset kinds**.
+[Provenance and shape counts](../tests/fixtures/track_bench_seed42_90s.provenance.json)
+identify its generator. File SHA256 is
+`05bd86f917026f3dacf130c8d3d36cc4233ae4b415a94631ab4f5df4dd2508a4`;
+canonical Godot source SHA256 is
+`729a30de280782a70d76e34f77ab10c98e7e64f44def357e1f049d83df91df52`.
+The old 2026-10-01 input had 20 pieces: no speedup is calculated against 977 ms.
+
+`TRACK_BENCH_SOURCE` loads the fixed input without running generation. The probe
+prints source/file hashes, piece/preset counts, Editor/MapKit revision labels and
+the loaded native library SHA. Every derived fixture hash matched before/after;
+the edit sequence was unchanged. Each of six cases ran once before and once
+after: three cycles, 18 commits, three selections and 90 drag samples. p95 uses
+nearest rank. No profiling, concurrent builds or other validation ran during
+these timing samples. This small headless sample is a diagnostic, not a rendered
+or statistical acceptance claim.
+
+Platform: Apple M1/macOS arm64, Godot 4.7.2 Mono, optimized debug native.
+Baseline Editor `ff11682c` plus the fixed-input harness, MapKit `930ee37b`;
+after uses the same Editor product code/harness and MapKit `425d67b02675e191f4e786ed14cf1a5d791e7d1b`.
+Native SHA256 before/after:
+`0c7b037745e3d095fed6cd63a6894adc182ad5bb35b6d2b823ef5e1dc7d6e499` /
+`2a640fbf5955d4faa45666abcb6037b86c73cdf8347f01b41a11e4e62e5c7dc9`.
+
+| Fixture | Pieces | Before commit p95 | After commit p95 | After drag p95 | After main max | After frame gap max |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Manual straight | 10 | 77.420 ms | 71.081 ms | 0.578 ms | 18.663 ms | 27.033 ms |
+| Manual straight | 25 | 143.978 ms | 128.172 ms | 0.611 ms | 19.694 ms | 29.511 ms |
+| Manual straight | 49 | 255.157 ms | 215.746 ms | 0.674 ms | 21.979 ms | 33.425 ms |
+| Fixed seed-derived | 10 | 126.377 ms | 120.728 ms | 0.579 ms | 19.817 ms | 28.705 ms |
+| Fixed seed-derived | 25 | 558.067 ms | 392.706 ms | 0.893 ms | 26.511 ms | 40.322 ms |
+| Fixed seed-derived | 49 | 728.987 ms | **557.715 ms** | 0.966 ms | 33.956 ms | 51.028 ms |
+
+Main max separates admission/application from worker completion. Frame gaps
+include deferred inspector work and scene retirement. Before the change, one
+49-piece delete recorded **271.085 ms** despite a 22.019 ms main application;
+that observed baseline failure is retained, with no unsupported causal claim.
+All after frame gaps are below 100 ms; all drag p95 values are below 16.7 ms.
+
+Remaining 49-piece costs (three samples per operation; worker columns are ranges):
+
+| Operation | Before complete p95 | After complete p95 | After document preparation | After preview preparation |
+| --- | ---: | ---: | ---: | ---: |
+| Move | 717.031 ms | 540.620 ms | 291.515–295.361 ms | 189.531–195.714 ms |
+| Add | 722.308 ms | 549.307 ms | 288.274–294.177 ms | 193.884–195.590 ms |
+| Property | 722.327 ms | 549.816 ms | 291.109–297.085 ms | 195.007–197.206 ms |
+| Delete | 707.720 ms | 533.911 ms | 289.875–293.681 ms | 192.684–194.031 ms |
+| Undo | 727.914 ms | 557.715 ms | 299.476–301.715 ms | 194.688–195.915 ms |
+| Redo | 728.987 ms | 550.203 ms | 300.557–303.804 ms | 192.881–193.270 ms |
+
+Document preparation remains the largest measured worker stage. No request-level
+incremental compiler cache was added and no remaining substage is claimed from
+unmeasured profiling. Targets, tolerances, assertions and budget limits were not
+relaxed. Raw logs and per-operation samples remain local in the integration
+workspace's `docs/tasks/runs/editor-latency-20261003/`.
+
+Strict affected validators pass: `track_edit_validator` (100 assertions),
+`track_workbench_validator`, `icon_workbench_validator`, `assembled_track_validator`,
+`document_history_validator`, `document_recovery_validator`, and
+`import_command_validator`. This covers busy rejection, cancellation/failure/late
+results, exact-once/session/epoch handling, selection, Undo/Redo and save/reopen.
+MapKit's 35 affected native tests, geometry golden and build are recorded in its
+[preparation contract](https://github.com/jujinkim/MiniEarthure-MapKit/blob/main/docs/TRACK_AUTHORING.md#piece-local-wall-preparation--2026-10-03).
+
+The active practice example was recompiled from its preserved `source.json`
+(SHA256 `c16366805ec603db9eabb38d42f9ac13acd4e5a409b836ff02dc21c5c84b12a5`).
+Its new package/entry SHA256 is
+`8de012b0c189449c14f8f6826c178904497f480ae2f8c87a8985407e0d039727`.
+Only seven document fingerprint/derived identity fields differ; all authored
+geometry, courses, samples, 8 m widths and 6 m radii remain identical. Original
+packages are preserved locally and in Git history. CLI package validation and
+strict `practice_source_validator` source extraction/save/reopen pass. The Editor
+standalone initial screen was captured and visually inspected with no blocking
+diagnostics. Human completion remains unverified. An initial comparison assertion
+incorrectly included the expected changed generator fingerprint; comparison was
+corrected to enumerate the seven identity fields, without changing product code
+or any geometry assertion.
+
+Reproduce the bounded timing run from the integration workspace:
+
+```sh
+rtk proxy env TRACK_BENCH_SOURCE=/absolute/map-editor/tests/fixtures/track_bench_seed42_90s.json TRACK_BENCH_EDITOR_REVISION=EDITOR_SHA TRACK_BENCH_MAPKIT_REVISION=MAPKIT_SHA .venv/bin/python scripts/run_godot_checks.py --project editor --script track_edit_benchmark --import-cache /tmp/track-edit-fixed-cache --log-dir /tmp/track-edit-fixed-results --strict-diagnostics
+```
+
+`TRACK_BENCH_SAVE_SOURCE` writes a newly generated synthetic source only to a new
+path and exits; existing files are rejected. `TRACK_BENCH_PROBE=1` remains a
+single-cycle diagnosis, never the final p95 evidence.
+
+## Previous delivery — 2026-10-01
 
 Implementation and affected automated checks are complete. The 500 ms commit
 completion target is **not met for the 49-piece seed-derived fixture**. Detailed

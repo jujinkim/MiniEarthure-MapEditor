@@ -33,7 +33,18 @@ landing. They create neither jump nor boost panels. The five static structures
 are the low barrier, beam, high wall and 1m-high start/end lane barriers; all go through shared source compilation.
 The fixed environment is noon, with no per-entry random generation.
 
-## Current refresh status — 2026-10-03
+## Current fingerprint refresh — 2026-10-03
+
+Recompiled from the preserved, byte-identical `source.json` with MapKit
+`425d67b02675e191f4e786ed14cf1a5d791e7d1b` after piece-local wall preparation.
+Only generator/derived identity fields changed; geometry, samples, courses and
+approved dimensions match the previous package. Package/entry SHA256 is
+`8de012b0c189449c14f8f6826c178904497f480ae2f8c87a8985407e0d039727`.
+CLI validation and native Editor source/save/reopen pass. The old package remains
+preserved; human completion is still unverified.
+[Current implementation and scoped results](../../docs/TRACK_EDIT_PERFORMANCE.md#fixed-input-latency-improvement--2026-10-03).
+
+## Earlier geometry refresh — 2026-10-03
 
 **Regenerated and verified with MapKit `e563b8d1`.** The separate invalid-action
 and corner-clearance failures were reproduced and their original files/logs

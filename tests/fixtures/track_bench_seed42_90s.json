@@ -1,0 +1,1421 @@
+{
+	"actions": [],
+	"attachments": [
+		{
+			"kind": "fixed_obstacle",
+			"path": "main",
+			"piece": "piece-9",
+			"side": 1.0,
+			"station_cm": 1650.0
+		},
+		{
+			"kind": "piston_gates",
+			"path": "main",
+			"piece": "piece-9",
+			"side": 1.0,
+			"station_cm": 2550.0
+		},
+		{
+			"kind": "fixed_obstacle",
+			"path": "main",
+			"piece": "piece-33",
+			"side": -1.0,
+			"station_cm": 450.0
+		},
+		{
+			"kind": "fixed_obstacle",
+			"path": "main",
+			"piece": "piece-36",
+			"side": -1.0,
+			"station_cm": 950.0
+		}
+	],
+	"checkpoints": [
+		{
+			"piece": "piece-2",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-3",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-3",
+			"sample": 46.0
+		},
+		{
+			"piece": "piece-4",
+			"sample": 51.0
+		},
+		{
+			"piece": "piece-5",
+			"sample": 53.0
+		},
+		{
+			"piece": "piece-6",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-6",
+			"sample": 29.0
+		},
+		{
+			"piece": "piece-7",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-7",
+			"sample": 19.0
+		},
+		{
+			"piece": "piece-8",
+			"sample": 33.0
+		},
+		{
+			"piece": "piece-9",
+			"sample": 59.0
+		},
+		{
+			"piece": "piece-10",
+			"sample": 26.0
+		},
+		{
+			"piece": "piece-12",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-12",
+			"sample": 32.0
+		},
+		{
+			"piece": "piece-13",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-13",
+			"sample": 104.0
+		},
+		{
+			"piece": "piece-14",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-14",
+			"sample": 13.0
+		},
+		{
+			"piece": "piece-15",
+			"sample": 22.0
+		},
+		{
+			"piece": "piece-16",
+			"sample": 212.0
+		},
+		{
+			"piece": "piece-17",
+			"sample": 262.0
+		},
+		{
+			"piece": "piece-18",
+			"sample": 22.0
+		},
+		{
+			"piece": "piece-19",
+			"sample": 43.0
+		},
+		{
+			"piece": "piece-20",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-20",
+			"sample": 29.0
+		},
+		{
+			"piece": "piece-21",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-21",
+			"sample": 23.0
+		},
+		{
+			"piece": "piece-22",
+			"sample": 27.0
+		},
+		{
+			"piece": "piece-23",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-23",
+			"sample": 51.0
+		},
+		{
+			"piece": "piece-24",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-24",
+			"sample": 13.0
+		},
+		{
+			"piece": "piece-25",
+			"sample": 35.0
+		},
+		{
+			"piece": "piece-28",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-28",
+			"sample": 24.0
+		},
+		{
+			"piece": "piece-29",
+			"sample": 13.0
+		},
+		{
+			"piece": "piece-30",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-30",
+			"sample": 104.0
+		},
+		{
+			"piece": "piece-31",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-31",
+			"sample": 13.0
+		},
+		{
+			"piece": "piece-32",
+			"sample": 25.0
+		},
+		{
+			"piece": "piece-33",
+			"sample": 13.0
+		},
+		{
+			"piece": "piece-36",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-36",
+			"sample": 15.0
+		},
+		{
+			"piece": "piece-41",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-44",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-44",
+			"sample": 23.0
+		},
+		{
+			"piece": "piece-45",
+			"sample": 23.0
+		},
+		{
+			"piece": "piece-46",
+			"sample": 23.0
+		},
+		{
+			"piece": "piece-47",
+			"sample": 43.0
+		}
+	],
+	"connections": [
+		{
+			"from": "piece-0",
+			"to": "piece-1"
+		},
+		{
+			"from": "piece-1",
+			"to": "piece-2"
+		},
+		{
+			"from": "piece-2",
+			"to": "piece-3"
+		},
+		{
+			"from": "piece-3",
+			"to": "piece-4"
+		},
+		{
+			"from": "piece-4",
+			"to": "piece-5"
+		},
+		{
+			"from": "piece-5",
+			"to": "piece-6"
+		},
+		{
+			"from": "piece-6",
+			"to": "piece-7"
+		},
+		{
+			"from": "piece-7",
+			"to": "piece-8"
+		},
+		{
+			"from": "piece-8",
+			"to": "piece-9"
+		},
+		{
+			"from": "piece-9",
+			"to": "piece-10"
+		},
+		{
+			"from": "piece-10",
+			"to": "piece-11"
+		},
+		{
+			"from": "piece-11",
+			"to": "piece-12"
+		},
+		{
+			"from": "piece-12",
+			"to": "piece-13"
+		},
+		{
+			"from": "piece-13",
+			"to": "piece-14"
+		},
+		{
+			"from": "piece-14",
+			"to": "piece-15"
+		},
+		{
+			"from": "piece-15",
+			"to": "piece-16"
+		},
+		{
+			"from": "piece-16",
+			"to": "piece-17"
+		},
+		{
+			"from": "piece-17",
+			"to": "piece-18"
+		},
+		{
+			"from": "piece-18",
+			"to": "piece-19"
+		},
+		{
+			"from": "piece-19",
+			"to": "piece-20"
+		},
+		{
+			"from": "piece-20",
+			"to": "piece-21"
+		},
+		{
+			"from": "piece-21",
+			"to": "piece-22"
+		},
+		{
+			"from": "piece-22",
+			"to": "piece-23"
+		},
+		{
+			"from": "piece-23",
+			"to": "piece-24"
+		},
+		{
+			"from": "piece-24",
+			"to": "piece-25"
+		},
+		{
+			"from": "piece-25",
+			"to": "piece-26"
+		},
+		{
+			"from": "piece-26",
+			"to": "piece-27"
+		},
+		{
+			"from": "piece-27",
+			"to": "piece-28"
+		},
+		{
+			"from": "piece-28",
+			"to": "piece-29"
+		},
+		{
+			"from": "piece-29",
+			"to": "piece-30"
+		},
+		{
+			"from": "piece-30",
+			"to": "piece-31"
+		},
+		{
+			"from": "piece-31",
+			"to": "piece-32"
+		},
+		{
+			"from": "piece-32",
+			"to": "piece-33"
+		},
+		{
+			"from": "piece-33",
+			"to": "piece-34"
+		},
+		{
+			"from": "piece-34",
+			"to": "piece-35"
+		},
+		{
+			"from": "piece-35",
+			"to": "piece-36"
+		},
+		{
+			"from": "piece-36",
+			"to": "piece-37"
+		},
+		{
+			"from": "piece-37",
+			"to": "piece-38"
+		},
+		{
+			"from": "piece-38",
+			"to": "piece-39"
+		},
+		{
+			"from": "piece-39",
+			"to": "piece-40"
+		},
+		{
+			"from": "piece-40",
+			"to": "piece-41"
+		},
+		{
+			"from": "piece-41",
+			"to": "piece-42"
+		},
+		{
+			"from": "piece-42",
+			"to": "piece-43"
+		},
+		{
+			"from": "piece-43",
+			"to": "piece-44"
+		},
+		{
+			"from": "piece-44",
+			"to": "piece-45"
+		},
+		{
+			"from": "piece-45",
+			"to": "piece-46"
+		},
+		{
+			"from": "piece-46",
+			"to": "piece-47"
+		},
+		{
+			"from": "piece-47",
+			"to": "piece-0"
+		}
+	],
+	"grind_lines": [
+		{
+			"capture_width_cm": 30.0,
+			"control_points": [
+				[
+					2644.0,
+					61.0,
+					2667.0
+				],
+				[
+					2078.0,
+					61.0,
+					2101.0
+				]
+			],
+			"end_connections": [],
+			"id": "fence-42",
+			"start_connections": [],
+			"up": [
+				0.0,
+				1000000.0,
+				0.0
+			]
+		}
+	],
+	"grounded_supports": true,
+	"instances": [
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-0",
+			"position_cm": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-1",
+			"position_cm": [
+				0.0,
+				0.0,
+				800.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-2",
+			"position_cm": [
+				0.0,
+				0.0,
+				1600.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 1200.0,
+			"id": "piece-3",
+			"position_cm": [
+				0.0,
+				0.0,
+				2400.0
+			],
+			"preset": "air_ring",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 1200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 1200.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-4",
+			"position_cm": [
+				0.0,
+				0.0,
+				5600.0
+			],
+			"preset": "sharp135_left",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-5",
+			"position_cm": [
+				-1195.0,
+				0.0,
+				6095.0
+			],
+			"preset": "tube_entry",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-6",
+			"position_cm": [
+				-2892.0,
+				0.0,
+				4398.0
+			],
+			"preset": "cylinder_curve_left",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-7",
+			"position_cm": [
+				-2892.0,
+				-133.0,
+				3267.0
+			],
+			"preset": "tube_exit",
+			"rotation_mdeg": [
+				0.0,
+				135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-8",
+			"position_cm": [
+				-1195.0,
+				0.0,
+				1570.0
+			],
+			"preset": "right90",
+			"rotation_mdeg": [
+				0.0,
+				135000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-9",
+			"position_cm": [
+				-1195.0,
+				0.0,
+				721.0
+			],
+			"preset": "spiral180_right_up",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-10",
+			"position_cm": [
+				-2751.0,
+				400.0,
+				2277.0
+			],
+			"preset": "right90",
+			"rotation_mdeg": [
+				0.0,
+				45000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-11",
+			"position_cm": [
+				-1902.0,
+				400.0,
+				2277.0
+			],
+			"preset": "gentle45_left",
+			"rotation_mdeg": [
+				0.0,
+				135000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-12",
+			"position_cm": [
+				361.0,
+				400.0,
+				1339.0
+			],
+			"preset": "tube_entry",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-13",
+			"position_cm": [
+				1961.0,
+				400.0,
+				1339.0
+			],
+			"preset": "cylinder",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-14",
+			"position_cm": [
+				5161.0,
+				333.0,
+				1339.0
+			],
+			"preset": "tube_exit",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-15",
+			"position_cm": [
+				6761.0,
+				400.0,
+				1339.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-16",
+			"position_cm": [
+				7561.0,
+				400.0,
+				1339.0
+			],
+			"preset": "loop",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-17",
+			"position_cm": [
+				10761.0,
+				400.0,
+				1339.0
+			],
+			"preset": "overpass",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 1200.0,
+			"id": "piece-18",
+			"position_cm": [
+				13961.0,
+				400.0,
+				1339.0
+			],
+			"preset": "acceleration_panel",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 1200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 1200.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-19",
+			"position_cm": [
+				15561.0,
+				400.0,
+				1339.0
+			],
+			"preset": "tube_entry",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-20",
+			"position_cm": [
+				18761.0,
+				400.0,
+				1339.0
+			],
+			"preset": "cylinder_curve_left",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-21",
+			"position_cm": [
+				19561.0,
+				200.0,
+				2139.0
+			],
+			"preset": "tube_exit",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-22",
+			"position_cm": [
+				19561.0,
+				400.0,
+				5339.0
+			],
+			"preset": "tube_entry",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-23",
+			"position_cm": [
+				19561.0,
+				400.0,
+				6939.0
+			],
+			"preset": "cylinder_uturn_left",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-24",
+			"position_cm": [
+				18761.0,
+				333.0,
+				6939.0
+			],
+			"preset": "tube_exit",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-25",
+			"position_cm": [
+				18761.0,
+				400.0,
+				5339.0
+			],
+			"preset": "gentle45",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-26",
+			"position_cm": [
+				18058.0,
+				400.0,
+				3642.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-27",
+			"position_cm": [
+				17492.0,
+				400.0,
+				3076.0
+			],
+			"preset": "slope_down",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-28",
+			"position_cm": [
+				16926.0,
+				300.0,
+				2510.0
+			],
+			"preset": "right90",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-29",
+			"position_cm": [
+				16360.0,
+				300.0,
+				2510.0
+			],
+			"preset": "tube_entry",
+			"rotation_mdeg": [
+				0.0,
+				-45000.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-30",
+			"position_cm": [
+				15229.0,
+				300.0,
+				3641.0
+			],
+			"preset": "cylinder_s_rise",
+			"rotation_mdeg": [
+				0.0,
+				-45000.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 200.0,
+			"id": "piece-31",
+			"position_cm": [
+				12966.0,
+				233.0,
+				5904.0
+			],
+			"preset": "tube_exit",
+			"rotation_mdeg": [
+				0.0,
+				-45000.0,
+				0.0
+			],
+			"width_cm": 200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 200.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-32",
+			"position_cm": [
+				11835.0,
+				300.0,
+				7035.0
+			],
+			"preset": "right90_left",
+			"rotation_mdeg": [
+				0.0,
+				-45000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-33",
+			"position_cm": [
+				11269.0,
+				300.0,
+				7035.0
+			],
+			"preset": "slope_down",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-34",
+			"position_cm": [
+				10703.0,
+				200.0,
+				6469.0
+			],
+			"preset": "slope_down",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-35",
+			"position_cm": [
+				10137.0,
+				100.0,
+				5903.0
+			],
+			"preset": "slope_down",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-36",
+			"position_cm": [
+				9571.0,
+				0.0,
+				5337.0
+			],
+			"preset": "gentle45",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-37",
+			"position_cm": [
+				8440.0,
+				0.0,
+				4869.0
+			],
+			"preset": "gentle45_left",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-38",
+			"position_cm": [
+				7309.0,
+				0.0,
+				4400.0
+			],
+			"preset": "gentle45",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-39",
+			"position_cm": [
+				6178.0,
+				0.0,
+				3932.0
+			],
+			"preset": "gentle45_left",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-40",
+			"position_cm": [
+				5047.0,
+				0.0,
+				3463.0
+			],
+			"preset": "gentle45",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-41",
+			"position_cm": [
+				3916.0,
+				0.0,
+				2995.0
+			],
+			"preset": "gentle45_left",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-42",
+			"position_cm": [
+				2785.0,
+				0.0,
+				2526.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-43",
+			"position_cm": [
+				2219.0,
+				0.0,
+				1960.0
+			],
+			"preset": "gentle45_left",
+			"rotation_mdeg": [
+				0.0,
+				-135000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-44",
+			"position_cm": [
+				1751.0,
+				0.0,
+				829.0
+			],
+			"preset": "right90",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-45",
+			"position_cm": [
+				1351.0,
+				0.0,
+				429.0
+			],
+			"preset": "right90_left",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-46",
+			"position_cm": [
+				951.0,
+				0.0,
+				29.0
+			],
+			"preset": "right90",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [
+				[
+					551.0,
+					0.0,
+					-371.0
+				],
+				[
+					330.0,
+					0.0,
+					-371.0
+				],
+				[
+					0.0,
+					0.0,
+					-221.0
+				],
+				[
+					0.0,
+					0.0,
+					0.0
+				]
+			],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-47",
+			"position_cm": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"preset": "free_curve",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 400.0
+		}
+	],
+	"original_seed": {
+		"categories": [
+			"action",
+			"driving",
+			"gimmick"
+		],
+		"circuit": true,
+		"difficulty": "normal",
+		"duration_seconds": 90.0,
+		"seed": 42.0,
+		"time_minutes": 720.0
+	},
+	"paths": [
+		{
+			"id": "base",
+			"pieces": [
+				"piece-0",
+				"piece-1",
+				"piece-2",
+				"piece-3",
+				"piece-4",
+				"piece-5",
+				"piece-6",
+				"piece-7",
+				"piece-8",
+				"piece-9",
+				"piece-10",
+				"piece-11",
+				"piece-12",
+				"piece-13",
+				"piece-14",
+				"piece-15",
+				"piece-16",
+				"piece-17",
+				"piece-18",
+				"piece-19",
+				"piece-20",
+				"piece-21",
+				"piece-22",
+				"piece-23",
+				"piece-24",
+				"piece-25",
+				"piece-26",
+				"piece-27",
+				"piece-28",
+				"piece-29",
+				"piece-30",
+				"piece-31",
+				"piece-32",
+				"piece-33",
+				"piece-34",
+				"piece-35",
+				"piece-36",
+				"piece-37",
+				"piece-38",
+				"piece-39",
+				"piece-40",
+				"piece-41",
+				"piece-42",
+				"piece-43",
+				"piece-44",
+				"piece-45",
+				"piece-46",
+				"piece-47"
+			]
+		}
+	],
+	"settings": {
+		"categories": [
+			"action",
+			"driving",
+			"gimmick"
+		],
+		"circuit": true,
+		"difficulty": "normal",
+		"duration_seconds": 90.0,
+		"seed": 42.0,
+		"time_minutes": 720.0
+	}
+}

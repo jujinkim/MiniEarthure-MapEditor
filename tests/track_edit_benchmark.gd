@@ -7,6 +7,24 @@ var seeded_source: Dictionary = {}
 var frame_clock := 0
 var max_frame_gap_ms := 0.0
 
+static func source_identity(source: Dictionary) -> Dictionary:
+	var shapes := {}
+	for piece: Dictionary in source.instances:
+		shapes[piece.preset] = int(shapes.get(piece.preset, 0)) + 1
+	return {"sha256":JSON.stringify(source).sha256_text(), "pieces":source.instances.size(), "shapes":shapes}
+
+func native_hash() -> String:
+	var config := ConfigFile.new()
+	assert(config.load("res://addons/mapkit/mapkit.gdextension") == OK)
+	for key: String in config.get_section_keys("libraries"):
+		var matches := true
+		for feature: String in key.split("."):
+			matches = matches and OS.has_feature(feature)
+		if matches:
+			return FileAccess.get_sha256("res://addons/mapkit/" + str(config.get_value("libraries", key)))
+	assert(false, "benchmark native library not found")
+	return ""
+
 func _initialize() -> void:
 	process_frame.connect(func():
 		var now := Time.get_ticks_usec()
@@ -77,18 +95,39 @@ func run() -> void:
 	root.add_child(screen)
 	await process_frame
 	var bench: Node = screen.track_workbench
-	if OS.get_environment("TRACK_BENCH_SEED") == "1":
+	var source_path := OS.get_environment("TRACK_BENCH_SOURCE")
+	if not source_path.is_empty():
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string(source_path))
+		assert(parsed is Dictionary and parsed.has("instances"), "invalid TRACK_BENCH_SOURCE")
+		seeded_source = parsed
+	elif OS.get_environment("TRACK_BENCH_SEED") == "1":
 		var settings: Dictionary = bench.catalogue.defaults.duplicate(true)
 		settings.seed = 42
 		settings.duration_seconds = 90
 		var generated: Dictionary = JSON.parse_string(screen.store.bridge.generate_track(JSON.stringify(settings), ProjectSettings.globalize_path("user://benchmark-seed.memap")))
 		assert(generated.ok, str(generated.get("error", {})))
 		seeded_source = JSON.parse_string(screen.store.bridge.track_authoring_source(JSON.stringify(generated.data.document))).data
-		print("TRACK_BENCH_SEED pieces=", seeded_source.instances.size())
+	var output_path := OS.get_environment("TRACK_BENCH_SAVE_SOURCE")
+	if not output_path.is_empty():
+		assert(not seeded_source.is_empty() and not FileAccess.file_exists(output_path), "save source requires a new path")
+		var output := FileAccess.open(output_path, FileAccess.WRITE)
+		assert(output != null)
+		output.store_string(JSON.stringify(seeded_source, "\t") + "\n")
+		output.close()
+		print("TRACK_BENCH_SAVED ", output_path)
+		screen.queue_free()
+		await process_frame
+		quit()
+		return
+	print("TRACK_BENCH_INPUT ", JSON.stringify({"source":source_identity(seeded_source) if not seeded_source.is_empty() else {},
+		"file_sha256":FileAccess.get_sha256(source_path) if not source_path.is_empty() else "",
+		"editor_revision":OS.get_environment("TRACK_BENCH_EDITOR_REVISION"), "mapkit_revision":OS.get_environment("TRACK_BENCH_MAPKIT_REVISION"),
+		"native_sha256":native_hash(), "godot":Engine.get_version_info().string}))
 	for grounded in ([true] if OS.get_environment("TRACK_BENCH_PROBE") == "1" else [false, true]):
 		for count in ([49] if OS.get_environment("TRACK_BENCH_PROBE") == "1" else [10, 25, 49]):
 			screen.store.new_track()
 			var source := fixture(screen.store, count, grounded, seeded_source)
+			print("TRACK_BENCH_FIXTURE ", JSON.stringify({"count":count, "grounded":grounded, "source":source_identity(source)}))
 			var failure: String = screen.store.edit_track(source)
 			if failure != "": push_error(failure); quit(1); return
 			await process_frame
