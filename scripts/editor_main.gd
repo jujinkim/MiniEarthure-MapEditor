@@ -406,11 +406,8 @@ func _build_ui() -> void:
 	environment_renderer = preload("res://addons/mapkit/godot/environment_renderer.gd").new()
 	environment_renderer.configure(world_environment.environment,sun,true)
 	preview_world.add_child(environment_renderer)
-	var time := SpinBox.new()
-	time.max_value = 23.99
-	time.step = 0.25
+	var time := preload("./time_of_day_picker.gd").new()
 	time.value = 12
-	time.prefix = "Hour "
 	controls.add_child(time)
 	time.value_changed.connect(func(value: float): environment_preview.seconds = value*3600.0)
 	var weather := OptionButton.new()

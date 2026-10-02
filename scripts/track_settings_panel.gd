@@ -6,7 +6,8 @@ var seed_input: LineEdit
 var circuit: CheckButton
 var duration: OptionButton
 var difficulty: OptionButton
-var time_input: SpinBox
+const TIME_PICKER := preload("./time_of_day_picker.gd")
+var time_input: TIME_PICKER
 var selections := {}
 var _defaults := {}
 var _duration_options := {}
@@ -46,7 +47,7 @@ func _ready() -> void:
 	form.add_child(seed_input)
 	var random_seed := Button.new()
 	random_seed.text = I18N.t("New seed")
-	random_seed.pressed.connect(func(): seed_input.text = str(randi()))
+	random_seed.pressed.connect(func(): seed_input.text = str(int(_defaults.seed)))
 	form.add_child(random_seed)
 	circuit = CheckButton.new()
 	circuit.text = I18N.t("Circuit")
@@ -60,12 +61,8 @@ func _ready() -> void:
 	for title in [I18N.t("Easy"),I18N.t("Normal"),I18N.t("Hard")]: difficulty.add_item(title)
 	difficulty.select(["easy","normal","hard"].find(_defaults.difficulty))
 	form.add_child(difficulty)
-	time_input = SpinBox.new()
-	time_input.min_value = 0
-	time_input.max_value = 23.75
-	time_input.step = 0.25
+	time_input = TIME_PICKER.new()
 	time_input.value = float(_defaults.time_minutes)/60.0
-	time_input.suffix = I18N.t("h · dry / calm")
 	form.add_child(time_input)
 	var grid := GridContainer.new()
 	grid.columns = 2

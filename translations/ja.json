@@ -1824,6 +1824,7 @@
     "Reading map": "マップを読み込み中",
     "Copying map": "マップをコピー中",
     "Preparing preview": "プレビューを準備中",
-    "Ready": "準備完了"
+    "Ready": "準備完了",
+    "Starting time": "開始時刻"
   }
 }

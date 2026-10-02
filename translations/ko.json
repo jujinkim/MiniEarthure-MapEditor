@@ -1824,6 +1824,7 @@
     "Reading map": "맵 읽는 중",
     "Copying map": "맵 복사 중",
     "Preparing preview": "미리보기 준비 중",
-    "Ready": "준비 완료"
+    "Ready": "준비 완료",
+    "Starting time": "시작 시각"
   }
 }

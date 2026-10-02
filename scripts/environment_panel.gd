@@ -29,7 +29,10 @@ func setup(owner: PanelContainer) -> void:
 	_number(box,"Longitude (degrees)","longitude_mdeg",-180,180,value.longitude_mdeg/1000.0,1000)
 	_number(box,"UTC offset (minutes)","utc_offset_minutes",-720,840,value.utc_offset_minutes)
 	_number(box,"Sunrise (minutes after midnight)","sunrise_minutes",0,1439,value.sunrise_minutes)
-	_number(box,"Starting time (minutes after midnight)","start_minutes",0,1439,value.get("start_minutes",720))
+	var clock := preload("./time_of_day_picker.gd").new()
+	clock.value=float(value.get("start_minutes",720))/60.0
+	panel.row(box,"Starting time").add_child(clock)
+	fields.start_minutes=func(): return roundi(clock.value*60.0)
 	_number(box,"Sunset (minutes after midnight)","sunset_minutes",0,1439,value.sunset_minutes)
 	panel.hint(box,'Regional overrides · ordered polygons in centimetres. Example: [{"id":"farm","concept":"countryside","polygon":[[0,0],[10000,0],[10000,10000]]}]. Architecture, climate and settlement may be overridden separately.')
 	regions = _json(box,value.get("regions",[]))

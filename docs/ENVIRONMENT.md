@@ -20,3 +20,20 @@ a separate .memap and a package lock. Old projects and packages remain available
 `tests/environment_validator.gd` verifies adoption, undo/redo and invalid edits;
 `tests/test_atmosphere_assets.py` checks original geometry/payload preservation and
 all seven new-destination-only upgrades. See MapKit's ENVIRONMENT contract.
+
+
+## Hourly selectors — 2026-10-03
+
+Generation, environment start time and the 3D preview now use the same 24-entry
+00:00–23:00 picker. Fractional existing times round to the nearest displayed hour,
+wrapping midnight; source minute values and environment hour APIs are unchanged.
+Sunrise/sunset authoring remains minute-valued. The starting-time label is updated
+in English/Korean/Japanese. No session weather field is added to generated packages.
+
+`track_settings_validator` covers 24 values and rounding. `environment_validator`
+passes adoption, undo/redo and invalid-edit rejection in `environment-final/`
+under `validation/driving-map-2026-10-02/`. Its historical assumption that the
+initial document lacked an environment was replaced by exact restoration of the
+current document. An intermediate run had stale texture-import paths from shared
+source metadata; a fresh isolated import resolved it. These failures remain in
+`environment/` and `environment-fixed/`. Detailed Editor interaction is a user check.

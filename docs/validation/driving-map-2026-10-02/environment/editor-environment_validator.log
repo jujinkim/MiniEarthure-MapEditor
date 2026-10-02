@@ -1,0 +1,10 @@
+validation project=editor script=environment_validator installed_addons=False port=60045
+Initialize godot-rust (API v4.7.stable.official, runtime v4.7.2.stable.mono.official, safeguards strict)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+
+ERROR: undo restores legacy profile absence
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] check (res://tests/environment_validator.gd:6)
+       [1] run (res://tests/environment_validator.gd:17)
+environment_editor_validator: FAIL
