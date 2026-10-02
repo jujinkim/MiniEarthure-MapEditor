@@ -1,0 +1,8 @@
+test_authored_sequence_and_real_beam (test_practice_track.PracticeTrack.test_authored_sequence_and_real_beam) ... ok
+test_export_roundtrip_and_repeatability (test_practice_track.PracticeTrack.test_export_roundtrip_and_repeatability) ... ok
+test_reduced_early_courses_wider_air_turn_and_solid_ends (test_practice_track.PracticeTrack.test_reduced_early_courses_wider_air_turn_and_solid_ends) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 1.069s
+
+OK

@@ -113,7 +113,7 @@ The MapKit dependency includes valid tetrahedral wall occupancy, common surface
 triangulation and bounded post-split costs. No Editor product code or format
 number changes. Owning native generation/build tests pass.
 
-**Known failure; bundled refresh not completed.** The only tracked assembled
+**Earlier failure, resolved by the refresh below.** The only tracked assembled
 package is `examples/practice-track/practice.memap`. Compiling its stored
 `source.json` with current code fails `E_TRACK_SOURCE: invalid action` (the stored
 manual-flight sample references no longer fit current sampling). Regenerating
@@ -125,6 +125,26 @@ are retained. Original source, package, project and entry metadata are preserved
 neither action validation nor road-clearance validation is bypassed, and the
 approved 8m-wide / 6m-radius practice corners are not silently redesigned.
 
-This is an unresolved artifact refresh, separate from successful new seeded
-generation. Practice availability and regeneration are not claimed passed.
-Detailed Editor interaction and human driving remain user verification.
+At that attempt the artifact refresh was unresolved, separate from successful
+new seeded generation. The original failures above are preserved; current scoped
+refresh results follow. Detailed Editor interaction and human driving remain user verification.
+
+## Bundled practice regenerated — 2026-10-03
+
+MapKit `e563b8d1` includes the finite straight-ribbon clearance correction. The
+approved 8m-wide / 6m-radius turns and all other authored geometry/order remain
+unchanged. The script compiles temporary source and resolves checkpoints at 3m,
+takeoff references at 4m before the end and landing at the first actual station.
+It duplicates no sampling interval or fixed sample index. Current takeoff indices
+are 17 of 21 samples, replacing the invalid stored index 32. Validation still
+rejects invalid indices; the preserved old source is not converted or accepted.
+
+The original example and consumer copy were backed up before generation. After
+new-directory verification, source/project/package/courses/entry were replaced
+together. Package SHA256 is
+`4745728b36f1573c7f989732a6fe1c1b635779e40e41d52b34ed2a8727e5eebc`.
+[Evidence](validation/practice-refresh-2026-10-03/README.md) covers both prior
+failures, three Python tests, byte-identical fresh directories, refusal to replace
+an existing output, stored source recompilation, source/entry identity and strict
+native Editor open/edit/save/reopen. `human_completion` remains `unverified`;
+detailed editing and driving are user checks. Formats and public APIs remain v1.

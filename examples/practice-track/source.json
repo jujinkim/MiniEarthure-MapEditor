@@ -1385,47 +1385,47 @@
   "checkpoints": [
     {
       "piece": "course-01",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "course-02",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "course-03",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "course-04",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "course-05",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "course-06",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "course-07",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "course-08",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "course-09",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "course-10",
-      "sample": 4
+      "sample": 2
     },
     {
       "piece": "completion",
-      "sample": 4
+      "sample": 2
     }
   ],
   "actions": [
@@ -1433,7 +1433,7 @@
       "id": "manual-07",
       "kind": "manual_flight",
       "piece": "course-07",
-      "sample": 32,
+      "sample": 17,
       "height_cm": 800,
       "landing": {
         "piece": "landing-07",
@@ -1444,7 +1444,7 @@
       "id": "manual-08",
       "kind": "manual_flight",
       "piece": "course-08",
-      "sample": 32,
+      "sample": 17,
       "height_cm": 800,
       "landing": {
         "piece": "landing-08",
@@ -1455,7 +1455,7 @@
       "id": "manual-09",
       "kind": "manual_flight",
       "piece": "course-09",
-      "sample": 32,
+      "sample": 17,
       "height_cm": 800,
       "landing": {
         "piece": "landing-09",
@@ -1466,7 +1466,7 @@
       "id": "manual-10",
       "kind": "manual_flight",
       "piece": "course-10",
-      "sample": 32,
+      "sample": 17,
       "height_cm": 800,
       "landing": {
         "piece": "landing-10",

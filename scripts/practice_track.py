@@ -135,6 +135,7 @@ def build(destination, cli):
             checkpoint["sample"]=at_station(checkpoint["piece"],300)
         for action in original["actions"]:
             action["sample"]=at_station(action["piece"],400,from_end=True)
+            action["landing"]["sample"]=at_station(action["landing"]["piece"],0)
     (destination/"source.json").write_text(json.dumps(original,ensure_ascii=False,indent=2)+"\n")
     package=destination/"practice.memap"
     subprocess.run([str(cli),"compile-track",str(destination/"source.json"),str(package)],check=True)

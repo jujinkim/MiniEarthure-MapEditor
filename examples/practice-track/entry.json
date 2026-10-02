@@ -1,8 +1,8 @@
 {
   "path": "res://maps/practice/practice.memap",
   "x_cm": 0,
-  "y_cm": 320,
+  "y_cm": 286,
   "surface_id": "assembled-road-0",
   "heading_degrees": 0,
-  "expected_hash": "12b0bdbaf2bbbb4b44b81c3e9786683a1217b242ed16857d99c626a9b5512373"
+  "expected_hash": "4745728b36f1573c7f989732a6fe1c1b635779e40e41d52b34ed2a8727e5eebc"
 }

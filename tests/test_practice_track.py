@@ -1,6 +1,8 @@
 """Public authored-source and deterministic package checks; no consumer completion proof."""
 import importlib.util
 import json
+import hashlib
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -31,6 +33,10 @@ class PracticeTrack(unittest.TestCase):
             self.assertEqual(pieces[f"course-{number:02d}"]["width_cm"],800)
             self.assertAlmostEqual(sum(v*v for v in pieces[f"course-{number:02d}"]["control_points"][-1])**.5,2000)
         self.assertEqual(pieces["right-wide"]["control_points"][-1],[3200,0,3200])
+        for number, turn in [(4,"right-sharp"),(5,"left-sharp")]:
+            self.assertEqual(pieces[f"course-{number:02d}"]["width_cm"],800)
+            self.assertEqual(pieces[turn]["width_cm"],800)
+            self.assertEqual(pieces[turn]["control_points"][-1],[600,0,600])
         self.assertEqual(pieces["course-09"]["width_cm"],400)
         self.assertEqual(pieces["flight-10"]["control_points"][-1][1],360)
         for name in ["start-wall","finish-wall"]:
@@ -43,8 +49,16 @@ class PracticeTrack(unittest.TestCase):
         cli=Path(os.environ.get("MAPKIT_CLI",ROOT/"addons/mapkit/target/debug/mapkit")).resolve()
         with tempfile.TemporaryDirectory(prefix="practice-source-") as temp:
             a=track.build(Path(temp)/"a",cli);b=track.build(Path(temp)/"b",cli)
-            self.assertEqual((a/"source.json").read_bytes(),(b/"source.json").read_bytes())
-            self.assertEqual((a/"practice.memap").read_bytes(),(b/"practice.memap").read_bytes())
+            contents=lambda directory:{str(p.relative_to(directory)):p.read_bytes() for p in directory.rglob("*") if p.is_file()}
+            before=contents(a)
+            self.assertEqual(before,contents(b))
+            with self.assertRaises(FileExistsError):track.build(a,cli)
+            self.assertEqual(before,contents(a),"existing output must remain untouched")
+            recompiled=Path(temp)/"recompiled.memap"
+            subprocess.run([str(cli),"compile-track",str(a/"source.json"),str(recompiled)],check=True)
+            self.assertEqual(recompiled.read_bytes(),(a/"practice.memap").read_bytes())
+            entry=json.loads((a/"entry.json").read_text())
+            self.assertEqual(entry["expected_hash"],hashlib.sha256(recompiled.read_bytes()).hexdigest())
             result=subprocess.run([str(cli),"verify-track",str(a/"practice.memap")],capture_output=True,text=True,check=True)
             assembly=json.loads(result.stdout)["assembly"]
             self.assertFalse(assembly["issues"])
@@ -56,6 +70,19 @@ class PracticeTrack(unittest.TestCase):
             for cp in source["checkpoints"]:
                 path=assembly["pieces"][ids.index(cp["piece"])]["path"]
                 self.assertAlmostEqual(sum((a-b)**2 for a,b in zip(path[0]["position_cm"],path[cp["sample"]]["position_cm"]))**.5,300,delta=40)
+            def check_station(reference, distance_cm, from_end=False):
+                path=assembly["pieces"][ids.index(reference["piece"])]["path"]
+                stations=[0.0]
+                for start,end in zip(path,path[1:]):
+                    stations.append(stations[-1]+math.dist(start["position_cm"],end["position_cm"]))
+                target=stations[-1]-distance_cm if from_end else distance_cm
+                self.assertAlmostEqual(abs(stations[reference["sample"]]-target),min(abs(s-target) for s in stations))
+            for cp in source["checkpoints"]:check_station(cp,300)
+            for action in source["actions"]:
+                check_station(action,400,from_end=True)
+                check_station(action["landing"],0)
+            first=assembly["pieces"][ids.index(source["checkpoints"][0]["piece"])]["path"][source["checkpoints"][0]["sample"]]["position_cm"]
+            self.assertEqual((entry["x_cm"],entry["y_cm"]),(first[0],first[2]))
             self.assertIsNone(document["courses"][0].get("validation"))
             for piece in assembly["pieces"]:
                 if piece["id"]=="flight_curve":

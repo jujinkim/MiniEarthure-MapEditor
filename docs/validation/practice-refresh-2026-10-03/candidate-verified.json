@@ -1,0 +1,52 @@
+{
+  "sha256": "4745728b36f1573c7f989732a6fe1c1b635779e40e41d52b34ed2a8727e5eebc",
+  "source_identity_equal": true,
+  "issues": [],
+  "generator_fingerprint": "16289d3c86b3265b462cca92d1efbca77f77c9742c4e647dd86c23b01b256444",
+  "actions": [
+    {
+      "id": "manual-07",
+      "kind": "manual_flight",
+      "piece": "course-07",
+      "sample": 17,
+      "height_cm": 800,
+      "landing": {
+        "piece": "landing-07",
+        "sample": 0
+      }
+    },
+    {
+      "id": "manual-08",
+      "kind": "manual_flight",
+      "piece": "course-08",
+      "sample": 17,
+      "height_cm": 800,
+      "landing": {
+        "piece": "landing-08",
+        "sample": 0
+      }
+    },
+    {
+      "id": "manual-09",
+      "kind": "manual_flight",
+      "piece": "course-09",
+      "sample": 17,
+      "height_cm": 800,
+      "landing": {
+        "piece": "landing-09",
+        "sample": 0
+      }
+    },
+    {
+      "id": "manual-10",
+      "kind": "manual_flight",
+      "piece": "course-10",
+      "sample": 17,
+      "height_cm": 800,
+      "landing": {
+        "piece": "landing-10",
+        "sample": 0
+      }
+    }
+  ]
+}

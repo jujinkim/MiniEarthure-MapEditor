@@ -1,0 +1,11 @@
+{
+  "command": [
+    ".venv/bin/python",
+    "map-editor/scripts/practice_track.py",
+    "work/practice-refresh-2026-10-03/candidate",
+    "--mapkit",
+    "/Users/jujin/workspace/projects/MiniEarthure/map-kit/target/debug/mapkit"
+  ],
+  "elapsed_seconds": 0.179,
+  "exit_code": 0
+}

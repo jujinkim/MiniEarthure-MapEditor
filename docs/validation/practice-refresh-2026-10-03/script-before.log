@@ -1,0 +1,10 @@
+{"code":"E_TRACK_DRAFT","message":"runout-04 / course-04: road clearance collision; runout-05 / course-05: road clearance collision"}
+Traceback (most recent call last):
+  File "/Users/jujin/workspace/projects/MiniEarthure/map-editor/scripts/practice_track.py", line 159, in <module>
+    a=p.parse_args();build(a.destination,a.mapkit.resolve())
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jujin/workspace/projects/MiniEarthure/map-editor/scripts/practice_track.py", line 123, in build
+    subprocess.run([str(cli),"compile-track",str(preview/"source.json"),str(preview/"preview.memap")],check=True)
+  File "/opt/homebrew/Cellar/python@3.12/3.12.14/Frameworks/Python.framework/Versions/3.12/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/Users/jujin/workspace/projects/MiniEarthure/map-kit/target/debug/mapkit', 'compile-track', '/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/practice-reference-wfzxfshq/source.json', '/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/practice-reference-wfzxfshq/preview.memap']' returned non-zero exit status 1.

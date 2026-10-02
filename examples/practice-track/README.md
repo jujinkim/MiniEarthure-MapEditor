@@ -35,13 +35,17 @@ The fixed environment is noon, with no per-entry random generation.
 
 ## Current refresh status — 2026-10-03
 
-**Regeneration is currently failing.** Compiling the stored source reports
-`E_TRACK_SOURCE: invalid action`; generating fresh source from the script reports
-`E_TRACK_DRAFT` road-clearance collisions for courses 4 and 5. These are separate
-failures. Preserve the approved 8 m width / 6 m radius and all validation gates.
-The source, package, project and entry metadata remain unchanged; the earlier
-passes below do not establish current regeneration or practice availability.
-[Owner record and retained failure logs](../../docs/ASSEMBLED_TRACKS.md#wall-generation-pin-and-bundled-practice-refresh--2026-10-03).
+**Regenerated and verified with MapKit `e563b8d1`.** The separate invalid-action
+and corner-clearance failures were reproduced and their original files/logs
+preserved. Finite straight-road clearance is corrected in MapKit; this example
+retains its approved 8 m width / 6 m radius and all authored geometry/order.
+Sample references come from current compiler path distances. Two fresh output
+directories match byte-for-byte, stored source recompiles to the same package,
+and Editor source extraction/open/edit/save/reopen preserves exact identity.
+Package/entry SHA256:
+`4745728b36f1573c7f989732a6fe1c1b635779e40e41d52b34ed2a8727e5eebc`.
+[Current evidence and retained failures](../../docs/validation/practice-refresh-2026-10-03/README.md).
+`human_completion` remains `unverified`; detailed driving is a user check.
 
 ## Verification (2026-10-01)
 
