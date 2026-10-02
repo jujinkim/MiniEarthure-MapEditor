@@ -32,10 +32,26 @@ window overflow, a menu/button test selector collision and unsupported GeoJSON
 default use. These were corrected; failing logs are retained alongside passing
 rechecks in the superproject's `work/authoring-checks/`.
 
-Still unimplemented: free placement transforms, 3D picking/gizmos/surface snap,
-asset thumbnails/GLTF dependency adoption/collision editing, prepared render units,
-MapKit deployment-cost profiles/gates, declaration-driven gimmicks and motion
-preview, authority/runtime/race-reset/network integration, camera-neighborhood
-streaming, seven-map challenge authoring and 21-course distribution regeneration.
-These are implementation work, not merely user acceptance tests. Existing cost
-warnings still do not constitute a PC/Android deployment approval.
+## Later implementation and remaining scope — 2026-10-03 review
+
+The checks above describe the 2026-09-21 delivery. No product checks were rerun
+for this documentation review. Parts of its original remaining list were delivered:
+
+- [Driving structures](DRIVING_GIMMICKS.md): declarative motion/bounds, property
+  edits and shared time preview with document history.
+- [Track authoring](TRACK_AUTHORING.md), [icon workbench](ICON_WORKBENCH.md) and
+  [responsive editing](TRACK_EDIT_PERFORMANCE.md): piece transforms, port snapping,
+  placement/dragging, sequential worker commits and prepared preview reuse.
+- Seven-map challenge authoring and course distribution were followed by
+  [compact](../examples/compact-driving/README.md), [richer](WORLD_THEME_AUTHORING.md)
+  and [arcade-world](ARCADE_WORLD.md) implementations. Original artifacts remain.
+
+Still incomplete: general 3D picking/gizmos/surface-snap tools beyond Track Mode,
+broader asset thumbnails/GLTF dependency adoption/collision editing, deployment-cost
+profiles and PC/Android approval gates, and general camera-neighborhood streaming.
+Existing proxy/material editing and cost warnings do not complete those workflows.
+Track Mode preview reuse does not establish completion of general asset-transform
+or prepared-render-unit deployment workflows.
+The separate 49-piece commit-latency target remains missed in the October 1 report;
+current-code timing was not repeated here. Runtime integration is owned by each
+consumer and is not a dependency of this public Editor.

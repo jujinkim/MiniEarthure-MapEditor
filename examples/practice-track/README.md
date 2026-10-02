@@ -33,6 +33,16 @@ landing. They create neither jump nor boost panels. The five static structures
 are the low barrier, beam, high wall and 1m-high start/end lane barriers; all go through shared source compilation.
 The fixed environment is noon, with no per-entry random generation.
 
+## Current refresh status — 2026-10-03
+
+**Regeneration is currently failing.** Compiling the stored source reports
+`E_TRACK_SOURCE: invalid action`; generating fresh source from the script reports
+`E_TRACK_DRAFT` road-clearance collisions for courses 4 and 5. These are separate
+failures. Preserve the approved 8 m width / 6 m radius and all validation gates.
+The source, package, project and entry metadata remain unchanged; the earlier
+passes below do not establish current regeneration or practice availability.
+[Owner record and retained failure logs](../../docs/ASSEMBLED_TRACKS.md#wall-generation-pin-and-bundled-practice-refresh--2026-10-03).
+
 ## Verification (2026-10-01)
 
 `tests/test_practice_track.py` passed both source/geometry checks and two byte-equal
@@ -51,4 +61,4 @@ Checkpoint gates are located near3m into each supported start; manual flight
 references near4m before departure. A temporary MapKit compilation resolves
 indices from real distances, so this script copies no tessellation constants.
 The final original records those indices and reproduces byte-identical exports.
-[Current focused results](../../docs/validation/playtest-2026-10-02/README.md).
+[2026-10-02 focused results](../../docs/validation/playtest-2026-10-02/README.md).
