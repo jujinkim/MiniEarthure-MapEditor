@@ -34,6 +34,7 @@ var track_job: Node
 var track_dialog: AcceptDialog
 var track_panel: Control
 var track_epoch := -1
+var track_request := -1
 var full_generation: CheckButton
 const TEST_DRIVE := preload("./test_drive_launcher.gd")
 var test_drive_launcher := TEST_DRIVE.new()
@@ -1850,10 +1851,15 @@ func _open_track_generator() -> void:
 	if not is_instance_valid(track_job):
 		track_job = preload("res://addons/mapkit/godot/track_job.gd").new()
 		add_child(track_job)
-		track_job.completed.connect(func(_request: int, result: Dictionary):
+		track_job.progressed.connect(func(request:int,value:Dictionary):
+			if request==track_request and track_epoch==store.command_epoch: track_panel.update_progress(value))
+		track_job.completed.connect(func(request: int, result: Dictionary):
+			if request!=track_request: return
+			track_request=-1
+			track_panel.set_busy(false)
 			if track_epoch != store.command_epoch: return
 			if not result.ok: _status(I18N.error(result.error)); track_panel.note.text=I18N.error(result.error); return
-			var failure: String = store.open_generated(result.data.document)
+			var failure: String = store.open_generated(result.data.document,result.data.get("preview",{}))
 			if failure != "": _status(I18N.diagnostic(failure)); return
 			_clear_preview_cache()
 			track_panel.show_result(result.data.document.assembled_track)
@@ -1872,15 +1878,23 @@ func _open_track_generator() -> void:
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		scroll.add_child(panel)
 		panel.requested.connect(func(settings: Dictionary):
-			if busy: _status(I18N.t("Finish or cancel the current operation first.")); return
+			if busy or track_request>=0: _status(I18N.t("Finish or cancel the current operation first.")); return
+			track_panel.set_busy(true)
+			track_panel.progress.reduce_motion=bool(view_settings.get_value("accessibility","reduce_ui_motion",false))
+			track_panel.update_progress({"stage":"preparing"})
 			track_epoch = store.command_epoch
 			var directory := ProjectSettings.globalize_path("user://generated-tracks")
 			DirAccess.make_dir_recursive_absolute(directory)
-			track_job.begin(settings,directory.path_join(Crypto.new().generate_random_bytes(12).hex_encode()+".memap"))
+			track_request=track_job.begin(settings,directory.path_join(Crypto.new().generate_random_bytes(12).hex_encode()+".memap"),true)
 			_status(I18N.t("Assembling track…")))
-		panel.cancelled.connect(func(): track_job.cancel(); _status(I18N.t("Generation cancelled. Current document retained.")))
-		track_dialog.canceled.connect(track_job.cancel)
-		track_dialog.confirmed.connect(track_job.cancel)
+		panel.cancelled.connect(func(): _cancel_track_generation(); _status(I18N.t("Generation cancelled. Current document retained.")))
+		track_dialog.canceled.connect(_cancel_track_generation)
+		track_dialog.confirmed.connect(_cancel_track_generation)
 	if store.document.get("assembled_track") is Dictionary:
 		track_panel.restore(store.document.assembled_track.settings)
 	track_dialog.popup_centered(Vector2i(500,600))
+
+func _cancel_track_generation() -> void:
+	track_request=-1
+	track_job.cancel()
+	track_panel.set_busy(false)

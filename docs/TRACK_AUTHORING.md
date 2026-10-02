@@ -83,3 +83,16 @@ connections, deletion, undo, save/reopen and cancellation. Detailed editor
 interaction and game driving remain user verification.
 
 Reproducible manual-flight/static-structure example: [Practice track](../examples/practice-track/README.md).
+
+## Generation readiness progress — 2026-10-02
+
+The generator displays a translated stage and shared circular percentage; unknown
+search/preparation stages stay indeterminate. The button is disabled while busy.
+Work continues through worker-prepared preview meshes before adopting the result.
+Cancel, dialog close, changed document epoch and replaced request reject late
+progress/completion and preserve the previous document. The common ring supports
+reduced motion. English, Korean and Japanese stage labels are included.
+
+The generation worker/preview adoption unit and shared progress validator pass,
+including unknown search, measured stages, matching requests and prepared preview.
+Detailed dialog interaction is user verification; no video was recorded.

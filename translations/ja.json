@@ -1813,6 +1813,17 @@
     "Spacing (cm)": "間隔（cm）",
     "Optional 3D check %d / %d": "任意の 3D 検査 %d / %d",
     "Preparing 2D overview": "2D 全体表示を準備中",
-    "Routes & Checkpoints": "ルートとチェックポイント"
+    "Routes & Checkpoints": "ルートとチェックポイント",
+    "Preparing generation": "生成を準備中",
+    "Searching for a track": "コース候補を検索中",
+    "Building track surfaces": "路面を生成中",
+    "Validating track": "コースを検証中",
+    "Validating package": "パッケージを検証中",
+    "Packing map": "マップを梱包中",
+    "Saving map": "マップを保存中",
+    "Reading map": "マップを読み込み中",
+    "Copying map": "マップをコピー中",
+    "Preparing preview": "プレビューを準備中",
+    "Ready": "準備完了"
   }
 }

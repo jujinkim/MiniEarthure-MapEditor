@@ -1813,6 +1813,17 @@
     "Spacing (cm)": "Spacing (cm)",
     "Optional 3D check %d / %d": "Optional 3D check %d / %d",
     "Preparing 2D overview": "Preparing 2D overview",
-    "Routes & Checkpoints": "Routes & Checkpoints"
+    "Routes & Checkpoints": "Routes & Checkpoints",
+    "Preparing generation": "Preparing generation",
+    "Searching for a track": "Searching for a track",
+    "Building track surfaces": "Building track surfaces",
+    "Validating track": "Validating track",
+    "Validating package": "Validating package",
+    "Packing map": "Packing map",
+    "Saving map": "Saving map",
+    "Reading map": "Reading map",
+    "Copying map": "Copying map",
+    "Preparing preview": "Preparing preview",
+    "Ready": "Ready"
   }
 }

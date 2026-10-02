@@ -13,6 +13,10 @@ var _duration_options := {}
 var note: Label
 var catalogue_ready := false
 var generate: Button
+var busy:=false
+var progress:Control
+var progress_label:Label
+const RING:=preload("res://addons/mapkit/godot/work_progress.gd")
 
 func _load_catalogue() -> Dictionary:
 	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
@@ -78,9 +82,12 @@ func _ready() -> void:
 	note.text = I18N.t("The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. The base route targets ±10% of the requested time at the reference speed; shortcut times are separate.")
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	form.add_child(note)
+	progress=RING.new();form.add_child(progress);progress.hide()
+	progress_label=Label.new();form.add_child(progress_label);progress_label.hide()
 	generate = Button.new()
 	generate.text = I18N.t("Generate / regenerate")
 	generate.pressed.connect(func():
+		if busy: return
 		if not seed_input.text.is_valid_int() or int(seed_input.text)<0 or int(seed_input.text)>9007199254740991:
 			note.text = I18N.t("Seed must be an integer from 0 to 9007199254740991.")
 			return
@@ -131,4 +138,12 @@ func _update_enabled() -> void:
 	if not is_instance_valid(generate): return
 	generate.disabled = true
 	for check: CheckBox in selections.values():
-		if check.button_pressed: generate.disabled = false
+		if check.button_pressed and not busy: generate.disabled = false
+
+func set_busy(value:bool) -> void:
+	busy=value
+	if is_instance_valid(progress): progress.visible=value;progress_label.visible=value
+	_update_enabled()
+func update_progress(value:Dictionary) -> void:
+	progress.set_progress(value)
+	progress_label.text=I18N.t(RING.stage_key(str(value.get("stage","preparing"))))

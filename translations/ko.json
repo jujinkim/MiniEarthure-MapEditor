@@ -1813,6 +1813,17 @@
     "Spacing (cm)": "간격 (cm)",
     "Optional 3D check %d / %d": "선택적 3D 검사 %d / %d",
     "Preparing 2D overview": "2D 전체 보기 준비 중",
-    "Routes & Checkpoints": "경로·체크포인트"
+    "Routes & Checkpoints": "경로·체크포인트",
+    "Preparing generation": "생성 준비 중",
+    "Searching for a track": "트랙 후보 탐색 중",
+    "Building track surfaces": "트랙 노면 생성 중",
+    "Validating track": "트랙 검증 중",
+    "Validating package": "패키지 검증 중",
+    "Packing map": "맵 패키징 중",
+    "Saving map": "맵 저장 중",
+    "Reading map": "맵 읽는 중",
+    "Copying map": "맵 복사 중",
+    "Preparing preview": "미리보기 준비 중",
+    "Ready": "준비 완료"
   }
 }

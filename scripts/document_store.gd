@@ -490,7 +490,7 @@ func recover(path: String) -> String:
 func reason(result: Dictionary) -> String:
 	return "%s: %s" % [result.error.code, result.error.message]
 
-func open_generated(value: Dictionary) -> String:
+func open_generated(value: Dictionary, preview: Dictionary = {}) -> String:
 	var checked := _validate(value)
 	if not checked.ok: return reason(checked)
 	var failure := autosave() if dirty else ""
@@ -499,6 +499,8 @@ func open_generated(value: Dictionary) -> String:
 	project_path = ""
 	bridge = ClassDB.instantiate("MapKitBridge")
 	_reset_session()
+	prepared_track_preview=preview
+	track_preview_cache=preview
 	_after_edit()
 	return ""
 
