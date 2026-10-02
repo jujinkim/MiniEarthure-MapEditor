@@ -107,3 +107,24 @@ The current MapKit pin includes difficulty-weighted families and widths. Editor
 passes its selection and seed directly to that public API; generation weather
 remains a session choice in the game. Formats remain v1 and original documents
 and generated artifacts are preserved.
+## Wall generation pin and bundled practice refresh — 2026-10-03
+
+The MapKit dependency includes valid tetrahedral wall occupancy, common surface
+triangulation and bounded post-split costs. No Editor product code or format
+number changes. Owning native generation/build tests pass.
+
+**Known failure; bundled refresh not completed.** The only tracked assembled
+package is `examples/practice-track/practice.memap`. Compiling its stored
+`source.json` with current code fails `E_TRACK_SOURCE: invalid action` (the stored
+manual-flight sample references no longer fit current sampling). Regenerating
+from `scripts/practice_track.py` into a new isolated directory fails
+`E_TRACK_DRAFT`: `runout-04 / course-04` and `runout-05 / course-05` road clearance
+collision. The authoring/sampling source responsible for these checks is unchanged
+by the wall occupancy repair. [Both failure logs](validation/grid-input-2026-10-03/)
+are retained. Original source, package, project and entry metadata are preserved;
+neither action validation nor road-clearance validation is bypassed, and the
+approved 8m-wide / 6m-radius practice corners are not silently redesigned.
+
+This is an unresolved artifact refresh, separate from successful new seeded
+generation. Practice availability and regeneration are not claimed passed.
+Detailed Editor interaction and human driving remain user verification.
