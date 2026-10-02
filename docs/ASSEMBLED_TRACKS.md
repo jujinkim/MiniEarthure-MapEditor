@@ -101,3 +101,9 @@ time; an existing assembled document is restored only when its panel is first
 created. Busy/cancel/result and explicit restore preserve the entered value.
 `track_settings_validator` passes the injected RNG, default contract, retention
 and hourly display cases (`validation/driving-map-2026-10-02/`).
+
+
+The current MapKit pin includes difficulty-weighted families and widths. Editor
+passes its selection and seed directly to that public API; generation weather
+remains a session choice in the game. Formats remain v1 and original documents
+and generated artifacts are preserved.
