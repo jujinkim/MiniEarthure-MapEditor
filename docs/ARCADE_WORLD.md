@@ -58,3 +58,21 @@ correcting stale tab-count and embedded-panel pointer coordinates in the fixture
 Seven overview and fourteen ground/signature renders were inspected. Detailed
 editor interaction, driving enjoyment/completion and platform acceptance remain
 user verification.
+
+## Display library refresh — 2026-10-02, root §44.262
+
+Current editable examples are in `map-editor/examples/display-world`; current
+Client bundled catalog/packages are in `client/maps/display-world`. The previous
+`race-flow` and earlier sources/packages remain intact. MapEditor
+`scripts/refresh_display_examples.py` copies into a new destination and binds
+current MIT library bytes/proxies by content hash. Seven lamp/container bindings
+changed, while other authored geometry and user data are preserved. Updated
+documents increment their revision; all formats remain v1.
+
+Client's offline `prepare_race_flow_maps` supports explicit source catalog and
+resource-root inputs, refuses an existing output directory, exports/opens all
+seven maps and the physics fixture, and rebinds course world hashes. The default
+`bundled_maps.gd` now selects the new catalog. Common material/quality/50cm wall
+changes reach the Editor preview through its MapKit pin; no private renderer or
+physics copy is added. Export/load validation passed; course driving and Editor
+interaction remain user checks.
