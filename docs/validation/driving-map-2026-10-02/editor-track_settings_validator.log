@@ -1,0 +1,5 @@
+validation project=editor script=track_settings_validator installed_addons=False port=55847
+Initialize godot-rust (API v4.7.stable.official, runtime v4.7.2.stable.mono.official, safeguards strict)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+
+track_settings_validator: PASS

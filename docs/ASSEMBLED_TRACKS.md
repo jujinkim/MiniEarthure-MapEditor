@@ -90,3 +90,14 @@ and **질주코스 · 16m**. Both modes offer 60/90/120 seconds; 90 is displayed
 exact attachment metadata through save/reopen and recovery; original sources are
 preserved. `assembled_track_validator` covers settings, native contract mismatch,
 source preservation and document roundtrip. Detailed editing/driving is user work.
+
+
+## New generation panel seed — 2026-10-03
+
+Each new panel initializes one random seed without changing MapKit's API default 1.
+Direct entry and New seed remain available. Reopening the same dialog preserves
+cancelled or failed edits rather than restoring the document's old settings each
+time; an existing assembled document is restored only when its panel is first
+created. Busy/cancel/result and explicit restore preserve the entered value.
+`track_settings_validator` passes the injected RNG, default contract, retention
+and hourly display cases (`validation/driving-map-2026-10-02/`).

@@ -1887,8 +1887,8 @@ func _open_track_generator() -> void:
 		panel.cancelled.connect(func(): _cancel_track_generation(); _status(I18N.t("Generation cancelled. Current document retained.")))
 		track_dialog.canceled.connect(_cancel_track_generation)
 		track_dialog.confirmed.connect(_cancel_track_generation)
-	if store.document.get("assembled_track") is Dictionary:
-		track_panel.restore(store.document.assembled_track.settings)
+		if store.document.get("assembled_track") is Dictionary:
+			track_panel.restore(store.document.assembled_track.settings)
 	track_dialog.popup_centered(Vector2i(500,600))
 
 func _cancel_track_generation() -> void:
