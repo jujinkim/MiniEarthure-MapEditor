@@ -76,3 +76,16 @@ seven maps and the physics fixture, and rebinds course world hashes. The default
 changes reach the Editor preview through its MapKit pin; no private renderer or
 physics copy is added. Export/load validation passed; course driving and Editor
 interaction remain user checks.
+
+## Free Roam classification — 2026-10-02 replacement
+
+Current eight editable sources are in `examples/free-roam-world`: the seven
+default worlds and physics-test. Their `free_roam` is true; no embedded race
+course existed, so classifying them as races incorrectly rejected startup.
+`arcade_world.py` and `physics_test_map.py` now set the classification explicitly.
+`refresh_free_roam_examples.py` republishes only the eight known Free Roam maps
+to a new directory, rejects actual race sources and existing destinations, and
+leaves display-world/user originals intact. The source-preservation unit passes.
+Client's new catalog, previews and recommended courses bind freshly exported
+packages; all eight actual loaders reach prepared readiness. Race start policy
+remains strict. Detailed play acceptance stays with the user.

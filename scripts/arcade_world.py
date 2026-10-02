@@ -46,7 +46,7 @@ class World:
         self.w,self.h=self.size;self.kit=kit
         self.doc=empty('arcade-world-'+self.id,self.w*100,3200)
         self.doc['bounds']['max']=[self.w*100,self.h*100]
-        self.doc.update(water_bodies=[],gimmicks=[],surface_areas=[],courses=[])
+        self.doc.update(free_roam=True,water_bodies=[],gimmicks=[],surface_areas=[],courses=[])
         self.doc['provenance'].update(tool_id='mapeditor-arcade-world',build_id='arcade-world-v1',first_created='2026-09-26T00:00:00Z',last_edited='2026-09-26T00:00:00Z')
         self.doc['attributions']=[dict(source='arcade-world-original-layouts',license='MIT',notice='Original fictional course networks and scenery. Design references do not supply layouts or assets.')]
         self.aprons=[];self.paths={};self.routes=[];self.alternatives=[];self.exits=[];self.landmarks=[];self.views=[];self.occupied=[];self.segments=[];self.payloads={};self.used=set();self.assets={};self.asset_roots={}
