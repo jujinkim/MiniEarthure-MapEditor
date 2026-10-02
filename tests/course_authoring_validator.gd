@@ -12,6 +12,7 @@ func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	ui.store.new_track(true)
 	ui.author_panel.open()
 	var panel: RefCounted = ui.author_panel.course_panel
 	check(panel._ground(Vector2(2000,3000)).height == ui.store.document.terrain_base_cm,"ground placement uses terrain height")
@@ -40,7 +41,7 @@ func run() -> void:
 	panel._redo_draft()
 	check(panel.heading.value==90 and panel.start.selected==1,"draft redo restores heading and start mode")
 	panel._save()
-	check(ui.store.document.get("courses",[]).size()==1,"save unverified public course")
+	check(ui.store.document.get("courses",[]).size()==1,"save unverified public course: " + ui.author_panel.feedback.text)
 	if ui.store.document.get("courses",[]).is_empty():
 		ui.queue_free()
 		quit(1)

@@ -1,0 +1,14 @@
+{
+  "base_commit": "961f5e284f3d59c266045343df5851a5bf2062a7",
+  "tested_source": "base plus changed_source_sha256; final sources are in the commit adding this report",
+  "changed_source_sha256": {
+    "tests/authoring_validator.gd": "bbb0824c16c658bea0399011f3bb53865ce526f079ac65a0310a6f26b65f71ac",
+    "tests/course_authoring_validator.gd": "4bc9c1dc3f50134378c4e5a87163e4a6815cdc68838e5a76ea1679c6ad0156de",
+    "tests/import_review_validator.gd": "f9d9175e701aaa748179f11a50187e8b5765d3227702682de1e842743d14f778",
+    "tests/palette_entry_validator.gd": "a16f89e15fdd2ccd2538f07149327352194ef2252ec2792d4859d424f2d1ba98"
+  },
+  "mapkit_source_commit": "e563b8d1d4e2bc4278419627d2fe0bcbb73d9c03",
+  "platform": "macOS arm64 / Apple M1",
+  "godot": "4.7.2.stable.mono.official.ed1daf0bf",
+  "reused_mapkit_native_sha256": "0c7b037745e3d095fed6cd63a6894adc182ad5bb35b6d2b823ef5e1dc7d6e499"
+}

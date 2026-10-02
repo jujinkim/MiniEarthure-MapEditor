@@ -110,6 +110,9 @@ change with equivalent geometry and clearance validation; that is not claimed he
 - An initial unfiltered Rust test discovery hit a pre-existing `tests/water.rs:22`
   initializer missing `contact_class` / `snow_retention_percent`. Focused library
   and track targets compile and pass; unrelated water code was not changed.
+  This historical compile failure was repaired on 2026-10-03 in MapKit; the three
+  core water tests now pass. [MapKit fixture-repair record](https://github.com/jujinkim/MiniEarthure-MapKit/blob/930ee37b5760c4883e439643ef5d106382ef334c/docs/validation/test-failures-2026-10-03/README.md).
+  [Restored Editor validators](validation/test-failures-2026-10-03/README.md) are separate; it does not remeasure track-edit latency.
 - Corrected test setup failures: canonical JSON numeric types in the new source
   comparison; optional empty `courses`; seed fixture length (20, not 49); the import
   validator required `MAPEDITOR_TEST_IMPORT_PYTHON` pointing to the development venv.

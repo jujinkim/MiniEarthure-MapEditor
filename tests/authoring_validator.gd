@@ -23,7 +23,7 @@ func state() -> String:
 	return JSON.stringify([ui.store.document, ui.store.undo_stack, ui.store.redo_stack, ui.store.history_bytes, ui.store.dirty])
 
 func button(node: Node, title: String) -> Button:
-	if node is Button and node.text == title: return node
+	if node is Button and (node.text == title or node.get_meta("action_label", "") == title): return node
 	for child in node.get_children():
 		var found := button(child, title)
 		if found != null: return found
@@ -42,11 +42,6 @@ func pointer(point: Vector2, pressed: bool, which: MouseButton = MOUSE_BUTTON_LE
 func click(point: Vector2) -> void:
 	await pointer(point, true)
 	await pointer(point, false)
-
-func click_button(title: String) -> void:
-	var target := button(ui, title)
-	check(target != null and target.is_visible_in_tree(), "button visible: " + title)
-	await click(target.get_global_rect().get_center())
 
 func point(value: Vector2) -> Vector2:
 	return ui.canvas.global_position + ui.canvas.screen([value.x, value.y])
@@ -67,7 +62,13 @@ func stroke(start: Vector2, end: Vector2) -> void:
 
 func shape(tool: String, vertices: Array) -> void:
 	ui._set_tool(tool)
-	for vertex: Vector2 in vertices: await click(point(vertex))
+	# Tool/selection changes rebuild the inspector and resize the canvas.
+	await process_frame
+	await process_frame
+	for vertex: Vector2 in vertices:
+		var pixel := point(vertex)
+		check(ui.canvas.get_global_rect().has_point(pixel), "shape point inside current canvas: " + tool + " " + str(vertex))
+		await click(pixel)
 	if tool != "Place":
 		await pointer(point(vertices.back()), true, MOUSE_BUTTON_RIGHT)
 		await pointer(point(vertices.back()), false, MOUSE_BUTTON_RIGHT)
@@ -77,6 +78,10 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	# General terrain/shape authoring uses the explicit free-roam document mode.
+	ui.store.new_track(true)
+	await process_frame
+	check(ui.commands.execute_id("view.2d"), "use the 2D authoring workspace")
 	await process_frame
 	var heights := PackedInt64Array([-20,0,20,40,60,80,100,120,140])
 	var encoded := PNG.encode(heights, 3)
@@ -114,10 +119,13 @@ func run() -> void:
 	var filtered := PackedByteArray(PNG.SIGNATURE) + PNG.chunk("IHDR", PNG.be32(5)+PNG.be32(5)+PackedByteArray([16,0,0,0,0])) + PNG.chunk("IDAT", raw.compress(FileAccess.COMPRESSION_DEFLATE)) + PNG.chunk("IEND", PackedByteArray())
 	decoded = PNG.decode(filtered, 5, 0, 1)
 	check(not decoded.has("error") and decoded.heights == samples, "all PNG filters preserve 16-bit values")
-	ok(ui.store.apply_command("small synthetic map", [{"field":"bounds","before":ui.store.document.bounds,"after":{"min":[0,0],"max":[12800,12800]}},{"field":"cell_size_cm","before":51200,"after":6400}]), "fixture bounds")
+	var initial := state()
+	check(ui.store.apply_command("stale fixture", [{"field":"cell_size_cm","before":ui.store.document.cell_size_cm + 1,"after":6400}]) != "" and state() == initial, "stale before-value preserves document and history")
+	ok(ui.store.apply_command("small synthetic map", [{"field":"bounds","before":ui.store.document.bounds,"after":{"min":[0,0],"max":[12800,12800]}},{"field":"cell_size_cm","before":ui.store.document.cell_size_cm,"after":6400}]), "fixture bounds")
 	var project := ProjectSettings.globalize_path("user://e03-project")
 	ok(ui.store.save_project(project), "save before file authoring")
-	await click_button("Authoring settings…")
+	check(ui.commands.execute_id("create.authoring_settings"), "open authoring through current Create command")
+	await process_frame
 	check(ui.author_panel.visible and ui.author_panel.tabs.get_tab_count() == 9, "real authoring tabs")
 	ui.author_panel.hide()
 	ok(ui.canvas.author.set_theme("rural"), "explicit recipe4/theme")
@@ -192,7 +200,11 @@ func run() -> void:
 	var recovered := STORE.new()
 	ok(recovered.recover(ui.store.recovery_path()), "recover immutable raster references")
 	ok(FILES.validate(recovered, recovered.document), "recovered raster native validation")
-	ui._new()
+	check(ui.commands.execute_id("file.new"), "open New Map command")
+	ui.new_free_roam.button_pressed = true
+	ui.new_map_dialog.get_ok_button().pressed.emit()
+	await process_frame
+	check(ui.store.document.free_roam and ui.store.document.heightmaps.is_empty(), "confirmed new free-roam map starts without old terrain")
 	ok(ui.store.save_project(ProjectSettings.globalize_path("user://e03-structures")), "new authoring project")
 	ok(author.set_theme("urban"), "structure recipe")
 	ok(author.terrain.import_png(flat_path, Vector2i.ZERO, 6400, 0, 1, 500, {"source":"Synthetic E03", "license":"MIT", "notice":"Original"}), "valid PNG import")
@@ -309,14 +321,20 @@ func run() -> void:
 	check(JSON.parse_string(native.open_package(destination)).ok, "reopen authored package")
 	ui.preview_x.value = 1
 	ui.preview_y.value = 1
+	check(ui.commands.execute_id("view.split"), "show the shared 3D preview")
 	ui._preview()
 	var preview_deadline:=Time.get_ticks_msec()+20000
 	while Time.get_ticks_msec()<preview_deadline:
 		await process_frame
 		if not ui.busy and ui.status_label.text.begins_with("Preview ready"): break
 	check(not ui.busy and ui.status_label.text.begins_with("Preview ready"), "same MapKit renderer displays authored content")
-	await click_button("Authoring settings…")
-	ui.author_panel.tabs.current_tab = 3
+	check(ui.commands.execute_id("create.authoring_settings"), "reopen current authoring command")
+	var assets_page := -1
+	for index in ui.author_panel.page_picker.item_count:
+		if ui.author_panel.page_picker.get_item_text(index) == "Assets": assets_page = index
+	check(assets_page >= 0, "Assets page is available through the authoring picker")
+	ui.author_panel.page_picker.select(assets_page)
+	ui.author_panel.page_picker.item_selected.emit(assets_page)
 	await process_frame
 	check(ui.author_panel.asset_fields.boxes is TextEdit, "editable exact proxy UI")
 	var controls: Dictionary = ui.author_panel.asset_fields

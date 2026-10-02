@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/Applications/Godot_mono.app/Contents/MacOS/Godot",
+    "--headless",
+    "--path",
+    "/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/miniearthure-check-qia5rc09",
+    "--script",
+    "res://tests/authoring_validator.gd"
+  ],
+  "elapsed_seconds": 4.03,
+  "exit_code": 1,
+  "unexpected_diagnostics": [
+    "ERROR: explicit XYZ/level shared bridge endpoint",
+    "SCRIPT ERROR: Assertion failed: explicit XYZ/level shared bridge endpoint",
+    "SCRIPT ERROR: Invalid access of index '1' on a base object of type: 'Array'."
+  ],
+  "strict_applied": true,
+  "import_cache": "/private/tmp/miniearthure-failure-repair-20261003-editor",
+  "owned_children": {}
+}

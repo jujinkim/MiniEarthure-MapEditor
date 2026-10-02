@@ -40,6 +40,7 @@ func run() -> void:
 	root.size = Vector2i(1024, 720)
 	ui = load("res://main.tscn").instantiate(); root.add_child(ui)
 	await process_frame
+	ui.store.new_track(true)
 	var source := ProjectSettings.globalize_path("user://source.geojson")
 	var raw := '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[10,10],[30,10],[30,30],[10,30],[10,10]]]}}]}'
 	var file := FileAccess.open(source, FileAccess.WRITE); file.store_string(raw); file.close()
@@ -141,7 +142,8 @@ func run() -> void:
 	var project := ProjectSettings.globalize_path("user://review-project")
 	check(ui.store.save_project(project) == "", "save reviewed layer")
 	var pack := ProjectSettings.globalize_path("user://review.memap")
-	check(JSON.parse_string(ui.store.bridge.export_project(project, pack)).ok, "reviewed provenance exports in native package")
+	var exported: Dictionary = JSON.parse_string(ui.store.bridge.export_project(project, pack))
+	check(exported.ok, "reviewed provenance exports in native package: " + JSON.stringify(exported))
 	var pack_hash := FileAccess.get_sha256(pack)
 	ui._review_import(reviewed); ui._open_import_details()
 	ui.store.new_document(); await process_frame

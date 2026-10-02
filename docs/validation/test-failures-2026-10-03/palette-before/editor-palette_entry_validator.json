@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/Applications/Godot_mono.app/Contents/MacOS/Godot",
+    "--headless",
+    "--path",
+    "/var/folders/x1/m2hfwq4n42l32hys2jxzvd8w0000gn/T/miniearthure-check-_5_zj0ol",
+    "--script",
+    "res://tests/palette_entry_validator.gd"
+  ],
+  "elapsed_seconds": 5.98,
+  "exit_code": 1,
+  "unexpected_diagnostics": [
+    "ERROR: Obstacle preview rejected: ramp_low",
+    "SCRIPT ERROR: Assertion failed: Obstacle preview rejected: ramp_low"
+  ],
+  "strict_applied": true,
+  "import_cache": "/private/tmp/miniearthure-failure-repair-20261003-editor",
+  "owned_children": {}
+}

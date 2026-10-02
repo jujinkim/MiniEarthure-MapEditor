@@ -156,6 +156,14 @@ power-loss durability beyond the existing flush/rename contract.
 
 ## Verification and next work
 
+2026-10-03: the existing authoring, course-authoring and palette checks were
+reproduced and repaired for the current explicit free-roam/track workspaces,
+asynchronous placement and command/page navigation. Product code is unchanged.
+All three pass strict diagnostics, preserving history/revision, immutable payload,
+cancel/recovery and unverified-course contracts. The import-review validator also
+passes. [Current revisions, classification and logs](validation/test-failures-2026-10-03/README.md)
+are separate from earlier failures and user acceptance.
+
 After building the unchanged public MapKit native binding:
 
 ```sh

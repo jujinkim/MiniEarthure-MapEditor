@@ -43,6 +43,11 @@ Use a sequential isolated import cache; `workbench_appearance_validator` needs
 
 ## Known failures, preserved separately
 
+Update 2026-10-03: all four validators below were individually reproduced and
+repaired for the current workspace/fixture contracts. [Current revisions,
+classification and strict passing results](../test-failures-2026-10-03/README.md)
+are separate from this historical localization run; these logs remain unchanged.
+
 These existing assertions also fail in a temporary projection of the original
 Editor HEAD with the same MapKit pin and engine:
 
