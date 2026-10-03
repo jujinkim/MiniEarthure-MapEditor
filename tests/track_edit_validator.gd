@@ -37,7 +37,7 @@ func run() -> void:
 	var bench: Node = ui.track_workbench
 	var p: Node = bench.placement
 	var source := FIXTURE.fixture(ui.store, 10, true)
-	source.actions = [{"id":"jump", "kind":"jump_panel", "piece":"p-0", "sample":1, "height_cm":200, "landing":null}]
+	source.actions = [{"id":"jump", "kind":"jump_panel", "piece":"p-0", "sample":1, "height_cm":200, "panel_width_percent":50, "panel_alignment":"center", "landing":null}]
 	source.attachments = [{"kind":"fixed_obstacle", "piece":"p-0", "path":"main", "station_cm":400, "side":1}]
 	check(ui.store.edit_track(source) == "", "fixture with attached action, obstacle and supports")
 	source = ui.store.track_source()

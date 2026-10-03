@@ -14,6 +14,8 @@ var height := 0.0
 var yaw := 0.0
 var width_cm := 400
 var jump_height_cm := 200
+var panel_width_percent := 50
+var panel_alignment := "center"
 var landing: Variant = null
 var hint := "Move over the 3D view to preview · Click to place"
 var ghost: Node3D
@@ -46,7 +48,7 @@ func begin_move(index: int, point: Vector3) -> void:
 	document_id = str(bench.editor.store.session_id)
 
 func resume_tool(state: Dictionary) -> void:
-	for field in ["tool", "kind", "height", "yaw", "width_cm", "landing", "jump_height_cm"]: set(field, state[field])
+	for field in ["tool", "kind", "height", "yaw", "width_cm", "landing", "jump_height_cm", "panel_width_percent", "panel_alignment"]: set(field, state[field])
 	epoch = bench.editor.store.command_epoch
 	document_id = str(bench.editor.store.session_id)
 	hint = "Placed · Move to preview the next piece · Click to place"
@@ -141,6 +143,8 @@ func build_controls(parent: Node) -> void:
 		bench.editor.commands.button(row, "track.rotate_left")
 		bench.editor.commands.button(row, "track.rotate_right")
 	elif kind == "action":
+		if tool != "air_ring":
+			bench.panel_controls(parent, panel_width_percent, panel_alignment, func(width: int, alignment: String): panel_width_percent = width; panel_alignment = alignment; invalidate_candidate())
 		var jump: SpinBox = bench._spin(parent, "Jump height (m)", float(jump_height_cm) / 100.0, 0.5, 10.0, 0.1)
 		jump.value_changed.connect(func(value: float): jump_height_cm = roundi(value * 100); invalidate_candidate())
 		var target := OptionButton.new()
@@ -254,7 +258,7 @@ func preview_attachment(piece_index: int, sample: int) -> bool:
 		_failure("This point has no supported road surface.")
 		return false
 	candidate = {"serial":serial, "epoch":epoch, "document":document_id, "kind":kind, "tool":tool,
-		"target":piece_index, "sample":sample, "height_cm":jump_height_cm, "landing":landing.duplicate(true) if landing is Dictionary else null}
+		"target":piece_index, "sample":sample, "height_cm":jump_height_cm, "panel_width_percent":panel_width_percent, "panel_alignment":panel_alignment, "landing":landing.duplicate(true) if landing is Dictionary else null}
 	if not _show_ghost(bench.source.instances[piece_index], sample): return false
 	hint = I18N.t("Click to attach · ") + str(bench.source.instances[piece_index].id) + " / " + str(sample) + ""
 	bench.show_hint()
@@ -281,7 +285,7 @@ func commit(expected_serial := -1) -> bool:
 		next_selection = next.instances.size() - 1
 	elif kind == "action":
 		next.actions.append({"id":"a-" + Crypto.new().generate_random_bytes(4).hex_encode(), "kind":tool,
-			"piece":next.instances[candidate.target].id, "sample":candidate.sample, "height_cm":candidate.height_cm, "landing":candidate.landing})
+			"piece":next.instances[candidate.target].id, "sample":candidate.sample, "height_cm":candidate.height_cm, "panel_width_percent":candidate.panel_width_percent, "panel_alignment":candidate.panel_alignment, "landing":candidate.landing})
 	else:
 		var attachment:=_attachment(next.instances[candidate.target], candidate.sample)
 		next.attachments.append(attachment)
@@ -292,7 +296,7 @@ func commit(expected_serial := -1) -> bool:
 				line.id="grind-"+Crypto.new().generate_random_bytes(6).hex_encode()
 				next.get_or_add("grind_lines",[]).append(line)
 	var state := {"tool":tool, "kind":kind, "height":float(next.instances[next_selection].position_cm[1]) / 100.0 if kind == "piece" else height,
-		"yaw":yaw, "width_cm":width_cm, "landing":landing, "jump_height_cm":jump_height_cm}
+		"yaw":yaw, "width_cm":width_cm, "landing":landing, "jump_height_cm":jump_height_cm, "panel_width_percent":panel_width_percent, "panel_alignment":panel_alignment}
 	if not bench._commit(next, next_selection, {"repeat":state}): return false
 	# The new draft has already been published; repeat placement uses its epoch.
 	resume_tool(state)
@@ -332,7 +336,7 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 			if edge.to == item.id: ids.append(str(edge.from))
 		source.instances = bench.source.instances.filter(func(value): return str(value.id) in ids)
 		source.connections = bench.source.connections.filter(func(edge): return str(edge.from) in ids and str(edge.to) in ids)
-		source.actions = [{"id":"preview", "kind":tool, "piece":local.id, "sample":sample, "height_cm":jump_height_cm, "landing":null}]
+		source.actions = [{"id":"preview", "kind":tool, "piece":local.id, "sample":sample, "height_cm":jump_height_cm, "panel_width_percent":panel_width_percent, "panel_alignment":panel_alignment, "landing":null}]
 	var key := JSON.stringify([source, kind, tool if kind != "piece" else "", sample])
 	if not cache.has(key):
 		if kind == "obstacle":
@@ -343,7 +347,16 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 				source.grind_lines=lines.data
 		var compiled: Dictionary = JSON.parse_string(bench.editor.store.bridge.compile_track_source(JSON.stringify(source)))
 		if not compiled.ok: _failure(I18N.error(compiled.error)); return false
-		var template := PREVIEW.create(compiled.data.document)
+		var template: Node3D
+		if kind == "action":
+			# Retain only this attachment, not copies of its supporting roads.
+			template = Node3D.new()
+			for g: Dictionary in compiled.data.document.gimmicks:
+				if g.id != "action-preview" and not g.id.begins_with("action-preview-"): continue
+				var visual := PREVIEW.GIMMICK.visual(g)
+				visual.transform = PREVIEW.GIMMICK.pose(g,0)
+				template.add_child(visual)
+		else: template = PREVIEW.create(compiled.data.document)
 		_tint(template)
 		if cache.size() >= 24:
 			cache[cache.keys()[0]].node.free()
@@ -367,6 +380,7 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 
 func _tint(node: Node) -> void:
 	if node is MeshInstance3D:
+		if node.material_override is ShaderMaterial and node.material_override.shader.resource_path.ends_with("panel_marking.gdshader"): return
 		var material := StandardMaterial3D.new()
 		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -443,7 +457,7 @@ func _surface_at(screen: Vector2) -> Dictionary:
 			var nearest := -1
 			var distance := INF
 			for i in path.size():
-				if not path[i].safe: continue
+				if path[i].mode in ["flight","loop","cylinder","halfpipe"]: continue
 				var d: float = hit.distance_squared_to(PREVIEW.point(path[i].position_cm))
 				if d < distance: distance = d; nearest = i
 			if nearest >= 0: best = {"distance":origin.distance_to(hit), "piece":owner, "sample":nearest}

@@ -303,6 +303,8 @@ func _properties() -> void:
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		_button(row, "Delete action", func(): var next := source.duplicate(true); next.actions.remove_at(n); _commit(next))
+		if source.actions[n].kind in ["jump_panel", "acceleration_panel", "boost_chain"]:
+			panel_controls(actions_box, int(source.actions[n].panel_width_percent), str(source.actions[n].panel_alignment), func(width: int, alignment: String): set_panel_layout(n, width, alignment))
 	if selected < 0:
 		for section in [transform, connections, actions_box]: editor._label(section, "Select a piece to edit its properties.")
 		return
@@ -347,6 +349,32 @@ func _properties() -> void:
 	actions_box.add_child(action_row)
 	for kind: String in ["jump_panel", "acceleration_panel", "boost_chain", "air_ring"]:
 		editor.commands.button(action_row, "track.action." + kind)
+
+func panel_controls(parent: Node, width: int, alignment: String, changed: Callable) -> void:
+	var row := HBoxContainer.new()
+	parent.add_child(row)
+	var widths := OptionButton.new()
+	widths.tooltip_text = I18N.t("Panel width")
+	for value: int in [25,50,75,100]:
+		widths.add_item(str(value) + "%", value)
+		if value == width: widths.select(widths.item_count-1)
+	row.add_child(widths)
+	var alignments := OptionButton.new()
+	alignments.tooltip_text = I18N.t("Panel alignment")
+	var values := ["left", "center", "right"]
+	for value: String in values:
+		alignments.add_item(I18N.t(value.capitalize()))
+		if value == alignment: alignments.select(alignments.item_count-1)
+	row.add_child(alignments)
+	widths.item_selected.connect(func(_i: int): changed.call(widths.get_selected_id(), values[alignments.selected]))
+	alignments.item_selected.connect(func(_i: int): changed.call(widths.get_selected_id(), values[alignments.selected]))
+
+func set_panel_layout(index: int, width: int, alignment: String) -> bool:
+	if index < 0 or index >= source.actions.size() or width not in [25,50,75,100] or alignment not in ["left","center","right"]: return false
+	var next := source.duplicate(true)
+	next.actions[index].panel_width_percent = width
+	next.actions[index].panel_alignment = alignment
+	return _commit(next)
 
 func _shortcut_example() -> void:
 	cancel_interaction()

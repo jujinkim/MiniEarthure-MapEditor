@@ -106,3 +106,16 @@ committed attachment. Unsupported geometry remains an explicit placement error.
 Native/load and focused UI-state verification are grouped with the partial-width
 panel delivery. Detailed pointer interaction and device acceptance remain user
 verification.
+
+## Partial-width action editing (07, 2026-10-04)
+
+New attached speed/jump/chain tools default to50% of the road width after the
+25cm side margins, centered. Placement controls offer25/50/75/100% and
+Left/Center/Right; existing attached actions expose the same controls. Each edit
+uses the ordinary source history and asynchronous compiler/preview path.
+Preview cancellation does not alter the document. Undo/Redo and save/reopen keep
+the explicit `panel_width_percent` / `panel_alignment` fields. Air-ring UI is
+unchanged; all own formats remain v1 without old-source conversion.
+
+[Scoped validation](validation/panels-2026-10-04/README.md) passes; detailed pointer
+editing and device readability remain user verification.

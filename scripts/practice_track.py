@@ -79,7 +79,7 @@ def source():
         if corner: heading+=90
         landing=straight("landing-%02d"%number,2000)
         d["actions"].append(dict(id="manual-%02d"%number,kind="manual_flight",piece=launch["id"],
-            sample=0,height_cm=800,landing=dict(piece=landing["id"],sample=0)))
+            sample=0,height_cm=800,panel_width_percent=50,panel_alignment="center",landing=dict(piece=landing["id"],sample=0)))
         if beam:
             center=[(a+b)//2 for a,b in zip(start_point,end_point)]
             center[1]+=35
