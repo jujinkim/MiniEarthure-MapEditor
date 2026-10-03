@@ -1,5 +1,7 @@
 # Fixed practice track (v1)
 
+This preserved package predates the 03/08 fingerprint. The [current package/source](../practice-track-pipes-2026-10-04/) was recompiled without changing authored dimensions.
+
 This MIT example is an authored source, an editable project and its compiled
 `.memap`. Edit `scripts/practice_track.py` and regenerate into a **new** directory;
 never patch generated collision or rendering geometry. The compiler is the pinned

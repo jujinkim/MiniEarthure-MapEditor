@@ -114,7 +114,7 @@ triangulation and bounded post-split costs. No Editor product code or format
 number changes. Owning native generation/build tests pass.
 
 **Earlier failure, resolved by the refresh below.** The only tracked assembled
-package is `examples/practice-track/practice.memap`. Compiling its stored
+current package is `examples/practice-track-pipes-2026-10-04/practice.memap`; the previous output is preserved. Compiling its stored
 `source.json` with current code fails `E_TRACK_SOURCE: invalid action` (the stored
 manual-flight sample references no longer fit current sampling). Regenerating
 from `scripts/practice_track.py` into a new isolated directory fails

@@ -22,3 +22,9 @@ Quarterpipe inner-face roles now come from the pinned MapKit current-v1 source,
 using the shared renderer/resolver. Initial-screen validation locates visible
 Driving tools by the selected tab, rather than assuming the first registered
 command is visible; the new Grind Line command belongs to the Gimmick tab.
+
+2026-10-04 pipe replacement (03/08): new standalone cylinders use a 2.5m bore and
+16m body, with `#596168` / roughness0.82 / metallic0.65 / no emission from MapKit.
+Radius input starts at0.50m and keeps centimetre values. Existing sizes/colours
+are never converted. Loops and halfpipes are unchanged. See the scoped
+[authoring results](TRACK_AUTHORING.md#pipe-material-and-dimensions-0308-2026-10-04).

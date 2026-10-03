@@ -74,7 +74,7 @@ func activate(type: String, preset: String) -> void:
 	yaw = 0.0
 	if kind == "piece":
 		for entry: Dictionary in bench.catalogue.entries:
-			if entry.id == tool: width_cm = 400 if entry.widths_cm.any(func(value): return int(value) == 400) else int(entry.widths_cm[0])
+			if entry.id == tool: width_cm = int(entry.default_width_cm) if tool.begins_with("cylinder") else 400 if entry.widths_cm.any(func(value): return int(value) == 400) else int(entry.widths_cm[0])
 	else:
 		jump_height_cm = roundi(bench.action_height.value * 100.0) if is_instance_valid(bench.action_height) else 200
 		landing = null

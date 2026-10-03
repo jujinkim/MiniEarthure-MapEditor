@@ -312,14 +312,16 @@ func _properties() -> void:
 	for j in 3: controls.append(_spin(transform, ["X (m)", "Height (m)", "Z (m)"][j], float(item.position_cm[j]) / 100.0))
 	for j in 3: controls.append(_spin(transform, ["Pitch X°", "Yaw Y°", "Roll Z°"][j], float(item.rotation_mdeg[j]) / 1000.0, -360.0, 360.0, 0.1))
 	width = OptionButton.new()
+	var minimum_port := 2.0
 	for entry: Dictionary in catalogue.entries:
 		if entry.id != item.preset: continue
+		minimum_port = float(entry.min_port_width_cm) / 100.0
 		for w in entry.widths_cm:
 			width.add_item(I18N.t("Width %dm") % (float(w) / 100.0), int(w))
 			if int(w) == int(item.width_cm): width.select(width.item_count - 1)
 	transform.add_child(width)
-	port_widths.append(_spin(transform, "Entry width (m)", float(item.entry_width_cm) / 100.0, 2.0, 12.0))
-	port_widths.append(_spin(transform, "Exit width (m)", float(item.exit_width_cm) / 100.0, 2.0, 12.0))
+	port_widths.append(_spin(transform, "Entry width (m)", float(item.entry_width_cm) / 100.0, minimum_port, 12.0))
+	port_widths.append(_spin(transform, "Exit width (m)", float(item.exit_width_cm) / 100.0, minimum_port, 12.0))
 	_button(transform, "Apply transform and widths", apply_properties)
 	if item.preset in ["free_curve", "flight_curve"]:
 		for n in item.control_points.size():

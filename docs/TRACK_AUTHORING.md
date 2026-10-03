@@ -82,7 +82,7 @@ renamed with link updates. Invalid edits retain the current document. Focused
 connections, deletion, undo, save/reopen and cancellation. Detailed editor
 interaction and game driving remain user verification.
 
-Reproducible manual-flight/static-structure example: [Practice track](../examples/practice-track/README.md).
+Reproducible manual-flight/static-structure example: [Practice track](../examples/practice-track-pipes-2026-10-04/README.md).
 
 ## Generation readiness progress — 2026-10-02
 
@@ -119,3 +119,31 @@ unchanged; all own formats remain v1 without old-source conversion.
 
 [Scoped validation](validation/panels-2026-10-04/README.md) passes; detailed pointer
 editing and device readability remain user verification.
+
+## Pipe material and dimensions (03/08, 2026-10-04)
+
+MapKit `cb37b0d7e20874957b437358fdc5dcbac148451f` supplies the shared matte
+metal material and current pipe catalogue. New general pipes select the catalogue
+2m default (explicit wide presets remain 4m); manual bores offer 1/2/3/4/6m. Pipe
+and ramp port SpinBoxes use the catalogue 1m minimum. Ordinary road defaults and
+2m minimum ports are unchanged. Existing stored 4/6m sizes remain editable.
+
+Standalone cylinder radius controls allow 0.50–6m with centimetre precision,
+so the new 1.25m radius is not rounded to a 0.1m input step. The template remains
+16m long. Loop and halfpipe radius minima are unchanged. Stored colours are
+preserved; preview uses the same MapKit material and geometry as display.
+
+Strict Godot4.7.2/macOS arm64 checks pass: `pipe_edit_validator`, shared
+`pipe_material_validator`, existing `track_workbench_validator`, and the refreshed
+package's `practice_source_validator`. They cover new placement, all size choices,
+compiled radius, cancellation/stale preview rejection, exact Undo/Redo, 4/6m
+source save/reopen, standalone minimum/default input and ordinary-road defaults.
+Initial test-fixture issues (localized labels instead of IDs, absent optional
+gimmicks after Undo) were corrected; no product failure was hidden.
+
+The [new practice output](../examples/practice-track-pipes-2026-10-04/README.md)
+was generated in a new path and verified with the current reader. Source values
+are identical (JSON field order differs); roads/routes/supports/gimmicks compare
+exactly. The prior source/package is preserved. All own formats remain v1.
+Execution logs stay in root local `docs/tasks/pipes-03-08/`; detailed editing,
+material preference and game driving remain user verification.
