@@ -1,0 +1,10 @@
+{
+  "command": [
+    "map-kit/target/debug/mapkit",
+    "unpack",
+    "docs/tasks/straight-clearance-2026-10-03/refreshed/practice.memap",
+    "docs/tasks/straight-clearance-2026-10-03/refreshed/project"
+  ],
+  "elapsed_seconds": 0.025,
+  "exit_code": 0
+}

@@ -33,7 +33,18 @@ landing. They create neither jump nor boost panels. The five static structures
 are the low barrier, beam, high wall and 1m-high start/end lane barriers; all go through shared source compilation.
 The fixed environment is noon, with no per-entry random generation.
 
-## Current fingerprint refresh — 2026-10-03
+## Current continuous-clearance fingerprint refresh — 2026-10-03
+
+Recompiled the preserved, byte-identical `source.json` into a new directory with
+MapKit `47a07f13d7e05ede6fe8d6376b0665df12f4db2f`. Only seven generator/derived
+identity fields changed; all geometry, samples, courses and dimensions are equal.
+Package/entry SHA256:
+`36c07f812f9436d53798e1e542f9edf2d8e6e39f4a962b7390b5148784cc652b`.
+CLI validation and native Editor source/save/reopen pass. Original packages and
+sources remain preserved; human completion remains unverified.
+[Scoped evidence](../../docs/validation/straight-clearance-2026-10-03/README.md).
+
+## Earlier wall-preparation fingerprint refresh — 2026-10-03
 
 Recompiled from the preserved, byte-identical `source.json` with MapKit
 `425d67b02675e191f4e786ed14cf1a5d791e7d1b` after piece-local wall preparation.

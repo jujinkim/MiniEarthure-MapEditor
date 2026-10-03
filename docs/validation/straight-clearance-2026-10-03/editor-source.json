@@ -1,0 +1,20 @@
+{
+  "command": [
+    ".venv/bin/python",
+    "scripts/run_godot_checks.py",
+    "--project",
+    "editor",
+    "--installed-addons",
+    "--import-cache",
+    "docs/tasks/straight-clearance-2026-10-03/import-editor",
+    "--log-dir",
+    "docs/tasks/straight-clearance-2026-10-03/editor",
+    "--fixture",
+    "map-editor/examples/practice-track/practice.memap",
+    "--script",
+    "practice_source_validator",
+    "--strict-diagnostics"
+  ],
+  "elapsed_seconds": 7.372,
+  "exit_code": 0
+}

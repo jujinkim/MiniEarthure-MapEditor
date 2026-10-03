@@ -148,3 +148,15 @@ failures, three Python tests, byte-identical fresh directories, refusal to repla
 an existing output, stored source recompilation, source/entry identity and strict
 native Editor open/edit/save/reopen. `human_completion` remains `unverified`;
 detailed editing and driving are user checks. Formats and public APIs remain v1.
+
+
+## Continuous straight-clearance pin and preserved-source refresh — 2026-10-03
+
+MapKit `47a07f13` detects continuous clearance for unjoined level, constant-width
+straight pairs before sample comparisons. Editor uses that shared compiler;
+there is no local collision rule or format change. The preserved practice source
+recompiles successfully into a new directory, with geometry/source identical and
+only seven derived identity fields changed. The new example/entry package SHA256
+is `36c07f812f9436d53798e1e542f9edf2d8e6e39f4a962b7390b5148784cc652b`.
+[CLI/native source/save/reopen and standalone initial-screen checks pass](validation/straight-clearance-2026-10-03/README.md).
+Detailed editing and driving remain user checks; originals are preserved.
