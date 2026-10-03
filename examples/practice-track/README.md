@@ -23,8 +23,8 @@ application may use it separately from its ordinary map catalogue.
 | 4–5 | 8 m wide, 6 m radius right/left turns |
 | 6 | 0.36 m high, 0.24 m deep low barrier |
 | 7 | 12 m unsupported glide gap, 20 m landing |
-| 8 | 18 m gap, one solid 0.20 × 0.20 m beam and one independent grind line |
-| 9 | 4 m right-angle route with the corner missing |
+| 8 | 18 m gap, solid 0.20 × 0.20 m beam top and independent line 0.45 m above road |
+| 9 | 4 m wide right-angle air route; departure 2 m earlier, unchanged landing |
 | 10 | 10 m gap, 3.60 m wall and raised 20 m landing |
 
 The supported road ends at each flight gap: no ground supports or invisible road
@@ -33,7 +33,13 @@ landing. They create neither jump nor boost panels. The five static structures
 are the low barrier, beam, high wall and 1m-high start/end lane barriers; all go through shared source compilation.
 The fixed environment is noon, with no per-entry random generation.
 
-## Current continuous-clearance fingerprint refresh — 2026-10-03
+## Current tutorial geometry — 2026-10-03
+
+Raised beam/line and earlier air departure are generated from the authoring script.
+Package SHA256: `2eb57e620efb1dd41c3c29b99e0c506e35a72982913a37c5bd73a6b36cb417c8`.
+[Reproducibility and source reopen evidence](../../docs/validation/tutorial-air-grind-2026-10-03/README.md).
+
+## Earlier continuous-clearance fingerprint refresh — 2026-10-03
 
 Recompiled the preserved, byte-identical `source.json` into a new directory with
 MapKit `47a07f13d7e05ede6fe8d6376b0665df12f4db2f`. Only seven generator/derived

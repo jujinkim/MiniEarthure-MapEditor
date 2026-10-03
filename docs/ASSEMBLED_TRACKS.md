@@ -160,3 +160,11 @@ only seven derived identity fields changed. The new example/entry package SHA256
 is `36c07f812f9436d53798e1e542f9edf2d8e6e39f4a962b7390b5148784cc652b`.
 [CLI/native source/save/reopen and standalone initial-screen checks pass](validation/straight-clearance-2026-10-03/README.md).
 Detailed editing and driving remain user checks; originals are preserved.
+
+## Raised beam and earlier air entry — 2026-10-03
+
+The practice authoring script now places the course8 solid beam top and independent
+line45cm above road. Course9 departs2m earlier while preserving its landing and
+later positions and4m width. New deterministic outputs replace the active example;
+old artifacts are preserved. [Focused evidence and hash](validation/tutorial-air-grind-2026-10-03/README.md).
+Human completion remains unverified.

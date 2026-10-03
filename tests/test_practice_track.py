@@ -45,6 +45,19 @@ class PracticeTrack(unittest.TestCase):
             self.assertEqual(max(v[1] for v in vertices)-min(v[1] for v in vertices),100)
             self.assertEqual(max(v[0] for v in vertices)-min(v[0] for v in vertices),840)
 
+    def test_raised_beam_and_early_air_entry(self):
+        pieces={p["id"]:p for p in track.source()["instances"]}
+        beam=next(s for s in track.source()["structures"] if s["id"]=="authored-single-beam")
+        road_y=pieces["course-08"]["position_cm"][1]
+        self.assertEqual(beam["position"][1]+10,road_y+45)
+        self.assertTrue(all(p[1]==road_y+45 for p in track.source()["grind_lines"][0]["control_points"]))
+        self.assertEqual(pieces["course-09"]["control_points"][-1],[0,0,2800])
+        self.assertEqual(pieces["flight-09"]["control_points"][-1],[400,0,600])
+        self.assertEqual(pieces["landing-09"]["position_cm"],
+                         [pieces["course-09"]["position_cm"][0]+400,road_y,pieces["course-09"]["position_cm"][2]+3400])
+        for key in ["course-09","flight-09","landing-09"]:
+            self.assertEqual(pieces[key]["width_cm"],400)
+
     def test_export_roundtrip_and_repeatability(self):
         cli=Path(os.environ.get("MAPKIT_CLI",ROOT/"addons/mapkit/target/debug/mapkit")).resolve()
         with tempfile.TemporaryDirectory(prefix="practice-source-") as temp:

@@ -45,7 +45,7 @@ def source():
         return add(name, [[0,0,0],[0,0,round(length/3)],[0,0,round(length*2/3)],[0,0,length]], **kw)
     def start(number, target_width=None):
         # Three metres behind each gate is a quiet stopped-start apron.
-        road=straight("course-%02d"%number, 2000 if number<=3 else 3000, target_width=target_width)
+        road=straight("course-%02d"%number, 2000 if number<=3 else 2800 if number==9 else 3000, target_width=target_width)
         d["checkpoints"].append(dict(piece=road["id"],sample=0))
         return road
     def turn(name, radius, right):
@@ -71,7 +71,7 @@ def source():
         launch = d["instances"][-1]
         start_point=pos[:]
         if corner:
-            add("flight-%02d"%number,[[0,0,0],[0,0,300],[100,0,400],[400,0,400]],True)
+            add("flight-%02d"%number,[[0,0,0],[0,0,500],[100,0,600],[400,0,600]],True)
         else:
             add("flight-%02d"%number,[[0,0,0],[0,0,length//3],[0,rise,2*length//3],[0,rise,length]],True)
         end_point=pos[:]
@@ -82,9 +82,9 @@ def source():
             sample=0,height_cm=800,landing=dict(piece=landing["id"],sample=0)))
         if beam:
             center=[(a+b)//2 for a,b in zip(start_point,end_point)]
-            center[1]-=10
+            center[1]+=35
             box("single-beam",center,[20,20,length+100],heading)
-            d["grind_lines"].append(dict(id="practice-beam",control_points=[start_point,end_point],
+            d["grind_lines"].append(dict(id="practice-beam",control_points=[[p[0],p[1]+45,p[2]] for p in [start_point,end_point]],
                 up=[0,1000000,0],capture_width_cm=30,start_connections=[],end_connections=[]))
         if rise:
             center=end_point[:];center[1]-=rise//2
