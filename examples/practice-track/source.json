@@ -1438,7 +1438,9 @@
       "landing": {
         "piece": "landing-07",
         "sample": 0
-      }
+      },
+      "panel_width_percent": 50,
+      "panel_alignment": "center"
     },
     {
       "id": "manual-08",
@@ -1449,7 +1451,9 @@
       "landing": {
         "piece": "landing-08",
         "sample": 0
-      }
+      },
+      "panel_width_percent": 50,
+      "panel_alignment": "center"
     },
     {
       "id": "manual-09",
@@ -1460,7 +1464,9 @@
       "landing": {
         "piece": "landing-09",
         "sample": 0
-      }
+      },
+      "panel_width_percent": 50,
+      "panel_alignment": "center"
     },
     {
       "id": "manual-10",
@@ -1471,7 +1477,9 @@
       "landing": {
         "piece": "landing-10",
         "sample": 0
-      }
+      },
+      "panel_width_percent": 50,
+      "panel_alignment": "center"
     }
   ],
   "attachments": [],

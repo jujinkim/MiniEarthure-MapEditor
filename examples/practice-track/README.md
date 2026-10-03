@@ -94,3 +94,9 @@ references near4m before departure. A temporary MapKit compilation resolves
 indices from real distances, so this script copies no tessellation constants.
 The final original records those indices and reproduces byte-identical exports.
 [2026-10-02 focused results](../../docs/validation/playtest-2026-10-02/README.md).
+
+2026-10-04 panel contract refresh: the preserved authoring source was compiled
+into a new output path with explicit50/center fields on its manual-flight
+records. These fields are inert for manual flight. Exact road pieces, checkpoints
+and manual tutorial geometry remain unchanged; final current-reader verification
+passed. Original source and prior packages remain preserved locally and in history.
