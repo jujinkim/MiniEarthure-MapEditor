@@ -14,7 +14,7 @@ func _initialize() -> void:
 func settle(ui: Node) -> void:
 	for _i in range(500):
 		await create_timer(0.01).timeout
-		if not ui.busy:
+		if not ui.store.editing_locked():
 			return
 	check(false, "packaging worker deadline")
 
@@ -22,6 +22,7 @@ func _run() -> void:
 	var ui: Node = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	ui.store.new_track(true)
 	var directory := ProjectSettings.globalize_path("user://drive contract $ literal " + Crypto.new().generate_random_bytes(6).hex_encode())
 	check(ui.store.save_project(directory) == "", "save synthetic project")
 	ui._test_drive()
@@ -54,9 +55,11 @@ func _run() -> void:
 			return -1
 		check(adapter.launch(OS.get_executable_path(), path, 0, 0, "surface with $ literal").error.code == "E_CLIENT_START", "process creation failure reported")
 	ui._launch_test_drive()
+	var session: int = ui.store.session_id
 	ui.store.new_document()
+	check(ui.store.session_id == session and ui.operation_dim.visible, "document replacement blocked during explicit save/package")
 	await settle(ui)
-	check(ui.last_drive_result.get("error", {}).get("code") == "E_DOCUMENT_CHANGED" and calls.size() == 1, "document replacement cancels stale launch")
+	check(ui.last_drive_result.get("ok", false) and calls.size() == 2, "frozen test-drive request finishes once")
 	# Optional external integration: only an installed executable, no private source dependency.
 	var installed := OS.get_environment("MINIEARTHURE_TEST_CLIENT")
 	if not installed.is_empty():

@@ -23,9 +23,9 @@ func ok(value: String, message: String) -> void:
 
 func wait_work() -> void:
 	var deadline := Time.get_ticks_msec() + 20000
-	while ui.busy and Time.get_ticks_msec() < deadline:
+	while ui.store.editing_locked() and Time.get_ticks_msec() < deadline:
 		await create_timer(0.002).timeout
-	check(not ui.busy, "worker/attachment completes by deadline")
+	check(not ui.store.editing_locked(), "worker/attachment completes by deadline")
 
 func building(id: String, x: int) -> Dictionary:
 	return {"id":id, "footprint":[[x,1000],[x+2000,1000],[x+2000,3000],[x,3000]], "base_cm":0, "height_cm":1000, "usage":"residential", "material":"brick", "roof":"flat"}
@@ -54,11 +54,12 @@ func run() -> void:
 	root.add_child(ui)
 	await process_frame
 	await process_frame
+	ui.store.new_track(true)
 	ok(ui.store.apply_command("bounds", [{"field":"bounds", "before":ui.store.document.bounds, "after":{"min":[-51200,-51200], "max":[307200,307200]}}]), "negative origin / seven cells")
 	add_building("near", 1000)
 	ui.preview_x.value = 1
 	ui.preview_y.value = 1
-	check(click_button(ui,"3D Preview"), "actual preview button")
+	ui._preview()
 	await wait_work()
 	check(ui.preview_cache.has(Vector2i(1,1)), "native cell attached")
 	var old: Node = ui.preview_cache[Vector2i(1,1)].root
@@ -116,24 +117,21 @@ func run() -> void:
 	await wait_work()
 	check(not FileAccess.file_exists(export_path), "cancel never publishes destination")
 	ui._start_package("export", export_path)
-	# A real revision change invalidates publication even if packing later succeeds.
-	add_building("during-export", 200000)
-	ui.preview_due = 0
-	await wait_work()
-	check(not FileAccess.file_exists(export_path), "stale export never publishes destination")
-	ui._start_package("export", export_path)
+	check(ui.store.apply_command("blocked export edit", [{"field":"buildings", "id":"during-export", "before":null, "after":building("during-export",200000)}]) != "", "explicit export blocks direct mutations")
+	check(ui.operation_dim.visible, "export dim remains visible until publication")
 	await wait_work()
 	check(FileAccess.file_exists(export_path), "validated snapshot published")
 	var digest := FileAccess.get_sha256(export_path)
 	ui.export_report.hide()
 	ui._start_package("export", export_path)
-	check(not ui.busy and FileAccess.get_sha256(export_path) == digest, "existing package never overwritten")
+	await wait_work()
+	check(not ui.store.editing_locked() and FileAccess.get_sha256(export_path) == digest, "existing package never overwritten")
 	var native: RefCounted = ClassDB.instantiate("MapKitBridge")
 	check(JSON.parse_string(native.open_package(export_path)).ok, "export reopens with public native")
 	# Save As copies asset bytes AND history-only immutable payloads.
 	ui.preview_enabled = false
 	ui.preview_due = 0
-	ui.store.new_document()
+	ui.store.new_track(true)
 	var source := ProjectSettings.globalize_path("user://e04-source")
 	ok(ui.store.save_project(source), "initial save")
 	var image := Image.create(4,4,false,Image.FORMAT_RGBA8)
@@ -194,7 +192,7 @@ func run() -> void:
 	huge.close()
 	check(not SNAPSHOT.capture(ui.store.document,target).ok, "snapshot byte limit before allocation")
 	# Dense terrain must span frames, and cancellation after a batch retains old root.
-	ui.store.new_document()
+	ui.store.new_track(true)
 	var dense_source := ProjectSettings.globalize_path("user://e04-dense")
 	ok(ui.store.save_project(dense_source), "dense source")
 	ui.preview_x.value = 0

@@ -1,13 +1,54 @@
 # Document, history and recovery contract
 
-E02 implementation, 2026-09-09. The Editor's validated MapDocument dictionary is
-the source of truth. MapKit owns its typed schema, normalization and invariants.
-JSON is storage; canvas selection, drag offsets, drafts, panels and generated
-preview nodes are presentation state. No Scene tree is serialized into a project.
+Current track contract, 2026-10-03: `document_store.gd` separates the latest accepted
+authoring draft from the last MapKit-validated MapDocument. `track_source()` returns
+the draft. `draft_changed`, `validated_changed` and `file_operation_finished` have
+separate consumers; worker completion never resets the next gesture or inspector
+input. MapKit owns schema, native paths, normalization and derived geometry. Views
+are never serialized. The record-edit contract below still applies to free-roam
+commands; interactive track commands use the source transactions described next.
+
+## Continuous track editing and explicit locks
+
+Release immediately accepts an immutable before/after source memento and updates
+the draft display. One drag is one command; the common **200 commands / 16 MiB**
+retention budget covers both stacks. No-op commands preserve redo. Undo/Redo move
+the source immediately, independently of computation. Compilation failure retains
+the submitted draft, its history and the last valid document, with a revision/target
+error; a later edit clears that error. Calculation cancellation retains the draft.
+Editing, Undo/Redo, Save or Validate resumes unconfirmed work.
+
+One running worker and one latest pending snapshot bound calculation demand.
+New edits do not cancel the running calculation. Results must match store/session,
+request ID, command epoch and draft revision and be unconsumed before adoption.
+Old-session and superseded results cannot update document, history or savepoint.
+MapKit `track_instance` supplies current cached paths for selection, snapping,
+attachments, curves, framing and the navigation plan. Shared draft display reuses
+rigidly moved meshes, draws changed paths and attachment/grind guides, and hides
+obsolete heavy geometry. Final preview adoption waits for the current drag or
+text input to finish; completed calculations never rebuild the active inspector.
+
+Automatic validation/autosave has no dim or edit lock. An unconfirmed calculation
+lasting 500 ms shows a small indeterminate “Applying changes” indicator; successive
+edits do not reset its timer. The existing reduced-motion preference and English,
+Korean and Japanese catalogs apply.
+
+Save, Save As, execution export and explicit long operations cancel unsubmitted
+gestures, immediately dim the workspace (including destination selection) and lock
+pointer, shortcut, command and
+direct mutation entrypoints. One file request freezes the last submitted revision,
+waits for its validation, and performs file work on an owned worker. Only actual
+successful publication advances the savepoint. Normal project Save accepts valid
+structural drafts with course issues; execution export additionally checks that
+snapshot's connections/courses. Failure/cancellation retains draft/history and
+unlocks only after owned work ends. A rename that already succeeded is reported
+as a completed Save even if a cancellation arrived afterward. Synchronous store
+helpers remain for detached workers, imports and fixtures; they honor the same
+explicit lock and cannot save unconfirmed content.
 
 ## Commands and gestures
 
-`document_store.gd` applies a batch to a detached candidate, validates it through
+For record commands, `document_store.gd` applies a batch to a detached candidate, validates it through
 MapKit, then publishes it once. Failed commands, undo or redo leave the document,
 history, dirty state and savepoint unchanged. Callers must handle the returned
 error string. No-op batches preserve redo and do not change edit timestamps.
@@ -38,7 +79,8 @@ match the previous staged `after`. Staging never changes the committed document;
 an invalid batch preserves the prior staged batch. Pending mementos have their
 own 16 MiB cap while the retained history remains intact. The commit validates
 the whole result. Cancel discards pending work; saving or history travel requires
-finishing/cancelling the gesture. Autosave captures only committed content.
+finishing/cancelling the gesture. Autosave excludes unsubmitted pointer gestures but
+retains accepted, unconfirmed track drafts.
 
 The existing polygon drag uses this boundary. Motion affects only its preview;
 release commits once. Escape, tool/focus change and document replacement discard
@@ -73,9 +115,12 @@ when needed; cancelling that picker cancels the transition. Save conflicts keep
 edits/history open and suggest Save As to a new directory. Recovery continuation
 rechecks retention before replacing the document, and a replaced document invalidates
 a pending action. No option deletes recovery snapshots or original files. Each document session gets a separate recovery path, so another
-session cannot overwrite it. Unchanged snapshots do not rotate. Snapshot version
-1 carries the validated document checksum, original project directory and disk
-base checksum. Snapshots and input JSON are bounded to 64 MiB before reading or
+session cannot overwrite it. Unchanged snapshots do not rotate. The current v1
+envelope stores `document` and `draft` separately, each with a SHA-256 of Godot
+`JSON.stringify` content, plus `draft_revision`, `validated_revision`, original
+project directory and disk base checksum. Timer saves use a separate worker without
+dim; document transitions join retention and capture the latest draft before leaving.
+Recovery starts a fresh session/history and resubmits any unconfirmed draft to MapKit. Snapshots and input JSON are bounded to 64 MiB before reading or
 writing; MapKit's smaller package document limits still apply at packaging.
 
 Use **Recover** to select an autosave, `.previous`, or a complete `.pending-*`
@@ -89,8 +134,8 @@ An autosave retains its original disk base: if someone saved a newer project,
 Save reports a conflict. Reopen that project or use **Save As** to a new directory.
 An explicitly selected raw previous/pending document binds the current primary
 digest and can restore it with Save; later external changes still conflict.
-Legacy envelopes without a checksum can be read after native validation, but
-cannot silently replace an existing primary without a known base.
+Incomplete or corrupt envelopes are rejected. No historical envelope loader or
+automatic converter is provided; original recovery files are preserved.
 
 Recovery contains document records and file references, not copies of imported
 PNGs/GLBs or other source files. Keep original referenced files available; preview
@@ -113,6 +158,9 @@ and the current native library into a disposable project. It verifies a temporar
 platform-specific `user://` directory before executing tests, retains logs/source
 hashes, fails engine diagnostics even at exit 0, and removes its own temporary
 project/data. It never tests against the Editor's normal user directory.
+
+[Continuous editing evidence](validation/continuous-edit-2026-10-03/README.md) adds
+held-worker/clock, lock, publication-race and draft recovery checks.
 
 `document_history_validator.gd` covers grouped edits, exact save/reopen, no-ops,
 stale/partial failure, metadata identity, both budget caps and canvas cancellation.

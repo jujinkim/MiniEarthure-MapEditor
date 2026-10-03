@@ -57,7 +57,7 @@ func refresh() -> void:
 	else: selected=-1
 func _finished(error: String) -> void:
 	status.text=I18N.diagnostic(error) if error!="" else I18N.t("Line saved · Undo/Redo and package save retain the source.")
-	if error=="": refresh.call_deferred()
+
 func select(index: int) -> void:
 	selected=index; list.select(index)
 	var line: Dictionary=bench.source.grind_lines[index]
@@ -77,7 +77,7 @@ func add_line(fence: bool) -> void:
 	var cp: Array=[[0,100,0],[0,100,800]];var normal: Array=[0,1000000,0]
 	if fence:
 		if bench.selected<0: status.text=I18N.t("Select a road piece before placing a fence line.");return
-		var path: Array=bench.editor.store.document.assembled_track.pieces[bench.selected].path
+		var path: Array=bench.editor.store.track_pieces()[bench.selected].path
 		if path.is_empty() or path.any(func(sample: Dictionary):return sample.mode in ["flight","loop","cylinder","halfpipe"]):
 			status.text=I18N.t("This piece has no ordinary side fence.");return
 		cp=fence_points(path);normal=path[0].normal
@@ -85,7 +85,7 @@ func add_line(fence: bool) -> void:
 	while lines.any(func(l: Dictionary):return l.id=="grind-%d"%suffix): suffix+=1
 	lines.append({"id":"grind-%d"%suffix,"control_points":cp,"up":normal,"capture_width_cm":30,"start_connections":[],"end_connections":[]})
 	selected=lines.size()-1
-	bench._commit(next)
+	if bench._commit(next): refresh()
 func remove_line() -> void:
 	if selected<0 or selected>=bench.source.get("grind_lines",[]).size():return
 	var next: Dictionary=bench.source.duplicate(true)
@@ -93,7 +93,7 @@ func remove_line() -> void:
 	next.grind_lines.remove_at(selected)
 	for line: Dictionary in next.grind_lines:
 		for key in ["start_connections","end_connections"]: line[key]=line[key].filter(func(link: Dictionary):return link.line!=id)
-	bench._commit(next)
+	if bench._commit(next): refresh()
 func _vector(text: String) -> Array:
 	var fields:=text.strip_edges().split(",")
 	if fields.size()!=3:return []
@@ -127,7 +127,7 @@ func apply_line() -> void:
 		for key in ["start_connections","end_connections"]:
 			for link: Dictionary in line[key]:
 				if link.line==old:link.line=identifier.text.strip_edges()
-	bench._commit(next)
+	if bench._commit(next): refresh()
 
 static func fence_points(path: Array) -> Array:
 	var points: Array[Vector3]=[]

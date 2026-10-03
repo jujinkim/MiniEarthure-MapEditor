@@ -33,6 +33,7 @@ var pending_pointer: Variant = null
 var pointer_updates := 0
 
 func begin_move(index: int, point: Vector3) -> void:
+	if bench.editor.store.editing_locked() or bench.editor.busy: return
 	cancel()
 	moving_index = index
 	move_origin = point
@@ -42,12 +43,12 @@ func begin_move(index: int, point: Vector3) -> void:
 	height = float(move_item.position_cm[1]) * 0.01
 	yaw = float(move_item.rotation_mdeg[1]) * 0.001
 	epoch = bench.editor.store.command_epoch
-	document_id = str(bench.editor.store.document.map_id)
+	document_id = str(bench.editor.store.session_id)
 
 func resume_tool(state: Dictionary) -> void:
 	for field in ["tool", "kind", "height", "yaw", "width_cm", "landing", "jump_height_cm"]: set(field, state[field])
 	epoch = bench.editor.store.command_epoch
-	document_id = str(bench.editor.store.document.map_id)
+	document_id = str(bench.editor.store.session_id)
 	hint = "Placed · Move to preview the next piece · Click to place"
 	bench.palette_tools.select_tool("track." + kind + "." + tool)
 
@@ -60,13 +61,13 @@ func _process(_delta: float) -> void:
 
 
 func activate(type: String, preset: String) -> void:
-	if not bench.active or bench.editor.store.track_edit_busy or bench.editor.busy: return
+	if not bench.active or bench.editor.store.editing_locked() or bench.editor.busy: return
 	bench.editor._cancel_editing()
 	if not bench.editor.preview_dock.visible: bench.editor._set_view_mode("split")
 	kind = type
 	tool = preset
 	epoch = bench.editor.store.command_epoch
-	document_id = str(bench.editor.store.document.map_id)
+	document_id = str(bench.editor.store.session_id)
 	height = float(bench.source.instances[bench.selected].position_cm[1]) / 100.0 if bench.selected >= 0 else 0.0
 	yaw = 0.0
 	if kind == "piece":
@@ -115,7 +116,7 @@ func invalidate_candidate() -> void:
 		bench.show_hint()
 
 func current() -> bool:
-	return tool != "" and bench.active and epoch == bench.editor.store.command_epoch and document_id == str(bench.editor.store.document.map_id) and bench.editor.preview_dock.visible and not bench.editor._popup_open(bench.editor)
+	return not bench.editor.store.editing_locked() and not bench.editor.busy and tool != "" and bench.active and epoch == bench.editor.store.command_epoch and document_id == str(bench.editor.store.session_id) and bench.editor.preview_dock.visible and not bench.editor._popup_open(bench.editor)
 
 func build_controls(parent: Node) -> void:
 	var heading := Label.new()
@@ -173,9 +174,11 @@ func solve_item(item: Dictionary, excluded := -1) -> Dictionary:
 	var snap_index := -1
 	var nearest := 3.0
 	if bench.snap.button_pressed:
+		var pieces: Array = bench.editor.store.track_pieces()
 		for i in bench.source.instances.size():
 			if i == excluded: continue
-			var other: Dictionary = bench.editor.store.document.assembled_track.pieces[i]
+			var other: Dictionary = pieces[i]
+			if other.path.is_empty(): continue
 			var distance := PREVIEW.point(result.data.path[0].position_cm).distance_to(PREVIEW.point(other.path.back().position_cm))
 			if distance < nearest: nearest = distance; snap_index = i
 	if snap_index >= 0:
@@ -216,14 +219,14 @@ func _show_move(piece: Dictionary) -> void:
 	if not is_instance_valid(ghost):
 		ghost = Node3D.new()
 		bench.editor.preview_world.add_child(ghost)
-		for node: MeshInstance3D in bench.view.get_meta("objects", {}).values():
-			if node.get_meta("owner", -1) != moving_index: continue
+		for node: MeshInstance3D in bench.view.get_meta("objects", {}).values() + bench.view.get_meta("draft_objects", {}).values():
+			if node.get_meta("owner", -1) != moving_index or not node.visible: continue
 			var copy := node.duplicate()
 			ghost.add_child(copy)
 			node.hide()
 			hidden_nodes.append(node)
 		_tint(ghost)
-	var original: Dictionary = bench.editor.store.document.assembled_track.pieces[moving_index]
+	var original: Dictionary = bench.editor.store.track_pieces()[moving_index]
 	ghost.transform = frame(piece.path[0]) * frame(original.path[0]).affine_inverse()
 	ghost.show()
 	_draw_guides(piece, -1)
@@ -246,7 +249,7 @@ func preview_attachment(piece_index: int, sample: int) -> bool:
 	if piece_index < 0 or piece_index >= bench.source.instances.size():
 		_failure("Point at a road surface to attach this tool.")
 		return false
-	var piece: Dictionary = bench.editor.store.document.assembled_track.pieces[piece_index]
+	var piece: Dictionary = bench.editor.store.track_pieces()[piece_index]
 	if sample < 0 or sample >= piece.path.size() or piece.path[sample].mode == "flight":
 		_failure("This point has no supported road surface.")
 		return false
@@ -291,8 +294,8 @@ func commit(expected_serial := -1) -> bool:
 	var state := {"tool":tool, "kind":kind, "height":float(next.instances[next_selection].position_cm[1]) / 100.0 if kind == "piece" else height,
 		"yaw":yaw, "width_cm":width_cm, "landing":landing, "jump_height_cm":jump_height_cm}
 	if not bench._commit(next, next_selection, {"repeat":state}): return false
-	# Admission consumes the candidate. Repeat placement resumes only after success.
-	cancel()
+	# The new draft has already been published; repeat placement uses its epoch.
+	resume_tool(state)
 	return true
 
 func _attachment(item: Dictionary, sample: int) -> Dictionary:
@@ -391,7 +394,7 @@ func _draw_guides(piece: Dictionary, sample: int) -> void:
 		for segment in [[start, tip], [tip, tip + pose.basis.z * 0.6 + pose.basis.x * 0.4], [tip, tip + pose.basis.z * 0.6 - pose.basis.x * 0.4]]:
 			mesh.surface_add_vertex(segment[0]); mesh.surface_add_vertex(segment[1])
 	if candidate.get("snap", -1) >= 0:
-		var port: Dictionary = bench.editor.store.document.assembled_track.pieces[candidate.snap].path.back()
+		var port: Dictionary = bench.editor.store.track_pieces()[candidate.snap].path.back()
 		var pose := frame(port)
 		mesh.surface_set_color(STYLE.YELLOW)
 		for points in [[Vector3(-1,0,0), Vector3(1,0,0)], [Vector3(0,-1,0), Vector3(0,1,0)]]:
@@ -412,7 +415,7 @@ func _surface_at(screen: Vector2) -> Dictionary:
 	var origin := camera.project_ray_origin(screen)
 	var ray := camera.project_ray_normal(screen)
 	var best := {"distance":INF, "piece":-1, "sample":-1}
-	var pieces: Array = bench.editor.store.document.get("assembled_track", {}).get("pieces", [])
+	var pieces: Array = bench.editor.store.track_pieces()
 	# Use the shared driving frames/widths. Each ribbon quad is selectable from
 	# its driving side; flight samples never become attachment targets.
 	for p in pieces.size():
@@ -441,7 +444,7 @@ func update_pointer(screen: Vector2) -> bool:
 	return preview_attachment(hit.piece, hit.sample)
 
 func input(event: InputEvent) -> bool:
-	if bench.editor.store.track_edit_busy: cancel(); return false
+	if bench.editor.store.editing_locked(): cancel(); return false
 	if not current(): cancel(); return false
 	if event is InputEventMouseMotion:
 		if event.button_mask & (MOUSE_BUTTON_MASK_RIGHT | MOUSE_BUTTON_MASK_MIDDLE):

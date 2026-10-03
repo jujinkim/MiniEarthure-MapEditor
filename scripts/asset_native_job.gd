@@ -66,6 +66,7 @@ func _decode_command(output: Dictionary) -> void:
 	bundle = decoded
 
 func commit(store: RefCounted) -> String:
+	if store.editing_locked(): return store.EDIT_BUSY
 	if _consumed or not adopting or not done or not exited or cancelled or _prepared.is_empty() or bundle.is_empty() or not matches(store, selection_signature): return "Stale or incomplete asset adoption."
 	_consumed = true
 	for path: String in bundle.blob_paths:

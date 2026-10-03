@@ -161,6 +161,7 @@ func cancel() -> void:
 	super.cancel()
 
 func commit(store: RefCounted) -> String:
+	if store.editing_locked(): return store.EDIT_BUSY
 	if _consumed or not adopting or not done or not exited or cancelled or _prepared.is_empty() or not matches(store, selection_signature): return "Stale or incomplete import command."
 	# Consume before emitting changed: callbacks cannot replay this job.
 	_consumed = true

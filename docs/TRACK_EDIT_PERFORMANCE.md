@@ -1,5 +1,46 @@
 # Responsive Track Mode editing
 
+## Continuous drafts and explicit operation locks — 2026-10-03
+
+The sequential-admission behavior below is replaced by continuous source drafts.
+Automatic validation/autosave permits editing without dim. Release keeps its latest
+position/shape and records Undo immediately. A single running worker plus the latest
+pending snapshot coalesces calculation only. Selection and all placement queries use
+current MapKit instance paths. Shared preview reuses moved meshes, shows lightweight
+changed paths/attachment/grind guides, and defers final replacement during drag or
+text input. Save/Save As/export freeze the submitted revision and immediately dim/lock
+all edit entrypoints through validation and publication. Failure or cancellation
+retains the draft. [Current document contract](DOCUMENTS.md).
+
+Implementation and scoped automated checks pass. The completion target still fails:
+**557.715 → 532.745 ms p95**, using the same fixed seed-derived 49-piece input and
+unchanged native SHA `2a640fbf5955d4faa45666abcb6037b86c73cdf8347f01b41a11e4e62e5c7dc9`.
+The derived source hash is `3a45dc5e06d0aae703efc2a1e6102921b0735901437ec14a074b00025d827ea5`.
+The new worker avoids compiled-document history mementos; native generation was
+not changed. This small quiet headless diagnostic uses three cycles, 18 commits,
+90 drag samples and nearest-rank p95. Timing submits one command at a time;
+continuous coalescing/retention is tested with held workers, not mixed into this comparison.
+
+| Metric | New result | Goal/status |
+| --- | ---: | --- |
+| Drag p95 | 1.062 ms | ≤16.7 ms, passed in scope |
+| Accepted draft submission/display-state update p95 | 42.074 ms | Synchronous source/node update; event-to-photon not measured |
+| Main admission/application maximum | 42.074 ms | <100 ms, passed in scope |
+| Frame interval maximum (includes deferred preview) | 64.020 ms | <100 ms, passed in scope |
+| Validation/preview completion p95 | **532.745 ms** | ≤500 ms, **failed** |
+
+Worker document preparation is 239.804–253.494 ms and preview preparation
+185.529–196.767 ms. The prior 557.715 ms miss remains historical evidence.
+The nonblocking UI is not evidence that the completion target or detailed
+interaction/platform acceptance passed. Independent Editor startup/initial screen
+was rendered and inspected without blocking diagnostics; detailed use remains user
+verification. [Validation report and exact samples](validation/continuous-edit-2026-10-03/README.md).
+
+To limit the existing probe to this same fixture while retaining three cycles, set
+`TRACK_BENCH_ONLY_49=1` alongside `TRACK_BENCH_SOURCE`. `TRACK_BENCH_PROBE=1` remains
+a single-cycle diagnosis. No native rebuild, full suite, recursive clean clone or
+platform export matrix was needed for this GDScript-only change.
+
 ## Fixed-input latency improvement — 2026-10-03
 
 MapKit now prepares connected-road clipping planes once per piece, the opposite

@@ -107,6 +107,7 @@ static func remove_scratch(path: String) -> void:
 	DirAccess.remove_absolute(path)
 
 static func apply(store: RefCounted, label: String, patches: Array, blobs: Dictionary, cells: Array = [], validate_only: bool = false, context: Dictionary = {}) -> String:
+	if store.editing_locked(): return store.EDIT_BUSY
 	if store.has_gesture(): return "Finish or cancel the active gesture first."
 	if store.project_path.is_empty(): return "Save a project directory before editing file-backed terrain or assets."
 	var candidate: Dictionary = store.document.duplicate(true)

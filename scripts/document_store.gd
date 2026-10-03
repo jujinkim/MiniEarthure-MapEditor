@@ -1,7 +1,11 @@
 extends RefCounted
 ## MapDocument is authoritative; views never become saved state.
 signal changed
-signal track_edit_ready(context: Dictionary)
+signal draft_changed(context: Dictionary)
+signal validated_changed
+signal file_operation_finished(result: Dictionary)
+signal lock_changed
+signal autosave_finished(failure: String)
 signal track_edit_finished(failure: String)
 const TRACK_JOB := preload("./track_edit_job.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
@@ -21,6 +25,7 @@ var dirty := false
 var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
 var files := FILES.new()
 var _saved_signature := ""
+var _saved_canonical := ""
 var _disk_path := ""
 var _disk_digest := ""
 var _recovery_id := ""
@@ -37,63 +42,246 @@ var prepared_track_preview: Dictionary = {}
 var track_preview_cache: Dictionary = {}
 var last_track_apply_ms := 0.0
 var last_track_timings: Dictionary = {}
-const EDIT_BUSY := "Wait for the current track edit, or cancel it first."
+const EDIT_BUSY := "Wait for the explicit operation to finish."
+var draft: Dictionary = {}
+var draft_revision := 0
+var validated_revision := 0
+var pending_track: Dictionary = {}
+var draft_error: Dictionary = {}
+var pending_since := -1
+var clock: Callable = Time.get_ticks_msec
+var track_job_factory: Callable = func(): return TRACK_JOB.new()
+var file_job: RefCounted
+var file_request: Dictionary = {}
+var external_lock := false
+var file_sequence := 0
+var file_job_factory: Callable = func(): return load("res://scripts/document_file_job.gd").new()
+var draft_paths: Dictionary = {}
+var paths_revision := -1
+var cached_pieces: Array = []
+var recovery_thread := Thread.new()
+var recovery_session := -1
+var save_token: RefCounted
+
+
+func editing_locked() -> bool:
+	return external_lock or not file_request.is_empty()
+
+func set_external_lock(value: bool) -> void:
+	if external_lock == value: return
+	external_lock = value
+	lock_changed.emit()
+
+func draft_pending() -> bool:
+	return draft_revision != validated_revision
+
+func applying_visible() -> bool:
+	return track_edit_busy and pending_since >= 0 and int(clock.call()) - pending_since >= 500
+
+func track_pieces() -> Array:
+	if paths_revision == draft_revision: return cached_pieces
+	var rows: Array = []
+	var retained := {}
+	for item: Dictionary in track_source().get("instances", []):
+		var key := JSON.stringify(item)
+		var row: Dictionary = draft_paths.get(key, {})
+		if row.is_empty():
+			var result: Dictionary = JSON.parse_string(bridge.track_instance(key))
+			row = result.data if result.ok else {"path":[]}
+		retained[key] = row
+		rows.append(row)
+	draft_paths = retained
+	paths_revision = draft_revision
+	cached_pieces = rows
+	return rows
 
 func start_track_edit(source: Dictionary, expected_epoch := -1, context: Dictionary = {}) -> String:
+	if editing_locked(): return EDIT_BUSY
 	if expected_epoch >= 0 and expected_epoch != command_epoch: return "Stale track edit; current map retained."
-	return _start_track_work("edit", source, context)
-
-func start_track_history(forward: bool) -> String:
-	return _start_track_work("redo" if forward else "undo", {}, {})
-
-func _start_track_work(operation: String, source: Dictionary, context: Dictionary) -> String:
-	if track_edit_busy: return EDIT_BUSY
 	if has_gesture(): return "Finish or cancel the current gesture first."
-	track_request_id += 1
-	track_edit_job = TRACK_JOB.new()
-	track_edit_busy = true
-	var failure: Error = track_edit_job.start(self, track_request_id, operation, source, context)
-	if failure != OK:
-		track_edit_busy = false
-		track_edit_job = null
-		return error_string(failure)
+	var before := track_source()
+	if before == source:
+		retry_track_edit()
+		return ""
+	if not document.has("assembled_track"):
+		for field: String in ["nodes","roads","heightmaps","surface_areas","water_bodies","buildings","zones","assets","placements","repetitions","gimmicks"]:
+			if not document.get(field, []).is_empty(): return "Existing free roam geometry was preserved. Start a New Map to author track pieces."
+	var command := {"label":"Track assembly", "patches":[], "track_before":before, "track_after":source.duplicate(true)}
+	command.bytes = JSON.stringify(command).to_utf8_buffer().size()
+	if command.bytes > HISTORY_BYTES: return "Command exceeds the 16 MiB undo budget; split this operation."
+	_record_command(command)
+	_accept_draft(command.track_after, context)
 	return ""
 
+func _record_command(command: Dictionary) -> void:
+	for discarded: Dictionary in redo_stack: history_bytes -= int(discarded.bytes)
+	redo_stack.clear()
+	undo_stack.append(command)
+	history_bytes += int(command.bytes)
+	while undo_stack.size() + redo_stack.size() > HISTORY_COMMANDS or history_bytes > HISTORY_BYTES:
+		history_bytes -= int(undo_stack.pop_front().bytes)
+
+func _accept_draft(source: Dictionary, context: Dictionary = {}) -> void:
+	draft = source.duplicate(true)
+	draft_revision += 1
+	command_epoch += 1
+	dirty = true
+	draft_error = {}
+	if pending_since < 0: pending_since = int(clock.call())
+	pending_track = {"source":draft, "revision":draft_revision, "context":context.duplicate(true)}
+	# Publish the new source/view before returning to the release handler.
+	draft_changed.emit(context)
+	_launch_track()
+
+func start_track_history(forward: bool) -> String:
+	if editing_locked(): return EDIT_BUSY
+	if has_gesture(): return "Finish or cancel the current gesture first."
+	var history := redo_stack if forward else undo_stack
+	if history.is_empty():
+		retry_track_edit()
+		return ""
+	var command: Dictionary = history.back()
+	if not command.has("track_before"):
+		if draft_pending(): return "Finish applying the draft before changing map properties."
+		return _travel_history(not forward)
+	history.pop_back()
+	(undo_stack if forward else redo_stack).append(command)
+	_accept_draft(command.track_after if forward else command.track_before)
+	return ""
+
+func retry_track_edit() -> void:
+	if not draft_pending(): return
+	if track_edit_job != null and track_edit_job.matches(self, track_request_id): return
+	draft_error = {}
+	if pending_since < 0: pending_since = int(clock.call())
+	pending_track = {"source":draft, "revision":draft_revision, "context":{}}
+	_launch_track()
+
+func _launch_track() -> void:
+	if track_edit_job != null or pending_track.is_empty(): return
+	var request := pending_track
+	pending_track = {}
+	track_request_id += 1
+	track_edit_job = track_job_factory.call()
+	track_edit_busy = true
+	var failure: Error = track_edit_job.start(self, track_request_id, "edit", request.source, request.context)
+	if failure != OK:
+		track_edit_job = null
+		track_edit_busy = false
+		_track_failure(error_string(failure))
+
+func _track_failure(message: String) -> void:
+	draft_error = {"revision":draft_revision, "target":file_request.get("path", ""), "message":message}
+	pending_since = -1
+	track_edit_finished.emit(message)
+	if not file_request.is_empty(): _finish_file({"ok":false, "error":message})
+
 func cancel_track_edit() -> void:
+	if not file_request.is_empty() and not file_request.cancelled: return
+	pending_track = {}
+	pending_since = -1
 	if track_edit_job != null:
 		track_request_id += 1
 		track_edit_job.cancel()
 
 func poll_track_edit() -> void:
-	if track_edit_job == null or track_edit_job.thread.is_alive(): return
+	if track_edit_job == null or track_edit_job.is_alive(): return
 	var job: RefCounted = track_edit_job
-	var prepared: Dictionary = job.thread.wait_to_finish()
+	var prepared: Dictionary = job.finish()
 	var valid: bool = job.matches(self, track_request_id)
 	job.consumed = true
 	track_edit_job = null
 	track_edit_busy = false
-	if not valid:
-		track_edit_finished.emit("Track edit cancelled or superseded; document retained.")
-		return
-	if prepared.has("error"):
-		track_edit_finished.emit(prepared.error)
-		return
-	var begin := Time.get_ticks_usec()
-	if not prepared.get("noop", false):
-		prepared_track_preview = prepared.preview
-		track_edit_ready.emit(job.context)
-		if prepared.operation == "edit": _install_command(prepared)
-		else: _install_history(prepared, prepared.operation == "undo")
-	last_track_apply_ms = (Time.get_ticks_usec() - begin) / 1000.0
-	last_track_timings = prepared.get("timings", {})
-	track_edit_finished.emit("")
+	if valid:
+		if prepared.has("error"): _track_failure(prepared.error)
+		else:
+			var begin := Time.get_ticks_usec()
+			if not prepared.get("noop", false):
+				document = prepared.candidate
+				prepared_track_preview = prepared.preview
+				track_preview_cache = prepared.preview
+			if prepared.get("noop", false): prepared_track_preview = track_preview_cache
+			validated_revision = draft_revision
+			pending_since = -1
+			draft_error = {}
+			dirty = _signature(document) != _saved_signature
+			validated_changed.emit()
+			last_track_apply_ms = (Time.get_ticks_usec() - begin) / 1000.0
+			last_track_timings = prepared.get("timings", {})
+			track_edit_finished.emit("")
+	_launch_track()
+	_poll_file()
 
 func shutdown_track_edit() -> void:
 	if track_edit_job != null: track_edit_job.shutdown()
+	if file_job != null: file_job.shutdown()
+	if recovery_thread.is_started(): _consume_recovery(recovery_thread.wait_to_finish())
 	track_edit_job = null
+	file_job = null
+	pending_track = {}
 	track_edit_busy = false
 
+func start_file_operation(operation: String, path: String, options: Dictionary = {}) -> String:
+	if editing_locked(): return EDIT_BUSY
+	if operation not in ["save", "export"]: return "Unsupported file operation."
+	cancel_gesture()
+	file_sequence += 1
+	file_request = {"id":file_sequence, "session":session_id, "revision":draft_revision,
+		"operation":operation, "path":path, "options":options.duplicate(true), "cancelled":false}
+	lock_changed.emit()
+	if draft_pending(): retry_track_edit()
+	else: _poll_file()
+	return ""
+
+func cancel_file_operation() -> void:
+	if file_request.is_empty(): return
+	file_request.cancelled = true
+	if file_job != null: file_job.cancel()
+	else:
+		cancel_track_edit()
+		if track_edit_job == null: _finish_file({"ok":false, "cancelled":true, "error":"Operation cancelled; draft retained."})
+
+func poll_file_operation() -> void:
+	_poll_file()
+
+func _poll_file() -> void:
+	if file_request.is_empty(): return
+	if file_job == null:
+		if file_request.cancelled:
+			if track_edit_job == null: _finish_file({"ok":false, "cancelled":true, "error":"Operation cancelled; draft retained."})
+			return
+		if draft_pending(): return
+		file_job = file_job_factory.call()
+		var failure: Error = file_job.start(self, file_request)
+		if failure != OK:
+			file_job = null
+			_finish_file({"ok":false, "error":error_string(failure)})
+		return
+	if file_job.is_alive(): return
+	var result: Dictionary = file_job.finish()
+	file_job = null
+	# A successful publication wins over a cancellation arriving after rename.
+	if file_request.session != session_id or file_request.revision != draft_revision:
+		result = {"ok":false, "error":"File operation belongs to another document session."}
+	elif result.ok and file_request.operation == "save":
+		project_path = result.path
+		_disk_path = project_path.path_join("document.json")
+		_disk_digest = result.digest
+		_saved_signature = result.signature
+		_saved_canonical = result.canonical
+		_autosaved_signature = ""
+		dirty = _signature(document) != _saved_signature or draft_pending()
+	_finish_file(result)
+
+func _finish_file(result: Dictionary) -> void:
+	result.request = file_request.duplicate(true)
+	file_request = {}
+	lock_changed.emit()
+	file_operation_finished.emit(result)
+
 func new_document() -> void:
+	if editing_locked(): return
+	if dirty and autosave() != "": return
 	bridge = ClassDB.instantiate("MapKitBridge")
 	var stamp := Time.get_datetime_string_from_system(true) + "Z"
 	document = {
@@ -110,6 +298,10 @@ func new_document() -> void:
 	_after_edit()
 
 func open_project(path: String) -> String:
+	if editing_locked(): return EDIT_BUSY
+	if dirty:
+		var retention := autosave()
+		if retention != "": return retention
 	# A failed native open clears its bridge: retain the live bridge until success.
 	var candidate: RefCounted = ClassDB.instantiate("MapKitBridge")
 	var disk := path.path_join("document.json")
@@ -132,6 +324,13 @@ func open_project(path: String) -> String:
 
 func _reset_session() -> void:
 	cancel_track_edit()
+	draft = {}
+	draft_revision = 0
+	validated_revision = 0
+	draft_error = {}
+	draft_paths = {}
+	paths_revision = -1
+	cached_pieces = []
 	session_id += 1
 	prepared_track_preview = {}
 	track_preview_cache = {}
@@ -242,7 +441,7 @@ func apply_command(label: String, patches: Array) -> String:
 	return _commit_command(label, patches)
 
 func _commit_command(label: String, patches: Array, binary_mementos: Dictionary = {}) -> String:
-	if track_edit_busy: return EDIT_BUSY
+	if editing_locked() or draft_pending(): return EDIT_BUSY
 	var prepared := _prepare_command(label, patches, binary_mementos)
 	if prepared.has("error"): return prepared.error
 	_install_command(prepared)
@@ -290,7 +489,7 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 # Internal trusted preparation result only; never accepts adapter output directly.
 # The native job checks its one-shot ownership, epoch and immutable request first.
 func _install_command(prepared: Dictionary) -> String:
-	if track_edit_busy: return EDIT_BUSY
+	if editing_locked() or draft_pending(): return EDIT_BUSY
 	if prepared.get("noop", false): return ""
 	var command: Dictionary = prepared.command
 	var candidate: Dictionary = prepared.candidate
@@ -306,13 +505,13 @@ func _install_command(prepared: Dictionary) -> String:
 	return ""
 
 func undo() -> String:
-	return _travel_history(true)
+	return start_track_history(false) if not undo_stack.is_empty() and undo_stack.back().has("track_before") else _travel_history(true)
 
 func redo() -> String:
-	return _travel_history(false)
+	return start_track_history(true) if not redo_stack.is_empty() and redo_stack.back().has("track_before") else _travel_history(false)
 
 func _travel_history(reverse: bool) -> String:
-	if track_edit_busy: return EDIT_BUSY
+	if editing_locked() or draft_pending(): return EDIT_BUSY
 	if has_gesture():
 		return "Finish or cancel the current gesture first."
 	var source := undo_stack if reverse else redo_stack
@@ -354,7 +553,7 @@ func has_gesture() -> bool:
 	return not _gesture.is_empty()
 
 func begin_gesture(label: String) -> String:
-	if track_edit_busy: return EDIT_BUSY
+	if editing_locked() or draft_pending(): return EDIT_BUSY
 	if has_gesture():
 		return "A gesture is already active."
 	command_epoch += 1
@@ -362,6 +561,7 @@ func begin_gesture(label: String) -> String:
 	return ""
 
 func stage_patches(patches: Array) -> String:
+	if editing_locked(): return EDIT_BUSY
 	if not has_gesture() or _gesture.signature != _signature(document):
 		return "The gesture is stale; cancel it and start again."
 	var staged: Array = _gesture.patches.duplicate(true)
@@ -400,13 +600,19 @@ func cancel_gesture() -> void:
 	_gesture.clear()
 
 func _after_edit(prepared_signature: String = "") -> void:
+	draft = {}
+	draft_revision += 1
+	validated_revision = draft_revision
+	draft_paths = {}
+	paths_revision = -1
+	cached_pieces = []
 	command_epoch += 1
 	document.provenance.last_edited = Time.get_datetime_string_from_system(true) + "Z"
 	dirty = (prepared_signature if prepared_signature != "" else _signature(document)) != _saved_signature
 	changed.emit()
 
 func save_project(path: String) -> String:
-	if track_edit_busy: return EDIT_BUSY
+	if editing_locked() or draft_pending(): return EDIT_BUSY
 	if has_gesture():
 		return "Finish or cancel the current gesture before saving."
 	if path.is_empty():
@@ -414,6 +620,7 @@ func save_project(path: String) -> String:
 	var validation := _validate(document)
 	if not validation.ok:
 		return reason(validation)
+	if save_token != null and save_token.is_cancelled(): return "Operation cancelled; draft retained."
 	var absolute := ProjectSettings.globalize_path(path).simplify_path()
 	var destination := absolute.path_join("document.json")
 	var expected := _disk_digest if destination == _disk_path else ""
@@ -431,6 +638,7 @@ func save_project(path: String) -> String:
 		project_path = absolute
 		_disk_path = destination
 		_disk_digest = str(validation.data.canonical).sha256_text()
+		_saved_canonical = str(validation.data.canonical)
 		_saved_signature = _signature(document)
 		dirty = false
 	return failure
@@ -438,25 +646,50 @@ func save_project(path: String) -> String:
 func recovery_path() -> String:
 	return "user://recovery/" + str(document.get("map_id", "new")).sha256_text() + "-" + _recovery_id + ".json"
 
-func autosave() -> String:
-	if track_edit_busy: return "" # Defer the timer until the atomic edit completes.
-	if document.is_empty():
-		return ""
-	var validation := _validate(document)
-	if not validation.ok:
-		return reason(validation)
-	var snapshot := {"recovery_version": 1, "project_path": project_path,
-		"base_sha256": _disk_digest, "document": validation.data.document,
-		"document_sha256": str(validation.data.canonical).sha256_text()}
+func recovery_snapshot() -> Dictionary:
+	return {"recovery_version":1, "project_path":project_path, "base_sha256":_disk_digest,
+		"document":document.duplicate(true), "document_sha256":JSON.stringify(document).sha256_text(),
+		"draft":track_source() if draft_pending() else {}, "draft_revision":draft_revision,
+		"validated_revision":validated_revision,
+		"draft_sha256":JSON.stringify(track_source() if draft_pending() else {}).sha256_text()}
+
+func start_autosave() -> void:
+	if document.is_empty() or recovery_thread.is_started(): return
+	var snapshot := recovery_snapshot()
+	var path := recovery_path()
+	var writer := files
 	var text := JSON.stringify(snapshot)
-	if text.sha256_text() == _autosaved_signature and FileAccess.file_exists(recovery_path()):
-		return ""
+	var signature := text.sha256_text()
+	if signature == _autosaved_signature and FileAccess.file_exists(path): return
+	recovery_session = session_id
+	var failure := recovery_thread.start(func():
+		return {"failure":writer.write(path, text, writer.digest(path)), "signature":signature})
+	if failure != OK: autosave_finished.emit(error_string(failure))
+
+func poll_autosave() -> void:
+	if not recovery_thread.is_started() or recovery_thread.is_alive(): return
+	_consume_recovery(recovery_thread.wait_to_finish())
+
+func _consume_recovery(result: Dictionary) -> void:
+	if recovery_session != session_id: return
+	if result.failure == "": _autosaved_signature = result.signature
+	autosave_finished.emit(result.failure)
+
+func autosave() -> String:
+	# Close/switch waits for retention, then writes the latest revision if needed.
+	if recovery_thread.is_started(): _consume_recovery(recovery_thread.wait_to_finish())
+	if document.is_empty(): return ""
+	var text := JSON.stringify(recovery_snapshot())
+	if text.sha256_text() == _autosaved_signature and FileAccess.file_exists(recovery_path()): return ""
 	var failure := files.write(recovery_path(), text, files.digest(recovery_path()))
-	if failure == "":
-		_autosaved_signature = text.sha256_text()
+	if failure == "": _autosaved_signature = text.sha256_text()
 	return failure
 
 func recover(path: String) -> String:
+	if editing_locked(): return EDIT_BUSY
+	if dirty:
+		var retention := autosave()
+		if retention != "": return retention
 	var result := files.read_json(path)
 	if result.has("error"):
 		return str(result.error)
@@ -469,8 +702,10 @@ func recover(path: String) -> String:
 	if not validation.ok:
 		return reason(validation)
 	if envelope:
-		if value.get("recovery_version") != 1 or value.get("document_sha256") != str(validation.data.canonical).sha256_text():
+		if value.get("recovery_version") != 1 or value.get("document_sha256") != JSON.stringify(content).sha256_text():
 			return "Unsupported or corrupt recovery snapshot."
+		if not value.get("draft") is Dictionary or value.get("draft_sha256") != JSON.stringify(value.draft).sha256_text():
+			return "Unsupported or corrupt recovery draft."
 		if value.get("project_path") is not String or value.get("base_sha256") is not String:
 			return "Invalid recovery origin."
 	var origin := str(value.get("project_path", "")) if envelope else ProjectSettings.globalize_path(path).get_base_dir()
@@ -485,12 +720,14 @@ func recover(path: String) -> String:
 	# selected raw backups bind the current file; subsequent external edits conflict.
 	_disk_digest = str(value.get("base_sha256", "")) if envelope else files.digest(_disk_path)
 	_after_edit()
+	if envelope and not value.draft.is_empty(): _accept_draft(value.draft)
 	return ""
 
 func reason(result: Dictionary) -> String:
 	return "%s: %s" % [result.error.code, result.error.message]
 
 func open_generated(value: Dictionary, preview: Dictionary = {}) -> String:
+	if editing_locked(): return EDIT_BUSY
 	var checked := _validate(value)
 	if not checked.ok: return reason(checked)
 	var failure := autosave() if dirty else ""
@@ -505,7 +742,7 @@ func open_generated(value: Dictionary, preview: Dictionary = {}) -> String:
 	return ""
 
 func set_free_roam(value: bool) -> String:
-	if track_edit_busy: return EDIT_BUSY
+	if editing_locked() or draft_pending(): return EDIT_BUSY
 	var candidate := document.duplicate(true)
 	candidate.free_roam = value
 	var patches: Array = [{"field":"free_roam", "id":"", "before":document.free_roam, "after":value}]
@@ -519,6 +756,7 @@ func set_free_roam(value: bool) -> String:
 	return apply_command("Free roam map", patches)
 
 func track_source() -> Dictionary:
+	if not draft.is_empty(): return draft.duplicate(true)
 	var assembly: Dictionary = document.get("assembled_track", {})
 	for field in ["authoring", "seed_source"]:
 		if assembly.get(field) is Dictionary:
@@ -529,14 +767,15 @@ func track_source() -> Dictionary:
 	return result.data if result.ok else {}
 
 func edit_track(source: Dictionary, expected_epoch: int = -1) -> String:
-	if track_edit_busy: return EDIT_BUSY
+	if editing_locked(): return EDIT_BUSY
+	if draft_pending(): return start_track_edit(source, expected_epoch)
 	if has_gesture(): return "Finish or cancel the current gesture first."
 	if expected_epoch >= 0 and expected_epoch != command_epoch: return "Stale track edit; current map retained."
 	var prepared := _prepare_track(source)
 	if prepared.has("error"): return prepared.error
 	return _install_command(prepared)
 
-func _prepare_track(source: Dictionary) -> Dictionary:
+func _prepare_track(source: Dictionary, record_history := true) -> Dictionary:
 	if not document.has("assembled_track"):
 		for field: String in ["nodes","roads","heightmaps","surface_areas","water_bodies","buildings","zones","assets","placements","repetitions","gimmicks"]:
 			if not document.get(field,[]).is_empty(): return {"error":"Existing free roam geometry was preserved. Start a New Map to author track pieces."}
@@ -554,6 +793,7 @@ func _prepare_track(source: Dictionary) -> Dictionary:
 	var validation := _validate(candidate)
 	if not validation.ok: return {"error":reason(validation)}
 	candidate = validation.data.document
+	if not record_history: return {"candidate":candidate, "signature":_signature(candidate)}
 	var command := {"label":"Track assembly", "patches":[{"field":"track_document", "id":"", "before":document, "after":candidate}]}
 	var text := JSON.stringify(command)
 	command.bytes = text.to_utf8_buffer().size()
@@ -563,6 +803,8 @@ func _prepare_track(source: Dictionary) -> Dictionary:
 	return {"candidate":candidate, "command":command, "signature":_signature(candidate)}
 
 func new_track(free_roam := false) -> void:
+	if editing_locked(): return
+	if dirty and autosave() != "": return
 	new_document()
 	if free_roam:
 		document.free_roam=true

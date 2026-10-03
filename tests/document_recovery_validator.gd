@@ -152,6 +152,9 @@ func ui_failure_cases(snapshot: String) -> void:
 	ui.store.files = broken
 	var original := state(ui.store)
 	ui._autosave()
+	while ui.store.recovery_thread.is_started():
+		ui.store.poll_autosave()
+		await process_frame
 	check(str(ui.status_label.text).contains("Injected") and state(ui.store) == original, "timer reports autosave failure")
 	ui._new()
 	ui.new_map_dialog.hide()

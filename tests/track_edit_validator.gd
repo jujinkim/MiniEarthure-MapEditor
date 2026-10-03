@@ -95,11 +95,9 @@ func run() -> void:
 	var zoom_before: float = ui.canvas.zoom
 	var view_before: Variant = ui.canvas.get("pan")
 	p.input(pointer(camera.unproject_position(grab + Vector3(23,0,0))))
-	check(ui.store.track_edit_busy and state() == original, "release admits worker but keeps document/history until success")
-	check(not ui.commands.execute_id("edit.delete") and not ui.commands.execute_id("file.save") and not ui.commands.execute_id("file.export_map"), "busy registry blocks edits, save and export")
-	check(ui.store.edit_track(source) != "" and ui.store.save_project("user://blocked") != "" and ui.store.undo() != "", "direct command and save admission blocked")
-	check(ui.store.set_free_roam(true) != "", "policy edit blocked before native preparation")
-	check(ui.store.start_track_edit(source) != "", "second edit rejected rather than queued")
+	check(ui.store.track_edit_busy and ui.store.track_source().instances[0].position_cm[0] == 2300 and ui.store.undo_stack.size() == 1, "release publishes draft and one history command immediately")
+	check(ui.commands.reason("edit.delete") == "" and ui.commands.reason("file.save") == "" and ui.commands.reason("file.export_map") == "", "automatic preparation leaves edits and explicit file commands available")
+	check(not ui.operation_dim.visible, "automatic preparation has no dim")
 	bench.select_piece(4)
 	check(ui.commands.reason("view.frame") == "" and bench.selected == 4, "camera and selection remain enabled during worker")
 	await settle()
@@ -130,19 +128,23 @@ func run() -> void:
 	check(bench.source.paths == before_snap.paths and bench.source.instances.slice(1) == before_snap.instances.slice(1), "move does not rewrite routes or move neighbouring pieces")
 	ui._history(false)
 	await settle()
-	# Failures and rejected identities never touch the live document or history.
+	# Failures and cancelled/stale calculations preserve admitted drafts/history.
+	var valid_source: Dictionary = bench.source.duplicate(true)
 	for scenario in ["failure", "cancel", "epoch", "request"]:
-		var next: Dictionary = bench.source.duplicate(true)
+		var next: Dictionary = valid_source.duplicate(true)
 		next.instances[0].position_cm[0] += 111
 		if scenario == "failure": next.instances[0].width_cm = 999
-		var before := state()
+		var before: Dictionary = ui.store.document.duplicate(true)
 		check(ui.store.start_track_edit(next) == "", "admit " + scenario)
+		var admitted := state()
 		var job: RefCounted = ui.store.track_edit_job
 		if scenario == "cancel": ui.store.cancel_track_edit()
 		elif scenario == "epoch": ui.store.command_epoch += 1
 		elif scenario == "request": ui.store.track_request_id += 1
 		await settle()
-		check(state() == before and job.consumed, scenario + " retains state and consumes result")
+		check(state() == admitted and ui.store.document == before and ui.store.track_source() == next and job.consumed, scenario + " retains draft/history and consumes result")
+		check(ui.store.start_track_edit(valid_source) == "", "resume validation after " + scenario)
+		await settle()
 	# Snapshot does not alias a mutable caller, and changed preview nodes only.
 	var next: Dictionary = bench.source.duplicate(true)
 	next.instances[0].position_cm[0] += 50

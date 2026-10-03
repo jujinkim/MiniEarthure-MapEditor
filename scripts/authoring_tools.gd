@@ -104,6 +104,7 @@ func draw(tool: String, draft: Array[Vector2]) -> String:
 	return apply("Draw " + tool, patches, tool == "Road")
 
 func apply(label: String, patches: Array, check_roads: bool = false) -> String:
+	if store.editing_locked(): return store.EDIT_BUSY
 	var candidate: Dictionary = store.document.duplicate(true)
 	var failure: String = store._apply(candidate, patches, false)
 	if failure != "": return failure

@@ -75,11 +75,14 @@ func run() -> void:
 	check(placement.yaw == 15 and state() == before and not placement.commit(serial), "rotation invalidates old candidate without editing")
 	placement.preview_at(Vector3(40, 0, 0))
 	placement.candidate.item.width_cm = 999
-	var selected: int = bench.selected
+	var valid_document: Dictionary = ui.store.document.duplicate(true)
+	var history_count: int = ui.store.undo_stack.size()
 	check(placement.commit(), "invalid edit admitted for worker validation")
 	await settle()
-	check(state() == before and bench.selected == selected, "failed native validation preserves map, selection and history")
+	check(ui.store.document == valid_document and bench.source.instances.back().width_cm == 999 and ui.store.undo_stack.size() == history_count + 1 and bench.selected == bench.source.instances.size() - 1, "failed native validation preserves admitted draft, selection and history plus last valid document")
 	check(bench.properties.get_meta("placement_tool") == placement.tool, "failed placement removes stale preview controls")
+	ui._history(false)
+	await settle()
 	commands.execute_id("track.piece.straight")
 	placement.preview_at(Vector3(40, 0, 0))
 	serial = placement.serial

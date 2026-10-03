@@ -88,7 +88,20 @@ var preview_x: SpinBox
 var preview_y: SpinBox
 var dialog: FileDialog
 var dialog_action := ""
-var busy := false
+var busy := false:
+	set(value):
+		busy = value
+		store.set_external_lock(value)
+		if is_instance_valid(operation_dim): _sync_operation_ui()
+var operation_dim: ColorRect
+var operation_label: Label
+var applying_row: HBoxContainer
+var applying_spinner: Control
+var operation_spinner: Control
+var file_continuation := ""
+var generation_lock := false
+var file_dialog_lock := false
+
 var unsaved_dialog: ConfirmationDialog
 var recovery_continue_button: Button
 var pending_document_action := {}
@@ -162,6 +175,11 @@ func _ready() -> void:
 	commands.opening_popup.connect(_cancel_editing)
 	get_tree().node_added.connect(_watch_ui_node)
 	_decorate_ui(self)
+	_build_operation_ui()
+	store.lock_changed.connect(_sync_operation_ui)
+	store.file_operation_finished.connect(_file_finished)
+	store.autosave_finished.connect(func(failure: String):
+		if failure != "": _status(I18N.diagnostic(failure)))
 	store.changed.connect(_document_changed)
 	store.new_track()
 	_restore_workbench.call_deferred()
@@ -174,10 +192,7 @@ func _ready() -> void:
 		_status(I18N.t("Recovery snapshots are available. Use Recover to inspect one; saved projects stay unchanged."))
 
 func _autosave() -> void:
-	if store.dirty:
-		var failure := store.autosave()
-		if failure != "":
-			_status(I18N.diagnostic(failure))
+	if store.dirty: store.start_autosave()
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT: _cancel_editing()
@@ -456,6 +471,7 @@ func _build_ui() -> void:
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
 	dialog.use_native_dialog = true
 	dialog.canceled.connect(func():
+		_release_file_dialog_lock()
 		if dialog_action == "save_transition": pending_document_action.clear()
 	)
 	dialog.dir_selected.connect(_path_selected)
@@ -609,6 +625,7 @@ func _new() -> void:
 	new_map_dialog.popup_centered(Vector2i(400,160))
 
 func _request_document_action(action: String, path: String = "") -> void:
+	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	_cancel_editing()
 	canvas.cancel_interaction()
 	if store.dirty:
@@ -616,7 +633,7 @@ func _request_document_action(action: String, path: String = "") -> void:
 		if failure != "":
 			_status((I18N.t("Cannot close safely: ") if action == "close" else I18N.t("Cannot leave document: ")) + I18N.diagnostic(failure))
 			return
-	pending_document_action = {"action": action, "path": path, "map_id": str(store.document.map_id)}
+	pending_document_action = {"action": action, "path": path, "session": store.session_id}
 	if not store.dirty:
 		_continue_document_action()
 		return
@@ -626,7 +643,7 @@ func _request_document_action(action: String, path: String = "") -> void:
 
 func _save_before_document_action() -> void:
 	if pending_document_action.is_empty(): return
-	if pending_document_action.map_id != str(store.document.map_id):
+	if pending_document_action.session != store.session_id:
 		pending_document_action.clear()
 		_status(I18N.t("Document changed; request the action again."))
 		return
@@ -637,19 +654,14 @@ func _save_before_document_action() -> void:
 	if store.project_path == "":
 		_choose("save_transition")
 		return
-	var failure := store.save_project(store.project_path)
-	if failure != "":
-		pending_document_action.clear()
-		_status(I18N.diagnostic(failure) + I18N.t(" Use Save As to a new directory, then try again."))
-		return
-	_document_changed()
-	_continue_document_action()
+	_start_save(store.project_path, "save_transition")
 
 func _continue_document_action() -> void:
+	if store.editing_locked(): return
 	if pending_document_action.is_empty(): return
 	var request := pending_document_action.duplicate()
 	pending_document_action.clear()
-	if request.map_id != str(store.document.map_id):
+	if request.session != store.session_id:
 		_status(I18N.t("Document changed; request the action again."))
 		return
 	# Recheck retention at consumption, including edits since the prompt opened.
@@ -668,9 +680,12 @@ func _continue_document_action() -> void:
 	elif request.action in ["open", "recover"]: _status(I18N.t("Ready: ") + request.path)
 
 func _choose(action: String) -> void:
-	if store.track_edit_busy: _status(store.EDIT_BUSY); return
+	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	_cancel_editing()
 	dialog_action = action
+	if action in ["save", "save_transition", "save_for_export", "save_for_drive", "export"]:
+		file_dialog_lock = true
+		store.set_external_lock(true)
 	dialog.filters = PackedStringArray()
 	dialog.title = {"open":I18N.t("Open project directory"), "save":I18N.t("Save project to directory"), "save_transition":I18N.t("Save before continuing"), "save_for_export":I18N.t("Save project before export"), "save_for_drive":I18N.t("Save project before test drive"), "export":I18N.t("Export package — choose a new filename"), "recover":I18N.t("Recover a document"), "import":I18N.t("Choose source to review")}.get(action, I18N.t("Choose file"))
 	if action in ["open", "save", "save_for_drive", "save_transition", "save_for_export"]:
@@ -693,7 +708,13 @@ func _choose(action: String) -> void:
 			dialog.current_dir = ProjectSettings.globalize_path("user://recovery")
 	dialog.popup_centered_ratio(0.8)
 
+func _release_file_dialog_lock() -> void:
+	if not file_dialog_lock: return
+	file_dialog_lock = false
+	store.set_external_lock(busy or generation_lock)
+
 func _path_selected(path: String) -> void:
+	_release_file_dialog_lock()
 	var failure := ""
 	match dialog_action:
 		"reopen_package":
@@ -718,27 +739,13 @@ func _path_selected(path: String) -> void:
 		"open", "recover":
 			_request_document_action(dialog_action, path)
 			return
-		"save": failure = store.save_project(path)
-		"save_transition", "save_for_export":
-			if dialog_action == "save_transition" and (pending_document_action.is_empty() or pending_document_action.map_id != str(store.document.map_id)):
+		"save", "save_transition", "save_for_export", "save_for_drive":
+			if dialog_action == "save_transition" and (pending_document_action.is_empty() or pending_document_action.session != store.session_id):
 				pending_document_action.clear()
 				_status(I18N.t("Document changed or action cancelled; choose Save again."))
 				return
-			failure = store.save_project(path)
-			if failure == "":
-				_document_changed()
-				if dialog_action == "save_transition": _continue_document_action()
-				else: _choose.call_deferred("export")
-			else:
-				pending_document_action.clear()
-				_status(I18N.diagnostic(failure) + I18N.t(" Choose Save As to a new directory and try again."))
+			_start_save(path, dialog_action)
 			return
-		"save_for_drive":
-			failure = store.save_project(path)
-			if failure == "":
-				_document_changed()
-				_test_drive()
-				return
 		"export":
 			if busy:
 				_status(I18N.t("Wait for the current preview or export."))
@@ -749,16 +756,14 @@ func _path_selected(path: String) -> void:
 	if failure == "": _document_changed()
 
 func _save() -> void:
-	if store.track_edit_busy: _status(store.EDIT_BUSY); return
+	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	if busy:
 		_status(I18N.t("Wait for the active operation before saving."))
 		return
 	if store.project_path == "":
 		_choose("save")
 	else:
-		var failure := store.save_project(store.project_path)
-		_status(I18N.diagnostic(failure) if failure != "" else I18N.t("Project saved."))
-		if failure == "": _document_changed()
+		_start_save(store.project_path)
 
 func _import_geojson() -> void:
 	_cancel_editing()
@@ -767,9 +772,7 @@ func _import_geojson() -> void:
 		import_dialog.popup_centered(Vector2i(760, 520))
 
 func _export() -> void:
-	if store.track_edit_busy: _status(store.EDIT_BUSY); return
-	var issues: Array=store.document.get("assembled_track",{}).get("issues",[])
-	if not issues.is_empty(): _status(I18N.t("Fix connections and courses before execution export: ")+" / ".join(issues)); return
+	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	if busy:
 		_status(I18N.t("Cancel the active operation or wait before exporting."))
 		return
@@ -780,6 +783,7 @@ func _export() -> void:
 
 func _validate() -> void:
 	if track_workbench != null and track_workbench.active:
+		store.retry_track_edit()
 		track_workbench.refresh()
 		_status(track_workbench.report.text)
 		return
@@ -1012,10 +1016,9 @@ func _cancel_editing() -> void:
 func _register_commands() -> void:
 	commands.context_source = func(): return "roam" if store.document.get("free_roam", false) else "track"
 	commands.blocked_source = _shortcuts_blocked
-	commands.availability_source = func(id: String):
-		if not store.track_edit_busy: return ""
-		if id.begins_with("view.") or id in ["tool.select", "edit.cancel_interaction", "edit.toggle_snap", "edit.shortcuts"]: return ""
-		return store.EDIT_BUSY
+	commands.availability_source = func(_id: String):
+		return store.EDIT_BUSY if store.editing_locked() else ""
+
 	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Restore package", _choose.bind("reopen_package")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Import vector", _import_geojson], ["Export map", _export]]:
 		commands.register("File", entry[0], entry[1], "Primary+S" if entry[0] == "Save" else "")
 	commands.register("Edit", "Undo", _history.bind(false), "Primary+Z", {"enabled":func(): return not store.undo_stack.is_empty(), "reason":"No committed edit to undo."})
@@ -1053,10 +1056,14 @@ func _popup_open(node: Node) -> bool:
 
 func _shortcuts_blocked() -> bool:
 	var focus := get_viewport().gui_get_focus_owner()
-	return focus is LineEdit or focus is TextEdit or (DisplayServer.has_feature(DisplayServer.FEATURE_IME) and not DisplayServer.ime_get_text().is_empty()) or _popup_open(self)
+	return store.editing_locked() or focus is LineEdit or focus is TextEdit or (DisplayServer.has_feature(DisplayServer.FEATURE_IME) and not DisplayServer.ime_get_text().is_empty()) or _popup_open(self)
 
 func _watch_ui_node(node: Node) -> void:
-	if is_ancestor_of(node): _decorate_ui.call_deferred(node)
+	if is_ancestor_of(node): _decorate_ui_id.call_deferred(node.get_instance_id())
+
+func _decorate_ui_id(id: int) -> void:
+	var node := instance_from_id(id)
+	if node is Node: _decorate_ui(node)
 
 func _decorate_ui(node: Node) -> void:
 	if not is_instance_valid(node) or node.is_queued_for_deletion(): return
@@ -1146,13 +1153,17 @@ func _preview_cell_changed(_value: float) -> void:
 		preview_due = Time.get_ticks_msec() + 150
 
 func _start_package(operation: String, destination: String = "") -> void:
-	if store.track_edit_busy: _status(store.EDIT_BUSY); return
+	if operation == "export":
+		if store.editing_locked(): _status(store.EDIT_BUSY); return
+		_cancel_editing()
+		var failure := store.start_file_operation("export", destination, {"full":full_generation.button_pressed, "regional_side_cells":int(regional_grouping.value) if destination.get_extension().to_lower() == "mkregions" else 0})
+		if failure != "": _status(I18N.diagnostic(failure))
+		return
+	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	if busy:
 		_status(I18N.t("Another operation is running; cancel it or wait."))
 		return
-	if store.has_gesture():
-		_status(I18N.t("Finish or cancel the current gesture first."))
-		return
+	_cancel_editing()
 	if density_panel.task != null:
 		density_panel.cancel()
 		density_deferred_package = {"operation":operation,"destination":destination}
@@ -1183,6 +1194,18 @@ func _start_package(operation: String, destination: String = "") -> void:
 		_status(I18N.diagnostic(error_string(err)))
 
 func _cancel_operation() -> void:
+	if file_dialog_lock:
+		dialog.hide()
+		_release_file_dialog_lock()
+		pending_document_action.clear()
+		return
+	if generation_lock:
+		_cancel_track_generation()
+		return
+	if not store.file_request.is_empty():
+		store.cancel_file_operation()
+		_status(I18N.t("Stopping operation… Waiting for publication result."))
+		return
 	store.cancel_track_edit()
 	if density_panel != null: density_panel.cancel()
 	if not density_deferred_package.is_empty():
@@ -1469,14 +1492,20 @@ func _finish_terrain(job: RefCounted, result: Dictionary) -> void:
 	_status(I18N.diagnostic(failure) if failure != "" else I18N.t("Terrain stroke applied. Undo: ") + commands.shortcut_text("edit.undo"))
 
 func _process(_delta: float) -> void:
+	if generation_lock and not track_job.busy():
+		generation_lock = false
+		store.set_external_lock(busy)
 	store.poll_track_edit()
+	store.poll_file_operation()
+	store.poll_autosave()
+	_sync_operation_ui()
 	if track_workbench != null and track_workbench.placement.tool != "" and _popup_open(self): _cancel_editing()
 	if not density_deferred_package.is_empty() and density_panel.task == null:
 		var pending := density_deferred_package
 		density_deferred_package = {}
 		busy = false
 		_start_package(pending.operation,pending.destination)
-	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy
+	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy and store.file_request.is_empty()
 	cancel_button.tooltip_text = I18N.t("Cancel the running operation; keep prior preview and original files.") if busy or store.track_edit_busy else I18N.t("No running operation.")
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	if import_job != null:
@@ -1779,7 +1808,7 @@ func _test_drive() -> void:
 
 func _launch_test_drive() -> void:
 	last_drive_result = {}
-	if busy:
+	if store.editing_locked():
 		_status(I18N.t("Another operation is running."))
 		return
 	var checked := TEST_DRIVE.check_client(client_path.text)
@@ -1787,15 +1816,9 @@ func _launch_test_drive() -> void:
 		last_drive_result = checked
 		_status(I18N.result(checked))
 		return
-	var failure := store.save_project(store.project_path)
-	if failure != "":
-		_status(I18N.diagnostic(failure))
-		return
-	_document_changed()
-	var validation: Dictionary = JSON.parse_string(store.bridge.validate_document(JSON.stringify(store.document)))
-	if not validation.ok:
-		_status(I18N.result(validation))
-		return
+	_start_save(store.project_path, "launch_drive")
+
+func _prepare_test_drive() -> void:
 	var directory := ProjectSettings.globalize_path("user://test-drives")
 	var error := DirAccess.make_dir_recursive_absolute(directory)
 	if error != OK:
@@ -1804,7 +1827,7 @@ func _launch_test_drive() -> void:
 	var snapshot := directory.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + ".memap")
 	drive_request = {"client": client_path.text, "x_cm": roundi(drive_x.value * 100),
 		"y_cm": roundi(drive_y.value * 100), "surface": drive_surface.get_selected_metadata(),
-		"document": validation.data.canonical}
+		"document": store._saved_canonical}
 	var settings := ConfigFile.new()
 	settings.load("user://editor_tools.cfg")
 	settings.set_value("test_drive", "client_executable", client_path.text)
@@ -1853,6 +1876,8 @@ func _open_track_generator() -> void:
 		track_job.completed.connect(func(request: int, result: Dictionary):
 			if request!=track_request: return
 			track_request=-1
+			generation_lock = false
+			store.set_external_lock(busy)
 			track_panel.set_busy(false)
 			if track_epoch != store.command_epoch: return
 			if not result.ok: _status(I18N.error(result.error)); track_panel.note.text=I18N.error(result.error); return
@@ -1875,11 +1900,13 @@ func _open_track_generator() -> void:
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		scroll.add_child(panel)
 		panel.requested.connect(func(settings: Dictionary):
-			if busy or track_request>=0: _status(I18N.t("Finish or cancel the current operation first.")); return
+			if store.editing_locked() or track_request>=0: _status(I18N.t("Finish or cancel the current operation first.")); return
 			track_panel.set_busy(true)
 			track_panel.progress.reduce_motion=bool(view_settings.get_value("accessibility","reduce_ui_motion",false))
 			track_panel.update_progress({"stage":"preparing"})
 			track_epoch = store.command_epoch
+			generation_lock = true
+			store.set_external_lock(true)
 			var directory := ProjectSettings.globalize_path("user://generated-tracks")
 			DirAccess.make_dir_recursive_absolute(directory)
 			track_request=track_job.begin(settings,directory.path_join(Crypto.new().generate_random_bytes(12).hex_encode()+".memap"),true)
@@ -1895,3 +1922,80 @@ func _cancel_track_generation() -> void:
 	track_request=-1
 	track_job.cancel()
 	track_panel.set_busy(false)
+
+func _build_operation_ui() -> void:
+	applying_row = HBoxContainer.new()
+	status_label.get_parent().add_child(applying_row)
+	applying_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	applying_spinner = preload("res://addons/mapkit/godot/work_progress.gd").new()
+	applying_spinner.diameter = 28
+	applying_spinner.show_text = false
+	applying_row.add_child(applying_spinner)
+	_label(applying_row, "Applying changes")
+	operation_dim = ColorRect.new()
+	operation_dim.color = Color(0, 0, 0, 0.55)
+	operation_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	operation_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	operation_dim.z_index = 100
+	add_child(operation_dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	operation_dim.add_child(center)
+	var box := VBoxContainer.new()
+	center.add_child(box)
+	operation_spinner = preload("res://addons/mapkit/godot/work_progress.gd").new()
+	box.add_child(operation_spinner)
+	operation_label = _label(box, "Working…")
+	var stop := Button.new()
+	stop.text = I18N.t("Cancel")
+	stop.pressed.connect(_cancel_operation)
+	box.add_child(stop)
+	_sync_operation_ui()
+
+func _sync_operation_ui() -> void:
+	if not is_instance_valid(operation_dim): return
+	var locked := store.editing_locked()
+	if locked and not operation_dim.visible:
+		var focus := get_viewport().gui_get_focus_owner()
+		if focus != null: focus.release_focus()
+	if operation_dim.visible != locked: commands.refresh_buttons()
+	operation_dim.visible = locked
+	applying_row.visible = store.applying_visible() and not locked
+	var reduced := bool(view_settings.get_value("accessibility", "reduce_ui_motion", false))
+	applying_spinner.reduce_motion = reduced
+	operation_spinner.reduce_motion = reduced
+	operation_label.text = I18N.t("Saving map" if store.file_request.get("operation", "") == "save" else "Working…")
+
+func _draft_status_changed() -> void:
+	canvas.queue_redraw()
+	project_label.text = (store.project_path if store.project_path != "" else I18N.t("Unsaved project")) + (I18N.t("  • modified") if store.dirty else "")
+	commands.refresh_buttons()
+
+func _start_save(path: String, continuation := "save") -> void:
+	if store.editing_locked(): _status(store.EDIT_BUSY); return
+	_cancel_editing()
+	file_continuation = continuation
+	var failure := store.start_file_operation("save", path)
+	if failure != "":
+		file_continuation = ""
+		_status(I18N.diagnostic(failure))
+
+func _file_finished(result: Dictionary) -> void:
+	_draft_status_changed()
+	var continuation := file_continuation
+	file_continuation = ""
+	if not result.ok:
+		pending_document_action.clear()
+		_status(I18N.diagnostic(str(result.error)))
+		return
+	if result.request.operation == "export":
+		last_export_report = result.data
+		_status(I18N.t("Exported validated package: ") + str(result.data.path))
+		export_report.show_report(result.data)
+		return
+	_status(I18N.t("Project saved."))
+	match continuation:
+		"save_transition": _continue_document_action()
+		"save_for_export": _choose.call_deferred("export")
+		"save_for_drive": _test_drive()
+		"launch_drive": _prepare_test_drive()

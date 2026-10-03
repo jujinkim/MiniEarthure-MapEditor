@@ -120,8 +120,8 @@ func _draw() -> void:
 		draw_line(screen([x, bounds.min[1]]), screen([x, bounds.max[1]]), STYLE.GRID)
 	for y in range(int(bounds.min[1]), int(bounds.max[1]) + 1, cell):
 		draw_line(screen([bounds.min[0], y]), screen([bounds.max[0], y]), STYLE.GRID)
-	if doc.get("assembled_track") is Dictionary:
-		for piece: Dictionary in doc.assembled_track.pieces:
+	if doc.get("assembled_track") is Dictionary or store.draft_pending():
+		for piece: Dictionary in store.track_pieces():
 			for path: Array in [piece.path,piece.get("alternate_path",[])]:
 				var line := PackedVector2Array()
 				for sample: Dictionary in path: line.append(screen([sample.position_cm[0],sample.position_cm[2]]))
@@ -262,6 +262,7 @@ func _snap_vertex(p: Vector2) -> Vector2:
 	return best
 
 func _gui_input(event: InputEvent) -> void:
+	if store != null and store.editing_locked(): return
 	if navigation_only:
 		if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
 			pan += event.relative

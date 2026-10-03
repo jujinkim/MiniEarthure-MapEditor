@@ -15,7 +15,8 @@ func run() -> void:
 	var screen:=EDITOR.new();root.add_child(screen);await process_frame
 	var bench: Node=screen.track_workbench
 	var panel:=PANEL.new();root.add_child(panel);panel.open(bench)
-	panel.add_line(false);await settle(screen)
+	panel.add_line(false);panel.points.text="Unsubmitted text";await settle(screen)
+	check(panel.points.text=="Unsubmitted text","worker completion retains active line input")
 	check(bench.source.grind_lines.size()==1 and screen.store.document.grind_lines.size()==1,"independent palette air line")
 	panel.points.text="0, 100, 0\n0, 100, 300\n300, 100, 300\n300, 100, 600"
 	panel.apply_line();await settle(screen)
@@ -32,7 +33,9 @@ func run() -> void:
 	var before_delete: Dictionary=screen.store.document.duplicate(true)
 	panel.select(1);panel.remove_line();await settle(screen)
 	check(bench.source.grind_lines.size()==1 and bench.source.grind_lines[0].end_connections.is_empty(),"delete removes endpoint references")
-	check(screen.store.undo()=="" and screen.store._signature(screen.store.document)==screen.store._signature(before_delete),"undo restores line and links")
+	check(screen.store.undo()=="","undo accepted immediately")
+	await settle(screen)
+	check(screen.store._signature(screen.store.document)==screen.store._signature(before_delete),"undo restores line and links")
 	var path:=ProjectSettings.globalize_path("user://grind-source")
 	check(screen.store.save_project(path)=="","save line source")
 	var reopened:=STORE.new()

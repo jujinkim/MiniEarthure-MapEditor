@@ -1,5 +1,13 @@
 # Incremental preview, Save As and package output
 
+2026-10-03: explicit export now freezes the latest submitted track draft, dims and
+locks editing immediately, and waits for that revision's validation before packaging.
+Save/Save As use the same lock and worker-owned publication boundary. Automatic
+track validation/autosave stays editable. Cancellation waits for the actual publication
+outcome; failed work retains the draft and prior files. See the current
+[document contract](DOCUMENTS.md) and [scoped evidence](validation/continuous-edit-2026-10-03/README.md).
+
+
 E04 implementation, 2026-09-09. This public Editor unit uses the unchanged MapKit
 native generator, queries, estimates, file validator, compressor and shared renderer.
 No game installation, new recipe, package schema or native ABI is required.

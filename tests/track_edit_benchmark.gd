@@ -123,8 +123,8 @@ func run() -> void:
 		"file_sha256":FileAccess.get_sha256(source_path) if not source_path.is_empty() else "",
 		"editor_revision":OS.get_environment("TRACK_BENCH_EDITOR_REVISION"), "mapkit_revision":OS.get_environment("TRACK_BENCH_MAPKIT_REVISION"),
 		"native_sha256":native_hash(), "godot":Engine.get_version_info().string}))
-	for grounded in ([true] if OS.get_environment("TRACK_BENCH_PROBE") == "1" else [false, true]):
-		for count in ([49] if OS.get_environment("TRACK_BENCH_PROBE") == "1" else [10, 25, 49]):
+	for grounded in ([true] if OS.get_environment("TRACK_BENCH_PROBE") == "1" or OS.get_environment("TRACK_BENCH_ONLY_49") == "1" else [false, true]):
+		for count in ([49] if OS.get_environment("TRACK_BENCH_PROBE") == "1" or OS.get_environment("TRACK_BENCH_ONLY_49") == "1" else [10, 25, 49]):
 			screen.store.new_track()
 			var source := fixture(screen.store, count, grounded, seeded_source)
 			print("TRACK_BENCH_FIXTURE ", JSON.stringify({"count":count, "grounded":grounded, "source":source_identity(source)}))

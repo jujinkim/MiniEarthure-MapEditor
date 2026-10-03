@@ -1825,6 +1825,17 @@
     "Copying map": "マップをコピー中",
     "Preparing preview": "プレビューを準備中",
     "Ready": "準備完了",
-    "Starting time": "開始時刻"
+    "Starting time": "開始時刻",
+    "Applying changes": "反映中",
+    "Working…": "処理中…",
+    "Draft updated · Continue editing while changes are applied.": "下書きを更新 · 反映中も編集を続けられます。",
+    "Draft geometry · Connections and supports are being prepared.": "下書き表示 · 接続部と支柱を準備中",
+    "Stopping operation… Waiting for publication result.": "停止処理中… ファイル保存結果を確認しています。",
+    "File operation belongs to another document session.": "このファイル操作は別の文書セッションに属しています。",
+    "Finish applying the draft before changing map properties.": "マップのプロパティを変更する前に下書きの反映を完了してください。",
+    "Operation cancelled; draft retained.": "操作をキャンセルしました。下書きは保持されています。",
+    "Unsupported file operation.": "対応していないファイル操作です。",
+    "Unsupported or corrupt recovery draft.": "対応していないか破損した復元用の下書きです。",
+    "Wait for the explicit operation to finish.": "実行中の操作が完了するまでお待ちください。"
   }
 }

@@ -27,6 +27,8 @@ var selection_serial := 0
 var interaction_serial := 0
 var apply_context: Dictionary = {}
 var drawn_epoch := -1
+var display_document: Dictionary = {}
+var final_preview_due := false
 
 const STYLE := preload("./workbench_style.gd")
 var palette_tools: VBoxContainer
@@ -36,12 +38,18 @@ var section_open := {"Transform":true, "Connections":false, "Routes & Checkpoint
 
 func build(owner: Control) -> void:
 	editor = owner
-	editor.store.track_edit_ready.connect(func(context: Dictionary): apply_context = context)
+	editor.store.draft_changed.connect(func(context: Dictionary):
+		apply_context = context
+		refresh()
+		editor._draft_status_changed())
+	editor.store.validated_changed.connect(func():
+		final_preview_due = true
+		editor._draft_status_changed())
 	editor.store.track_edit_finished.connect(func(failure: String):
 		if failure != "":
 			editor._status(I18N.diagnostic(failure))
 			if properties.get_meta("placement_tool", "") != placement.tool: _properties()
-		else: editor._status(I18N.t("Track edit complete · Draft saved in document history."))
+		elif not editor.store.editing_locked(): editor._status(I18N.t("Track edit complete · Draft saved in document history."))
 		editor.commands.refresh_buttons())
 	catalogue = JSON.parse_string(editor.store.bridge.track_catalogue()).data
 	placement = preload("./track_placement.gd").new()
@@ -187,8 +195,9 @@ func refresh() -> void:
 	_properties()
 	if route_item >= 0 and route_item < route_list.item_count: route_list.select(route_item)
 	var a: Dictionary=editor.store.document.get("assembled_track",{})
-	var issues: Array=a.get("issues",[])
+	var issues: Array=[] if editor.store.draft_pending() else a.get("issues",[])
 	report.text=I18N.t("Connections & courses: ")+(I18N.t("Geometry ready · Manual courses need player completion") if issues.is_empty() and not a.is_empty() else " / ".join(issues.map(func(issue): return I18N.diagnostic(str(issue)))))
+	if editor.store.draft_pending(): report.text = I18N.t("Draft geometry · Connections and supports are being prepared.")
 	_draw()
 
 func _button(parent: Node, text: String, callback: Callable) -> Button:
@@ -321,8 +330,8 @@ func _properties() -> void:
 	connections.add_child(target)
 	_selected_button(connections, "Snap entry to target exit", snap_to_target, target.item_count > 0, I18N.t("Add another piece to connect."))
 	_selected_button(connections, "Connect exit to target entry", connect_curve, target.item_count > 0, I18N.t("Add another piece to connect."))
-	var piece: Dictionary = editor.store.document.assembled_track.pieces[selected]
-	sample_input = _spin(routes_box, "Path sample", 0, 0, piece.path.size() - 1, 1)
+	var piece: Dictionary = editor.store.track_pieces()[selected]
+	sample_input = _spin(routes_box, "Path sample", 0, 0, maxi(0, piece.path.size() - 1), 1)
 	var cp_actions := HBoxContainer.new()
 	routes_box.add_child(cp_actions)
 	_button(cp_actions, "Set start checkpoint", checkpoint.bind(true))
@@ -383,12 +392,13 @@ func _route_move(delta: int) -> void:
 	_commit(next, -2, {"route_item":at + delta})
 
 func _commit(next: Dictionary, next_selection := -2, extra: Dictionary = {}) -> bool:
-	if editor.busy: editor._status(I18N.t("Wait for the current operation.")); return false
+	if editor.busy or editor.store.editing_locked(): editor._status(I18N.t("Wait for the current operation.")); return false
 	var context := {"selection_serial":selection_serial, "interaction_serial":interaction_serial, "selected":selected if next_selection == -2 else next_selection}
 	context.merge(extra)
+	placement.cancel()
 	var failure: String = editor.store.start_track_edit(next, editor.store.command_epoch, context)
 	if failure != "": editor._status(I18N.diagnostic(failure)); return false
-	editor._status(I18N.t("Applying track edit… Camera and selection remain available · Cancel stops this edit."))
+	editor._status(I18N.t("Draft updated · Continue editing while changes are applied."))
 	editor.commands.refresh_buttons()
 	return true
 
@@ -443,8 +453,10 @@ func connect_curve() -> void:
 	if selected<0 or target.item_count==0: return
 	var next:=source.duplicate(true)
 	var other:=target.get_selected_id()
-	var a: Dictionary=editor.store.document.assembled_track.pieces[selected].path.back()
-	var b: Dictionary=editor.store.document.assembled_track.pieces[other].path[0]
+	var pieces: Array = editor.store.track_pieces()
+	if pieces[selected].path.is_empty() or pieces[other].path.is_empty(): return
+	var a: Dictionary=pieces[selected].path.back()
+	var b: Dictionary=pieces[other].path[0]
 	var reach:=maxf(400.0,PREVIEW.point(a.position_cm).distance_to(PREVIEW.point(b.position_cm))*50.0)
 	var p1: Array=[]
 	var p2: Array=[]
@@ -476,7 +488,20 @@ func checkpoint(start: bool) -> void:
 func add_action(kind: String) -> void:
 	placement.activate("action", kind)
 
+func _process(_delta: float) -> void:
+	if not final_preview_due or editor.store.draft_pending(): return
+	var focus := editor.get_viewport().gui_get_focus_owner()
+	if placement.moving_index >= 0 or focus is LineEdit or focus is TextEdit or editor.store.has_gesture(): return
+	final_preview_due = false
+	drawn_epoch = -1
+	_draw()
+	var issues: Array = editor.store.document.get("assembled_track", {}).get("issues", [])
+	report.text = I18N.t("Geometry ready · Manual courses need player completion") if issues.is_empty() else " / ".join(issues.map(func(issue): return I18N.diagnostic(str(issue))))
+
 func _draw() -> void:
+	if editor.store.draft_pending() and is_instance_valid(view):
+		PREVIEW.apply_draft(view, source, editor.store.track_pieces(), display_document, selected)
+		return
 	if drawn_epoch == editor.store.command_epoch and is_instance_valid(view):
 		PREVIEW.select(view, selected)
 		return
@@ -485,11 +510,13 @@ func _draw() -> void:
 	if a.is_empty():
 		if is_instance_valid(view): view.queue_free()
 		view = null
+		display_document = {}
 		return
 	var prepared: Dictionary = editor.store.prepared_track_preview
 	if prepared.is_empty():
 		PREVIEW.preparations += 1
 		prepared = PREVIEW.prepare(editor.store.document, editor.store.bridge, editor.store.track_preview_cache)
+	display_document = editor.store.document.duplicate(true)
 	editor.store.track_preview_cache = prepared
 	editor.store.prepared_track_preview = {}
 	if is_instance_valid(view):
@@ -516,21 +543,21 @@ func _draw() -> void:
 	if editor.preview_camera.camera.position==Vector3.ZERO: editor.preview_camera.frame(Vector3.ZERO,80.0)
 
 func input(event: InputEvent) -> bool:
-	if not active or editor._popup_open(editor): return false
+	if not active or editor.store.editing_locked() or editor.busy or editor._popup_open(editor): return false
 	if placement.tool != "": return placement.input(event)
 	var camera: Camera3D = editor.preview_camera.camera
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var nearest := 18.0
 		var index := -1
-		var a: Dictionary = editor.store.document.get("assembled_track", {})
-		for i in a.get("pieces", []).size():
-			for p: Dictionary in a.pieces[i].path:
+		var pieces: Array = editor.store.track_pieces()
+		for i in pieces.size():
+			for p: Dictionary in pieces[i].path:
 				var point := PREVIEW.point(p.position_cm)
 				if camera.is_position_behind(point): continue
 				var d := camera.unproject_position(point).distance_to(event.position)
 				if d < nearest: nearest = d; index = i
 		select_piece(index)
-		if selected >= 0 and not editor.store.track_edit_busy and not editor.busy:
+		if selected >= 0 and not editor.store.editing_locked() and not editor.busy:
 			var start: Variant = _plane_point(event.position, float(source.instances[selected].position_cm[1])*0.01)
 			if start != null: placement.begin_move(selected, start)
 		return true
@@ -545,9 +572,10 @@ func add_obstacle(kind: String) -> void:
 
 func frame_selection() -> void:
 	if selected<0: editor.preview_camera.frame(Vector3.ZERO,80.0); return
-	var piece: Dictionary=editor.store.document.assembled_track.pieces[selected]
+	var piece: Dictionary=editor.store.track_pieces()[selected]
 	var center:=Vector3.ZERO
 	for point: Dictionary in piece.path: center+=PREVIEW.point(point.position_cm)
+	if piece.path.is_empty(): return
 	center/=piece.path.size()
 	var radius:=8.0
 	for point: Dictionary in piece.path: radius=maxf(radius,center.distance_to(PREVIEW.point(point.position_cm))*2.0)
