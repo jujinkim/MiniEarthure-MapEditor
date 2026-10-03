@@ -316,16 +316,26 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 	local.id = "preview"
 	local.position_cm = [0, 0, 0]
 	local.rotation_mdeg = [0, 0, 0]
-	var key := JSON.stringify([local, kind, tool if kind != "piece" else "", sample, jump_height_cm if kind == "action" else 0])
+	var source: Dictionary = bench.source.duplicate(true)
+	for field in ["connections", "paths", "checkpoints", "actions", "attachments", "grind_lines", "structures"]: source[field] = []
+	source.instances = [local]
+	source.original_seed = null
+	source.grounded_supports = false
+	source.settings.circuit = false
+	if kind == "action":
+		# Include connected support at a seam, in its actual world frame. This
+		# is the same bounded source compiled at commit, not a flat ghost pad.
+		local = item.duplicate(true)
+		var ids := [str(item.id)]
+		for edge: Dictionary in bench.source.connections:
+			if edge.from == item.id: ids.append(str(edge.to))
+			if edge.to == item.id: ids.append(str(edge.from))
+		source.instances = bench.source.instances.filter(func(value): return str(value.id) in ids)
+		source.connections = bench.source.connections.filter(func(edge): return str(edge.from) in ids and str(edge.to) in ids)
+		source.actions = [{"id":"preview", "kind":tool, "piece":local.id, "sample":sample, "height_cm":jump_height_cm, "landing":null}]
+	var key := JSON.stringify([source, kind, tool if kind != "piece" else "", sample])
 	if not cache.has(key):
-		var source: Dictionary = bench.source.duplicate(true)
-		for field in ["connections", "paths", "checkpoints", "actions", "attachments", "grind_lines", "structures"]: source[field] = []
-		source.instances = [local]
-		source.original_seed = null
-		source.grounded_supports = false
-		source.settings.circuit = false
-		if kind == "action": source.actions = [{"id":"preview", "kind":tool, "piece":"preview", "sample":sample, "height_cm":jump_height_cm, "landing":null}]
-		elif kind == "obstacle":
+		if kind == "obstacle":
 			source.attachments = [_attachment(local, sample)]
 			if tool=="grind_rail":
 				var lines: Dictionary=JSON.parse_string(bench.editor.store.bridge.track_attachment_lines(JSON.stringify(local),JSON.stringify(source.attachments[0])))
@@ -338,7 +348,8 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 		if cache.size() >= 24:
 			cache[cache.keys()[0]].node.free()
 			cache.erase(cache.keys()[0])
-		cache[key] = {"node":template, "entry":compiled.data.document.assembled_track.pieces[0].path[0]}
+		var at: int = source.instances.find(local)
+		cache[key] = {"node":template, "entry":compiled.data.document.assembled_track.pieces[maxi(0,at)].path[0]}
 		geometry_builds += 1
 	if ghost_key != key or not is_instance_valid(ghost):
 		if is_instance_valid(ghost): ghost.queue_free()
@@ -416,22 +427,26 @@ func _surface_at(screen: Vector2) -> Dictionary:
 	var ray := camera.project_ray_normal(screen)
 	var best := {"distance":INF, "piece":-1, "sample":-1}
 	var pieces: Array = bench.editor.store.track_pieces()
-	# Use the shared driving frames/widths. Each ribbon quad is selectable from
-	# its driving side; flight samples never become attachment targets.
-	for p in pieces.size():
-		var path: Array = pieces[p].path
-		for i in range(1, path.size()):
-			if path[i - 1].mode == "flight" or path[i].mode == "flight": continue
-			var a := frame(path[i - 1])
-			var b := frame(path[i])
-			if ray.dot(a.basis.y) >= 0: continue
-			var w := float(path[i - 1].lateral_cm) * 0.01
-			var v := float(path[i].lateral_cm) * 0.01
-			var points := [a.origin - a.basis.x*w, a.origin + a.basis.x*w, b.origin + b.basis.x*v, b.origin - b.basis.x*v]
-			for triangle in [[0, 1, 2], [0, 2, 3]]:
-				var hit: Variant = _surface_triangle(origin, ray, points[triangle[0]], points[triangle[1]], points[triangle[2]])
-				if hit is Vector3 and origin.distance_to(hit) < best.distance:
-					best = {"distance":origin.distance_to(hit), "piece":p, "sample":i - 1 if hit.distance_to(a.origin) <= hit.distance_to(b.origin) else i}
+	for node: MeshInstance3D in bench.view.get_meta("objects", {}).values() + bench.view.get_meta("draft_objects", {}).values():
+		if not node.visible or not node.get_meta("road", false) or node.mesh == null: continue
+		var owner := int(node.get_meta("owner", -1))
+		if owner < 0 or owner >= pieces.size(): continue
+		var path: Array = pieces[owner].path
+		var vertices: PackedVector3Array = node.mesh.get_faces()
+		for n in range(0, vertices.size(), 3):
+			var a := node.global_transform * vertices[n]
+			var b := node.global_transform * vertices[n+1]
+			var c := node.global_transform * vertices[n+2]
+			if ray.dot((c-a).cross(b-a)) >= 0: continue
+			var hit: Variant = _surface_triangle(origin, ray, a, b, c)
+			if not hit is Vector3 or origin.distance_to(hit) >= best.distance: continue
+			var nearest := -1
+			var distance := INF
+			for i in path.size():
+				if not path[i].safe: continue
+				var d: float = hit.distance_squared_to(PREVIEW.point(path[i].position_cm))
+				if d < distance: distance = d; nearest = i
+			if nearest >= 0: best = {"distance":origin.distance_to(hit), "piece":owner, "sample":nearest}
 	return best
 
 func update_pointer(screen: Vector2) -> bool:

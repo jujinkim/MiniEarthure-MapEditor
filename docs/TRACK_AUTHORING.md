@@ -96,3 +96,13 @@ reduced motion. English, Korean and Japanese stage labels are included.
 The generation worker/preview adoption unit and shared progress validator pass,
 including unknown search, measured stages, matching requests and prepared preview.
 Detailed dialog interaction is user verification; no video was recorded.
+
+## Panel surface placement (02, 2026-10-04)
+
+Attachment picking now intersects the actual shared preview road triangles,
+including quantized transverse strips and current draft transforms. Panel ghosts
+include their connected road support and use the same MapKit fitting path as the
+committed attachment. Unsupported geometry remains an explicit placement error.
+Native/load and focused UI-state verification are grouped with the partial-width
+panel delivery. Detailed pointer interaction and device acceptance remain user
+verification.
