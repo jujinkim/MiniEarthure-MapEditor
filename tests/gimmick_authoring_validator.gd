@@ -7,6 +7,7 @@ func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	ui.store.new_document()
 	ui.author_panel.open()
 	var panel: RefCounted = ui.author_panel.gimmick_panel
 	var ramp: Dictionary = panel.draft()
@@ -17,7 +18,7 @@ func run() -> void:
 	check(ui.store.apply_command("Ramp probe", [{"field":"gimmicks", "id":ramp.id, "before":null, "after":ramp}]) == "", "native validates current ramp")
 	check(ui.store.undo() == "", "ramp probe restored")
 	for i in panel.template.item_count:
-		if panel.template.get_item_text(i) == "platform": panel.template.select(i)
+		if str(panel.template.get_item_metadata(i)) == "platform": panel.template.select(i)
 	panel.load_controls(panel.templates.platform)
 	panel.controls.X.value = 32
 	panel.controls.Z.value = 32
@@ -39,7 +40,7 @@ func run() -> void:
 	for kind in ["target_speed","jump_height","air_ring","loop","cylinder"]:
 		panel.before = {}
 		for i in panel.template.item_count:
-			if panel.template.get_item_text(i) == kind: panel.template.select(i)
+			if str(panel.template.get_item_metadata(i)) == kind: panel.template.select(i)
 		panel.load_controls(panel.templates[kind])
 		panel.controls.X.value = 32
 		panel.controls.Z.value = 32
@@ -49,6 +50,14 @@ func run() -> void:
 		var candidate: Dictionary = panel.draft()
 		check(candidate.rotation_mdeg[0] == 15000 and candidate.rotation_mdeg[2] == -12000,"full Euler controls")
 		if candidate.has("effect"): check(candidate.effect.jump_height_cm == 300 and candidate.effect.strength_percent == 100,"effect defaults")
+		if kind == "air_ring":
+			check(candidate.effect.ring_radius_cm==150 and candidate.parts.size()==24,"3m ring default")
+			var original := candidate.duplicate(true)
+			original.effect.ring_radius_cm=300; original.effect.strength_percent=37
+			for part: Dictionary in original.parts:
+				for vertex: Array in part.vertices: vertex[0]*=2;vertex[1]*=2
+			panel.before=original;panel.load_controls(original);candidate=panel.draft()
+			check(candidate.effect==original.effect and candidate.parts==original.parts,"explicit ring dimensions/strength retained")
 		check(ui.store.apply_command("Special",[{"field":"gimmicks","id":candidate.id,"before":null,"after":candidate}]) == "","save "+kind)
 		check(ui.store.undo() == "" and ui.store.redo() == "","undo/redo "+kind)
 		panel.show_preview()

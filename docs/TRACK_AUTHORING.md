@@ -147,3 +147,22 @@ are identical (JSON field order differs); roads/routes/supports/gimmicks compare
 exactly. The prior source/package is preserved. All own formats remain v1.
 Execution logs stay in root local `docs/tasks/pipes-03-08/`; detailed editing,
 material preference and game driving remain user verification.
+
+## Air ring defaults 09 — 2026-10-04
+
+Consumes MapKit 6c5e3a0. New automatic/manual rings and standalone preview now
+use a3m opening and100% strength. Existing explicit ring parts/radius/strength
+remain authoritative; no source migration is performed.
+[Scoped checks](validation/air-rings-2026-10-04/) pass new defaults, full Euler
+preview, explicit6m/37% preservation, Undo/Redo/save/reopen and practice source
+unpack/recompile/reopen. The existing authoring validator was corrected to select
+options by metadata and initialize an ordinary document; its earlier translated
+label/assembled-document assumptions failed and timed out. Product editor code
+needed no change. Detailed interactive authoring is user verification.
+
+The preserved pipes practice source was compiled to
+[practice-track-rings-2026-10-04](../examples/practice-track-rings-2026-10-04/README.md).
+Source bytes, geometry and non-identity fields are unchanged. Compiler and derived
+map/course identities change. CLI verify-track passes, and the consumer package
+hash is2da30d8fd8102d8b4ca2dcc989f69a18577d34f58b27b8b26355ae29072cbda6.
+Original files remain in place. All formats remainv1; main/local commits only.
