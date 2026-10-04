@@ -166,3 +166,20 @@ Source bytes, geometry and non-identity fields are unchanged. Compiler and deriv
 map/course identities change. CLI verify-track passes, and the consumer package
 hash is2da30d8fd8102d8b4ca2dcc989f69a18577d34f58b27b8b26355ae29072cbda6.
 Original files remain in place. All formats remainv1; main/local commits only.
+
+## Curve sampling [18] practice anchors — 2026-10-05
+
+Consumes MapKit a9e2761 ordinary 2.5m curve sampling with retained vertical safety
+bounds. The reproducible practice source inserts collinear cubic joins at its
+existing 3m gate aprons and 4m pre-flight markers. These are exact compiler-owned
+samples; centreline, dimensions, endpoints and object count are retained. The
+first coarser build selected a gate 2.22m from its apron and failed the existing
+40cm tolerance; it is preserved as failed evidence. Joins correct the semantic
+station instead of weakening the test or increasing the global segment density.
+
+[New source and package](../examples/practice-curves-18-2026-10-05/README.md) retain
+original files and use hash d6f5cf0606577b2b04185e9a62371a9941cced2ec7c1b0a5354da4373b715e85.
+[Scoped evidence](validation/curves-18-2026-10-05/README.md) records Python4 PASS,
+CLI verify/exact references and headless open/edit/compile/save/reopen PASS.
+Detailed authoring and actual driving are user verification. No source API/schema
+or format version change; local main commit, no push.

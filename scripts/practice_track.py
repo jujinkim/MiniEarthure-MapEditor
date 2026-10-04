@@ -42,7 +42,17 @@ def source():
         width = w
         return d["instances"][-1]
     def straight(name, length, **kw):
-        return add(name, [[0,0,0],[0,0,round(length/3)],[0,0,round(length*2/3)],[0,0,length]], **kw)
+        # Collinear cubic joins are semantic stations, not denser road objects.
+        # Preserve the 3m gate apron and 4m pre-flight marker when the public
+        # sampler changes spacing. Each join is a compiler-owned final sample.
+        anchors=[0]
+        if name.startswith("course-") or name=="completion": anchors.append(300)
+        if name in {"course-07","course-08","course-09","course-10"}: anchors.append(length-400)
+        anchors.append(length)
+        points=[[0,0,0]]
+        for a,b in zip(anchors,anchors[1:]):
+            points.extend([[0,0,round(a+(b-a)/3)],[0,0,round(a+2*(b-a)/3)],[0,0,b]])
+        return add(name, points, **kw)
     def start(number, target_width=None):
         # Three metres behind each gate is a quiet stopped-start apron.
         road=straight("course-%02d"%number, 2000 if number<=3 else 2800 if number==9 else 3000, target_width=target_width)

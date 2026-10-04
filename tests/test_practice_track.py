@@ -82,7 +82,7 @@ class PracticeTrack(unittest.TestCase):
             ids=[p["id"] for p in source["instances"]]
             for cp in source["checkpoints"]:
                 path=assembly["pieces"][ids.index(cp["piece"])]["path"]
-                self.assertAlmostEqual(sum((a-b)**2 for a,b in zip(path[0]["position_cm"],path[cp["sample"]]["position_cm"]))**.5,300,delta=40)
+                self.assertAlmostEqual(sum((a-b)**2 for a,b in zip(path[0]["position_cm"],path[cp["sample"]]["position_cm"]))**.5,300,delta=1)
             def check_station(reference, distance_cm, from_end=False):
                 path=assembly["pieces"][ids.index(reference["piece"])]["path"]
                 stations=[0.0]
@@ -94,6 +94,8 @@ class PracticeTrack(unittest.TestCase):
             for action in source["actions"]:
                 check_station(action,400,from_end=True)
                 check_station(action["landing"],0)
+                path=assembly["pieces"][ids.index(action["piece"])]["path"]
+                self.assertAlmostEqual(math.dist(path[action["sample"]]["position_cm"],path[-1]["position_cm"]),400,delta=1)
             first=assembly["pieces"][ids.index(source["checkpoints"][0]["piece"])]["path"][source["checkpoints"][0]["sample"]]["position_cm"]
             self.assertEqual((entry["x_cm"],entry["y_cm"]),(first[0],first[2]))
             self.assertIsNone(document["courses"][0].get("validation"))
