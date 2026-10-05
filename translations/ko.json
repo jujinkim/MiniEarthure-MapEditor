@@ -1836,6 +1836,8 @@
     "Operation cancelled; draft retained.": "작업을 취소했습니다. 초안은 유지됩니다.",
     "Unsupported file operation.": "지원하지 않는 파일 작업입니다.",
     "Unsupported or corrupt recovery draft.": "지원하지 않거나 손상된 복구 초안입니다.",
-    "Wait for the explicit operation to finish.": "요청한 작업이 끝날 때까지 기다려 주세요."
+    "Wait for the explicit operation to finish.": "요청한 작업이 끝날 때까지 기다려 주세요.",
+    "Checkpoint overlaps an existing checkpoint; change rejected.": "기존 체크포인트와 겹쳐 변경하지 않았습니다.",
+    "Race needs two non-overlapping checkpoints": "레이스에는 겹치지 않는 체크포인트가 2개 이상 필요합니다."
   }
 }

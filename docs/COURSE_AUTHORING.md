@@ -25,3 +25,7 @@ is separate from authoring. Previous course layouts are not converted automatica
 height/shape/order, metadata Undo/Redo, real hemisphere radius, native project reload,
 opaque proof import and Save As retention. This is authoring/unit verification, not
 player completion or detailed Editor/device acceptance.
+
+Current checkpoint edits reject overlaps before changing draft/history: add, move and height/radius/shape edits use MapKit's sphere/hemisphere intersection. Track checkpoint commands derive their bounds from the same public sample contract. Existing overlapping source arrays produce a stable first-wins editing/driving view; opening alone never rewrites the source. Zero/one effective gates keep a connected map readable, while racing stays disabled.
+
+2026-10-05: `course_authoring_validator` passed add/move/resize overlap rejection, Undo/Redo, public source and opaque evidence preservation.

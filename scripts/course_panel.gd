@@ -83,7 +83,8 @@ func _select(index: int) -> void:
 	start.select(0)
 	heading.value = 0
 	if not original.is_empty():
-		var d: Dictionary = original.definition
+		var effective: Dictionary=JSON.parse_string(panel.editor.store.bridge.effective_course(JSON.stringify(original)))
+		var d: Dictionary = effective.data.definition if effective.get("ok",false) else original.definition
 		draft.assign(d.checkpoints.duplicate(true))
 		name_input.text = d.display_name
 		mode.select(0 if d.mode == "circuit" else 1)
@@ -108,8 +109,9 @@ func _point(point: Vector2) -> void:
 			panel.report(ground.error)
 			return
 		elevation = ground.height
-	_remember()
 	var cp := {"position_cm":[roundi(point.x),elevation,roundi(point.y)],"radius_cm":roundi(radius.value*100),"shape":str(shape.get_item_metadata(shape.selected)),"placement_mode":"free","surface_id":"terrain"}
+	if not _allowed(cp,_replace): return
+	_remember()
 	if _replace < 0:
 		if draft.size() >= 64: return
 		draft.append(cp)
@@ -120,11 +122,14 @@ func _point(point: Vector2) -> void:
 
 func _attributes() -> void:
 	if points.get_selected_items().is_empty(): return
-	_remember()
-	var cp := draft[points.get_selected_items()[0]]
+	var index := points.get_selected_items()[0]
+	var cp := draft[index].duplicate(true)
 	cp.position_cm[1] = roundi(height.value*100)
 	cp.radius_cm = roundi(radius.value*100)
 	cp.shape = str(shape.get_item_metadata(shape.selected))
+	if not _allowed(cp,index): return
+	_remember()
+	draft[index]=cp
 	_refresh()
 
 func _delete() -> void:
@@ -295,3 +300,10 @@ func _ground(point: Vector2) -> Dictionary:
 	var y := clampi(floori(p.y),0,side-2)
 	var values: PackedInt64Array = loaded.heights
 	return {"height":roundi(lerpf(lerpf(values[y*side+x],values[y*side+x+1],p.x-x),lerpf(values[(y+1)*side+x],values[(y+1)*side+x+1],p.x-x),p.y-y))}
+
+func _allowed(candidate: Dictionary, replace: int) -> bool:
+	var result: Dictionary=JSON.parse_string(panel.editor.store.bridge.checkpoint_edit_allowed(JSON.stringify(draft),JSON.stringify(candidate),replace))
+	if not result.get("ok",false) or not result.data:
+		panel.report("Checkpoint overlaps an existing checkpoint; change rejected.")
+		return false
+	return true

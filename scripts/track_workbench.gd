@@ -509,6 +509,19 @@ func checkpoint(start: bool) -> void:
 	if selected<0: return
 	var next:=source.duplicate(true)
 	var cp: Dictionary={"piece":next.instances[selected].id,"sample":int(sample_input.value)}
+	var pieces:Array=editor.store.track_pieces()
+	var checkpoints:Array=[]
+	for existing:Dictionary in source.checkpoints:
+		var index:int=source.instances.find(source.instances.filter(func(item):return item.id==existing.piece)[0])
+		var gate:Dictionary=JSON.parse_string(editor.store.bridge.track_checkpoint(JSON.stringify(pieces[index].path[int(existing.sample)])))
+		if not gate.ok:return
+		checkpoints.append(gate.data)
+	var gate:Dictionary=JSON.parse_string(editor.store.bridge.track_checkpoint(JSON.stringify(pieces[selected].path[int(sample_input.value)])))
+	if not gate.ok:return
+	var allowed:Dictionary=JSON.parse_string(editor.store.bridge.checkpoint_edit_allowed(JSON.stringify(checkpoints),JSON.stringify(gate.data),0 if start and not checkpoints.is_empty() else -1))
+	if not allowed.ok or not allowed.data:
+		report.text=I18N.t("Checkpoint overlaps an existing checkpoint; change rejected.")
+		return
 	if start:
 		if next.checkpoints.is_empty(): next.checkpoints.append(cp)
 		else: next.checkpoints[0]=cp
