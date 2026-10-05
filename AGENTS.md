@@ -20,3 +20,13 @@ unless the user explicitly approves a version change. Runtime state revisions,
 epochs and request IDs are not format versions. No previous-format loaders,
 automatic conversion or legacy compatibility branches. Preserve user datasets,
 original files and Git history. New rules modify the current v1 definition.
+
+Documentation/commit replacement (2026-10-05): update existing owning docs with
+current contracts, open issues and essential validation only. Active task notes
+belong in the root ignored docs/tasks/. At task completion integrate results,
+delete finished notes/raw test logs and clean stale duplicates/links; no archive
+accumulation. Preserve user data/maps, generated artifacts, models and fixtures.
+This supersedes permanent test-log/report retention (training data remain intact).
+Commit each verified task locally on main in dependency order, including consumer
+pins and root lock, before the next task. Push only after all approved tasks and
+required checks finish, in dependency order. Never force-push or rewrite history.
