@@ -120,7 +120,7 @@ manual-flight sample references no longer fit current sampling). Regenerating
 from `scripts/practice_track.py` into a new isolated directory fails
 `E_TRACK_DRAFT`: `runout-04 / course-04` and `runout-05 / course-05` road clearance
 collision. The authoring/sampling source responsible for these checks is unchanged
-by the wall occupancy repair. [Both failure logs](validation/grid-input-2026-10-03/)
+by the wall occupancy repair. Both failure logs
 are retained. Original source, package, project and entry metadata are preserved;
 neither action validation nor road-clearance validation is bypassed, and the
 approved 8m-wide / 6m-radius practice corners are not silently redesigned.
@@ -143,7 +143,7 @@ The original example and consumer copy were backed up before generation. After
 new-directory verification, source/project/package/courses/entry were replaced
 together. Package SHA256 is
 `4745728b36f1573c7f989732a6fe1c1b635779e40e41d52b34ed2a8727e5eebc`.
-[Evidence](validation/practice-refresh-2026-10-03/README.md) covers both prior
+Evidence covers both prior
 failures, three Python tests, byte-identical fresh directories, refusal to replace
 an existing output, stored source recompilation, source/entry identity and strict
 native Editor open/edit/save/reopen. `human_completion` remains `unverified`;
@@ -158,7 +158,7 @@ there is no local collision rule or format change. The preserved practice source
 recompiles successfully into a new directory, with geometry/source identical and
 only seven derived identity fields changed. The new example/entry package SHA256
 is `36c07f812f9436d53798e1e542f9edf2d8e6e39f4a962b7390b5148784cc652b`.
-[CLI/native source/save/reopen and standalone initial-screen checks pass](validation/straight-clearance-2026-10-03/README.md).
+CLI/native source/save/reopen and standalone initial-screen checks pass.
 Detailed editing and driving remain user checks; originals are preserved.
 
 ## Raised beam and earlier air entry — 2026-10-03
@@ -166,7 +166,7 @@ Detailed editing and driving remain user checks; originals are preserved.
 The practice authoring script now places the course8 solid beam top and independent
 line45cm above road. Course9 departs2m earlier while preserving its landing and
 later positions and4m width. New deterministic outputs replace the active example;
-old artifacts are preserved. [Focused evidence and hash](validation/tutorial-air-grind-2026-10-03/README.md).
+old artifacts are preserved. Focused evidence and hash.
 Human completion remains unverified.
 
 Time choice uses MapKit's shared six-preset picker (09/12/17/18/21/06). Existing minute values are preserved on load, settings restore and unrelated environment edits. The scoped settings preservation test passes.

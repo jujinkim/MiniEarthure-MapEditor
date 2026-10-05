@@ -1,5 +1,0 @@
-validation project=editor script=gimmick_authoring_validator installed_addons=False port=65427
-Initialize godot-rust (API v4.7.stable.official, runtime v4.7.2.stable.mono.official, safeguards strict)
-Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
-
-gimmick_authoring_validator: PASS

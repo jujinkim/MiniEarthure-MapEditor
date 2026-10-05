@@ -1,9 +1,0 @@
-{
-  "command": [
-    "map-kit/target/debug/mapkit",
-    "validate",
-    "map-editor/examples/practice-track/practice.memap"
-  ],
-  "elapsed_seconds": 0.027,
-  "exit_code": 0
-}

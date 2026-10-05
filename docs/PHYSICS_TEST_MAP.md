@@ -16,5 +16,5 @@ rtk proxy python3 scripts/check_driving_school.py --mapkit /path/to/mapkit --pro
 
 The package is 1,519 bytes. `tests/physics_test.lock.json` locks its source and cell.
 [Old source](../examples/physics-test-v1/) and [package](../examples/physics-test-v1.memap)
-remain intact; [previous evidence](archive/2026-09-11-loading-units/PHYSICS_TEST_MAP.md)
+remain intact; previous evidence
 describes the former authored 1024 m / displayed 128 m convention.

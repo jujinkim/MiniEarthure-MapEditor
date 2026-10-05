@@ -18,6 +18,6 @@ Seed 편도 마지막의 도착 광장과 복구 기준점은 MapKit이 제공�
 
 집중 검사: generated policy/hash Undo/Redo, save/reopen/recovery,
 document history, GeoJSON 원자적 명령, 높이맵 가져오기, asset policy 보존을
-통과했다. [검증 기록](validation/race-flow-2026-09-28/README.md)을 참조한다.
+통과했다. 검증 기록을 참조한다.
 수동 편집·전체 DEM/OSM 데이터 수락·실주행은 사용자 확인이며 이번 검사의
 통과로 간주하지 않는다.

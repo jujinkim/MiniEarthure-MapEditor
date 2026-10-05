@@ -57,7 +57,7 @@ restart persistence/failures, search in three languages, document/shortcut
 identity, authored text preservation and every shipped CJK glyph without system
 fallback. Dynamic diagnostic tests preserve path and ID arguments.
 
-[The delivery report](validation/localization-2026-10-01/README.md) separates
+The delivery report separates
 implemented behavior, automated results, reproduced baseline failures and the
 remaining user acceptance checks. Basic app startup is the limit of actual app
 verification; detailed editing, test driving, IME, devices and export matrices

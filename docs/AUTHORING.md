@@ -161,7 +161,7 @@ reproduced and repaired for the current explicit free-roam/track workspaces,
 asynchronous placement and command/page navigation. Product code is unchanged.
 All three pass strict diagnostics, preserving history/revision, immutable payload,
 cancel/recovery and unverified-course contracts. The import-review validator also
-passes. [Current revisions, classification and logs](validation/test-failures-2026-10-03/README.md)
+passes. Current revisions, classification and logs
 are separate from earlier failures and user acceptance.
 
 After building the unchanged public MapKit native binding:
@@ -199,7 +199,7 @@ non-blocking under root architecture §44.159.
 The PNG UI uses staged asynchronous review/adoption, with progress and Cancel in
 the Authoring window. The original PNG must remain unchanged until adoption;
 changed options/layers discard review. The old direct import button is removed.
-See [IMPORTS.md](IMPORTS.md#asynchronous-standalone-png-authoring--2026-09-10) for source,
+See [IMPORTS.md](IMPORTS.md) for source,
 active-cell replacement, source notices and review cancellation semantics.
 
 The offline [G01 driving test map](DRIVING_TEST_MAP.md) provides a fixed small

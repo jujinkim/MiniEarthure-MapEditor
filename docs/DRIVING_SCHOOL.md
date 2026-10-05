@@ -50,7 +50,7 @@ v6는 Q01 한빛 블록을 보존하면서 나머지 40개 블록을 상점가·
 공식 시험장이나 원작 게임의 모델을 복제한 맵이 아닌 창작 연습장이다. 라이선스는 MIT다.
 이전 v3 원본과 패키지는 [v3](../examples/driving-school-v3/), [v3 패키지](../examples/driving-school-v3.memap), `tests/driving_school_v3.lock.json`으로 보존했다.
 이전 원본과 패키지는 [v2](../examples/driving-school-v2/), [v2 패키지](../examples/driving-school-v2.memap)로 보존했다.
-이전 치수·검증 기록은 [보관 문서](archive/2026-09-11-loading-units/DRIVING_SCHOOL.md)에 있다.
+이전 치수·검증 기록은 보관 문서에 있다.
 
 ## 재생성과 검증
 

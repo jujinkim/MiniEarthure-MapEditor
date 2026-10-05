@@ -34,7 +34,7 @@ Worker document preparation is 239.804–253.494 ms and preview preparation
 The nonblocking UI is not evidence that the completion target or detailed
 interaction/platform acceptance passed. Independent Editor startup/initial screen
 was rendered and inspected without blocking diagnostics; detailed use remains user
-verification. [Validation report and exact samples](validation/continuous-edit-2026-10-03/README.md).
+verification. Validation report and exact samples.
 
 To limit the existing probe to this same fixture while retaining three cycles, set
 `TRACK_BENCH_ONLY_49=1` alongside `TRACK_BENCH_SOURCE`. `TRACK_BENCH_PROBE=1` remains
@@ -191,7 +191,7 @@ not compile the edited document. Templates are bounded to 24 entries.
 
 ## Timing evidence
 
-[Raw samples and summary](validation/track-edit-2026-10-01/results.json) retain
+Raw samples and summary retain
 per-operation before/after data for selection, move, add, properties, delete,
 Undo/Redo, placement and drag. Platform: Apple M1, macOS arm64, Godot 4.7.2 stable
 mono, optimized native debug builds. Baseline Editor was
@@ -253,14 +253,14 @@ change with equivalent geometry and clearance validation; that is not claimed he
   initializer missing `contact_class` / `snow_retention_percent`. Focused library
   and track targets compile and pass; unrelated water code was not changed.
   This historical compile failure was repaired on 2026-10-03 in MapKit; the three
-  core water tests now pass. [MapKit fixture-repair record](https://github.com/jujinkim/MiniEarthure-MapKit/blob/930ee37b5760c4883e439643ef5d106382ef334c/docs/validation/test-failures-2026-10-03/README.md).
-  [Restored Editor validators](validation/test-failures-2026-10-03/README.md) are separate; it does not remeasure track-edit latency.
+  core water tests now pass. MapKit fixture-repair record.
+  Restored Editor validators are separate; it does not remeasure track-edit latency.
 - Corrected test setup failures: canonical JSON numeric types in the new source
   comparison; optional empty `courses`; seed fixture length (20, not 49); the import
   validator required `MAPEDITOR_TEST_IMPORT_PYTHON` pointing to the development venv.
   These are recorded separately from product failures.
 
-Logs and native hashes are in [the evidence directory](validation/track-edit-2026-10-01/).
+Logs and native hashes are in the evidence directory.
 The standalone initial-screen check is recorded there. Detailed actual editing,
 visual snapping feel and long-session acceptance belong to the user. No full
 bootstrap, clean-clone, export matrix, detailed Client or prolonged driving test

@@ -124,19 +124,19 @@ a typed local-metre or WGS84 layer in a Python 3 child process. WGS84 uses an ex
 origin and optional pyproj 3.7.2 from `requirements-import.txt`. Review extent, provenance and estimated values
 before **Adopt new layer**. Discard changes nothing; reimport creates a fresh layer
 and adoption is one Undo command. GeoJSON multipart lines become independent ground
-roads with exact source-part mapping; see [multipart road input](docs/IMPORTS.md#local-geojson-multipart-roads--2026-09-10)
+roads with exact source-part mapping; see [multipart road input](docs/IMPORTS.md)
 and [import contracts](docs/IMPORTS.md).
 The wizard supports Python executable selection, actual per-stage progress, Cancel
 and Retry last source. Child exit/output/identity budgets protect publication;
 owner shutdown and a parent-EOF watchdog stop helpers. Structural OSM surface checks
 before review and adoption use a separate cancellable Godot child, with a 120-second
-deadline and the same 16-cell/64 MiB limits. See the [native validation contract](docs/IMPORTS.md#asynchronous-structural-candidate-validation--2026-09-10),
+deadline and the same 16-cell/64 MiB limits. See the [native validation contract](docs/IMPORTS.md),
 including bare-engine PCK launch instructions.
 
 Explicit **PBF streaming** in the OSM crop dialog supports local sources up to
 2 GiB using bounded disk indexing and complete candidate references before crop;
 the ordinary vector/snapshot import limit remains 32 MiB. See the
-[streaming limits and verification](docs/IMPORTS.md#osm-pbf-selected-area-streaming--2026-09-10).
+[streaming limits and verification](docs/IMPORTS.md).
 OSM needs optional osmium
 4.3.1 and imports supported ways, multipolygons and explicit structures;
 incomplete or unsupported geometry rejects as a whole. Terrain authoring also supports staged
@@ -186,25 +186,25 @@ These development fixtures do not establish representative-map performance accep
 OSM import now assembles bounded split-way multipolygons, multiple building/zone
 outers and forest/orchard holes (zone exclusions), preserving atomic review and
 adoption. Later extensions below describe courtyard and explicit structure support. See
-[the exact import profile](docs/IMPORTS.md#multipolygon-assembly-extension--2026-09-09).
+[the exact import profile](docs/IMPORTS.md).
 
 
 OSM explicit heights support an EGM96 local zero or a bounded, externally prepared
 local EGM96→EGM2008 difference grid. Active imported DEM/OSM datum, zero and origins
 must agree. Review retains correction bytes/hash/license/accuracy; it never fits
-heights to terrain. See [height references](docs/IMPORTS.md#local-height-reference-and-correction-grids--2026-09-10).
+heights to terrain. See [height references](docs/IMPORTS.md).
 
 
 Explicit OSM bridges/tunnels can continue through unique same-kind source
 endpoints with complete grounded ends. Full structural source closure, lost-join
 crop sections and bounded recipe-2 native generation protect atomic adoption.
-See [connected structures and the native validation correction](docs/IMPORTS.md#connected-osm-structure-endpoints--2026-09-10).
+See [connected structures and the native validation correction](docs/IMPORTS.md).
 
 
 Local OSM structural imports can use an explicit node-ID/EGM96 height supplement
 for missing elevations. Select it in **Import vector → OSM height reference…**;
 review retains its exact bytes, source/license/accuracy and the bound OSM hash.
-See [the bounded local height contract](docs/IMPORTS.md#local-supplements-for-missing-osm-structural-heights--2026-09-10).
+See [the bounded local height contract](docs/IMPORTS.md).
 Existing source heights and the full structural validation remain authoritative.
 
 ### Seven world-theme examples and signs

@@ -5,7 +5,7 @@ locks editing immediately, and waits for that revision's validation before packa
 Save/Save As use the same lock and worker-owned publication boundary. Automatic
 track validation/autosave stays editable. Cancellation waits for the actual publication
 outcome; failed work retains the draft and prior files. See the current
-[document contract](DOCUMENTS.md) and [scoped evidence](validation/continuous-edit-2026-10-03/README.md).
+[document contract](DOCUMENTS.md) and scoped evidence.
 
 
 E04 implementation, 2026-09-09. This public Editor unit uses the unchanged MapKit

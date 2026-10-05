@@ -1,5 +1,0 @@
-validation project=editor script=practice_source_validator installed_addons=True port=64578
-Initialize godot-rust (API v4.7.stable.official, runtime v4.7.2.stable.mono.official, safeguards strict)
-Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
-
-practice_source_validator: PASS

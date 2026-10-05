@@ -159,7 +159,7 @@ platform-specific `user://` directory before executing tests, retains logs/sourc
 hashes, fails engine diagnostics even at exit 0, and removes its own temporary
 project/data. It never tests against the Editor's normal user directory.
 
-[Continuous editing evidence](validation/continuous-edit-2026-10-03/README.md) adds
+Continuous editing evidence adds
 held-worker/clock, lock, publication-race and draft recovery checks.
 
 `document_history_validator.gd` covers grouped edits, exact save/reopen, no-ops,

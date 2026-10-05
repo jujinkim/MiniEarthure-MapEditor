@@ -117,7 +117,7 @@ Preview cancellation does not alter the document. Undo/Redo and save/reopen keep
 the explicit `panel_width_percent` / `panel_alignment` fields. Air-ring UI is
 unchanged; all own formats remain v1 without old-source conversion.
 
-[Scoped validation](validation/panels-2026-10-04/README.md) passes; detailed pointer
+Scoped validation passes; detailed pointer
 editing and device readability remain user verification.
 
 ## Pipe material and dimensions (03/08, 2026-10-04)
@@ -153,7 +153,7 @@ material preference and game driving remain user verification.
 Consumes MapKit 6c5e3a0. New automatic/manual rings and standalone preview now
 use a3m opening and100% strength. Existing explicit ring parts/radius/strength
 remain authoritative; no source migration is performed.
-[Scoped checks](validation/air-rings-2026-10-04/) pass new defaults, full Euler
+Scoped checks pass new defaults, full Euler
 preview, explicit6m/37% preservation, Undo/Redo/save/reopen and practice source
 unpack/recompile/reopen. The existing authoring validator was corrected to select
 options by metadata and initialize an ordinary document; its earlier translated
@@ -179,7 +179,7 @@ station instead of weakening the test or increasing the global segment density.
 
 [New source and package](../examples/practice-curves-18-2026-10-05/README.md) retain
 original files and use hash d6f5cf0606577b2b04185e9a62371a9941cced2ec7c1b0a5354da4373b715e85.
-[Scoped evidence](validation/curves-18-2026-10-05/README.md) records Python4 PASS,
+Scoped evidence records Python4 PASS,
 CLI verify/exact references and headless open/edit/compile/save/reopen PASS.
 Detailed authoring and actual driving are user verification. No source API/schema
 or format version change; local main commit, no push.

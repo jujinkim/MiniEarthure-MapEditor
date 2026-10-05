@@ -39,7 +39,7 @@ The fixed environment is noon, with no per-entry random generation.
 
 Raised beam/line and earlier air departure are generated from the authoring script.
 Package SHA256: `2eb57e620efb1dd41c3c29b99e0c506e35a72982913a37c5bd73a6b36cb417c8`.
-[Reproducibility and source reopen evidence](../../docs/validation/tutorial-air-grind-2026-10-03/README.md).
+Reproducibility and source reopen evidence.
 
 ## Earlier continuous-clearance fingerprint refresh — 2026-10-03
 
@@ -50,7 +50,7 @@ Package/entry SHA256:
 `36c07f812f9436d53798e1e542f9edf2d8e6e39f4a962b7390b5148784cc652b`.
 CLI validation and native Editor source/save/reopen pass. Original packages and
 sources remain preserved; human completion remains unverified.
-[Scoped evidence](../../docs/validation/straight-clearance-2026-10-03/README.md).
+Scoped evidence.
 
 ## Earlier wall-preparation fingerprint refresh — 2026-10-03
 
@@ -74,7 +74,7 @@ directories match byte-for-byte, stored source recompiles to the same package,
 and Editor source extraction/open/edit/save/reopen preserves exact identity.
 Package/entry SHA256:
 `4745728b36f1573c7f989732a6fe1c1b635779e40e41d52b34ed2a8727e5eebc`.
-[Current evidence and retained failures](../../docs/validation/practice-refresh-2026-10-03/README.md).
+Current evidence and retained failures.
 `human_completion` remains `unverified`; detailed driving is a user check.
 
 ## Verification (2026-10-01)
@@ -83,7 +83,7 @@ Package/entry SHA256:
 fresh exports, `verify-track`, source identity, eleven checkpoints and absence of
 completion proof. `tests/practice_source_validator.gd` passed package source unpack,
 project open, edit/save and reopen with strict diagnostics. See
-[the retained result](../../docs/validation/practice-2026-10-01/editor-practice_source_validator.log).
+the retained result.
 The isolated placement preview omits whole-track static structures when showing
 one piece; full compilation retains them. Editor interaction and human driving
 acceptance are separate, unperformed user checks.
@@ -95,7 +95,7 @@ Checkpoint gates are located near3m into each supported start; manual flight
 references near4m before departure. A temporary MapKit compilation resolves
 indices from real distances, so this script copies no tessellation constants.
 The final original records those indices and reproduces byte-identical exports.
-[2026-10-02 focused results](../../docs/validation/playtest-2026-10-02/README.md).
+2026-10-02 focused results.
 
 2026-10-04 panel contract refresh: the preserved authoring source was compiled
 into a new output path with explicit50/center fields on its manual-flight

@@ -110,8 +110,8 @@ MapKit's public catalogue/frames and writes Editor-owned SVG artwork.
 
 ### Original 2026-09-30 delivery evidence
 
-[Machine-readable results and source hashes](validation/icon-workbench-2026-09-30/results.json)
-and the [standalone initial screen](validation/icon-workbench-2026-09-30/initial-screen.png)
+Machine-readable results and source hashes
+and the standalone initial screen
 record macOS arm64 / Godot 4.7.2.stable, using the unchanged MapKit pin
 `ccead3e31ec469f5fde93103b369d7a2a8f29c8e` and existing native binding.
 
@@ -166,9 +166,9 @@ All changes belong to MapEditor; MapKit APIs and all own v1 formats remain uncha
 
 ### Automated results
 
-[Results, timings and source hashes](validation/luna-workbench-2026-10-01/results.json),
-[cold-cache initial screen](validation/luna-workbench-2026-10-01/initial-screen.png)
-and [six rendered button states](validation/luna-workbench-2026-10-01/control-states.png)
+Results, timings and source hashes,
+cold-cache initial screen
+and six rendered button states
 record macOS arm64 / Godot 4.7.2. The unchanged MapKit native build was reused.
 
 | Check | Result |
@@ -222,8 +222,8 @@ border. Frames are drawn in existing container gaps, retaining the menu dimensio
 52px four-column palette, split handles, focus and pointer routing. No document,
 command, icon-loading or MapKit contract changed.
 
-[Initial screen](validation/section-borders-2026-10-01/initial-screen.png) and
-[scoped results](validation/section-borders-2026-10-01/results.json) record the change.
+Initial screen and
+scoped results record the change.
 The existing icon workbench validator passed 297 assertions, including both modes
 at 1024×720, 1440×900 and 1920×1080. The standalone initial screen rendered with
 visible icons and no blocking load errors or unexpected diagnostics. Valid native
@@ -265,8 +265,8 @@ launch requires no new native build when the existing binding is current.
 
 ### Scoped automated results
 
-[Results and retained logs](validation/source-startup-2026-10-01/results.json) and
-the [initial screen](validation/source-startup-2026-10-01/initial-screen.png) use
+Results and retained logs and
+the initial screen use
 Godot 4.7.2 on macOS arm64, synthetic fixtures and isolated user data. The installed
 MapKit pin `ccead3e31ec469f5fde93103b369d7a2a8f29c8e` and native binary were reused.
 
@@ -328,8 +328,8 @@ inputs also have explicit light-theme colors. Tree/list hover backgrounds remain
 light. Main-menu spacing, editor commands, popup lifecycle and native APIs do not
 change. All product changes are in `workbench_style.gd`.
 
-[Before/after evidence](validation/popup-theme-2026-10-01/results.json) includes
-[popup title bars](validation/popup-theme-2026-10-01/dialog-headers.png), generated
+Before/after evidence includes
+popup title bars, generated
 with synthetic controls and isolated user data on macOS / Godot 4.7.2. For Window,
 AcceptDialog, ConfirmationDialog and FileDialog, the prior frame excluded the X
 and had no painted title background; after the fix both containment and sampled
