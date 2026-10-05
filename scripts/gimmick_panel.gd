@@ -66,7 +66,8 @@ func load_controls(g: Dictionary) -> void:
 	controls.height.value = g.get("effect",{}).get("jump_height_cm",300)/100.0
 	var track: Dictionary = g.get("track",{})
 	var pipe: bool = track.get("kind", "") in ["cylinder", "swept_cylinder"]
-	controls.radius.min_value = 0.5 if pipe else 1.0 if track.get("kind", "") == "swept_half_pipe" else 1.5
+	var catalogue: Dictionary = JSON.parse_string(panel.editor.store.bridge.track_catalogue()).data
+	controls.radius.min_value = float(catalogue.pipe_min_radius_cm)/100.0 if pipe else 1.0 if track.get("kind", "") == "swept_half_pipe" else 1.5
 	controls.radius.step = 0.01 if pipe else 0.1
 	controls.radius.value = track.get("radius_cm",250)/100.0
 	controls.width.value = track.get("width_cm",220)/100.0

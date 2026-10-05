@@ -1,0 +1,413 @@
+{
+  "names": [
+    "Drive, brake and reverse",
+    "Gentle right turn",
+    "Gentle left turn",
+    "Right drift",
+    "Left drift",
+    "Jump",
+    "Jump and glide",
+    "Grind and balance",
+    "Air turn",
+    "Boost climb"
+  ],
+  "checkpoints": [
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        0,
+        0,
+        1000000
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        0,
+        0,
+        300
+      ],
+      "ribbon_cm": [
+        [
+          -400,
+          0,
+          300
+        ],
+        [
+          400,
+          0,
+          300
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        0,
+        0,
+        1000000
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        0,
+        0,
+        3900
+      ],
+      "ribbon_cm": [
+        [
+          -400,
+          0,
+          3900
+        ],
+        [
+          400,
+          0,
+          3900
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        1000000,
+        0,
+        0
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        5100,
+        0,
+        8800
+      ],
+      "ribbon_cm": [
+        [
+          5100,
+          0,
+          9200
+        ],
+        [
+          5100,
+          0,
+          8400
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        0,
+        0,
+        1000000
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        10000,
+        0,
+        13900
+      ],
+      "ribbon_cm": [
+        [
+          9600,
+          0,
+          13900
+        ],
+        [
+          10400,
+          0,
+          13900
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        1000000,
+        0,
+        0
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        13300,
+        0,
+        17200
+      ],
+      "ribbon_cm": [
+        [
+          13300,
+          0,
+          17600
+        ],
+        [
+          13300,
+          0,
+          16800
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        0,
+        0,
+        1000000
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        16600,
+        0,
+        20500
+      ],
+      "ribbon_cm": [
+        [
+          16200,
+          0,
+          20500
+        ],
+        [
+          17000,
+          0,
+          20500
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        0,
+        0,
+        1000000
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        16600,
+        0,
+        25900
+      ],
+      "ribbon_cm": [
+        [
+          16200,
+          0,
+          25900
+        ],
+        [
+          17000,
+          0,
+          25900
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        0,
+        0,
+        1000000
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        16600,
+        0,
+        32100
+      ],
+      "ribbon_cm": [
+        [
+          16200,
+          0,
+          32100
+        ],
+        [
+          17000,
+          0,
+          32100
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        0,
+        0,
+        1000000
+      ],
+      "lateral_cm": 200,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        16600,
+        0,
+        40900
+      ],
+      "ribbon_cm": [
+        [
+          16400,
+          0,
+          40900
+        ],
+        [
+          16800,
+          0,
+          40900
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        1000000,
+        0,
+        0
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        21800,
+        0,
+        44000
+      ],
+      "ribbon_cm": [
+        [
+          21800,
+          0,
+          44400
+        ],
+        [
+          21800,
+          0,
+          43600
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    },
+    {
+      "above_cm": 300,
+      "below_cm": 150,
+      "forward": [
+        1000000,
+        0,
+        0
+      ],
+      "lateral_cm": 400,
+      "min_speed_cmps": 0,
+      "mode": "drive",
+      "normal": [
+        0,
+        1000000,
+        0
+      ],
+      "position_cm": [
+        27800,
+        360,
+        44000
+      ],
+      "ribbon_cm": [
+        [
+          27800,
+          360,
+          44400
+        ],
+        [
+          27800,
+          360,
+          43600
+        ]
+      ],
+      "safe": true,
+      "tube_radius_cm": 0
+    }
+  ],
+  "human_completion": "unverified"
+}

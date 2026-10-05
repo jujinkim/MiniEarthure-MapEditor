@@ -183,3 +183,17 @@ original files and use hash d6f5cf0606577b2b04185e9a62371a9941cced2ec7c1b0a5354d
 CLI verify/exact references and headless open/edit/compile/save/reopen PASS.
 Detailed authoring and actual driving are user verification. No source API/schema
 or format version change; local main commit, no push.
+
+
+## Pipe minimum — 2026-10-05 replacement
+
+MapKit now owns a 1m minimum radius/2m minimum bore. Editor reads the native
+catalogue for standalone radius and assembled ports; manual choices are 2/3/4/6m.
+The standalone 2.5m bore and 16m length remain. Existing source is not converted.
+The scoped `pipe_edit_validator` passes minimum/default values, all editable
+sizes, cancelled previews, Undo/Redo and save/reopen. A no-op 2m edit was corrected
+in the test to edit 3m before undoing; no product history behavior was changed.
+
+The current generated practice is `examples/practice-safe-pipes-2026-10-05/`.
+Its source is byte-identical to the prior curves example; previous artifacts
+remain. Windows Editor and detailed user driving are user verification.

@@ -1,0 +1,2538 @@
+{
+  "original_seed": null,
+  "grounded_supports": false,
+  "settings": {
+    "seed": 101,
+    "circuit": false,
+    "duration_seconds": 120,
+    "difficulty": "easy",
+    "categories": [
+      "driving"
+    ],
+    "time_minutes": 720
+  },
+  "instances": [
+    {
+      "id": "course-01",
+      "preset": "free_curve",
+      "position_cm": [
+        0,
+        0,
+        0
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          100
+        ],
+        [
+          0,
+          0,
+          200
+        ],
+        [
+          0,
+          0,
+          300
+        ],
+        [
+          0,
+          0,
+          867
+        ],
+        [
+          0,
+          0,
+          1433
+        ],
+        [
+          0,
+          0,
+          2000
+        ]
+      ]
+    },
+    {
+      "id": "runout-01",
+      "preset": "free_curve",
+      "position_cm": [
+        0,
+        0,
+        2000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          533
+        ],
+        [
+          0,
+          0,
+          1067
+        ],
+        [
+          0,
+          0,
+          1600
+        ]
+      ]
+    },
+    {
+      "id": "course-02",
+      "preset": "free_curve",
+      "position_cm": [
+        0,
+        0,
+        3600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          100
+        ],
+        [
+          0,
+          0,
+          200
+        ],
+        [
+          0,
+          0,
+          300
+        ],
+        [
+          0,
+          0,
+          867
+        ],
+        [
+          0,
+          0,
+          1433
+        ],
+        [
+          0,
+          0,
+          2000
+        ]
+      ]
+    },
+    {
+      "id": "right-wide",
+      "preset": "free_curve",
+      "position_cm": [
+        0,
+        0,
+        5600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1767
+        ],
+        [
+          1433,
+          0,
+          3200
+        ],
+        [
+          3200,
+          0,
+          3200
+        ]
+      ]
+    },
+    {
+      "id": "runout-02",
+      "preset": "free_curve",
+      "position_cm": [
+        3200,
+        0,
+        8800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          533,
+          0,
+          0
+        ],
+        [
+          1067,
+          0,
+          0
+        ],
+        [
+          1600,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "course-03",
+      "preset": "free_curve",
+      "position_cm": [
+        4800,
+        0,
+        8800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          100,
+          0,
+          0
+        ],
+        [
+          200,
+          0,
+          0
+        ],
+        [
+          300,
+          0,
+          0
+        ],
+        [
+          867,
+          0,
+          0
+        ],
+        [
+          1433,
+          0,
+          0
+        ],
+        [
+          2000,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "left-wide",
+      "preset": "free_curve",
+      "position_cm": [
+        6800,
+        0,
+        8800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1767,
+          0,
+          0
+        ],
+        [
+          3200,
+          0,
+          1433
+        ],
+        [
+          3200,
+          0,
+          3200
+        ]
+      ]
+    },
+    {
+      "id": "runout-03",
+      "preset": "free_curve",
+      "position_cm": [
+        10000,
+        0,
+        12000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          533
+        ],
+        [
+          0,
+          0,
+          1067
+        ],
+        [
+          0,
+          0,
+          1600
+        ]
+      ]
+    },
+    {
+      "id": "course-04",
+      "preset": "free_curve",
+      "position_cm": [
+        10000,
+        0,
+        13600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          100
+        ],
+        [
+          0,
+          0,
+          200
+        ],
+        [
+          0,
+          0,
+          300
+        ],
+        [
+          0,
+          0,
+          1200
+        ],
+        [
+          0,
+          0,
+          2100
+        ],
+        [
+          0,
+          0,
+          3000
+        ]
+      ]
+    },
+    {
+      "id": "right-sharp",
+      "preset": "free_curve",
+      "position_cm": [
+        10000,
+        0,
+        16600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          331
+        ],
+        [
+          269,
+          0,
+          600
+        ],
+        [
+          600,
+          0,
+          600
+        ]
+      ]
+    },
+    {
+      "id": "runout-04",
+      "preset": "free_curve",
+      "position_cm": [
+        10600,
+        0,
+        17200
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          800,
+          0,
+          0
+        ],
+        [
+          1600,
+          0,
+          0
+        ],
+        [
+          2400,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "course-05",
+      "preset": "free_curve",
+      "position_cm": [
+        13000,
+        0,
+        17200
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          100,
+          0,
+          0
+        ],
+        [
+          200,
+          0,
+          0
+        ],
+        [
+          300,
+          0,
+          0
+        ],
+        [
+          1200,
+          0,
+          0
+        ],
+        [
+          2100,
+          0,
+          0
+        ],
+        [
+          3000,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "left-sharp",
+      "preset": "free_curve",
+      "position_cm": [
+        16000,
+        0,
+        17200
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          331,
+          0,
+          0
+        ],
+        [
+          600,
+          0,
+          269
+        ],
+        [
+          600,
+          0,
+          600
+        ]
+      ]
+    },
+    {
+      "id": "runout-05",
+      "preset": "free_curve",
+      "position_cm": [
+        16600,
+        0,
+        17800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          800
+        ],
+        [
+          0,
+          0,
+          1600
+        ],
+        [
+          0,
+          0,
+          2400
+        ]
+      ]
+    },
+    {
+      "id": "course-06",
+      "preset": "free_curve",
+      "position_cm": [
+        16600,
+        0,
+        20200
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          100
+        ],
+        [
+          0,
+          0,
+          200
+        ],
+        [
+          0,
+          0,
+          300
+        ],
+        [
+          0,
+          0,
+          1200
+        ],
+        [
+          0,
+          0,
+          2100
+        ],
+        [
+          0,
+          0,
+          3000
+        ]
+      ]
+    },
+    {
+      "id": "runout-06",
+      "preset": "free_curve",
+      "position_cm": [
+        16600,
+        0,
+        23200
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          800
+        ],
+        [
+          0,
+          0,
+          1600
+        ],
+        [
+          0,
+          0,
+          2400
+        ]
+      ]
+    },
+    {
+      "id": "course-07",
+      "preset": "free_curve",
+      "position_cm": [
+        16600,
+        0,
+        25600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          100
+        ],
+        [
+          0,
+          0,
+          200
+        ],
+        [
+          0,
+          0,
+          300
+        ],
+        [
+          0,
+          0,
+          1067
+        ],
+        [
+          0,
+          0,
+          1833
+        ],
+        [
+          0,
+          0,
+          2600
+        ],
+        [
+          0,
+          0,
+          2733
+        ],
+        [
+          0,
+          0,
+          2867
+        ],
+        [
+          0,
+          0,
+          3000
+        ]
+      ]
+    },
+    {
+      "id": "flight-07",
+      "preset": "flight_curve",
+      "position_cm": [
+        16600,
+        0,
+        28600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          400
+        ],
+        [
+          0,
+          0,
+          800
+        ],
+        [
+          0,
+          0,
+          1200
+        ]
+      ]
+    },
+    {
+      "id": "landing-07",
+      "preset": "free_curve",
+      "position_cm": [
+        16600,
+        0,
+        29800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          667
+        ],
+        [
+          0,
+          0,
+          1333
+        ],
+        [
+          0,
+          0,
+          2000
+        ]
+      ]
+    },
+    {
+      "id": "course-08",
+      "preset": "free_curve",
+      "position_cm": [
+        16600,
+        0,
+        31800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          100
+        ],
+        [
+          0,
+          0,
+          200
+        ],
+        [
+          0,
+          0,
+          300
+        ],
+        [
+          0,
+          0,
+          1067
+        ],
+        [
+          0,
+          0,
+          1833
+        ],
+        [
+          0,
+          0,
+          2600
+        ],
+        [
+          0,
+          0,
+          2733
+        ],
+        [
+          0,
+          0,
+          2867
+        ],
+        [
+          0,
+          0,
+          3000
+        ]
+      ]
+    },
+    {
+      "id": "flight-08",
+      "preset": "flight_curve",
+      "position_cm": [
+        16600,
+        0,
+        34800
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          600
+        ],
+        [
+          0,
+          0,
+          1200
+        ],
+        [
+          0,
+          0,
+          1800
+        ]
+      ]
+    },
+    {
+      "id": "landing-08",
+      "preset": "free_curve",
+      "position_cm": [
+        16600,
+        0,
+        36600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          667
+        ],
+        [
+          0,
+          0,
+          1333
+        ],
+        [
+          0,
+          0,
+          2000
+        ]
+      ]
+    },
+    {
+      "id": "narrow-approach",
+      "preset": "free_curve",
+      "position_cm": [
+        16600,
+        0,
+        38600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 400,
+      "entry_width_cm": 800,
+      "exit_width_cm": 400,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          667
+        ],
+        [
+          0,
+          0,
+          1333
+        ],
+        [
+          0,
+          0,
+          2000
+        ]
+      ]
+    },
+    {
+      "id": "course-09",
+      "preset": "free_curve",
+      "position_cm": [
+        16600,
+        0,
+        40600
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 400,
+      "entry_width_cm": 400,
+      "exit_width_cm": 400,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          100
+        ],
+        [
+          0,
+          0,
+          200
+        ],
+        [
+          0,
+          0,
+          300
+        ],
+        [
+          0,
+          0,
+          1000
+        ],
+        [
+          0,
+          0,
+          1700
+        ],
+        [
+          0,
+          0,
+          2400
+        ],
+        [
+          0,
+          0,
+          2533
+        ],
+        [
+          0,
+          0,
+          2667
+        ],
+        [
+          0,
+          0,
+          2800
+        ]
+      ]
+    },
+    {
+      "id": "flight-09",
+      "preset": "flight_curve",
+      "position_cm": [
+        16600,
+        0,
+        43400
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 400,
+      "entry_width_cm": 400,
+      "exit_width_cm": 400,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          500
+        ],
+        [
+          100,
+          0,
+          600
+        ],
+        [
+          400,
+          0,
+          600
+        ]
+      ]
+    },
+    {
+      "id": "landing-09",
+      "preset": "free_curve",
+      "position_cm": [
+        17000,
+        0,
+        44000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 400,
+      "entry_width_cm": 400,
+      "exit_width_cm": 400,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          667,
+          0,
+          0
+        ],
+        [
+          1333,
+          0,
+          0
+        ],
+        [
+          2000,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "wide-approach",
+      "preset": "free_curve",
+      "position_cm": [
+        19000,
+        0,
+        44000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 400,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          833,
+          0,
+          0
+        ],
+        [
+          1667,
+          0,
+          0
+        ],
+        [
+          2500,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "course-10",
+      "preset": "free_curve",
+      "position_cm": [
+        21500,
+        0,
+        44000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          100,
+          0,
+          0
+        ],
+        [
+          200,
+          0,
+          0
+        ],
+        [
+          300,
+          0,
+          0
+        ],
+        [
+          1067,
+          0,
+          0
+        ],
+        [
+          1833,
+          0,
+          0
+        ],
+        [
+          2600,
+          0,
+          0
+        ],
+        [
+          2733,
+          0,
+          0
+        ],
+        [
+          2867,
+          0,
+          0
+        ],
+        [
+          3000,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "flight-10",
+      "preset": "flight_curve",
+      "position_cm": [
+        24500,
+        0,
+        44000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          333,
+          0,
+          0
+        ],
+        [
+          666,
+          360,
+          0
+        ],
+        [
+          1000,
+          360,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "landing-10",
+      "preset": "free_curve",
+      "position_cm": [
+        25500,
+        360,
+        44000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          667,
+          0,
+          0
+        ],
+        [
+          1333,
+          0,
+          0
+        ],
+        [
+          2000,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "completion",
+      "preset": "free_curve",
+      "position_cm": [
+        27500,
+        360,
+        44000
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "width_cm": 800,
+      "entry_width_cm": 800,
+      "exit_width_cm": 800,
+      "control_points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          100,
+          0,
+          0
+        ],
+        [
+          200,
+          0,
+          0
+        ],
+        [
+          300,
+          0,
+          0
+        ],
+        [
+          867,
+          0,
+          0
+        ],
+        [
+          1433,
+          0,
+          0
+        ],
+        [
+          2000,
+          0,
+          0
+        ]
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "to": "runout-01",
+      "from": "course-01"
+    },
+    {
+      "to": "course-02",
+      "from": "runout-01"
+    },
+    {
+      "to": "right-wide",
+      "from": "course-02"
+    },
+    {
+      "to": "runout-02",
+      "from": "right-wide"
+    },
+    {
+      "to": "course-03",
+      "from": "runout-02"
+    },
+    {
+      "to": "left-wide",
+      "from": "course-03"
+    },
+    {
+      "to": "runout-03",
+      "from": "left-wide"
+    },
+    {
+      "to": "course-04",
+      "from": "runout-03"
+    },
+    {
+      "to": "right-sharp",
+      "from": "course-04"
+    },
+    {
+      "to": "runout-04",
+      "from": "right-sharp"
+    },
+    {
+      "to": "course-05",
+      "from": "runout-04"
+    },
+    {
+      "to": "left-sharp",
+      "from": "course-05"
+    },
+    {
+      "to": "runout-05",
+      "from": "left-sharp"
+    },
+    {
+      "to": "course-06",
+      "from": "runout-05"
+    },
+    {
+      "to": "runout-06",
+      "from": "course-06"
+    },
+    {
+      "to": "course-07",
+      "from": "runout-06"
+    },
+    {
+      "to": "flight-07",
+      "from": "course-07"
+    },
+    {
+      "to": "landing-07",
+      "from": "flight-07"
+    },
+    {
+      "to": "course-08",
+      "from": "landing-07"
+    },
+    {
+      "to": "flight-08",
+      "from": "course-08"
+    },
+    {
+      "to": "landing-08",
+      "from": "flight-08"
+    },
+    {
+      "to": "narrow-approach",
+      "from": "landing-08"
+    },
+    {
+      "to": "course-09",
+      "from": "narrow-approach"
+    },
+    {
+      "to": "flight-09",
+      "from": "course-09"
+    },
+    {
+      "to": "landing-09",
+      "from": "flight-09"
+    },
+    {
+      "to": "wide-approach",
+      "from": "landing-09"
+    },
+    {
+      "to": "course-10",
+      "from": "wide-approach"
+    },
+    {
+      "to": "flight-10",
+      "from": "course-10"
+    },
+    {
+      "to": "landing-10",
+      "from": "flight-10"
+    },
+    {
+      "to": "completion",
+      "from": "landing-10"
+    }
+  ],
+  "paths": [
+    {
+      "id": "practice",
+      "pieces": [
+        "course-01",
+        "runout-01",
+        "course-02",
+        "right-wide",
+        "runout-02",
+        "course-03",
+        "left-wide",
+        "runout-03",
+        "course-04",
+        "right-sharp",
+        "runout-04",
+        "course-05",
+        "left-sharp",
+        "runout-05",
+        "course-06",
+        "runout-06",
+        "course-07",
+        "flight-07",
+        "landing-07",
+        "course-08",
+        "flight-08",
+        "landing-08",
+        "narrow-approach",
+        "course-09",
+        "flight-09",
+        "landing-09",
+        "wide-approach",
+        "course-10",
+        "flight-10",
+        "landing-10",
+        "completion"
+      ]
+    }
+  ],
+  "checkpoints": [
+    {
+      "piece": "course-01",
+      "sample": 2
+    },
+    {
+      "piece": "course-02",
+      "sample": 2
+    },
+    {
+      "piece": "course-03",
+      "sample": 2
+    },
+    {
+      "piece": "course-04",
+      "sample": 2
+    },
+    {
+      "piece": "course-05",
+      "sample": 2
+    },
+    {
+      "piece": "course-06",
+      "sample": 2
+    },
+    {
+      "piece": "course-07",
+      "sample": 2
+    },
+    {
+      "piece": "course-08",
+      "sample": 2
+    },
+    {
+      "piece": "course-09",
+      "sample": 2
+    },
+    {
+      "piece": "course-10",
+      "sample": 2
+    },
+    {
+      "piece": "completion",
+      "sample": 2
+    }
+  ],
+  "actions": [
+    {
+      "id": "manual-07",
+      "kind": "manual_flight",
+      "piece": "course-07",
+      "sample": 12,
+      "height_cm": 800,
+      "panel_width_percent": 50,
+      "panel_alignment": "center",
+      "landing": {
+        "piece": "landing-07",
+        "sample": 0
+      }
+    },
+    {
+      "id": "manual-08",
+      "kind": "manual_flight",
+      "piece": "course-08",
+      "sample": 12,
+      "height_cm": 800,
+      "panel_width_percent": 50,
+      "panel_alignment": "center",
+      "landing": {
+        "piece": "landing-08",
+        "sample": 0
+      }
+    },
+    {
+      "id": "manual-09",
+      "kind": "manual_flight",
+      "piece": "course-09",
+      "sample": 11,
+      "height_cm": 800,
+      "panel_width_percent": 50,
+      "panel_alignment": "center",
+      "landing": {
+        "piece": "landing-09",
+        "sample": 0
+      }
+    },
+    {
+      "id": "manual-10",
+      "kind": "manual_flight",
+      "piece": "course-10",
+      "sample": 12,
+      "height_cm": 800,
+      "panel_width_percent": 50,
+      "panel_alignment": "center",
+      "landing": {
+        "piece": "landing-10",
+        "sample": 0
+      }
+    }
+  ],
+  "attachments": [],
+  "grind_lines": [
+    {
+      "id": "practice-beam",
+      "control_points": [
+        [
+          16600,
+          45,
+          34800
+        ],
+        [
+          16600,
+          45,
+          36600
+        ]
+      ],
+      "up": [
+        0,
+        1000000,
+        0
+      ],
+      "capture_width_cm": 30,
+      "start_connections": [],
+      "end_connections": []
+    }
+  ],
+  "structures": [
+    {
+      "id": "authored-start-wall",
+      "position": [
+        0,
+        50,
+        -20
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "scale_per_mille": [
+        1000,
+        1000,
+        1000
+      ],
+      "parts": [
+        {
+          "vertices": [
+            [
+              -420,
+              -50,
+              -20
+            ],
+            [
+              420,
+              -50,
+              -20
+            ],
+            [
+              420,
+              50,
+              -20
+            ],
+            [
+              -420,
+              50,
+              -20
+            ],
+            [
+              -420,
+              -50,
+              20
+            ],
+            [
+              420,
+              -50,
+              20
+            ],
+            [
+              420,
+              50,
+              20
+            ],
+            [
+              -420,
+              50,
+              20
+            ]
+          ],
+          "faces": [
+            [
+              0,
+              2,
+              1
+            ],
+            [
+              0,
+              3,
+              2
+            ],
+            [
+              4,
+              5,
+              6
+            ],
+            [
+              4,
+              6,
+              7
+            ],
+            [
+              0,
+              1,
+              5
+            ],
+            [
+              0,
+              5,
+              4
+            ],
+            [
+              3,
+              7,
+              6
+            ],
+            [
+              3,
+              6,
+              2
+            ],
+            [
+              0,
+              4,
+              7
+            ],
+            [
+              0,
+              7,
+              3
+            ],
+            [
+              1,
+              2,
+              6
+            ],
+            [
+              1,
+              6,
+              5
+            ]
+          ]
+        }
+      ],
+      "surface": "asphalt",
+      "color": [
+        245,
+        168,
+        35,
+        255
+      ],
+      "motion": {
+        "kind": "static",
+        "delta_cm": [
+          0,
+          0,
+          0
+        ],
+        "axis": 1,
+        "period_ms": 4000,
+        "phase_ms": 0,
+        "impulse_cmps": [
+          0,
+          0,
+          0
+        ],
+        "cooldown_ms": 1500
+      },
+      "safety_min_cm": [
+        -490,
+        -440,
+        -510
+      ],
+      "safety_max_cm": [
+        490,
+        540,
+        470
+      ]
+    },
+    {
+      "id": "authored-low-barrier",
+      "position": [
+        16600,
+        18,
+        23200
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "scale_per_mille": [
+        1000,
+        1000,
+        1000
+      ],
+      "parts": [
+        {
+          "vertices": [
+            [
+              -400,
+              -18,
+              -12
+            ],
+            [
+              400,
+              -18,
+              -12
+            ],
+            [
+              400,
+              18,
+              -12
+            ],
+            [
+              -400,
+              18,
+              -12
+            ],
+            [
+              -400,
+              -18,
+              12
+            ],
+            [
+              400,
+              -18,
+              12
+            ],
+            [
+              400,
+              18,
+              12
+            ],
+            [
+              -400,
+              18,
+              12
+            ]
+          ],
+          "faces": [
+            [
+              0,
+              2,
+              1
+            ],
+            [
+              0,
+              3,
+              2
+            ],
+            [
+              4,
+              5,
+              6
+            ],
+            [
+              4,
+              6,
+              7
+            ],
+            [
+              0,
+              1,
+              5
+            ],
+            [
+              0,
+              5,
+              4
+            ],
+            [
+              3,
+              7,
+              6
+            ],
+            [
+              3,
+              6,
+              2
+            ],
+            [
+              0,
+              4,
+              7
+            ],
+            [
+              0,
+              7,
+              3
+            ],
+            [
+              1,
+              2,
+              6
+            ],
+            [
+              1,
+              6,
+              5
+            ]
+          ]
+        }
+      ],
+      "surface": "asphalt",
+      "color": [
+        245,
+        168,
+        35,
+        255
+      ],
+      "motion": {
+        "kind": "static",
+        "delta_cm": [
+          0,
+          0,
+          0
+        ],
+        "axis": 1,
+        "period_ms": 4000,
+        "phase_ms": 0,
+        "impulse_cmps": [
+          0,
+          0,
+          0
+        ],
+        "cooldown_ms": 1500
+      },
+      "safety_min_cm": [
+        16170,
+        -412,
+        22770
+      ],
+      "safety_max_cm": [
+        17030,
+        448,
+        23630
+      ]
+    },
+    {
+      "id": "authored-single-beam",
+      "position": [
+        16600,
+        35,
+        35700
+      ],
+      "rotation_mdeg": [
+        0,
+        0,
+        0
+      ],
+      "scale_per_mille": [
+        1000,
+        1000,
+        1000
+      ],
+      "parts": [
+        {
+          "vertices": [
+            [
+              -10,
+              -10,
+              -950
+            ],
+            [
+              10,
+              -10,
+              -950
+            ],
+            [
+              10,
+              10,
+              -950
+            ],
+            [
+              -10,
+              10,
+              -950
+            ],
+            [
+              -10,
+              -10,
+              950
+            ],
+            [
+              10,
+              -10,
+              950
+            ],
+            [
+              10,
+              10,
+              950
+            ],
+            [
+              -10,
+              10,
+              950
+            ]
+          ],
+          "faces": [
+            [
+              0,
+              2,
+              1
+            ],
+            [
+              0,
+              3,
+              2
+            ],
+            [
+              4,
+              5,
+              6
+            ],
+            [
+              4,
+              6,
+              7
+            ],
+            [
+              0,
+              1,
+              5
+            ],
+            [
+              0,
+              5,
+              4
+            ],
+            [
+              3,
+              7,
+              6
+            ],
+            [
+              3,
+              6,
+              2
+            ],
+            [
+              0,
+              4,
+              7
+            ],
+            [
+              0,
+              7,
+              3
+            ],
+            [
+              1,
+              2,
+              6
+            ],
+            [
+              1,
+              6,
+              5
+            ]
+          ]
+        }
+      ],
+      "surface": "asphalt",
+      "color": [
+        245,
+        168,
+        35,
+        255
+      ],
+      "motion": {
+        "kind": "static",
+        "delta_cm": [
+          0,
+          0,
+          0
+        ],
+        "axis": 1,
+        "period_ms": 4000,
+        "phase_ms": 0,
+        "impulse_cmps": [
+          0,
+          0,
+          0
+        ],
+        "cooldown_ms": 1500
+      },
+      "safety_min_cm": [
+        15630,
+        -935,
+        34730
+      ],
+      "safety_max_cm": [
+        17570,
+        1005,
+        36670
+      ]
+    },
+    {
+      "id": "authored-high-wall",
+      "position": [
+        25500,
+        180,
+        44000
+      ],
+      "rotation_mdeg": [
+        0,
+        90000,
+        0
+      ],
+      "scale_per_mille": [
+        1000,
+        1000,
+        1000
+      ],
+      "parts": [
+        {
+          "vertices": [
+            [
+              -400,
+              -180,
+              -25
+            ],
+            [
+              400,
+              -180,
+              -25
+            ],
+            [
+              400,
+              180,
+              -25
+            ],
+            [
+              -400,
+              180,
+              -25
+            ],
+            [
+              -400,
+              -180,
+              25
+            ],
+            [
+              400,
+              -180,
+              25
+            ],
+            [
+              400,
+              180,
+              25
+            ],
+            [
+              -400,
+              180,
+              25
+            ]
+          ],
+          "faces": [
+            [
+              0,
+              2,
+              1
+            ],
+            [
+              0,
+              3,
+              2
+            ],
+            [
+              4,
+              5,
+              6
+            ],
+            [
+              4,
+              6,
+              7
+            ],
+            [
+              0,
+              1,
+              5
+            ],
+            [
+              0,
+              5,
+              4
+            ],
+            [
+              3,
+              7,
+              6
+            ],
+            [
+              3,
+              6,
+              2
+            ],
+            [
+              0,
+              4,
+              7
+            ],
+            [
+              0,
+              7,
+              3
+            ],
+            [
+              1,
+              2,
+              6
+            ],
+            [
+              1,
+              6,
+              5
+            ]
+          ]
+        }
+      ],
+      "surface": "asphalt",
+      "color": [
+        245,
+        168,
+        35,
+        255
+      ],
+      "motion": {
+        "kind": "static",
+        "delta_cm": [
+          0,
+          0,
+          0
+        ],
+        "axis": 1,
+        "period_ms": 4000,
+        "phase_ms": 0,
+        "impulse_cmps": [
+          0,
+          0,
+          0
+        ],
+        "cooldown_ms": 1500
+      },
+      "safety_min_cm": [
+        24895,
+        -425,
+        43395
+      ],
+      "safety_max_cm": [
+        26105,
+        785,
+        44605
+      ]
+    },
+    {
+      "id": "authored-finish-wall",
+      "position": [
+        29520,
+        410,
+        44000
+      ],
+      "rotation_mdeg": [
+        0,
+        90000,
+        0
+      ],
+      "scale_per_mille": [
+        1000,
+        1000,
+        1000
+      ],
+      "parts": [
+        {
+          "vertices": [
+            [
+              -420,
+              -50,
+              -20
+            ],
+            [
+              420,
+              -50,
+              -20
+            ],
+            [
+              420,
+              50,
+              -20
+            ],
+            [
+              -420,
+              50,
+              -20
+            ],
+            [
+              -420,
+              -50,
+              20
+            ],
+            [
+              420,
+              -50,
+              20
+            ],
+            [
+              420,
+              50,
+              20
+            ],
+            [
+              -420,
+              50,
+              20
+            ]
+          ],
+          "faces": [
+            [
+              0,
+              2,
+              1
+            ],
+            [
+              0,
+              3,
+              2
+            ],
+            [
+              4,
+              5,
+              6
+            ],
+            [
+              4,
+              6,
+              7
+            ],
+            [
+              0,
+              1,
+              5
+            ],
+            [
+              0,
+              5,
+              4
+            ],
+            [
+              3,
+              7,
+              6
+            ],
+            [
+              3,
+              6,
+              2
+            ],
+            [
+              0,
+              4,
+              7
+            ],
+            [
+              0,
+              7,
+              3
+            ],
+            [
+              1,
+              2,
+              6
+            ],
+            [
+              1,
+              6,
+              5
+            ]
+          ]
+        }
+      ],
+      "surface": "asphalt",
+      "color": [
+        245,
+        168,
+        35,
+        255
+      ],
+      "motion": {
+        "kind": "static",
+        "delta_cm": [
+          0,
+          0,
+          0
+        ],
+        "axis": 1,
+        "period_ms": 4000,
+        "phase_ms": 0,
+        "impulse_cmps": [
+          0,
+          0,
+          0
+        ],
+        "cooldown_ms": 1500
+      },
+      "safety_min_cm": [
+        29030,
+        -80,
+        43510
+      ],
+      "safety_max_cm": [
+        30010,
+        900,
+        44490
+      ]
+    }
+  ]
+}

@@ -19,9 +19,9 @@ func run() -> void:
 	bench.placement.cancel(); bench.select_piece(0); bench._properties()
 	var widths: Array = []
 	for i in bench.width.item_count: widths.append(bench.width.get_item_id(i))
-	check(widths == [100,200,300,400,600], "manual 1/2/3/4/6m choices")
-	check(bench.port_widths[0].min_value == 1 and bench.port_widths[1].min_value == 1, "pipe port inputs admit 1m")
-	for width in [100,300,400,600]:
+	check(widths == [200,300,400,600], "manual 2/3/4/6m choices")
+	check(bench.port_widths[0].min_value == 2 and bench.port_widths[1].min_value == 2, "pipe port inputs admit 2m")
+	for width in [300,200,400,600]:
 		bench.select_piece(0); bench._properties()
 		for i in bench.width.item_count:
 			if bench.width.get_item_id(i) == width: bench.width.select(i)
@@ -41,8 +41,8 @@ func run() -> void:
 		check(reopened.document.assembled_track == JSON.parse_string(JSON.stringify(after.assembled_track)), "preserved authoring size/geometry on reopen %d" % width)
 	var document: Dictionary = ui.store.document.duplicate(true)
 	var history: Array = ui.store.undo_stack.duplicate(true)
-	bench.add_piece("cylinder"); bench.placement.width_cm = 100
-	check(bench.placement.preview_at(Vector3(30,0,0)), "1m pending placement")
+	bench.add_piece("cylinder"); bench.placement.width_cm = 200
+	check(bench.placement.preview_at(Vector3(30,0,0)), "2m pending placement")
 	var serial: int = bench.placement.serial
 	bench.cancel_interaction()
 	check(not bench.placement.commit(serial) and ui.store.document == document and ui.store.undo_stack == history, "cancel rejects stale preview without history")
@@ -55,15 +55,15 @@ func run() -> void:
 	for i in panel.template.item_count:
 		if str(panel.template.get_item_metadata(i)) == "cylinder": panel.template.select(i)
 	panel.load_controls(panel.templates.cylinder)
-	check(panel.controls.radius.min_value == 0.5 and panel.controls.radius.value == 1.25, "standalone default 2.5m bore survives input quantization")
+	check(panel.controls.radius.min_value == 1.0 and panel.controls.radius.value == 1.25, "standalone default 2.5m bore survives input quantization")
 	var standalone: Dictionary = panel.draft()
 	check(standalone.track.radius_cm == 125 and standalone.track.length_cm == 1600, "standalone length remains 16m")
-	panel.controls.radius.value = 0.5; panel.show_preview()
-	check(panel.preview.get_child(0).get_child_count() == 2, "1m standalone shared preview")
+	panel.controls.radius.value = 1.0; panel.show_preview()
+	check(panel.preview.get_child(0).get_child_count() == 2, "2m standalone shared preview")
 	panel.save_record()
-	check(ui.store.document.gimmicks.size() == 1 and ui.store.document.gimmicks[0].track.radius_cm == 50, "save minimum standalone bore")
+	check(ui.store.document.gimmicks.size() == 1 and ui.store.document.gimmicks[0].track.radius_cm == 100, "save minimum standalone bore")
 	check(ui.store.undo() == "" and ui.store.document.get("gimmicks", []).is_empty(), "standalone Undo")
-	check(ui.store.redo() == "" and ui.store.document.gimmicks[0].track.radius_cm == 50, "standalone Redo")
+	check(ui.store.redo() == "" and ui.store.document.gimmicks[0].track.radius_cm == 100, "standalone Redo")
 	var path := ProjectSettings.globalize_path("user://standalone-pipe")
 	check(ui.store.save_project(path) == "", "save standalone project")
 	var reopened := STORE.new()
