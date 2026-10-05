@@ -1836,6 +1836,16 @@
     "Operation cancelled; draft retained.": "Operation cancelled; draft retained.",
     "Unsupported file operation.": "Unsupported file operation.",
     "Unsupported or corrupt recovery draft.": "Unsupported or corrupt recovery draft.",
-    "Wait for the explicit operation to finish.": "Wait for the explicit operation to finish."
+    "Wait for the explicit operation to finish.": "Wait for the explicit operation to finish.",
+    "Morning · 09:00": "Morning · 09:00",
+    "Noon · 12:00": "Noon · 12:00",
+    "Evening · 17:00": "Evening · 17:00",
+    "Sunset · 18:00": "Sunset · 18:00",
+    "Night · 21:00": "Night · 21:00",
+    "Dawn · 06:00": "Dawn · 06:00",
+    "Checkpoint overlaps an existing checkpoint; change rejected.": "Checkpoint overlaps an existing checkpoint; change rejected.",
+    "Race needs two non-overlapping checkpoints": "Race needs two non-overlapping checkpoints",
+    "Panel alignment": "Panel alignment",
+    "Panel width": "Panel width"
   }
 }

@@ -1838,6 +1838,14 @@
     "Unsupported or corrupt recovery draft.": "지원하지 않거나 손상된 복구 초안입니다.",
     "Wait for the explicit operation to finish.": "요청한 작업이 끝날 때까지 기다려 주세요.",
     "Checkpoint overlaps an existing checkpoint; change rejected.": "기존 체크포인트와 겹쳐 변경하지 않았습니다.",
-    "Race needs two non-overlapping checkpoints": "레이스에는 겹치지 않는 체크포인트가 2개 이상 필요합니다."
+    "Race needs two non-overlapping checkpoints": "레이스에는 겹치지 않는 체크포인트가 2개 이상 필요합니다.",
+    "Morning · 09:00": "아침 · 09:00",
+    "Noon · 12:00": "점심 · 12:00",
+    "Evening · 17:00": "저녁 · 17:00",
+    "Sunset · 18:00": "노을 · 18:00",
+    "Night · 21:00": "밤 · 21:00",
+    "Dawn · 06:00": "새벽 · 06:00",
+    "Panel alignment": "패널 정렬",
+    "Panel width": "패널 너비"
   }
 }

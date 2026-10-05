@@ -1836,6 +1836,16 @@
     "Operation cancelled; draft retained.": "操作をキャンセルしました。下書きは保持されています。",
     "Unsupported file operation.": "対応していないファイル操作です。",
     "Unsupported or corrupt recovery draft.": "対応していないか破損した復元用の下書きです。",
-    "Wait for the explicit operation to finish.": "実行中の操作が完了するまでお待ちください。"
+    "Wait for the explicit operation to finish.": "実行中の操作が完了するまでお待ちください。",
+    "Morning · 09:00": "朝 · 09:00",
+    "Noon · 12:00": "正午 · 12:00",
+    "Evening · 17:00": "夕方 · 17:00",
+    "Sunset · 18:00": "夕焼け · 18:00",
+    "Night · 21:00": "夜 · 21:00",
+    "Dawn · 06:00": "夜明け · 06:00",
+    "Checkpoint overlaps an existing checkpoint; change rejected.": "チェックポイントが既存のチェックポイントと重なるため、変更できません。",
+    "Race needs two non-overlapping checkpoints": "レースには重ならないチェックポイントが2つ必要です",
+    "Panel alignment": "パネルの配置",
+    "Panel width": "パネルの幅"
   }
 }

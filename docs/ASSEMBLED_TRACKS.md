@@ -168,3 +168,5 @@ line45cm above road. Course9 departs2m earlier while preserving its landing and
 later positions and4m width. New deterministic outputs replace the active example;
 old artifacts are preserved. [Focused evidence and hash](validation/tutorial-air-grind-2026-10-03/README.md).
 Human completion remains unverified.
+
+Time choice uses MapKit's shared six-preset picker (09/12/17/18/21/06). Existing minute values are preserved on load, settings restore and unrelated environment edits. The scoped settings preservation test passes.

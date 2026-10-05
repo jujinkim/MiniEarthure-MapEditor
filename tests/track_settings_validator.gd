@@ -19,11 +19,14 @@ func run() -> void:
 	check(panel.settings()==settings,"busy/cancel/result preserves inputs")
 	panel.restore(settings)
 	check(panel.seed_input.text=="731","explicit restoration preserves seed")
-	check(panel.time_input.item_count==24,"24 hourly times")
+	check(panel.time_input.item_count==6,"six named times")
 	panel.time_input.value=12.6
-	check(panel.time_input.value==13.0 and panel.settings().time_minutes==780,"minute inputs display nearest hour")
+	check(panel.time_input.value==12.6 and panel.settings().time_minutes==756,"authored minutes preserved")
 	panel.time_input.value=23.8
-	check(panel.time_input.value==0.0,"midnight rounding")
+	check(panel.time_input.value==23.8 and panel.settings().time_minutes==1428,"late authored minutes preserved")
+	for index in 6:
+		panel.time_input.select(index);panel.time_input.item_selected.emit(index)
+		check(panel.settings().time_minutes==[540,720,1020,1080,1260,360][index],"preset numeric time")
 	panel.queue_free();await process_frame
 	print("track_settings_validator: ","FAIL" if failed else "PASS")
 	quit(1 if failed else 0)
