@@ -32,11 +32,23 @@ class PracticeTrack(unittest.TestCase):
         for number in range(1,4):
             self.assertEqual(pieces[f"course-{number:02d}"]["width_cm"],800)
             self.assertAlmostEqual(sum(v*v for v in pieces[f"course-{number:02d}"]["control_points"][-1])**.5,2000)
-        self.assertEqual(pieces["right-wide"]["control_points"][-1],[3200,0,3200])
+        self.assertEqual(pieces["right-wide"]["control_points"][-1],[600,0,600])
+        self.assertEqual(pieces["left-wide"]["control_points"][-1],[600,0,600])
         for number, turn in [(4,"right-sharp"),(5,"left-sharp")]:
-            self.assertEqual(pieces[f"course-{number:02d}"]["width_cm"],800)
-            self.assertEqual(pieces[turn]["width_cm"],800)
-            self.assertEqual(pieces[turn]["control_points"][-1],[600,0,600])
+            approach=pieces[f"course-{number:02d}"]
+            runout=pieces[f"runout-{number:02d}"]
+            self.assertEqual((approach["entry_width_cm"],approach["exit_width_cm"]),(800,400))
+            self.assertEqual((runout["entry_width_cm"],runout["exit_width_cm"]),(400,800))
+            self.assertEqual(pieces[turn]["width_cm"],400)
+            self.assertEqual(pieces[turn]["entry_width_cm"],400)
+            self.assertEqual(pieces[turn]["control_points"][-1],[300,0,300])
+        # Both 90-degree cubics are exact left/right mirrors in their local heading.
+        right=pieces["right-sharp"]["control_points"]
+        left=pieces["left-sharp"]["control_points"]
+        self.assertEqual(right,[[p[2],p[1],p[0]] for p in left])
+        for a,b in zip(source["instances"],source["instances"][1:]):
+            self.assertEqual([x+y for x,y in zip(a["position_cm"],a["control_points"][-1])],b["position_cm"])
+            self.assertEqual(a["exit_width_cm"],b["entry_width_cm"])
         self.assertEqual(pieces["course-09"]["width_cm"],400)
         self.assertEqual(pieces["flight-10"]["control_points"][-1][1],360)
         for name in ["start-wall","finish-wall"]:

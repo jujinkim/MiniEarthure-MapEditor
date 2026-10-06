@@ -11,7 +11,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-NAMES = ["Drive, brake and reverse", "Gentle right turn", "Gentle left turn",
+NAMES = ["Drive, brake and reverse", "Right turn", "Left turn",
          "Right drift", "Left drift", "Jump", "Jump and glide", "Grind and balance",
          "Air turn", "Boost climb"]
 
@@ -101,10 +101,10 @@ def source():
             box("high-wall",center,[width,rise,50],heading)
     box("start-wall",[0,50,-20],[width+40,100,40])
     start(1);straight("runout-01",1600)
-    start(2);turn("right-wide",3200,True);straight("runout-02",1600)
-    start(3);turn("left-wide",3200,False);straight("runout-03",1600)
-    start(4);turn("right-sharp",600,True);straight("runout-04",2400)
-    start(5);turn("left-sharp",600,False);straight("runout-05",2400)
+    start(2);turn("right-wide",600,True);straight("runout-02",1600)
+    start(3);turn("left-wide",600,False);straight("runout-03",1600)
+    start(4,target_width=400);turn("right-sharp",300,True);straight("runout-04",2400,target_width=800)
+    start(5,target_width=400);turn("left-sharp",300,False);straight("runout-05",2400,target_width=800)
     start(6)
     center=pos[:];center[1]+=18
     box("low-barrier",center,[width,36,24],heading)
@@ -122,7 +122,7 @@ def source():
     d["paths"]=[dict(id="practice",pieces=[i["id"] for i in d["instances"]])]
     return d
 
-def build(destination, cli):
+def build(destination, cli, resource_path="res://maps/practice/practice.memap"):
     destination.mkdir(parents=True,exist_ok=False)
     original=source()
     # Source references use compiler-owned tessellation. Resolve metres from its
@@ -155,7 +155,7 @@ def build(destination, cli):
     ids=[i["id"] for i in original["instances"]]
     checkpoints=[assembly["pieces"][ids.index(cp["piece"])]["path"][cp["sample"]] for cp in original["checkpoints"]]
     first=checkpoints[0]["position_cm"]
-    request=dict(path="res://maps/practice/practice.memap",x_cm=first[0],y_cm=first[2],
+    request=dict(path=resource_path,x_cm=first[0],y_cm=first[2],
                  surface_id="assembled-road-0",heading_degrees=0,
                  expected_hash=hashlib.sha256(package.read_bytes()).hexdigest())
     (destination/"entry.json").write_text(json.dumps(request,indent=2)+"\n")
@@ -167,4 +167,5 @@ if __name__=="__main__":
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("destination",type=Path)
     p.add_argument("--mapkit",type=Path,required=True)
-    a=p.parse_args();build(a.destination,a.mapkit.resolve())
+    p.add_argument("--resource-path",default="res://maps/practice/practice.memap")
+    a=p.parse_args();build(a.destination,a.mapkit.resolve(),a.resource_path)

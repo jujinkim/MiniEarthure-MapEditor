@@ -82,7 +82,7 @@ renamed with link updates. Invalid edits retain the current document. Focused
 connections, deletion, undo, save/reopen and cancellation. Detailed editor
 interaction and game driving remain user verification.
 
-Reproducible manual-flight/static-structure example: [Practice track](../examples/practice-track-pipes-2026-10-04/README.md).
+Reproducible manual-flight/static-structure example: [Practice track](../examples/practice-tight-corners/README.md).
 
 ## Generation readiness progress — 2026-10-02
 
@@ -141,12 +141,9 @@ source save/reopen, standalone minimum/default input and ordinary-road defaults.
 Initial test-fixture issues (localized labels instead of IDs, absent optional
 gimmicks after Undo) were corrected; no product failure was hidden.
 
-The [new practice output](../examples/practice-track-pipes-2026-10-04/README.md)
-was generated in a new path and verified with the current reader. Source values
-are identical (JSON field order differs); roads/routes/supports/gimmicks compare
-exactly. The prior source/package is preserved. All own formats remain v1.
-Execution logs stay in root local `docs/tasks/pipes-03-08/`; detailed editing,
-material preference and game driving remain user verification.
+Previous practice packages remain preserved. Current output and reproduction
+are described below. All own formats remain v1; detailed editing, material
+preference and game driving remain user verification.
 
 ## Air ring defaults 09 — 2026-10-04
 
@@ -160,31 +157,6 @@ options by metadata and initialize an ordinary document; its earlier translated
 label/assembled-document assumptions failed and timed out. Product editor code
 needed no change. Detailed interactive authoring is user verification.
 
-The preserved pipes practice source was compiled to
-[practice-track-rings-2026-10-04](../examples/practice-track-rings-2026-10-04/README.md).
-Source bytes, geometry and non-identity fields are unchanged. Compiler and derived
-map/course identities change. CLI verify-track passes, and the consumer package
-hash is2da30d8fd8102d8b4ca2dcc989f69a18577d34f58b27b8b26355ae29072cbda6.
-Original files remain in place. All formats remainv1; main/local commits only.
-
-## Curve sampling [18] practice anchors — 2026-10-05
-
-Consumes MapKit a9e2761 ordinary 2.5m curve sampling with retained vertical safety
-bounds. The reproducible practice source inserts collinear cubic joins at its
-existing 3m gate aprons and 4m pre-flight markers. These are exact compiler-owned
-samples; centreline, dimensions, endpoints and object count are retained. The
-first coarser build selected a gate 2.22m from its apron and failed the existing
-40cm tolerance; it is preserved as failed evidence. Joins correct the semantic
-station instead of weakening the test or increasing the global segment density.
-
-[New source and package](../examples/practice-curves-18-2026-10-05/README.md) retain
-original files and use hash d6f5cf0606577b2b04185e9a62371a9941cced2ec7c1b0a5354da4373b715e85.
-Scoped evidence records Python4 PASS,
-CLI verify/exact references and headless open/edit/compile/save/reopen PASS.
-Detailed authoring and actual driving are user verification. No source API/schema
-or format version change; local main commit, no push.
-
-
 ## Pipe minimum — 2026-10-05 replacement
 
 MapKit now owns a 1m minimum radius/2m minimum bore. Editor reads the native
@@ -194,6 +166,29 @@ The scoped `pipe_edit_validator` passes minimum/default values, all editable
 sizes, cancelled previews, Undo/Redo and save/reopen. A no-op 2m edit was corrected
 in the test to edit 3m before undoing; no product history behavior was changed.
 
-The current generated practice is `examples/practice-safe-pipes-2026-10-05/`.
-Its source is byte-identical to the prior curves example; previous artifacts
-remain. Windows Editor and detailed user driving are user verification.
+## Reproducible practice course
+
+`scripts/practice_track.py` generates the ten-course manual source and package at
+[examples/practice-tight-corners](../examples/practice-tight-corners/README.md).
+Courses 2/3 are ordinary mirrored 90-degree turns with the former drift geometry:
+6m radius and 8m width. Courses 4/5 are sharper mirrored 90-degree bends with 3m
+radius and 4m width. Their approach narrows from 8m to 4m and runout widens back
+to 8m; all neighbouring endpoints and port widths connect exactly. The remaining
+jump, glide, raised grind beam, air turn and 3.6m climb dimensions are retained.
+No drift-specific completion field or new format is introduced.
+
+Collinear cubic joins retain exact 3m gate aprons and 4m pre-flight markers through
+MapKit's ordinary curve sampling. The generator resolves checkpoint/action indices
+from the current compiler's samples rather than duplicating tessellation constants.
+The optional `--resource-path` binds the consumer entry to its new package path.
+Existing output directories are rejected without overwriting them. All earlier
+sources and generated packages remain preserved.
+
+Current package SHA256:
+`641ff8132f2fd7884e718a840bf177193b90db8477dcc2117de866d609694753`.
+Python `test_practice_track.py` (4 tests), repeated generation/byte identity,
+source recompile, CLI `verify-track`, mirrored geometry/continuous widths, exact
+checkpoint/action stations and headless `practice_source_validator` open/edit/
+save/reopen pass with the pinned MapKit on macOS arm64/Godot 4.7.2. Course metadata
+retains `human_completion: unverified`; actual driving and detailed editor/device
+acceptance remain user verification.

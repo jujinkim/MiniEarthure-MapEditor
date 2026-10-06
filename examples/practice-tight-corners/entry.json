@@ -1,0 +1,8 @@
+{
+  "path": "res://maps/practice-tight-corners/practice.memap",
+  "x_cm": 0,
+  "y_cm": 300,
+  "surface_id": "assembled-road-0",
+  "heading_degrees": 0,
+  "expected_hash": "641ff8132f2fd7884e718a840bf177193b90db8477dcc2117de866d609694753"
+}
