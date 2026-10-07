@@ -170,3 +170,9 @@ old artifacts are preserved. Focused evidence and hash.
 Human completion remains unverified.
 
 Time choice uses MapKit's shared six-preset picker (09/12/17/18/21/06). Existing minute values are preserved on load, settings restore and unrelated environment edits. The scoped settings preservation test passes.
+
+The current MapKit pin canonicalizes final quantized endpoint ribbons and gives
+the vertical loop smooth feet and a broader crown while preserving its height and
+ports. Editor preview, collision/export and occupancy consume the same geometry.
+Existing saved source maps are preserved. MapKit owns the geometry/validation
+summary in [assembled tracks](../addons/mapkit/docs/ASSEMBLED_TRACKS.md).
