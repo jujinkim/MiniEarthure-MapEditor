@@ -171,7 +171,9 @@ def _capture(source, directory, event):
 
 
 def _potential(tags):
-    return bool(tags.get("highway") or tags.get("building", "no") != "no" or "building:part" in tags or tags.get("landuse") in ("forest", "orchard") or tags.get("natural") == "wood")
+    # Index envelopes without interpreting unsupported features outside the
+    # selection. Full semantic validation still follows bounded admission.
+    return bool(tags.get("highway") or tags.get("building", "no") != "no" or "building:part" in tags or tags.get("landuse") or tags.get("natural") in ("wood","water","wetland","bare_rock","scrub","grassland") or tags.get("leisure") in ("park","nature_reserve") or tags.get("boundary")=="protected_area")
 
 
 def _structure_closure(db, event, size):
@@ -318,7 +320,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None)
                 if row is None: raise ValueError("OSM relation missing member; use a complete snapshot")
                 if row[0] is not None: box = envelope(box,*row)
             candidate = potential and intersects(box)
-            if candidate and (tags.get("type") != "multipolygon" or category(tags) == "road"):
+            if candidate and ((tags.get("type") != "multipolygon" and not (category(tags)=="region" and tags.get("type")=="boundary")) or category(tags) == "road"):
                 raise ValueError("OSM selected relation requires supported multipolygon semantics")
             db.execute("INSERT INTO relations VALUES(?,?,?)", (entity.id,json.dumps([members,tags]) if candidate else None,int(candidate)))
             for kind,ref,role in members:

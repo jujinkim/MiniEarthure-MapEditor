@@ -1846,6 +1846,24 @@
     "Checkpoint overlaps an existing checkpoint; change rejected.": "Checkpoint overlaps an existing checkpoint; change rejected.",
     "Race needs two non-overlapping checkpoints": "Race needs two non-overlapping checkpoints",
     "Panel alignment": "Panel alignment",
-    "Panel width": "Panel width"
+    "Panel width": "Panel width",
+    "Environment generation": "Environment generation",
+    "New region": "New region",
+    "Complete selected area": "Complete selected area",
+    "Density": "Density",
+    "Min X (m)": "Min X (m)",
+    "Min Y (m)": "Min Y (m)",
+    "Max X (m)": "Max X (m)",
+    "Max Y (m)": "Max Y (m)",
+    "New project directory (absolute path)": "New project directory (absolute path)",
+    "Preview composition": "Preview composition",
+    "Apply environment": "Apply environment",
+    "Choose theme, seed and bounds, then preview. Generated scenery is an estimated game environment. Existing and manually edited objects are protected.": "Choose theme, seed and bounds, then preview. Generated scenery is an estimated game environment. Existing and manually edited objects are protected.",
+    "Generating terrain, districts and scenery…": "Generating terrain, districts and scenery…",
+    "Preview ready": "Preview ready",
+    "Facilities": "Facilities",
+    "Undo size": "Undo size",
+    "Apply is one Undo. Reduce the area if it exceeds 16 MiB.": "Apply is one Undo. Reduce the area if it exceeds 16 MiB.",
+    "Environment applied. Undo restores the previous area.": "Environment applied. Undo restores the previous area."
   }
 }

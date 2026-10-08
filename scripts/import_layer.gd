@@ -158,8 +158,10 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	for n in raw.extent_cm:
 		if not _count(n + 10000000 if n is int or n is float else null, 20000000): return "Invalid import extent coordinate."
 	if raw.extent_cm[0] > raw.extent_cm[2] or raw.extent_cm[1] > raw.extent_cm[3]: return "Invalid import extent ordering."
-	if raw.get("patches") is not Array or raw.patches.is_empty() or raw.patches.size() > 60000: return "Invalid import records."
+	if raw.get("patches") is not Array or (raw.patches.is_empty() and raw.coordinates.get("generation_regions", []).is_empty()) or raw.patches.size() > 60000: return "Invalid import records."
 	if raw.adapter == "overture-buildings-v1" and overture_building_ids.size() != raw.patches.size(): return "Incomplete Overture footprint mapping."
+	var region_error: String = preload("./import_regions.gd").validate(raw.coordinates.get("generation_regions", []))
+	if region_error != "": return region_error
 	var ids := {}
 	var nodes := {}
 	var structure_count := 0
@@ -373,6 +375,7 @@ func patches(store: RefCounted) -> Array:
 	if value.adapter == "osm-extract-v1":
 		result = preload("./import_units.gd").osm_patches(value.patches)
 		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1"}
+		metadata.authored_regions = preload("./import_regions.gd").scaled(value.coordinates.get("generation_regions", []))
 	var attribution := {"source": value.source.name + "#" + value.layer_id, "license": value.source.license, "notice": JSON.stringify(metadata)}
 	result.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
 	result.append({"field":"free_roam","id":"","before":store.document.free_roam,"after":true})

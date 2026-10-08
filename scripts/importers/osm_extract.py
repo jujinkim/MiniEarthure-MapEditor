@@ -33,7 +33,16 @@ def category(tags):
         kinds.append("zone")
     if len(kinds) > 1:
         raise ValueError("ambiguous OSM feature categories; prepare an explicit extract")
+    if not kinds and (tags.get("landuse") or tags.get("leisure") in ("park", "nature_reserve") or tags.get("natural") in ("water", "wetland", "bare_rock", "scrub", "grassland") or tags.get("boundary") == "protected_area"):
+        return "region"
     return kinds[0] if kinds else None
+
+
+def region_properties(tags):
+    landuse = tags.get("landuse") or {"wood":"forest", "water":"water"}.get(tags.get("natural"), tags.get("natural")) or tags.get("leisure", "unknown")
+    protected = tags.get("boundary") == "protected_area" or tags.get("leisure") == "nature_reserve" or tags.get("access") in ("no", "private")
+    return dict(landuse=landuse or "unknown", osm_region=True, protected=protected,
+                region_tags={k: tags[k] for k in ("landuse", "natural", "leisure", "boundary", "access", "protect_class") if k in tags})
 
 
 def metres(tags, name):
@@ -271,7 +280,8 @@ def relation_features(relations, all_ways, nodes, blocked_members, counts, budge
             if "height" in tags: properties["height_m"] = metres(tags, "height")
             if tags["building"] != "yes": properties["usage"] = tags["building"]
         else:
-            properties["landuse"] = "orchard" if tags.get("landuse") == "orchard" else "forest"
+            properties.update(region_properties(tags))
+        properties["osm_source_id"] = "relation/" + str(identity)
         features.append(dict(type="Feature", properties=properties, geometry=dict(type="MultiPolygon", coordinates=polygons)))
         consumed.update(local)
         counts["assembled_relations"] += 1
@@ -343,8 +353,8 @@ def parse(raw, input_format, supplement=None):
                     raise ValueError("OSM reference budget exceeded")
                 selected = category(tags)
                 if selected:
-                    if tags.get("type") != "multipolygon" or selected == "road":
-                        raise ValueError("OSM selected relation requires a building/forest/orchard multipolygon")
+                    if (tags.get("type") != "multipolygon" and not (selected=="region" and tags.get("type")=="boundary")) or selected == "road":
+                        raise ValueError("OSM selected relation requires an area multipolygon or protected boundary")
                     if len(ways) + len(relations) >= MAX_FEATURES:
                         raise ValueError("OSM selected feature budget exceeded")
                     relations.append((entity.id, selected, [(m.type, m.ref, m.role) for m in entity.members], tags))
@@ -400,11 +410,12 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                 if "height" in tags: properties["height_m"] = metres(tags, "height")
                 if tags["building"] != "yes": properties["usage"] = tags["building"]
             else:
-                properties["landuse"] = "orchard" if tags.get("landuse") == "orchard" else "forest"
+                properties.update(region_properties(tags))
             geometry = dict(type="Polygon", coordinates=[points])
         # Temporary source identity for selecting loop incidence, removed from
         # ordinary unconnected ground roads below to preserve their old contract.
         if kind == "road": properties["osm_source_way"] = identity
+        properties["osm_source_id"] = "way/" + str(identity)
         features.append(dict(type="Feature", properties=properties, geometry=geometry))
     loop_refs = {ref for f in features if closed_road(f["properties"])
                  for ref in all_ways[f["properties"]["osm_source_way"]][0]}

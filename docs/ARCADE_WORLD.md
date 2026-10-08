@@ -1,113 +1,107 @@
-# Seven authored arcade worlds
+# Environment worlds and semantic infill
 
-## Environment authoring replacement
+Editor owns `environment_generation.py`, `environment_profiles.py` and the metre-scale
+modules in `environment_assets.py`. MapKit owns current v1 validation, cell geometry,
+package I/O and common rendering. Client/Host receive finished packages and assets;
+they do not receive this layout engine. The seven default themes use these dimensions:
 
-The approved expanded-world path keeps these seven themes, at least five times
-each previous horizontal dimension. Editor owns the shared new-region / empty-area
-layout engine; MapKit continues to own package validation, cell geometry and common
-rendering. Source units remain actual metres, with the existing 1:8 OSM conversion
-applied exactly once to imported geometry and inferred scenery. Own formats stay v1.
+| Theme | Metres | 32 m cells |
+| --- | --- | --- |
+| Village Driving Park | 1120 × 960 | 1050 |
+| Neon Harbor | 1920 × 1280 | 2400 |
+| Deep Forest | 1760 × 1760 | 3025 |
+| Red Canyon | 2400 × 1200 | 2850 |
+| Snow Mountain | 1600 × 2080 | 3250 |
+| Machine Factory | 1440 × 1440 | 2025 |
+| Sky Amusement Park | 1920 × 1600 | 3000 |
 
-`scripts/asset_derivatives.py` creates immutable 128/256/512px derivatives (default
-256), including embedded GLB images. It rebuilds buffers, shares identical encoded
-payloads and reports encoded size and decoded texture memory. Geometry/material UV
-atlases and originals survive. Authoring's Assets panel uses the selected Python
-environment and texture profile; its existing owned worker, stale-result checks
-and 16 MiB Undo budget apply to the derivative. A source may be up to 64 MiB.
-New asset paths use their content hash. No source is overwritten or upsampled.
+## Authoring
 
-General placement supports additive `yaw_offset_mdeg`; the inspector and placement
-settings expose it. MapKit applies it to visuals, light positions, collision and
-occupancy. Python derivative tests (embedded resize/dedup/source preservation and
-profile bounds) and the 168-assertion asset-worker regression pass on macOS arm64.
-Detailed art quality and editing interaction remain user verification.
+Configure the root `.venv` Python in Import settings. **Create → New region** and
+**Create → Complete selected area** share the same engine. Select theme, seed,
+density, texture size and bounds; review the composition and diagnostics, then
+apply. Selection bounds begin around selected geometry, or the document bounds
+when nothing is selected. New projects require a new absolute directory and publish
+by a sibling-directory rename. Infill requires a saved free-roam project and creates
+one Undo command. A result over the existing 16 MiB history limit is rejected with
+an area-reduction diagnostic. Preview, cancellation, failure and stale documents do
+not publish editing changes. Project payload hashes are checked again on apply.
 
-`examples/arcade-world` contains original MIT sources, `region.json` route plans,
-deterministic terrain/assets and current v1 `.memap` exports. Existing examples and
-completion evidence are preserved. `scripts/arcade_world.py` authors each road
-network independently, then places scenery around its sightlines, branches,
-landing areas and water exits. It shares construction helpers, not old layouts.
+`ThemeProfile` declares required facility groups, area/dimension/density ranges,
+entrance orientation, access, adjacency and exclusions. `GenerationContext` holds
+terrain, source geometry, semantic regions, protection and source scale;
+`GenerationRequest` selects mode/theme/seed/bounds; `GenerationResult` contains the
+candidate patches, immutable assets, ownership hashes and diagnostics.
 
-| ID | Map | Metres | Recommended route lengths (m) |
-| --- | --- | --- | --- |
-| village | 마을 드라이빙 파크 | 224×192 | 223.84 / 548.49 / 396.42 |
-| neon-harbor | 네온 항만 | 384×256 | 238.62 / 497.64 / 599.92 |
-| deep-forest | 깊은 숲 | 352×352 | 237.09 / 649.49 / 649.49 |
-| red-canyon | 붉은 협곡 | 480×240 | 254.01 / 816.24 / 839.94 |
-| snow-mountain | 설산 | 320×416 | 256.15 / 385.66 / 815.78 |
-| machine-factory | 기계 공장 | 288×288 | 258.14 / 530.85 / 530.85 |
-| sky-park | 공중 놀이공원 | 384×320 | 258.10 / 777.62 / 549.98 |
+The stages are terrain/water, functional districts, mixed tensor-field roads,
+noded graph/block extraction, road-facing parcels, frontage/service yards,
+clustered vegetation/details, then quality checks and bounded alternative sites.
+Terrain uses shared global samples across 32 m cell edges. Forest/mountain fields
+weight contours; urban fields mix grid, radial and shoreline directions. Dead ends,
+cut edges and invalid rings are diagnosed. Open parks, fields and courtyards remain
+intentional surfaces. Polygon holes are preserved with constrained triangulation;
+small invalid rounded slivers are rejected. Facility sizes come from actual model
+footprints; their slope-limited foundations flatten only newly generated terrain.
+All required groups and required object lists are checked; unresolved failures block
+Apply. Native preview checks representative dense cells within unchanged budgets.
 
-Intro routes require ordinary driving. Other routes add explicit required gimmick
-gates; equal-length recommendations can share roads with different required gates
-or branch choices. Harbor and forest offer land/water alternatives with common
-before/after checkpoints and wide, gentle dry exits. All 21 recommendations are
-`unverified` until a person completes them. They are sprint courses; free driving
-remains available. Road grade crossings preserve distinct elevations.
+The tensor implementation is independent, informed by
+[ProbableTrain's overview](https://github.com/ProbableTrain/MapGenerator/blob/master/docs/algorithmoverview.md)
+and [Chen et al., 2008](https://web.engr.oregonstate.edu/~zhange/images/street_sig08.pdf).
+No implementation code from those projects is included. Algorithm source and Shapely
+version form the fingerprint. Seed streams use region/parcel/tile identities so a
+change elsewhere does not consume another region's random sequence.
 
-The workbench's **Water** polygon and **Island** tools use the same edit/history
-pipeline as other shapes. Authoring settings expose surface/bottom heights and
-flow, selected-record edits, starting time and terrain color. Water participates
-in selection, move/duplicate, Undo/Redo, save/reopen, affected-cell preview and
-native export. The shared preview renders a surface without adding collision.
+## Infill ownership and source preservation
 
-## Reproduce without replacing originals
+OSM imports retain original way/relation IDs, semantic land-use polygons, inner
+rings and protected regions in existing Editor provenance metadata. Source polygons
+stay unscaled there; an `authored_regions` copy receives the existing 1:8 conversion
+once. Infill dimensions and asset proxies receive the same single 1:8 scale.
+[OSM land-use meanings](https://wiki.openstreetmap.org/wiki/Key:landuse) provide
+context; generated scenery is explicitly labeled an estimated game environment.
+Unknown land use receives low-intensity ground cover, never guessed buildings.
+Original roads/buildings, manual objects, water, entrances and protected areas are
+fixed. Forest/orchard source objects remain intact.
 
-From the superproject with its approved `.venv`:
+Ownership hashes for generated placements and ground surfaces travel with normal
+save/reopen, recovery and Undo/Redo. Only unchanged owned objects inside the selected
+area are regenerated; a conservative 64 source-metre boundary band stays fixed.
+Manual edits and deletions are protected. Terrain, road topology and structural
+supports remain fixed during infill. Rerunning current infill does not duplicate
+objects. Existing source files and earlier example/package directories are preserved.
 
-```sh
-rtk proxy .venv/bin/python map-editor/scripts/arcade_world.py /tmp/new-arcade-world --kit map-kit
-rtk proxy map-kit/target/debug/mapkit pack /tmp/new-arcade-world/village /tmp/new-arcade-world/village.memap
-rtk proxy map-kit/target/debug/mapkit validate-cells /tmp/new-arcade-world/village.memap
-rtk proxy .venv/bin/python -m unittest discover -s map-editor/tests -p test_arcade_world.py
-```
+## Asset and format contracts
 
-Pack each of the seven IDs in `arcade-world.json` to a new file. The generator
-refuses existing destinations. It requires Pillow from root requirements and the
-public MapKit asset libraries. Public Editor use needs no private game repository.
-For actual shared-renderer images, `tests/render_regional_maps.gd` reads absolute
-`REGIONAL_SOURCE` and `REGIONAL_DESTINATION`, producing overview, ground and each
-map's `signature` view. Do not share an active Godot import cache across addon
-layouts. Runtime course sealing and Client catalog distribution belong to Client.
+`asset_derivatives.py` makes immutable 128/256/512px derivatives, default 256,
+including embedded GLB images. It never upscales or overwrites originals. Rebuilt
+buffers remove old embedded image bytes; identical contents share buffer ranges
+and content-addressed paths. Original material atlases/UVs survive. Procedural
+modules batch faces by shared material without per-instance texture copies.
+Diagnostics report compressed payload sizes and decoded texture memory separately.
+Standalone asset import accepts sources up to 64 MiB, while the derived Undo command
+still has the 16 MiB limit. High-quality library originals and procedural source
+geometry remain available for another export profile.
 
-373 generated source files and all seven repacked packages reproduced byte-for-byte.
-All cells passed native validation. Three independent Python checks cover graph
-connectivity, route continuity/length, eight-slot start room, explicit gimmick and
-branch gates, dry water exits and grade crossings (5–16.52 m separation). The
-water-authoring validator passed draw/island/Undo/Redo/edit/save/reopen/native export
-and shared preview. Existing authoring regression passed 98 assertions after
-correcting stale tab-count and embedded-panel pointer coordinates in the fixture.
-Seven overview and fourteen ground/signature renders were inspected. Detailed
-editor interaction, driving enjoyment/completion and platform acceptance remain
-user verification.
+General placement adds `yaw_offset_mdeg` to quarter-turn orientation. Inspector and
+placement controls expose it; MapKit uses the same transform for visual geometry,
+lights, collision and occupancy. Every own format remains v1. Water/Island tools
+and ordinary authoring/history remain available. No pedestrian/traffic simulation
+or whole-building interiors are generated.
 
-## Display library refresh — 2026-10-02, root §44.262
+## Focused validation
 
-Current editable examples are in `map-editor/examples/display-world`; current
-Client bundled catalog/packages are in `client/maps/display-world`. The previous
-`race-flow` and earlier sources/packages remain intact. MapEditor
-`scripts/refresh_display_examples.py` copies into a new destination and binds
-current MIT library bytes/proxies by content hash. Seven lamp/container bindings
-changed, while other authored geometry and user data are preserved. Updated
-documents increment their revision; all formats remain v1.
+Current checks cover deterministic regeneration, required facilities, terrain seams,
+regional boundaries, manual edits/deletions, no duplicate reruns, semantic holes and
+protection, exact 1:8 scale, unknown-space restraint and rotated footprints. The four environment Python tests and 86 OSM feature tests pass, including
+XML/PBF region identity, crop/streaming, holes and protected boundaries. The
+29-check owned-worker validator checks preview, cancel, stale result, one Undo/Redo, recovery,
+new-directory publication and reopening. The OSM authoring validator passes 45 checks and shared document history passes
+571 assertions. Stale fixtures were updated for the initial track document and
+the existing rejection of overlapping independent imports.
+Seven full-size packages pass native save/load validation; two dense cells per theme
+were generated within existing limits. Their validation peaks are below 640 MiB.
+Asset derivative/source-preservation tests and the asset worker regression pass.
 
-Client's offline `prepare_race_flow_maps` supports explicit source catalog and
-resource-root inputs, refuses an existing output directory, exports/opens all
-seven maps and the physics fixture, and rebinds course world hashes. The default
-`bundled_maps.gd` now selects the new catalog. Common material/quality/50cm wall
-changes reach the Editor preview through its MapKit pin; no private renderer or
-physics copy is added. Export/load validation passed; course driving and Editor
-interaction remain user checks.
-
-## Free Roam classification — 2026-10-02 replacement
-
-Current eight editable sources are in `examples/free-roam-world`: the seven
-default worlds and physics-test. Their `free_roam` is true; no embedded race
-course existed, so classifying them as races incorrectly rejected startup.
-`arcade_world.py` and `physics_test_map.py` now set the classification explicitly.
-`refresh_free_roam_examples.py` republishes only the eight known Free Roam maps
-to a new directory, rejects actual race sources and existing destinations, and
-leaves display-world/user originals intact. The source-preservation unit passes.
-Client's new catalog, previews and recommended courses bind freshly exported
-packages; all eight actual loaders reach prepared readiness. Race start policy
-remains strict. Detailed play acceptance stays with the user.
+Detailed editing interaction, driving/course completion, device acceptance and final
+art quality remain user checks. A package or screenshot check does not complete them.

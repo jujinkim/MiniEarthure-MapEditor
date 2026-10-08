@@ -22,6 +22,28 @@ def layer(raw, fmt="osm", token="a" * 32):
 
 
 class OsmTests(unittest.TestCase):
+    def test_generation_regions_source_ids_holes_and_protection(self):
+        import xml.etree.ElementTree as ET
+        root=ET.fromstring(multipolygon_xml().replace('k="landuse" v="forest"','k="landuse" v="residential"'))
+        ET.SubElement(root.find("relation[@id='101']"),'tag',k='access',v='private')
+        raw=ET.tostring(root)
+        source,_=osm.parse(raw,'osm')
+        value=convert(source,'synthetic.osm',osm.LICENSE,source_bytes=raw,layer_id='f'*32,coordinates=OPTIONS,osm_graph=True)
+        regions=value.coordinates['generation_regions']
+        self.assertTrue(any(r['source_id']=='relation/101' and r['holes'] and r['protected'] for r in regions))
+        self.assertTrue(all(r['landuse']=='residential' for r in regions))
+        self.assertTrue(any(r['source_id']=='way/1' for r in value.coordinates['source_objects']))
+        self.assertFalse(any(p['field']=='zones' for p in value.patches))
+        with tempfile.TemporaryDirectory() as directory:
+            binary=pbf(Path(directory)/'semantic.pbf',raw.decode())
+            converted,_=osm.parse(binary,'pbf')
+            actual=convert(converted,'synthetic.pbf',osm.LICENSE,source_bytes=binary,layer_id='f'*32,coordinates=OPTIONS,osm_graph=True)
+        self.assertEqual(regions,actual.coordinates['generation_regions'])
+        root.find("relation[@id='101']/tag[@k='type']").set('v','boundary')
+        ET.SubElement(root.find("relation[@id='101']"),'tag',k='boundary',v='protected_area')
+        boundary,_=osm.parse(ET.tostring(root),'osm')
+        self.assertTrue(any(f['properties'].get('protected') and f['properties'].get('osm_source_id')=='relation/101' for f in boundary['features']))
+
     def test_pbf_xml_parity_provenance_and_reimport(self):
         with tempfile.TemporaryDirectory() as directory:
             raw = pbf(Path(directory) / "source.osm.pbf")

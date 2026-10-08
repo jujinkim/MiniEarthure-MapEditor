@@ -123,6 +123,15 @@ Metadata/proxy edits without a new source use the same path and retain the old
 file. Synchronous `AuthoringTools.asset()` remains available to script callers.
 See [asset execution and checks](ASSET_ASYNC_VALIDATION.md).
 
+## Environment composition
+
+**Create → New region / Complete selected area** opens the shared theme/seed/bounds
+preview. Use the configured Import Python and review diagnostics before Apply. New
+worlds publish to a new directory; infill is one Undo and protects source/manual
+objects. See [environment contracts and checks](ARCADE_WORLD.md). Assets offers
+128/256/512px immutable derivatives (default 256); placement/Inspector yaw adds
+`yaw_offset_mdeg` to the quarter-turn orientation.
+
 ## Atomic payloads, history and limits
 
 Original PNG/GLB/WebP files are never overwritten. Editor writes content-addressed

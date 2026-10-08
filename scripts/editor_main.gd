@@ -81,6 +81,7 @@ var snap_size: SpinBox
 var view_settings := ConfigFile.new()
 var viewport: SubViewport
 var environment_preview := preload("./environment_preview.gd").new()
+var generation_panel: AcceptDialog
 var environment_renderer: Node3D
 var preview_resources := preload("res://addons/mapkit/godot/render_resource_cache.gd").new()
 var preview_world: Node3D
@@ -165,6 +166,9 @@ func _ready() -> void:
 	get_tree().auto_accept_quit = false
 	get_window().min_size = Vector2i(1024, 720)
 	_build_ui()
+	generation_panel = preload("./generation_panel.gd").new()
+	add_child(generation_panel)
+	generation_panel.build(self)
 	track_workbench=preload("./track_workbench.gd").new()
 	add_child(track_workbench)
 	track_workbench.build(self)
@@ -1043,6 +1047,8 @@ func _register_commands() -> void:
 		commands.register("Create", tool, _set_tool.bind(tool), shortcut, {"id":"tool." + tool.to_snake_case(), "context":"global" if tool == "Select" else "roam", "description":"Select in the active workspace: track pieces in 3D, or free roam objects on the plan." if tool == "Select" else _tool_help(tool), "menu":false})
 	commands.register("Create", "Authoring settings…", func(): author_panel.open(), "", {"context":"roam"})
 	commands.register("Create", "Seed Track", _open_track_generator, "", {"id":"create.seed_track", "icon":"generate"})
+	commands.register("Create", "New region", func(): generation_panel.open_mode("new"), "", {"id":"create.new_region","icon":"generate"})
+	commands.register("Create", "Complete selected area", func(): generation_panel.open_mode("fill"), "", {"id":"create.complete_area","context":"roam","icon":"generate"})
 	commands.register("Validate", "Validate", _validate)
 	commands.register("Validate", "3D Preview", _preview, "", {"context":"roam", "icon":"3d"})
 	commands.register("Validate", "Test Drive", _test_drive)

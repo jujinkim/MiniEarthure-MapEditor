@@ -174,6 +174,12 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             for part, rings in enumerate(projected):
                 part_id = identity if kind == "Polygon" else f"{identity}-part-{part}"
                 polygon = rings[0][:-1]
+                if osm_graph and properties.get("osm_region"):
+                    layer.coordinates.setdefault("generation_regions", []).append(dict(
+                        id=part_id, source_id=properties["osm_source_id"], landuse=properties["landuse"],
+                        polygon=polygon, holes=[hole[:-1] for hole in rings[1:]],
+                        protected=properties.get("protected", False), tags=properties.get("region_tags", {})))
+                    if not zone: continue
                 if zone:
                     layer.add("zones", {"id": part_id, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]})
                     layer.estimate("vegetation_spacing_density")
@@ -194,6 +200,9 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     layer.estimate("material_roof")
         else:
             raise ValueError(f"unsupported geometry {kind}; no features imported")
+        if osm_graph and properties.get("osm_source_id"):
+            layer.coordinates.setdefault("source_objects", []).append(dict(source_id=properties["osm_source_id"],
+                record_ids=[p["id"] for p in layer.patches[first_record:]]))
         if collections:
             metadata["leaves"][index].update(record_ids=[p["id"] for p in layer.patches[first_record:]],
                                               point_count=layer.point_count-first_point)

@@ -26,6 +26,7 @@ func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	ui.store.new_document()
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	ui.import_source_format.select(1)
 	ui.import_source_format.item_selected.emit(1)
@@ -112,6 +113,13 @@ func run() -> void:
 		check(trees > 0 and island_trees > 0, "native forest and inner island both generate trees")
 	var updated_path := ProjectSettings.globalize_path("user://" + test_name + " updated.osm.pbf")
 	fixture(ui.import_python.text,updated_path,"23")
+	# A second independent layer cannot overlap existing solid buildings/roads.
+	# Keep the original and author the revised fixture at a separate local origin.
+	var unchanged: Dictionary = ui.store.document.duplicate(true)
+	ui._start_import(updated_path,LAYER.OSM_LICENSE)
+	await wait_import(ui)
+	check(ui.pending_import == null and ui.store.document == unchanged, "overlapping independent layer refused atomically")
+	ui.import_origin_x.value = 1024
 	ui._start_import(updated_path,LAYER.OSM_LICENSE)
 	await wait_import(ui)
 	check(ui.pending_import != null and ui.pending_import.value.layer_id != raw.layer_id and ui.pending_import.value.source.sha256 != original, "updated source gets fresh layer/hash")
@@ -126,6 +134,7 @@ func run() -> void:
 	ui._cancel_operation()
 	await wait_import(ui)
 	check(ui.pending_import == null and ui.store.document == before, "OSM cancellation preserves accepted content")
+	ui.import_origin_x.value = 1536
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	await wait_import(ui)
 	check(ui.store.undo() == "", "document change while review pending")
