@@ -122,6 +122,8 @@ def derive(data, extension, profile=256, scale=1.0):
 
 
 def asset(record, source, profile=256, scale=1.0):
+    if record.get("distant_path"):
+        raise ValueError("Use asset_bundle to transform both near and distant meshes")
     output, report = derive(source, Path(record["path"]).suffix[1:], profile, scale)
     record = copy.deepcopy(record)
     record["path"] = "assets/" + report["sha256"] + "." + report["extension"]
@@ -130,6 +132,20 @@ def asset(record, source, profile=256, scale=1.0):
     for shape in record.get("convex_collision", []):
         shape["vertices"] = [[round(v * scale) for v in point] for point in shape["vertices"]]
     return record, output, report
+
+
+def asset_bundle(record, payloads, profile=256, scale=1.0):
+    """Keep authored LODs in the same local frame and hash both derived payloads."""
+    near = copy.deepcopy(record)
+    distant = near.pop("distant_path", None)
+    result, data, report = asset(near, payloads[near["path"]], profile, scale)
+    output = {result["path"]: data}
+    if distant:
+        data, far_report = derive(payloads[distant], "glb", profile, scale)
+        result["distant_path"] = "assets/" + far_report["sha256"] + ".glb"
+        output[result["distant_path"]] = data
+        report["distant"] = far_report
+    return result, output, report
 
 
 def main():

@@ -42,9 +42,10 @@ for this documentation review. Parts of its original remaining list were deliver
 - [Track authoring](TRACK_AUTHORING.md), [icon workbench](ICON_WORKBENCH.md) and
   [responsive editing](TRACK_EDIT_PERFORMANCE.md): piece transforms, port snapping,
   placement/dragging, sequential worker commits and prepared preview reuse.
-- Seven-map challenge authoring and course distribution were followed by
-  [compact](../examples/compact-driving/README.md), [richer](WORLD_THEME_AUTHORING.md)
-  and [arcade-world](ARCADE_WORLD.md) implementations. Original artifacts remain.
+- Current [default-world authoring](ARCADE_WORLD.md) replaces the former default
+  batches. Village is implemented for first art review; six themes await approval.
+  Practice/physics/shared fixtures remain; retired default-only artifacts use Git
+  history. General generation and semantic infill remain available.
 
 Still incomplete: general 3D picking/gizmos/surface-snap tools beyond Track Mode,
 broader asset thumbnails/GLTF dependency adoption/collision editing, deployment-cost

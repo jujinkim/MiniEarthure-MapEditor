@@ -8,6 +8,10 @@ func run() -> void:
 	await process_frame
 	ui.preview_enabled = false
 	ui.preview_due = 0
+	# Restoration exercises an ordinary free-roam document, not the initial
+	# unconnected track draft whose execution export is correctly refused.
+	ui.store.new_document()
+	ui.store.document.free_roam = true
 	var source := ProjectSettings.globalize_path("user://package-original")
 	ok(ui.store.save_project(source),"save original source")
 	var image := Image.create(4,4,false,Image.FORMAT_RGBA8)
@@ -33,6 +37,7 @@ func run() -> void:
 	ui.export_report.hide()
 	var digest := FileAccess.get_sha256(destination)
 	ui._start_package("export",destination)
+	await wait_work()
 	check(not ui.busy and FileAccess.get_sha256(destination) == digest,"existing regional artifact preserved")
 	ui.dialog_action = "reopen_package"
 	ui._path_selected(destination)

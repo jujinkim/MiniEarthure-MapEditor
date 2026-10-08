@@ -49,7 +49,8 @@ static func signature(document: Dictionary, hashes: Dictionary, index: Dictionar
 		source[field] = document.get(field)
 	source.local = local
 	source.payloads = {}
-	for asset: Dictionary in document.assets: source.payloads[str(asset.path)] = hashes[str(asset.path)]
+	for asset: Dictionary in document.assets:
+		for path: String in preload("./authoring_files.gd").paths(asset): source.payloads[path] = hashes[path]
 	for tile: Dictionary in document.heightmaps:
 		if int(tile.cell.x) == cell.x and int(tile.cell.y) == cell.y:
 			source.heightmap = tile

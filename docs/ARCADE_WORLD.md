@@ -1,10 +1,12 @@
-# Environment worlds and semantic infill
+# Authored default worlds and general environment tools
 
 Editor owns `environment_generation.py`, the layout/composition/metrics modules,
 `environment_profiles.py` and the metre-scale modules in `environment_assets.py`.
 MapKit owns current v1 validation, cell geometry,
 package I/O and common rendering. Client/Host receive finished packages and assets;
-they do not receive this layout engine. The seven default themes use these dimensions:
+they do not receive this layout engine. Default worlds now use separate, explicitly
+authored recipes in `default_worlds.py` / `default_village.py`; generic generation
+and semantic infill remain available. The seven themes retain these dimensions:
 
 | Theme | Metres | 32 m cells |
 | --- | --- | --- |
@@ -104,12 +106,16 @@ Facility boundaries and member hashes make regeneration atomic: crossing a
 selection boundary, editing one member or deleting one member retains the whole
 assembly. Deletion tombstones persist across repeated runs. Manual edits and deletions are protected. Terrain, road topology and structural
 supports remain fixed during infill. Rerunning current infill does not duplicate
-objects. Existing source files and earlier example/package directories are preserved.
+objects. User source files and their packages remain preserved. Retired default-only
+examples and batch improvers were removed under the approved rebuild decision.
 
 ## Asset and format contracts
 
 `asset_derivatives.py` makes immutable 128/256/512px derivatives, default 256,
-including embedded GLB images. It never upscales or overwrites originals. Rebuilt
+including embedded GLB images. `asset_bundle` derives primary and optional
+`distant_path` together with identical local scaling and independent content hashes.
+Save, snapshots, Undo payloads and preview invalidation retain both paths. It never
+upscales or overwrites originals. Rebuilt
 buffers remove old embedded image bytes; identical contents share buffer ranges
 and content-addressed paths. Original material atlases/UVs survive. Procedural
 modules batch faces by shared material without per-instance texture copies.
@@ -124,67 +130,78 @@ lights, collision and occupancy. Every own format remains v1. Water/Island tools
 and ordinary authoring/history remain available. No pedestrian/traffic simulation
 or whole-building interiors are generated.
 
-## Current editable catalog
+## Authored default-world workflow
 
-[`examples/environment-world-varied`](../examples/environment-world-varied/) contains the seven
-editable projects, validated `.memap` files and three connected road-route plans
-per theme. Seed 9026 and the algorithm fingerprint are recorded in each project.
-Earlier example directories remain intact. To reproduce into a new directory from
-the superproject, using the already built public MapKit CLI:
+[`examples/default-worlds`](../examples/default-worlds/) contains the current
+Village source, v1 package, three road-route plans and five actual review images.
+Its ID is `default-village-authored-20261009`. The other six themes are deliberately
+absent until the user approves this Village's art direction. A partial catalog
+is an authoring checkpoint, not a seven-map release or final art acceptance.
+
+The Village recipe explicitly lays out Market Street and its clock hall,
+orchard cottages, ridge gardens, two working farms, crops and irrigation, river
+meadow, two supported bridges and a wooded ridge. Terrain shares 2 m integer
+samples at every 32 m cell edge. Roads shape their cut/fill; building pads connect
+to yards and paths. Vegetation and small props fill declared habitats only.
+All primary and distant models are newly authored MapKit assets. General Editor
+creation, imports, semantic infill and manual editing remain independent.
+
+Generate one theme into a fresh location, then validate every cell:
 
 ```sh
-rtk proxy .venv/bin/python map-editor/scripts/environment_catalog.py /absolute/new-worlds --kit map-kit --cli map-kit/target/debug/mapkit
+rtk proxy .venv/bin/python map-editor/scripts/default_worlds.py /absolute/new-worlds --theme village --kit map-kit --cli map-kit/target/debug/mapkit
 ```
 
-The optional `--prepared` path reuses a current-fingerprint candidate after checking
-every payload hash. It never overwrites a prior output. Shared-render captures use
-`tests/render_environment_maps.gd` with `REGIONAL_SOURCE` and a new
-`REGIONAL_DESTINATION`; bounded cell groups cover core, transition and outer areas.
-Each theme has five review views. Overview, signature and a road-level 1.7 m eye
-view form the 21 distribution previews; transition and outer views support review.
-The offline overhead view draws all prepared props; gameplay distance culling
-would otherwise omit small objects without the runtime distant renderer.
-Use `run_godot_checks.py --rendered` for capture and display-quality/material
-validators: headless dummy rendering does not retain their GPU instance data or
-shader defaults. The current rendered validators pass.
-Runtime/Client offline tooling seals course hashes and validates the eight-car
-start grid separately. Client receives these finished files and 256px distribution
-assets, without the Editor Python engine. Exporting another texture profile requires
-new packages, world identities, courses and preview hashes.
+The CLI rejects existing theme destinations and currently rejects the other six
+themes pending first-Village approval. Source recipes, geometry helpers and model
+code determine the recorded authoring fingerprint. Package/world hashes change
+with content. Own formats stay v1. The final seven-map distribution budget is
+256 MiB with textures at most 512 px; runtime budgets remain unchanged.
+
+Capture through `run_godot_checks.py --project editor --script render_default_world
+--rendered`, with `DEFAULT_WORLD_SOURCE` and a fresh `DEFAULT_WORLD_OUTPUT`.
+Optional `DEFAULT_WORLD_THEME` and `DEFAULT_WORLD_VIEWS` select one theme/view.
+The five Village views are main street, farm road, nature road, river distance
+and overview. All use common near/distant renderers, quality 2 and a 384 m view
+limit. Road eyes are 1.7 m above the surface; the overview is orthographic.
+Images live in `village/review/`; the report binds them to the package hash.
+Client tooling seals routes and eight-car grids using Runtime, then publishes
+only this completed local candidate under `client/maps/default-worlds`.
+
+Default-only historical source/distribution families, previews, course catalogs
+and batch improvers were removed. Git retains history. Shared sign/climate
+examples, practice, physics tests, ordinary generation and common asset libraries
+remain. `driving_features.py` isolates common feature placement and the independent
+five-feature demo from the retired default-map batch script.
 
 ## Focused validation
 
-On macOS ARM64 / Godot 4.7.2, the four generation and five composition Python
-regressions pass. These cover 7 themes × seeds 9026/17/410, actual geometry metrics,
-determinism, terrain seams, rotated clearances, density-independent remote topology,
-manual edits/deletions, atomic boundary preservation across three reruns, semantic
-holes/protection, exact 1:8 scale and unknown-space restraint. Run with the root
-`.venv/bin/python -m unittest discover -s map-editor/tests -p 'test_environment_*.py'`.
-The three catalog regressions additionally verify dimensions, package/source bytes
-and distinct reproducible hub routes. Spatial seed tests skip terrain PNG baking;
-all seven distribution worlds receive full terrain and native validation.
+On macOS ARM64 / Godot 4.7.2, five authored-world Python tests pass: exact
+reproduction, 1,050 terrain-cell seams, road/water separation, bridge support,
+three distinct routes and paired assets. Native validation generates all 1,050
+cells. Maximum road grade is 11.165%. Package size is 1,271,545 bytes; native
+validation peak allowance is 698,787,330 bytes, within the existing source budget.
+This is an admission estimate, not measured whole-map residency.
 
-The owned-worker validator passes 29 checks for preview, cancel, stale result,
-one Undo/Redo, recovery, new-directory publication and reopening. The preview
-validator exercises all five overlay layers, diagnostic district/location and
-blocking Apply. These run through `run_godot_checks.py --project editor --script
-environment_native_validator --script environment_preview_validator` with isolated
-user data. Existing native builds and valid imports are reused.
+Three asset-derivative tests and Editor paired-file save/Undo/Save As/hash/cancel/
+release checks pass, including small-prop quality changes. Package restoration
+and common display-quality validators pass. General environment generation's
+four regressions and the extracted five-feature demo regression pass after
+removing the default-specific scripts. The owned-worker validator also passes
+29 checks for preview, cancellation, stale result, one Undo/Redo, recovery,
+atomic publication and reopening. Full Editor interaction was not rerun.
 
-Seed 9026 / density 1.0 packages pass native save/load validation and six cells per
-theme ranked by geometry/collision cost (42 total). Urban core land is 26.1–26.5%;
-remote nature is 98.8–99.0%, with one graph cycle and three accesses. Measured
-residential/commercial parcel occupancy is 33.5–48.3% and production/warehouse
-occupancy is 40.0%. Maximum road grade is 10.10%; every map has a 200 m launch
-straight. No triple frontage repetition or unresolved required diagnostics remain.
-Native validation peaks range from 326,090,814 to 1,194,603,562 bytes, below the
-existing 1536 MiB Android source budget. These are admission estimates, not measured
-whole-map runtime residency. No required facility or collision was removed to fit.
+All five actual Village captures pass strict diagnostics on the Compatibility
+renderer. The near/far terrain comparison has a maximum RGB difference of 1/255.
+A bounded dense-street comparison renders the same 174 cells normally and with
+forced authored-far geometry: draw calls 1,563→432, shared-cache allowance
+92,779,776→63,963,136 bytes. Visible primitives increase 145,593→187,650 because
+batching/occlusion differs; this is not an FPS or device-performance pass. Largest
+far-cell retained/display charge is 2,270,208 bytes. Far resource owners retire
+after capture cancellation. No execution/admission cap was raised.
 
-Shared-render checks compare core, transition, outer and road-eye views; the 21
-selected overview/ground/signature images belong to the Client distribution.
-Native recommendation preparation validates all 21 courses, their world/surface
-bindings and all eight start-grid footprints. These are offline authoring checks.
-
-Detailed editing interaction, driving/course completion, device acceptance and final
-art quality remain user checks. A package or screenshot check does not complete them.
+Visual review removed terrain tint seams, a deep road cut and canal/road overlap;
+farms, foreground crop rows, river vegetation and shop frontages were adjusted.
+**User art approval remains pending**. Detailed driving/course completion, editing
+interaction and device performance are user checks; object counts and automated
+success do not establish visual acceptance.

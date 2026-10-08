@@ -6,6 +6,12 @@ are superseded. All current features use v1 without a recipe selector.
 [DOCUMENTS.md](DOCUMENTS.md) defines atomic commands and recovery;
 [WORKBENCH.md](WORKBENCH.md) defines selection, layers and shortcuts.
 
+Selected roads expose **Snow retention (%)** (0–100, default 100). The property
+uses the normal atomic graph edit, validation, Undo and export path. MapKit owns
+its rendering and hashes; it does not alter terrain traction. Authoring-property
+checks cover the edit, and shared material checks cover snow-stage contrast and
+markings. The retired snow-only default-map improver is no longer required.
+
 ## Start and draw
 
 Save a project directory before file-backed edits. Open **Authoring settings…**.

@@ -13,7 +13,8 @@ static func capture(document: Dictionary, source: String, history: Array = []) -
 	if not checked.ok: return checked
 	var paths := {}
 	for field in ["assets", "heightmaps"]:
-		for record: Dictionary in checked.data.document.get(field, []): paths[str(record.path)] = true
+		for record: Dictionary in checked.data.document.get(field, []):
+			for path: String in PAYLOADS.paths(record): paths[path] = true
 	for course: Dictionary in checked.data.document.get("courses", []):
 		if course.has("validation"): paths[str(course.validation.path)] = true
 	# Save As keeps Undo/Redo usable, including old immutable raster versions.
@@ -24,7 +25,8 @@ static func capture(document: Dictionary, source: String, history: Array = []) -
 					if value != null and value.has("validation"): paths[str(value.validation.path)] = true
 			if patch.field in ["assets", "heightmaps"]:
 				for value in [patch.before, patch.after]:
-					if value != null: paths[str(value.path)] = true
+					if value != null:
+						for path: String in PAYLOADS.paths(value): paths[path] = true
 	var blobs := {}
 	var hashes := {}
 	var total := 0

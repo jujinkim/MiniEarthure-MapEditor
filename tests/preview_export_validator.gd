@@ -23,9 +23,9 @@ func ok(value: String, message: String) -> void:
 
 func wait_work() -> void:
 	var deadline := Time.get_ticks_msec() + 20000
-	while ui.store.editing_locked() and Time.get_ticks_msec() < deadline:
+	while (ui.busy or ui.store.editing_locked()) and Time.get_ticks_msec() < deadline:
 		await create_timer(0.002).timeout
-	check(not ui.store.editing_locked(), "worker/attachment completes by deadline")
+	check(not ui.busy and not ui.store.editing_locked(), "worker/attachment completes by deadline")
 
 func building(id: String, x: int) -> Dictionary:
 	return {"id":id, "footprint":[[x,1000],[x+2000,1000],[x+2000,3000],[x,3000]], "base_cm":0, "height_cm":1000, "usage":"residential", "material":"brick", "roof":"flat"}

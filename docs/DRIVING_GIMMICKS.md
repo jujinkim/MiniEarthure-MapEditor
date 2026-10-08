@@ -14,9 +14,11 @@ collision editing workflow remain separate work.
 
 `tests/gimmick_authoring_validator.gd` passed property mutation, native save,
 stable-ID replacement, time/bounds preview, ordinary cell preview and undo/redo.
-`tests/test_compact_maps.py` passed deterministic creation of the seven new maps
-in [compact-driving](../examples/compact-driving/README.md). Godot import/load
-passed. Actual interactive editing and driving acceptance remain user checks.
+`scripts/driving_features.py` retains common placement and the independent
+`examples/special-driving/demo` fixture after the old default-map batch was removed.
+Its unit test checks deterministic creation of target-speed, jump-height, air-ring,
+loop and cylinder structures, plus existing-output protection. Actual interactive
+editing and driving acceptance remain user checks.
 
 Quarterpipe inner-face roles now come from the pinned MapKit current-v1 source,
 using the shared renderer/resolver. Initial-screen validation locates visible

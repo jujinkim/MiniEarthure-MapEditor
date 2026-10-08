@@ -142,7 +142,8 @@ static func compressed_assets(path: String, assets: Array) -> Dictionary:
 	var offset := file.get_32()
 	file.seek(offset)
 	var wanted := {}
-	for asset: Dictionary in assets: wanted[str(asset.path)] = true
+	for asset: Dictionary in assets:
+		for payload_path: String in PAYLOADS.paths(asset): wanted[payload_path] = true
 	var total := 0
 	for _i in range(entries):
 		var header := file.get_buffer(46)

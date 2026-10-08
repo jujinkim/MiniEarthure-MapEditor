@@ -10,7 +10,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 	if request.get("request") != identity or request.get("generation") is not Dictionary or request.get("document") is not Dictionary or request.get("python") is not String or request.python.is_empty():
 		failure = "Invalid environment generation request."
 	progress.call("source",0,0)
-	var modules := ["environment_generation.py","environment_profiles.py","environment_assets.py","environment_layout.py","environment_composition.py","environment_metrics.py","asset_derivatives.py","reference_maps.py","special_driving_maps.py","city_assets.py","driving_school_map.py"]
+	var modules := ["environment_generation.py","environment_profiles.py","environment_assets.py","environment_layout.py","environment_composition.py","environment_metrics.py","asset_derivatives.py","reference_maps.py","driving_features.py","city_assets.py","driving_school_map.py"]
 	for module: String in modules:
 		if failure != "": break
 		failure = FILES.write_new(directory.path_join(module),FileAccess.get_file_as_string("res://scripts/"+module).to_utf8_buffer())

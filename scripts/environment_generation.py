@@ -35,7 +35,7 @@ from environment_composition import Composition
 from environment_layout import digest, rng, polygons, lines, xy, rings, polygon
 from environment_metrics import measure
 from reference_maps import canonical, empty, road
-from special_driving_maps import place as driving_feature
+from driving_features import place as driving_feature
 
 OWNER = "mapeditor-environment-v1"
 HISTORY_BYTES = 16 * 1024 * 1024
@@ -47,7 +47,7 @@ FIELDS = ("nodes", "roads", "buildings", "zones", "placements", "surface_areas",
 
 
 def fingerprint():
-    files = [Path(__file__).with_name(name) for name in ("environment_generation.py","environment_profiles.py","environment_assets.py","environment_layout.py","environment_composition.py","environment_metrics.py","asset_derivatives.py","city_assets.py","driving_school_map.py","special_driving_maps.py")]
+    files = [Path(__file__).with_name(name) for name in ("environment_generation.py","environment_profiles.py","environment_assets.py","environment_layout.py","environment_composition.py","environment_metrics.py","asset_derivatives.py","city_assets.py","driving_school_map.py","driving_features.py")]
     return digest(b"".join(p.read_bytes() for p in files) + shapely.__version__.encode())
 
 

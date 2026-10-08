@@ -3,8 +3,9 @@
 [Current v1 authoring/import contracts](docs/CURRENT_V1.md) supersede historical
 recipe-version selection, automatic promotion and previous-format compatibility.
 
-[Seven expanded environment worlds and semantic infill](docs/ARCADE_WORLD.md) documents the current
-editable examples, reproduction, course plans and non-solid water tools.
+[Authored default worlds and semantic infill](docs/ARCADE_WORLD.md) documents the
+new Village source, actual-render art review, reproducible recipes and general
+Editor generation. The other six themes await first-Village art approval.
 
 Independent Godot 4.7.2 Windows/Linux editor foundation, licensed MIT. Requires
 only this repository and its public MapKit submodule; no game installation or
@@ -219,13 +220,13 @@ PNG import as separate map-owned assets. [Authoring, commands and limits](docs/W
 storage grouping and recovery into a new project directory. Existing `.memap` and
 source projects remain supported and preserved.
 
-## Regional miniatures
+## Default worlds
 
-Seven original fictional regions, editable sources, independent current v1 packages
-and suggested road waypoint paths are in [regional-miniatures](examples/regional-miniatures/README.md).
-They use the public MapKit kit; no game course codec is part of this editor.
-
-The current compact street examples are [miniature-streets](examples/miniature-streets/README.md): seven new sources with connected bridges/underpasses, graded start areas and optional technical paths. Historical example packages remain intact.
+Current authored sources are in `examples/default-worlds`. Editor owns the
+landscape recipes and three road-route plans; MapKit owns paired near/distant
+models and shared rendering. Runtime/Client seal game courses separately.
+Retired default-only source/distribution families and improvers were removed;
+practice, physics and shared authoring fixtures remain. Git retains history.
 
 - [Icon workbench, shortcuts and preview placement](docs/ICON_WORKBENCH.md)
 - [Track piece workspace and draft authoring](docs/TRACK_AUTHORING.md)

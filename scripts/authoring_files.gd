@@ -2,6 +2,11 @@ extends RefCounted
 ## Immutable project payloads; disposable native candidate validation.
 const MAX_PAYLOAD_BYTES := 64 * 1024 * 1024
 
+static func paths(record: Dictionary) -> Array[String]:
+	var result: Array[String] = [str(record.path)]
+	if record.get("distant_path") != null: result.append(str(record.distant_path))
+	return result
+
 static func read(path: String, limit: int = MAX_PAYLOAD_BYTES) -> Dictionary:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null: return {"error": "Cannot read source file: " + path}
@@ -42,32 +47,32 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 		var counted := {}
 		for field in ["assets", "heightmaps"]:
 			for record: Dictionary in document.get(field, []):
-				var path := str(record.path)
-				if counted.has(path): continue
-				counted[path] = true
-				if blobs.has(path):
-					total += blobs[path].size()
+				for path: String in paths(record):
+					if counted.has(path): continue
+					counted[path] = true
+					if blobs.has(path):
+						total += blobs[path].size()
+						if total > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
+						continue
+					var file := FileAccess.open(store.project_path.path_join(path), FileAccess.READ)
+					if file == null: return "Cannot read candidate payload."
+					total += file.get_length()
+					file.close()
 					if total > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
-					continue
-				var file := FileAccess.open(store.project_path.path_join(path), FileAccess.READ)
-				if file == null: return "Cannot read candidate payload."
-				total += file.get_length()
-				file.close()
-				if total > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
 	_progress(context, "snapshot", 0, total)
 	for field in ["assets", "heightmaps"]:
 		for record: Dictionary in document.get(field, []):
-			var path := str(record.path)
-			if payloads.has(path): continue
-			var source: Dictionary = {"bytes": blobs[path]} if blobs.has(path) else read(store.project_path.path_join(path), MAX_PAYLOAD_BYTES - size)
-			if source.has("error"): return source.error
-			size += source.bytes.size()
-			if size > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
-			payloads[path] = source.bytes
-			if context.has("hashes") and not blobs.has(path):
-				context.hashes[path] = digest(source.bytes)
-				if FileAccess.get_sha256(store.project_path.path_join(path)) != context.hashes[path]: return "Source changed during native candidate snapshot."
-			_progress(context, "snapshot", size, total)
+			for path: String in paths(record):
+				if payloads.has(path): continue
+				var source: Dictionary = {"bytes": blobs[path]} if blobs.has(path) else read(store.project_path.path_join(path), MAX_PAYLOAD_BYTES - size)
+				if source.has("error"): return source.error
+				size += source.bytes.size()
+				if size > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
+				payloads[path] = source.bytes
+				if context.has("hashes") and not blobs.has(path):
+					context.hashes[path] = digest(source.bytes)
+					if FileAccess.get_sha256(store.project_path.path_join(path)) != context.hashes[path]: return "Source changed during native candidate snapshot."
+				_progress(context, "snapshot", size, total)
 	if context.get("expected_payloads", "") != "" and JSON.stringify(context.hashes).sha256_text() != context.expected_payloads: return "Project payload changed since import review; import again."
 	var scratch: String = context.get("scratch", ProjectSettings.globalize_path("user://authoring-candidates/" + Crypto.new().generate_random_bytes(12).hex_encode()))
 	var failure := write_new(scratch.path_join("document.json"), str(result.data.canonical).to_utf8_buffer())
@@ -117,10 +122,12 @@ static func apply(store: RefCounted, label: String, patches: Array, blobs: Dicti
 	for patch: Dictionary in patches:
 		if patch.field not in ["heightmaps", "assets"]: continue
 		for value in [patch.before, patch.after]:
-			if value == null or retained.has(str(value.path)): continue
-			var source := read(store.project_path.path_join(str(value.path)), store.HISTORY_BYTES)
-			if source.has("error"): return source.error
-			retained[str(value.path)] = source.bytes
+			if value == null: continue
+			for path: String in paths(value):
+				if retained.has(path): continue
+				var source := read(store.project_path.path_join(path), store.HISTORY_BYTES)
+				if source.has("error"): return source.error
+				retained[path] = source.bytes
 	var bytes := JSON.stringify({"label": label, "patches": patches}).to_utf8_buffer().size()
 	for value: PackedByteArray in retained.values(): bytes += value.size()
 	if bytes > store.HISTORY_BYTES: return "Command exceeds the shared 16 MiB binary/text undo budget."
