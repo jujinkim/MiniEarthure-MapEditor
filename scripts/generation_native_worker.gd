@@ -99,6 +99,9 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 			var source_root: String = generated if request.generation.mode == "new" else request.project
 			if FileAccess.get_sha256(source_root.path_join(path)) != hashes[path]: failure = "Project changed during generation."
 	if failure == "":
+		# The prepared command/snapshot already carries ownership and patches.
+		# Keep one copy in the bounded transfer instead of repeating authoring JSON.
+		for redundant: String in ["patches","owned","metadata"]: report.erase(redundant)
 		var bundle := {"request":identity,"report":report,"payloads":blobs,"snapshot":snapshot,"source_hashes":hashes}
 		if not prepared.is_empty(): bundle.prepared = COMMAND.encode(prepared)
 		failure = COMMAND.write_bundle(directory,bundle,output)

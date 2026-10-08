@@ -47,7 +47,7 @@ PROFILES = {p.id: p for p in [
         rule("farm-lane","farmland",["richer-farm-2"],surface="dirt"),
         rule("irrigation","water",[],access=False),
         rule("park","park",["richer-canopy-0","richer-bench"])),
-        ("richer-canopy-0","richer-canopy-1"),160,7,(117,148,86)),
+        ("environment-canopy-oak","environment-canopy-birch"),160,7,(117,148,86)),
     ThemeProfile("neon-harbor", "네온 항만", "Neon Harbor", (1920,1280), (
         rule("docks","industrial",["richer-dock-crane","richer-container"],surface="concrete",adjacent=("loading","warehouse")),
         rule("loading","industrial",["richer-container","richer-lamp"],surface="concrete"),
@@ -60,7 +60,7 @@ PROFILES = {p.id: p for p in [
         rule("bridge","transport",[],surface="concrete")),
         ("richer-canopy-1",),220,5,(78,94,103),True),
     ThemeProfile("deep-forest", "깊은 숲", "Deep Forest", (1760,1760), (
-        rule("canopy","forest",["richer-canopy-0","richer-canopy-1","richer-canopy-2"],access=False),
+        rule("canopy","forest",["environment-canopy-oak","environment-canopy-birch","arcade-pine"],access=False),
         rule("shrubs","scrub",["richer-grove-0"],access=False),
         rule("understory","grassland",["richer-grove-1"],access=False),
         rule("forest-floor","forest",[],surface="dirt",access=False),
@@ -69,17 +69,17 @@ PROFILES = {p.id: p for p in [
         rule("forest-road","transport",[],surface="dirt"),
         rule("campground","recreation_ground",["richer-bench","richer-nord-0"],surface="dirt"),
         rule("ranger-station","public",["richer-nord-1","richer-shed-0"])),
-        ("richer-grove-2","richer-canopy-1","richer-grove-2","arcade-pine"),240,38,(65,101,62)),
+        ("environment-canopy-oak","environment-canopy-birch","environment-canopy-oak","arcade-pine"),240,38,(65,101,62)),
     ThemeProfile("red-canyon", "붉은 협곡", "Red Canyon", (2400,1200), (
-        rule("ridges","bare_rock",["richer-rock-2"],access=False,surface="gravel"),
-        rule("cliffs","bare_rock",["richer-rock-1","richer-rock-2"],access=False,surface="gravel"),
-        rule("strata","bare_rock",["richer-rock-0"],access=False,surface="dirt"),
+        rule("ridges","bare_rock",["environment-butte"],access=False,surface="gravel"),
+        rule("cliffs","bare_rock",["environment-strata","environment-butte"],access=False,surface="gravel"),
+        rule("strata","bare_rock",["environment-strata"],access=False,surface="dirt"),
         rule("scree","bare_rock",["richer-rock-0","richer-rock-1"],access=False,surface="gravel"),
         rule("dry-river","bare_rock",[],surface="dirt",access=False),
         rule("quarry","industrial",["richer-shed-2","richer-container"],surface="gravel",area_m2=(3600,14400)),
         rule("access-road","transport",[],surface="gravel"),
         rule("overlook","recreation_ground",["richer-bench","richer-shop-0"],surface="gravel")),
-        ("richer-rock-0","richer-rock-1","richer-rock-2"),260,85,(170,76,42)),
+        ("richer-rock-0","richer-rock-1","environment-strata","environment-butte"),260,85,(170,76,42)),
     ThemeProfile("snow-mountain", "설산", "Snow Mountain", (1600,2080), (
         rule("ridge","bare_rock",["richer-rock-2"],access=False,surface="gravel"),
         rule("valley","grassland",[],access=False),
@@ -106,7 +106,7 @@ PROFILES = {p.id: p for p in [
     ThemeProfile("sky-park", "공중 놀이공원", "Sky Amusement Park", (1920,1600), (
         rule("entrance","commercial",["richer-shop-0","richer-lamp"],surface="concrete",adjacent=("plaza",)),
         rule("plaza","recreation_ground",["richer-bench"],surface="concrete",area_m2=(2400,10000)),
-        rule("attractions","recreation_ground",["arcade-ferris-wheel","arcade-carousel"],area_m2=(6400,14400),surface="concrete",adjacent=("queues",)),
+        rule("attractions","recreation_ground",["environment-wheel","arcade-carousel"],area_m2=(6400,14400),surface="concrete",adjacent=("queues",)),
         rule("queues","recreation_ground",["richer-bench","richer-lamp"],surface="concrete"),
         rule("food-services","commercial",["richer-shop-1","richer-shop-2"],surface="concrete"),
         rule("conveniences","public",["richer-courtyard-0"],surface="concrete"),
@@ -120,6 +120,7 @@ PROFILES = {p.id: p for p in [
 # Source assets are deliberately untouched. These factors restore useful real
 # metre proportions from the earlier miniature art library.
 def model_scale(asset):
+    if asset.startswith("environment-"): return 1.0
     if any(word in asset for word in ("house", "shop", "farm", "nord", "courtyard", "stilt")): return 2.5
     if "shed" in asset: return 3.0
     if "tower" in asset: return 2.5

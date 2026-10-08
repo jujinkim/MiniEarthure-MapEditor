@@ -391,6 +391,30 @@ class Generator:
         self.doc["assets"].append(record);self.payloads[record["path"]]=data;self.asset_reports[key]=report
         return record
 
+    def approaches_stage(self):
+        if self.request.mode!='new': return
+        incidence={}
+        for r in self.doc['roads']:
+            for node in (r['from'],r['to']): incidence.setdefault(node,set()).add(r['kind'])
+        aprons=[]
+        for node in self.doc['nodes']:
+            kinds=incidence.get(node['id'],set())
+            if 'ground' not in kinds or not kinds.intersection(('bridge','elevated')): continue
+            x,h,y=[v/100 for v in node['position']]
+            area=box(x-20,y-20,x+20,y+20)
+            pad=(area,h);self.pads.append(pad)
+            for key in self.grid_keys(area.buffer(5)): self.pad_grid.setdefault(key,[]).append(pad)
+            aprons.append(pad)
+        for record in [*self.doc['nodes'],*self.doc['roads']]:
+            for point in record.get('points',[record.get('position')]):
+                p=Point(point[0]/100,point[2]/100)
+                for area,level in aprons:
+                    if area.covers(p): point[1]=round(level*100)
+        if aprons:
+            # Keep foundations and prop planting outside level transition pads.
+            self.road_space=unary_union([self.road_space,*[a.buffer(5) for a,_ in aprons]])
+        self.diagnostics.append(dict(stage='approaches',level_aprons=len(aprons)))
+
     def footprint(self,record,position,yaw):
         points=[]
         for proxy in record.get("collision",[]):
@@ -399,7 +423,7 @@ class Generator:
         for convex in record.get("convex_collision",[]): points.extend((p[0],p[2]) for p in convex["vertices"])
         # Canopies have narrow trunk proxies; reserve their visual footprint too.
         if any(k in record["id"] for k in ("canopy","pine","grove")):
-            r=(4 if "grove" not in record["id"] else 2)*self.scale
+            r=(5 if record["id"].startswith("environment-canopy") else 4 if "grove" not in record["id"] else 2)*self.scale
             points.extend((a*r*100,b*r*100) for a in (-1,1) for b in (-1,1))
         if not points: points=[(-50,-50),(50,-50),(50,50),(-50,50)]
         angle=math.radians(yaw);c,s=math.cos(angle),math.sin(angle)
@@ -452,12 +476,12 @@ class Generator:
             if len(outer)<3 or len(outer)>512 or not snapped.is_valid or snapped.area<100 or len(set(map(tuple,outer)))!=len(outer): continue
             if self.add("surface_areas",dict(id=identity+"-"+str(index),polygon=outer,surface=material),anchor): self.surface_polys.append(poly)
 
-    def place(self,identity,model,point,yaw=0,plot=None,natural=False):
+    def place(self,identity,model,point,yaw=0,plot=None,natural=False,clearance=.8):
         if ("placements",identity) in self.preserved_ids: return False
         asset=self.asset(model);area=self.footprint(asset,point,yaw)
         if not self.window.covers(area.buffer(.1*self.scale)) or (plot is not None and not plot.covers(area)):
             return False
-        if area.intersects(self.forbidden) or any(area.distance(p)<.8*self.scale for p in self.nearby(area.buffer(.8*self.scale))): return False
+        if area.intersects(self.forbidden) or any(area.distance(p)<clearance*self.scale for p in self.nearby(area.buffer(clearance*self.scale))): return False
         if not natural:
             corners=list(area.exterior.coords)
             heights=[self.height(*p) for p in corners]
@@ -467,7 +491,10 @@ class Generator:
                 pad=(area.buffer(1*self.scale),level)
                 self.pads.append(pad)
                 for key in self.grid_keys(pad[0].buffer(5)): self.pad_grid.setdefault(key,[]).append(pad)
-        else: level=self.height(*point)
+        else:
+            level=self.height(*point)
+            if model in ('environment-strata','environment-butte'):
+                level=min(self.height(*p) for p in area.exterior.coords)
         record=dict(id=identity,asset_id=asset["id"],position=[round(point[0]*100),round(level*100),round(point[1]*100)],quarter_turns=0,yaw_offset_mdeg=round(yaw*1000))
         previous=self.owned_before.get(("placements",identity))
         if previous and all(record.get(k,0)==previous.get(k,0) for k in ("asset_id","quarter_turns","yaw_offset_mdeg")) and record["position"][::2]==previous["position"][::2] and abs(record["position"][1]-previous["position"][1])<=5:
@@ -527,11 +554,29 @@ class Generator:
             for index,(model,pos,yaw,area) in enumerate(candidates):
                 if self.place(identity+"-object-"+str(index),model,pos,yaw,plot,natural=not rule.access): placed.append(identity+"-object-"+str(index))
             if rule.objects and not placed: continue
+            if rule.id=='fields':
+                # Tilled parcels are productive open space: repeat crop modules
+                # across the usable interior, retaining turning room at each end.
+                spacing=8*self.scale
+                for row in range(1,int(depth/spacing)-1):
+                    for column in range(1,int(width/spacing)):
+                        a=-width/2+column*spacing;b=(row+1)*spacing
+                        pos=(near[0]+tangent[0]*a+normal[0]*b,near[1]+tangent[1]*a+normal[1]*b)
+                        model=rule.objects[(row+column)%len(rule.objects)]
+                        crop=identity+'-crop-'+str(row)+'-'+str(column)
+                        if self.place(crop,model,pos,math.degrees(angle),plot): placed.append(crop)
             front=(near[0]+normal[0]*depth*.20,near[1]+normal[1]*depth*.20)
             entrance=LineString([(p.x+tangent[0]*offset,p.y+tangent[1]*offset),front]).buffer(2*self.scale,cap_style=2)
+            if rule.access and rule.id!='fields':
+                branches=[entrance]
+                for model,pos,yaw,area in candidates:
+                    if any(name in model for name in ('house','shop','shed','school','farm','nord','tower','courtyard')):
+                        door=nearest_points(Point(front),area)[1]
+                        branches.append(LineString([front,(door.x,door.y)]).buffer(1.5*self.scale,cap_style=2))
+                entrance=unary_union(branches)
             yard=plot
-            self.surface(identity+"-yard",yard,rule.surface,anchor)
             self.surface(identity+"-entry",entrance.difference(self.road_space),"concrete" if self.profile.urban else "gravel",anchor)
+            self.surface(identity+"-yard",yard,rule.surface,anchor)
             self.sites.append(dict(id=identity,group=rule.id,landuse=rule.landuse,geometry=plot,anchor=anchor,
                                    objects=placed,entrance=entrance,access=nearest.distance(Point(anchor)),required=True))
             return True
@@ -600,12 +645,13 @@ class Generator:
         for site in list(self.sites):
             if site['landuse'] not in ('industrial','residential','farmland'): continue
             exterior=LineString(site['geometry'].exterior.coords)
-            for i in range(1,int(exterior.length/(8*self.scale))):
-                p=exterior.interpolate(i*8*self.scale);q=exterior.interpolate(min(exterior.length,i*8*self.scale+self.scale))
+            spacing=4.2*self.scale
+            for i in range(1,int(exterior.length/spacing)):
+                p=exterior.interpolate(i*spacing);q=exterior.interpolate(min(exterior.length,i*spacing+self.scale))
                 if p.distance(site['entrance'])<4*self.scale: continue
                 yaw=math.degrees(math.atan2(q.y-p.y,q.x-p.x))
                 if self.profile.id=='machine-factory' or site['landuse']=='farmland':
-                    self.place(site['id']+'-fence-'+str(i),'environment-fence',(p.x,p.y),yaw)
+                    self.place(site['id']+'-fence-'+str(i),'environment-fence',(p.x,p.y),yaw,clearance=.02)
         if self.profile.id=='snow-mountain':
             for record,line in zip(self.doc['roads'],self.road_lines):
                 for i in range(1,int(line.length/32)):
@@ -650,7 +696,7 @@ class Generator:
             self.add('gimmicks',g,(p[0]/100,p[2]/100))
 
     def nature_stage(self):
-        scale=self.scale;step=(18 if self.profile.id in ("deep-forest","snow-mountain") else 32)*scale
+        scale=self.scale;step=(14 if self.profile.id=="deep-forest" else 18 if self.profile.id=="snow-mountain" else 32)*scale
         x,y,X,Y=self.window.bounds
         sites=unary_union([s["geometry"] for s in self.sites])
         # Use full existing context for exclusions, not just selected objects.
@@ -671,6 +717,8 @@ class Generator:
                 if self.profile.id=="snow-mountain": cluster*=max(.15,1-self.height(*p)/180)
                 if random.random()>cluster*self.request.density: continue
                 model=random.choice(self.profile.natural_assets)
+                if self.profile.id=='deep-forest' and random.random()<.20:
+                    model=random.choice(('richer-grove-0','richer-grove-1','richer-rock-0'))
                 self.place("env-nature-%d-%d"%(ix,iy),model,p,random.randrange(360),natural=True)
 
     def terrain_stage(self):
@@ -697,7 +745,7 @@ class Generator:
             if site["access"]>150*self.scale: errors.append("Facility access too far: "+site["id"])
             if site["entrance"].intersects(self.protected) or site["entrance"].intersects(self.water): errors.append("Blocked facility access: "+site["id"])
             rule=next(r for r in self.profile.rules if r.id==site['group'])
-            if self.request.mode=='new' and site['id'].startswith('env-facility-') and len(site['objects'])!=len(rule.objects): errors.append('Incomplete facility objects: '+site['id'])
+            if self.request.mode=='new' and site['id'].startswith('env-facility-') and not all(site['id']+'-object-'+str(i) in site['objects'] for i in range(len(rule.objects))): errors.append('Incomplete facility objects: '+site['id'])
         return dict(errors=errors,stages=self.diagnostics,required=sorted(required),present=sorted(present),
             counts={f:len(self.doc.get(f,[])) for f in FIELDS},facilities=len(self.sites),
             texture_memory_bytes=sum(r["texture_memory_bytes"] for r in self.asset_reports.values()),
@@ -705,7 +753,7 @@ class Generator:
             inferred_game_environment=True,source_denominator=self.context.source_denominator if self.request.mode=="fill" else 1)
 
     def run(self):
-        self.water_stage();self.districts_stage();self.road_stage();self.driving_stage();self.fixed_stage();self.facilities_stage();self.details_stage();self.nature_stage();self.terrain_stage()
+        self.water_stage();self.districts_stage();self.road_stage();self.approaches_stage();self.driving_stage();self.fixed_stage();self.facilities_stage();self.details_stage();self.nature_stage();self.terrain_stage()
         diagnostics=self.quality_stage()
         self.owned.sort(key=lambda r:(r['field'],r['id']))
         metadata=dict(version=1,owner=OWNER,new_layout=self.new_layout,algorithm=fingerprint(),request={k:v for k,v in asdict(self.request).items() if k not in ('mode','bounds_cm')},owned=self.owned,

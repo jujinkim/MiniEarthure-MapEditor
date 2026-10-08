@@ -44,6 +44,11 @@ small invalid rounded slivers are rejected. Facility sizes come from actual mode
 footprints; their slope-limited foundations flatten only newly generated terrain.
 All required groups and required object lists are checked; unresolved failures block
 Apply. Native preview checks representative dense cells within unchanged budgets.
+Ground/deck junctions share level approach aprons. Frontage paths reach building
+footprints, crop modules fill productive field interiors, and fence runs leave
+access openings. Retained metre-scale source modules include rounded broadleaf
+crowns, layered rock outcrops and a continuous supported observation wheel, with
+solid box/convex collision declarations. No original library files are replaced.
 
 The tensor implementation is independent, informed by
 [ProbableTrain's overview](https://github.com/ProbableTrain/MapGenerator/blob/master/docs/algorithmoverview.md)
@@ -89,6 +94,32 @@ lights, collision and occupancy. Every own format remains v1. Water/Island tools
 and ordinary authoring/history remain available. No pedestrian/traffic simulation
 or whole-building interiors are generated.
 
+## Current editable catalog
+
+[`examples/environment-world`](../examples/environment-world/) contains the seven
+editable projects, validated `.memap` files and three connected road-route plans
+per theme. Seed 9026 and the algorithm fingerprint are recorded in each project.
+Earlier example directories remain intact. To reproduce into a new directory from
+the superproject, using the already built public MapKit CLI:
+
+```sh
+rtk proxy .venv/bin/python map-editor/scripts/environment_catalog.py /absolute/new-worlds --kit map-kit --cli map-kit/target/debug/mapkit
+```
+
+The optional `--prepared` path reuses a current-fingerprint candidate after checking
+every payload hash. It never overwrites a prior output. Shared-render captures use
+`tests/render_environment_maps.gd` with `REGIONAL_SOURCE` and a new
+`REGIONAL_DESTINATION`; each view renders two bounded representative districts.
+The offline overhead view draws all prepared props; gameplay distance culling
+would otherwise omit small objects without the runtime distant renderer.
+Use `run_godot_checks.py --rendered` for capture and display-quality/material
+validators: headless dummy rendering does not retain their GPU instance data or
+shader defaults. The current rendered validators pass.
+Runtime/Client offline tooling seals course hashes and validates the eight-car
+start grid separately. Client receives these finished files and 256px distribution
+assets, without the Editor Python engine. Exporting another texture profile requires
+new packages, world identities, courses and preview hashes.
+
 ## Focused validation
 
 Current checks cover deterministic regeneration, required facilities, terrain seams,
@@ -100,8 +131,14 @@ new-directory publication and reopening. The OSM authoring validator passes 45 c
 571 assertions. Stale fixtures were updated for the initial track document and
 the existing rejection of overlapping independent imports.
 Seven full-size packages pass native save/load validation; two dense cells per theme
-were generated within existing limits. Their validation peaks are below 640 MiB.
+were generated within existing limits. Validation peaks range from 312,446,692 to
+699,110,778 bytes (under 667 MiB); these are admission estimates, not measured
+whole-map runtime residency. Active cell limits remain unchanged.
 Asset derivative/source-preservation tests and the asset worker regression pass.
+Three catalog regressions verify current dimensions/facilities, package/source
+payload linkage and distinct bounded reproducible route plans. The shared renderer
+checks representative districts; recommendation preparation validates surface
+probes and all eight start-grid footprints. These are offline authoring checks.
 
 Detailed editing interaction, driving/course completion, device acceptance and final
 art quality remain user checks. A package or screenshot check does not complete them.
