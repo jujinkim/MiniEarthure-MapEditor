@@ -43,7 +43,8 @@ for this documentation review. Parts of its original remaining list were deliver
   [responsive editing](TRACK_EDIT_PERFORMANCE.md): piece transforms, port snapping,
   placement/dragging, sequential worker commits and prepared preview reuse.
 - Current [default-world authoring](ARCADE_WORLD.md) replaces the former default
-  batches. Village is implemented for first art review; six themes await approval.
+  batches. Village's actual-render art direction was approved on 2026-10-09;
+  six themes remain to be authored in order.
   Practice/physics/shared fixtures remain; retired default-only artifacts use Git
   history. General generation and semantic infill remain available.
 

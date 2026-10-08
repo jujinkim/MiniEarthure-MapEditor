@@ -134,9 +134,9 @@ or whole-building interiors are generated.
 
 [`examples/default-worlds`](../examples/default-worlds/) contains the current
 Village source, v1 package, three road-route plans and five actual review images.
-Its ID is `default-village-authored-20261009`. The other six themes are deliberately
-absent until the user approves this Village's art direction. A partial catalog
-is an authoring checkpoint, not a seven-map release or final art acceptance.
+Its ID is `default-village-authored-20261009`. The user approved the five actual
+Village renders on 2026-10-09; the other six themes now proceed in the agreed order.
+A partial catalog is an authoring checkpoint, not a seven-map release.
 
 The Village recipe explicitly lays out Market Street and its clock hall,
 orchard cottages, ridge gardens, two working farms, crops and irrigation, river
@@ -152,8 +152,8 @@ Generate one theme into a fresh location, then validate every cell:
 rtk proxy .venv/bin/python map-editor/scripts/default_worlds.py /absolute/new-worlds --theme village --kit map-kit --cli map-kit/target/debug/mapkit
 ```
 
-The CLI rejects existing theme destinations and currently rejects the other six
-themes pending first-Village approval. Source recipes, geometry helpers and model
+The CLI rejects existing theme destinations; the remaining recipes are still to
+be implemented. Source recipes, geometry helpers and model
 code determine the recorded authoring fingerprint. Package/world hashes change
 with content. Own formats stay v1. The final seven-map distribution budget is
 256 MiB with textures at most 512 px; runtime budgets remain unchanged.
@@ -202,6 +202,12 @@ after capture cancellation. No execution/admission cap was raised.
 
 Visual review removed terrain tint seams, a deep road cut and canal/road overlap;
 farms, foreground crop rows, river vegetation and shop frontages were adjusted.
-**User art approval remains pending**. Detailed driving/course completion, editing
+**The user approved Village's art direction on 2026-10-09**. Detailed driving/course completion, editing
 interaction and device performance are user checks; object counts and automated
 success do not establish visual acceptance.
+
+The current default recipe is a scripted authoring workflow. Its editable source
+can be opened and modified in Editor, but the general New region command does not
+reproduce this authored result. A reusable asset/assembly palette and general 3D
+object gizmos/surface snapping remain separate, incomplete usability work; the
+Track Mode tools do not establish those capabilities for arbitrary assets.
