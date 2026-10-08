@@ -113,7 +113,7 @@ func _start_asset(record: Dictionary, source: String) -> void:
 	asset_request = {"record":record.duplicate(true), "source":source}
 	var job := ASSET_JOB.new()
 	job.editor_generation = editor.generation
-	var failure := job.start_asset(editor.store, record, source, asset_selection(), Crypto.new().generate_random_bytes(16).hex_encode())
+	var failure := job.start_asset(editor.store, record, source, asset_selection(), Crypto.new().generate_random_bytes(16).hex_encode(), editor.import_python.text.strip_edges(), int(asset_fields["texture_profile"].get_item_metadata(asset_fields["texture_profile"].selected)))
 	if failure != "":
 		_discard_asset()
 		report(failure)
@@ -427,6 +427,7 @@ func _drawing() -> void:
 	opt_number(box, "Tree clearance (m)", "tree_clearance_cm", 0, 1000)
 	hint(box, "For custom planting, choose a GLB and declare a canopy footprint enclosing its collision. Candidates outside the zone or overlapping obstacles are skipped; the count follows spacing and density.")
 	opt_number(box, "Quarter turns", "quarter_turns", 0, 3, false)
+	opt_number(box, "Yaw offset (millidegrees)", "yaw_offset_mdeg", -360000, 360000, false)
 	hint(box, "Repetition supports builtin fence or streetlight; fence paths are cardinal. Gables require an axis-aligned rectangular footprint. Native overlap and clearance rules apply.")
 
 func choose_file(target: LineEdit, filters: PackedStringArray) -> void:
@@ -501,6 +502,7 @@ func _asset_form(box: Node) -> void:
 	id.editable = current.is_empty()
 	var path := text(box, "New source file (optional for edit)", "")
 	button(box, "Choose asset file…", func(): choose_file(path, PackedStringArray(["*.glb,*.png,*.webp ; Static assets"])))
+	var texture_profile := choice(box, "Distribution texture size", ["128", "256", "512"], "256")
 	var attribution: Dictionary = current.get("attribution", {})
 	var source := text(box, "Source", str(attribution.get("source", "")))
 	var license := text(box, "License", str(attribution.get("license", "")))
@@ -537,7 +539,7 @@ func _asset_form(box: Node) -> void:
 	double_sided.button_pressed = material.double_sided
 	box.add_child(double_sided)
 	var texture := text(box, "Texture asset ID (optional)", str(material.get("albedo_texture", "")))
-	asset_fields = {"id": id, "path": path, "source": source, "license": license, "notice": notice, "boxes": boxes, "convexes": convexes,
+	asset_fields = {"texture_profile":texture_profile, "id": id, "path": path, "source": source, "license": license, "notice": notice, "boxes": boxes, "convexes": convexes,
 		"width":width, "height":height, "depth":depth, "material_on":material_on, "color":color, "metallic":metallic, "roughness":roughness, "double_sided":double_sided, "texture":texture}
 	for control: Control in asset_fields.values():
 		if control is SpinBox: control.value_changed.connect(func(_value): _invalidate_asset())
@@ -545,6 +547,7 @@ func _asset_form(box: Node) -> void:
 		elif control is CheckButton: control.toggled.connect(func(_value): _invalidate_asset())
 		elif control is LineEdit: control.text_changed.connect(func(_value): _invalidate_asset())
 		elif control is TextEdit: control.text_changed.connect(_invalidate_asset)
+		elif control is OptionButton: control.item_selected.connect(func(_value): _invalidate_asset())
 	button(box, "Apply asset and proxies", func():
 		if not fresh(): return
 		var collision: Variant = input_json(boxes.text)

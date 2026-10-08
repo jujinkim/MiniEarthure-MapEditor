@@ -65,6 +65,8 @@ func run() -> void:
 	root.size = Vector2i(1024,720)
 	ui = load("res://main.tscn").instantiate(); root.add_child(ui)
 	await process_frame
+	ui.store.new_document()
+	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	project = ProjectSettings.globalize_path("user://asset-project")
 	check(ui.canvas.author.set_theme("default") == "", "recipe for native asset validation")
 	check(ui.store.save_project(project) == "", "save isolated asset project")

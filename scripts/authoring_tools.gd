@@ -12,7 +12,7 @@ var options := {
 	"kind": "ground", "width_cm": 800, "surface": "asphalt", "clearance_cm": 400, "sidewalk_cm": 0,
 	"height_cm": 1200, "base_cm": 0, "usage": "residential", "material": "concrete", "roof": "flat",
 	"wall_radius_cm": 1200, "wall_height_cm": 250,
-	"spacing_cm": 800, "density_per_mille": 750, "asset_id": "builtin:tree", "quarter_turns": 0,
+	"spacing_cm": 800, "density_per_mille": 750, "asset_id": "builtin:tree", "quarter_turns": 0, "yaw_offset_mdeg": 0,
 	"tree_asset_id": "builtin:tree", "tree_radius_cm": 58, "tree_clearance_cm": 5,
 	"mode": "raise", "radius_cm": 6400, "amount_cm": 100, "target_cm": 0, "grid_cm": 3200,
 }
@@ -86,7 +86,7 @@ func draw(tool: String, draft: Array[Vector2]) -> String:
 		record.merge({"polygon": polygon, "kind": tool.to_lower(), "spacing_cm": int(options.spacing_cm), "density_per_mille": int(options.density_per_mille), "exclusions": []})
 		if options.tree_asset_id != "builtin:tree":
 			record.tree = {"asset_id": options.tree_asset_id, "radius_cm": int(options.tree_radius_cm), "clearance_cm": int(options.tree_clearance_cm)}
-	elif tool == "Place": record.merge({"asset_id": options.asset_id, "position": [polygon[0][0], int(options.base_cm), polygon[0][1]], "quarter_turns": int(options.quarter_turns)})
+	elif tool == "Place": record.merge({"asset_id": options.asset_id, "position": [polygon[0][0], int(options.base_cm), polygon[0][1]], "quarter_turns": int(options.quarter_turns), "yaw_offset_mdeg": int(options.yaw_offset_mdeg)})
 	elif tool == "Repeat": record.merge({"asset_id": options.asset_id, "points": _points(draft), "spacing_cm": int(options.spacing_cm)})
 	else:
 		if canvas.selected.size() != 1: return "Select exactly one building for an entrance or one zone for an exclusion."

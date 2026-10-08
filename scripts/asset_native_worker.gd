@@ -14,7 +14,8 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 		else:
 			var file := FileAccess.open(request.source, FileAccess.READ)
 			if file == null: failure = "Cannot read original asset."
-			elif file.get_length() > COMMAND.HISTORY_LIMIT: failure = "Asset source exceeds the 16 MiB Undo budget."
+			elif file.get_length() > FILES.MAX_PAYLOAD_BYTES: failure = "Asset source exceeds 64 MiB."
+			elif request.get("python", "") == "" and file.get_length() > COMMAND.HISTORY_LIMIT: failure = "Asset source exceeds the 16 MiB Undo budget."
 			else: files[request.source] = {"bytes":file.get_length(), "sha256":""}
 			if file != null: file.close()
 	var total := 0
@@ -54,7 +55,19 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 		var author := preload("./authoring_tools.gd").new()
 		author.store = store
 		var register := func(path: String) -> String: return FILES.write_new(directory.path_join("asset-output.json"), JSON.stringify({"request":identity, "path":path}).to_utf8_buffer())
-		failure = author.asset(request.record.duplicate(true), request.source, true, {"scratch":directory.path_join("candidate"), "hashes":{}, "prepared":prepared, "progress":progress, "expected_source":files[request.source].sha256 if request.source != "" else "", "register_output":register, "blob_paths":blob_paths})
+		var source: String = request.source
+		if source != "" and request.get("python", "") != "":
+			var module := directory.path_join("asset_derivatives.py")
+			failure = FILES.write_new(module, FileAccess.get_file_as_string("res://scripts/asset_derivatives.py").to_utf8_buffer())
+			var derived := directory.path_join("derived." + ("glb" if source.get_extension().to_lower() == "glb" else "png"))
+			var messages: Array = []
+			if failure == "" and OS.execute(request.python, PackedStringArray(["-B",module,source,derived,"--profile",str(int(request.get("texture_profile",256)))]),messages,true) != 0:
+				failure = "Asset derivative failed: " + str(messages).left(1000)
+			if failure == "": source = derived
+		if failure != "":
+			output.error = {"code":"E_ASSET", "message":failure}
+			return output
+		failure = author.asset(request.record.duplicate(true), source, true, {"scratch":directory.path_join("candidate"), "hashes":{}, "prepared":prepared, "progress":progress, "expected_source":FileAccess.get_sha256(source) if source != "" else "", "register_output":register, "blob_paths":blob_paths})
 	if failure == "":
 		for path: String in prepared.command.get("binary_mementos", {}):
 			if path in blob_paths: continue

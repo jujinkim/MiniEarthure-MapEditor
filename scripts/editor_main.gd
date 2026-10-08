@@ -853,6 +853,7 @@ func _selection(ids: Array) -> void:
 		"placements":
 			_label(properties, I18N.t("Asset: ") + str(selected_record.asset_id))
 			_choice_property("Rotation", ["0", "90", "180", "270"], str(int(selected_record.quarter_turns) * 90), func(v): property_changes.quarter_turns = int(v) / 90)
+			_number_property("Yaw offset (millidegrees)", selected_record.get("yaw_offset_mdeg", 0), -360000, 360000, func(v): property_changes.yaw_offset_mdeg = int(v))
 		"repetitions":
 			_label(properties, I18N.t("Asset: ") + str(selected_record.asset_id))
 			_number_property("Spacing (m)", float(selected_record.spacing_cm) / 100.0, 0.01, 1000.0, func(v): property_changes.spacing_cm = int(round(v * 100)))

@@ -5,7 +5,7 @@ var request := {}
 var bundle := {}
 var source_total := -1
 
-func start_asset(store: RefCounted, record: Dictionary, source: String, selection: String, token: String) -> String:
+func start_asset(store: RefCounted, record: Dictionary, source: String, selection: String, token: String, python: String = "", profile: int = 256) -> String:
 	if _attempted or cancelled: return "Asset jobs are single use."
 	_attempted = true
 	if not LAYER._hex(token, 32) or store.project_path.is_empty() or store.has_gesture(): return "Save the project and finish gestures before asset validation."
@@ -19,7 +19,7 @@ func start_asset(store: RefCounted, record: Dictionary, source: String, selectio
 	document_signature = JSON.stringify(store.document).sha256_text()
 	document_epoch = store.command_epoch
 	_store_id = store.get_instance_id()
-	request = {"kind":"asset", "request":token, "document":store.document.duplicate(true), "project":project_source, "record":record.duplicate(true), "source":source}
+	request = {"kind":"asset", "request":token, "document":store.document.duplicate(true), "project":project_source, "record":record.duplicate(true), "source":source, "python":python, "texture_profile":profile}
 	for field in ["assets", "heightmaps"]:
 		for payload: Dictionary in store.document.get(field, []):
 			if not SNAPSHOT.safe_relative(str(payload.path)): return "Unsafe asset dependency path."

@@ -1,5 +1,27 @@
 # Seven authored arcade worlds
 
+## Environment authoring replacement
+
+The approved expanded-world path keeps these seven themes, at least five times
+each previous horizontal dimension. Editor owns the shared new-region / empty-area
+layout engine; MapKit continues to own package validation, cell geometry and common
+rendering. Source units remain actual metres, with the existing 1:8 OSM conversion
+applied exactly once to imported geometry and inferred scenery. Own formats stay v1.
+
+`scripts/asset_derivatives.py` creates immutable 128/256/512px derivatives (default
+256), including embedded GLB images. It rebuilds buffers, shares identical encoded
+payloads and reports encoded size and decoded texture memory. Geometry/material UV
+atlases and originals survive. Authoring's Assets panel uses the selected Python
+environment and texture profile; its existing owned worker, stale-result checks
+and 16 MiB Undo budget apply to the derivative. A source may be up to 64 MiB.
+New asset paths use their content hash. No source is overwritten or upsampled.
+
+General placement supports additive `yaw_offset_mdeg`; the inspector and placement
+settings expose it. MapKit applies it to visuals, light positions, collision and
+occupancy. Python derivative tests (embedded resize/dedup/source preservation and
+profile bounds) and the 168-assertion asset-worker regression pass on macOS arm64.
+Detailed art quality and editing interaction remain user verification.
+
 `examples/arcade-world` contains original MIT sources, `region.json` route plans,
 deterministic terrain/assets and current v1 `.memap` exports. Existing examples and
 completion evidence are preserved. `scripts/arcade_world.py` authors each road
