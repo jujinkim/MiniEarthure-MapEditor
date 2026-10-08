@@ -1,5 +1,16 @@
 """Current Editor-only environment composition profiles, actual metres (MIT)."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+
+
+@dataclass(frozen=True)
+class DistrictRule:
+    id: str
+    landuse: str
+    anchor: tuple
+    radii: tuple
+    groups: tuple
+    density: tuple = (.65, 1.0)
+    core: bool = True
 
 
 @dataclass(frozen=True)
@@ -29,6 +40,15 @@ class ThemeProfile:
     relief_m: float
     ground_color: tuple
     urban: bool = False
+    districts: tuple = ()
+    road_mode: str = "hierarchy"
+    core_land_fraction: tuple = (.20, .35)
+    natural_minimum: float = 0.0
+    habitats: tuple = ("grove", "meadow", "edge")
+    access_count: int = 3
+    # Silhouette/roof/height combinations cycle by frontage, independently of
+    # density. Required assemblies and open-space reservations never scale away.
+    assemblies: tuple = ()
 
 
 def rule(key, use, assets=(), **kwargs):
@@ -115,6 +135,66 @@ PROFILES = {p.id: p for p in [
         rule("supports","industrial",["environment-pier"],surface="concrete")),
         ("richer-canopy-0","richer-canopy-2"),220,12,(109,145,82),True),
 ]}
+
+
+def district(key, use, anchor, radii, groups, density=(.65, 1.0), core=True):
+    return DistrictRule(key, use, anchor, radii, tuple(groups.split()), density, core)
+
+
+LAYOUTS = {
+    "village": (
+        district("centre", "commercial", (.43,.43), (.20,.19), "centre shops school community park"),
+        district("west-homes", "residential", (.23,.60), (.13,.15), "housing"),
+        district("east-homes", "residential", (.64,.60), (.13,.15), "housing"),
+        district("farms", "farmland", (.33,.20), (.30,.12), "farmstead fields farm-lane", (.2,.45), False)),
+    "neon-harbor": (
+        district("port", "industrial", (.66,.42), (.15,.35), "docks loading warehouse container-yard logistics"),
+        district("town", "residential", (.29,.37), (.14,.21), "housing"),
+        district("market", "commercial", (.29,.64), (.14,.13), "commercial"),
+        district("waterfront", "park", (.74,.80), (.05,.09), "waterfront", (.25,.4), False)),
+    "deep-forest": (
+        district("camp", "recreation_ground", (.61,.57), (.055,.055), "campground"),
+        district("ranger", "public", (.30,.67), (.055,.055), "ranger-station"),
+        district("grove", "forest", (.34,.30), (.18,.18), "canopy forest-floor shrubs understory rocks", (.4,1), False)),
+    "red-canyon": (
+        district("quarry", "industrial", (.30,.28), (.07,.09), "quarry"),
+        district("overlook", "recreation_ground", (.70,.65), (.05,.06), "overlook"),
+        district("strata", "bare_rock", (.66,.30), (.20,.14), "ridges cliffs strata scree dry-river", (.3,.7), False)),
+    "snow-mountain": (
+        district("lodges", "residential", (.38,.70), (.09,.05), "lodge-village parking"),
+        district("pass", "public", (.66,.35), (.05,.06), "guard-facilities"),
+        district("alpine", "bare_rock", (.38,.22), (.24,.15), "ridge valley altitude-vegetation bedrock snowfield", (.3,.7), False)),
+    "machine-factory": (
+        district("works", "industrial", (.56,.39), (.27,.23), "production warehouse loading pipes tanks power fence"),
+        district("gate", "commercial", (.32,.64), (.16,.13), "administration parking work-road")),
+    "sky-park": (
+        district("gate", "commercial", (.36,.66), (.17,.12), "entrance food-services conveniences"),
+        district("fair", "recreation_ground", (.53,.37), (.28,.22), "attractions queues plaza"),
+        district("service", "industrial", (.75,.58), (.09,.10), "management supports", (.3,.55))),
+}
+
+for key, profile in list(PROFILES.items()):
+    replacements = {
+        "housing": ("environment-home-0", "environment-home-1", "environment-home-2"),
+        "centre": ("environment-market-0", "richer-bench"),
+        "shops": ("environment-market-1", "environment-market-2"),
+        "commercial": ("environment-market-0", "environment-market-1", "environment-market-2"),
+        "warehouse": ("environment-hall-0", "environment-hall-1"),
+        "production": ("environment-hall-2", "environment-pipe-run"),
+        "lodge-village": ("environment-lodge-0", "environment-lodge-1", "environment-lodge-2"),
+        "administration": ("environment-market-2",),
+        "entrance": ("environment-market-0", "richer-lamp"),
+        "attractions": ("environment-wheel", "arcade-carousel", "environment-lookout"),
+    }
+    rules = tuple(replace(r, objects=replacements.get(r.id, r.objects)) for r in profile.rules)
+    remote = key in ("deep-forest", "red-canyon", "snow-mountain")
+    habitats = (("dense-woodland", "understory", "lakeshore", "clearing") if key=="deep-forest" else
+                ("cliff", "scree", "dry-channel", "mesa") if key=="red-canyon" else
+                ("valley-forest", "alpine-rock", "snowfield", "treeline") if key=="snow-mountain" else
+                ("grove", "meadow", "edge"))
+    PROFILES[key] = replace(profile, rules=rules, districts=LAYOUTS[key],
+        road_mode="loop" if remote else "hierarchy", natural_minimum=.85 if remote else .65 if key=="village" else 0,
+        habitats=habitats, assemblies=("road-front", "entrance", "yard", "working-access"))
 
 # Distribution models keep roof/window/door meshes and collision declarations.
 # Source assets are deliberately untouched. These factors restore useful real

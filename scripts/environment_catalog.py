@@ -28,51 +28,78 @@ DESCRIPTIONS={
 
 
 def routes(document):
+    """Choose hub routes on the existing graph; wilderness shares its one loop."""
+    import heapq
     roads={r['id']:r for r in document['roads']}
     geometry={key:LineString([(p[0]/100,p[2]/100) for p in r['points']]) for key,r in roads.items()}
-    adjacent=defaultdict(list)
-    for r in roads.values():
-        adjacent[r['from']].append(r['id']);adjacent[r['to']].append(r['id'])
+    graph=defaultdict(list)
+    for key,r in roads.items():
+        graph[r['from']].append((r['to'],key,True));graph[r['to']].append((r['from'],key,False))
+    metadata=next(json.loads(a['notice']) for a in document['attributions'] if a['source'].startswith('mapeditor-environment-v1:'))
+    hierarchy=metadata['road_hierarchy'];remote=PROFILES[metadata['request']['theme']].road_mode=='loop'
     candidates=[]
     for key,line in geometry.items():
-        if roads[key]['kind']!='ground' or line.length<180: continue
-        a,b=line.interpolate(40),line.interpolate(160)
-        direct=LineString([a,b])
-        deviation=max(direct.distance(line.interpolate(i)) for i in range(40,161,10))
-        if deviation<.5: candidates.append((deviation,-line.length,key))
-    if not candidates: raise ValueError('No straight grounded eight-car staging road')
+        if roads[key]['kind']!='ground' or line.length<200: continue
+        direct=LineString([line.interpolate(0),line.interpolate(200)])
+        if max(direct.distance(line.interpolate(i)) for i in range(0,201,10))<.05:
+            candidates.append((0 if abs(line.length-260)<.05 else 1,-line.length,key))
+    if not candidates: raise ValueError('No grounded 200 m eight-car staging road')
     first_id=min(candidates)[2];first=roads[first_id];line=geometry[first_id]
     start=line.interpolate(60);gate=line.interpolate(100);heading=line.interpolate(110)
     spawn=dict(x_cm=round(start.x*100),y_cm=round(start.y*100),surface_id=first_id,
         heading_radians=-math.atan2(heading.x-gate.x,heading.y-gate.y))
+    sites=[s for s in metadata['sites'] if s.get('required') and s.get('road_id') and s['objects']]
+    def reach(node,key,used):
+        target=roads[key];queue=[(0,node,[])];best={node:0}
+        while queue:
+            distance,current,path=heapq.heappop(queue)
+            if distance!=best[current]: continue
+            if current in (target['from'],target['to']):
+                forward=current==target['from']
+                return path+[(key,forward)],target['to'] if forward else target['from'],distance
+            for nxt,edge,forward in sorted(graph[current]):
+                cost=distance+geometry[edge].length*(3 if edge in used else 1)
+                if cost<best.get(nxt,float('inf')):
+                    best[nxt]=cost;heapq.heappush(queue,(cost,nxt,path+[(edge,forward)]))
+        raise ValueError('Disconnected recommendation hub')
+    ranked=sorted(sites,key=lambda s:(reach(first['to'],s['road_id'],{first_id})[2],s['id']))
     output=[]
-    for index,(identity,name,target) in enumerate((('intro','Intro Drive',900),('tour','Scenic Tour',3200),('technical','District Route',1800))):
-        random=rng(document['seed'],'course',identity)
-        points=[];travelled=0;visited=set();current=first_id;forward=True;node=first['to']
-        for hop in range(120):
-            r=roads[current];path=geometry[current]
+    for identity,name in (('intro','Intro Drive'),('tour','Scenic Tour'),('technical','District Route')):
+        walk=[(first_id,True)];node=first['to'];used={first_id}
+        if remote and identity=='tour':
+            while node!=first['from']:
+                options=[(edge,forward,nxt) for nxt,edge,forward in graph[node] if hierarchy.get(edge)=='main' and edge not in used]
+                if not options: raise ValueError('Incomplete wilderness scenic loop')
+                edge,forward,node=min(options);walk.append((edge,forward));used.add(edge)
+        else:
+            targets=ranked[:1] if identity=='intro' else ranked[-1:] if remote else ranked[1:4] if identity=='technical' else ranked[::-1][:4]
+            for site in targets:
+                path,node,_=reach(node,site['road_id'],used)
+                for edge,forward in path:
+                    if walk[-1]!=(edge,forward): walk.append((edge,forward))
+                    used.add(edge)
+        points=[];travelled=0
+        # Uniform samples follow each oriented edge, preserving real surfaces and
+        # leaving room at junctions. Different courses never create extra roads.
+        for hop,(key,forward) in enumerate(walk):
+            r=roads[key];path=geometry[key]
             if not forward: path=LineString(list(path.coords)[::-1])
-            begin=100 if hop==0 else 12
-            distances=([100,150] if hop==0 else [])+[i for i in range(max(200 if hop==0 else 60,int(begin)),int(path.length-10),100)]
-            distances.append(max(begin,path.length-12))
+            distances=([100,150] if hop==0 else [])+list(range(200 if hop==0 else 40,int(path.length-12),100))
+            distances.append(path.length-12)
             for distance in sorted(set(distances)):
-                if distance>path.length: continue
+                if distance< (100 if hop==0 else min(12,path.length/2)): continue
                 p=path.interpolate(distance)
                 if points and Point(points[-1]['x_cm']/100,points[-1]['y_cm']/100).distance(p)<18: continue
-                points.append(dict(x_cm=round(p.x*100),y_cm=round(p.y*100),surface_id=current,structural=r['kind']!='ground'))
-                if len(points)>=60: break
-            travelled+=max(0,path.length-(60 if hop==0 else 0))
-            visited.add(current)
-            if travelled>=target or len(points)>=60: break
-            choices=[key for key in adjacent[node] if key not in visited]
-            if not choices: break
-            # Route-specific stable draws select distinct districts without
-            # changing the common straight launch area.
-            current=random.choice(sorted(choices));r=roads[current]
-            forward=r['from']==node;node=r['to'] if forward else r['from']
+                points.append(dict(x_cm=round(p.x*100),y_cm=round(p.y*100),surface_id=key,structural=r['kind']!='ground'))
+            travelled+=path.length-(100 if hop==0 else 0)
+        if len(points)>60:
+            # Preserve the first two launch gates and distribute the remaining
+            # checkpoints along the complete route, rather than cutting its end.
+            tail=points[2:];points=points[:2]+[tail[round(i*(len(tail)-1)/57)] for i in range(58)]
         if len(points)<3: raise ValueError('No connected recommendation route')
         output.append(dict(id=identity,name=name,waypoints=points,start=spawn,mode='sprint',laps=1,
-            checkpoint_radius_cm=400,length_m=round(travelled,1)))
+            checkpoint_radius_cm=400,length_m=round(travelled,1),hub_ids=[s['id'] for s in (ranked if identity=='tour' else targets)]))
+    if len({canonical(r['waypoints']) for r in output})!=3: raise ValueError('Recommendations require three distinct hub routes')
     return output
 
 
@@ -89,13 +116,47 @@ def region(document, report):
     if candidates:
         selected=max(candidates,key=lambda a:(sum(math.hypot(a['position'][0]-b['position'][0],a['position'][2]-b['position'][2])<14000 for b in occupied),a['id']))
         x,h,y=[v/100 for v in selected['position']]
-    second=next((s for s in sites if s['group'] in ('attractions','school','warehouse','lodge-village','campground','quarry','production')),main)
+    if p.id=='deep-forest':
+        trees=[a for a in document['placements'] if 'mature' in a['asset_id'] and 220<a['position'][0]/100<p.minimum_size_m[0]-220 and 220<a['position'][2]/100<p.minimum_size_m[1]-220]
+        cells=defaultdict(int)
+        for tree in trees: cells[(tree['position'][0]//12800,tree['position'][2]//12800)]+=1
+        if trees:
+            selected=max(trees,key=lambda a:(cells[(a['position'][0]//12800,a['position'][2]//12800)],a['id']))
+            x,h,y=[v/100 for v in selected['position']]
+    second=next((s for s in sites if s['id'].startswith('env-facility-') and s['group'] in ('attractions','school','warehouse','lodge-village','campground','quarry','production')),main)
     pos=next(v for v in document['placements'] if v['id']==second['objects'][0])['position']
     X,H,Y=[v/100 for v in pos]
+    if p.id=='sky-park': x,h,y=X,H,Y
+    # Actual eye height on an emitted road, facing a complete facility frontage.
+    foreground=next((s for s in sites if s['group'] in ('housing','commercial','production','lodge-village','campground','overlook','attractions') and s.get('road_id')),main)
+    if p.id=='red-canyon': foreground=next(s for s in sites if s['group']=='quarry' and s.get('road_id'))
+    road_record=next(r for r in document['roads'] if r['id']==foreground['road_id'])
+    lane=LineString([(p[0]/100,p[2]/100) for p in road_record['points']])
+    anchor=foreground['anchor'];distance=lane.project(Point(anchor))
+    eye_distance=max(0,distance-(0 if p.id=='red-canyon' else 16))
+    eye=lane.interpolate(eye_distance)
+    def road_level(record, distance):
+        along=0
+        for a,b in zip(record['points'],record['points'][1:]):
+            length=math.hypot(b[0]-a[0],b[2]-a[2])/100
+            if along+length>=distance: return (a[1]+(b[1]-a[1])*max(0,min(1,(distance-along)/max(.01,length))))/100
+            along+=length
+        return record['points'][-1][1]/100
+    eye_height=road_level(road_record,eye_distance)
+    target=next(v for v in document['placements'] if v['id']==foreground['objects'][0])['position']
+    core=next((d for d in report['districts'] if d['core']),report['districts'][0])
+    transition=min(document['placements'],key=lambda a:abs(math.hypot(a['position'][0]/100-core['anchor'][0],a['position'][2]/100-core['anchor'][1])-180))['position']
+    nature=[a for a in document['placements'] if a['id'].startswith('env-nature-') and 220<a['position'][0]/100<p.minimum_size_m[0]-220 and 220<a['position'][2]/100<p.minimum_size_m[1]-220]
+    outer=max(nature,key=lambda a:min(math.hypot(a['position'][0]/100-d['anchor'][0],a['position'][2]/100-d['anchor'][1]) for d in report['districts'] if d['core']))['position'] if nature else pos
+    views=[dict(name='signature',position_m=[X+65,H+45,Y+65],target_m=[X,H+5,Y])]
+    for name,point in [('transition',transition),('outer',outer)]:
+        a,b,c=[v/100 for v in point]
+        views.append(dict(name=name,position_m=[a+70,b+70,c+70],target_m=[a,b+3,c]))
     return dict(id=p.id,name=p.name,en=p.english,description=DESCRIPTIONS[p.id],theme=p.id,
         size=list(p.minimum_size_m),cell_size_m=32,relief=p.relief_m,surface='dirt' if p.id=='deep-forest' else 'asphalt',
         districts=sorted({s['landuse'] for s in sites}),landmarks=[r.id for r in p.rules],routes=planned,start=planned[0]['start'],
-        preview_center_m=[x,h,y],review_views=[dict(name='signature',position_m=[X+35,H+24,Y+35],target_m=[X,H+5,Y])],
+        preview_center_m=[x,h,y],review_views=views,
+        ground_position_m=[eye.x,eye_height+1.7,eye.y],ground_target_m=[target[0]/100,target[1]/100+1.7,target[2]/100],
         authoring=dict(algorithm=report['algorithm'],seed=9026,texture_profile=256,units='metres',formats=1),
         acceptance='Routes and art require user review; no human completion evidence is asserted.')
 
@@ -125,7 +186,7 @@ def publish(destination,kit,prepared=None,cli=None):
             document=generated.document;result=dict(metadata=generated.metadata,diagnostics=generated.diagnostics)
             (target/'generation.json').unlink() # Transient command/report; provenance stays in document.
         meta=region(document,result['metadata'])
-        meta['validation']={k:result['diagnostics'][k] for k in ('counts','required','present','facilities','texture_memory_bytes','payload_bytes')}
+        meta['validation']={k:result['diagnostics'][k] for k in ('counts','required','present','facilities','texture_memory_bytes','payload_bytes','metrics')}
         (target/'region.json').write_bytes(canonical(meta))
         if cli:
             subprocess.run([str(cli.resolve()),'pack',str(target),str(destination/(key+'.memap'))],check=True,stdout=subprocess.DEVNULL)

@@ -1864,6 +1864,12 @@
     "Facilities": "施設",
     "Undo size": "取り消しサイズ",
     "Apply is one Undo. Reduce the area if it exceeds 16 MiB.": "1回の取り消しで戻せます。16 MiBを超える場合は領域を縮小してください。",
-    "Environment applied. Undo restores the previous area.": "環境を適用しました。取り消しで元の領域を復元できます。"
+    "Environment applied. Undo restores the previous area.": "環境を適用しました。取り消しで元の領域を復元できます。",
+    "Districts and density": "地区と密度",
+    "Road hierarchy": "道路の階層",
+    "Parcels and entrances": "区画と出入口",
+    "Protected areas": "保護区域",
+    "Diagnostics": "診断位置",
+    "Core %.1f%% · Natural %.1f%% · Junctions %d": "中心 %.1f%% · 自然 %.1f%% · 交差点 %d"
   }
 }

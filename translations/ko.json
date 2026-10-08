@@ -1864,6 +1864,12 @@
     "Facilities": "시설",
     "Undo size": "실행 취소 용량",
     "Apply is one Undo. Reduce the area if it exceeds 16 MiB.": "한 번의 실행 취소로 되돌릴 수 있습니다. 16 MiB를 초과하면 영역을 줄이세요.",
-    "Environment applied. Undo restores the previous area.": "환경을 적용했습니다. 실행 취소로 이전 영역을 복원할 수 있습니다."
+    "Environment applied. Undo restores the previous area.": "환경을 적용했습니다. 실행 취소로 이전 영역을 복원할 수 있습니다.",
+    "Districts and density": "구역과 밀도",
+    "Road hierarchy": "도로 계층",
+    "Parcels and entrances": "필지와 출입구",
+    "Protected areas": "보호 영역",
+    "Diagnostics": "진단 위치",
+    "Core %.1f%% · Natural %.1f%% · Junctions %d": "핵심 %.1f%% · 자연 %.1f%% · 교차로 %d"
   }
 }

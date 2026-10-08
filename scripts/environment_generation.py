@@ -30,7 +30,10 @@ from shapely.strtree import STRtree
 
 from asset_derivatives import asset as derive_asset
 from environment_profiles import PROFILES, model_scale
-from environment_assets import library as module_library
+from environment_assets import library as module_library, support_module
+from environment_composition import Composition
+from environment_layout import digest, rng, polygons, lines, xy, rings, polygon
+from environment_metrics import measure
 from reference_maps import canonical, empty, road
 from special_driving_maps import place as driving_feature
 
@@ -41,41 +44,23 @@ TILE_METRES = 128
 FIELDS = ("nodes", "roads", "buildings", "zones", "placements", "surface_areas", "water_bodies", "gimmicks", "heightmaps", "assets")
 
 
-def digest(value):
-    return hashlib.sha256(value if isinstance(value, bytes) else canonical(value)).hexdigest()
 
 
 def fingerprint():
-    files = [Path(__file__).with_name(name) for name in ("environment_generation.py","environment_profiles.py","environment_assets.py","asset_derivatives.py","city_assets.py","driving_school_map.py","special_driving_maps.py")]
+    files = [Path(__file__).with_name(name) for name in ("environment_generation.py","environment_profiles.py","environment_assets.py","environment_layout.py","environment_composition.py","environment_metrics.py","asset_derivatives.py","city_assets.py","driving_school_map.py","special_driving_maps.py")]
     return digest(b"".join(p.read_bytes() for p in files) + shapely.__version__.encode())
 
 
-def rng(seed, *keys):
-    return random.Random(int(digest([seed, *keys])[:16], 16))
 
 
-def polygons(geometry):
-    if geometry.is_empty: return []
-    if geometry.geom_type == "Polygon": return [geometry]
-    return [p for child in getattr(geometry, "geoms", []) for p in polygons(child)]
 
 
-def lines(geometry):
-    if geometry.is_empty: return []
-    if geometry.geom_type == "LineString": return [geometry]
-    return [p for child in getattr(geometry, "geoms", []) for p in lines(child)]
 
 
-def xy(point): return [round(point[0] * 100), round(point[1] * 100)]
 
 
-def rings(poly):
-    return [xy(p) for p in list(poly.exterior.coords)[:-1]], [[xy(p) for p in list(h.coords)[:-1]] for h in poly.interiors]
 
 
-def polygon(record, key="polygon", holes="holes"):
-    return Polygon([(p[0]/100, p[1]/100) for p in record[key]],
-                   [[(p[0]/100,p[1]/100) for p in h] for h in record.get(holes, [])])
 
 
 def stable_record(value):
@@ -146,7 +131,7 @@ class GenerationResult:
     algorithm: str
 
 
-class Generator:
+class Generator(Composition):
     def __init__(self, request, context, kit):
         request.validate()
         self.request, self.context, self.kit = request, context, Path(kit)
@@ -164,6 +149,7 @@ class Generator:
         self.owned_before, self.preserved_ids = {}, set()
         self.family = OWNER + ":" + self.profile.id
         self.previous_meta = []
+        self.prior_metadata = []
         self.new_layout = request.mode == "new"
         self._retire_owned()
         self.identities={field:{record_id(field,r) for r in self.doc.get(field,[])} for field in FIELDS}
@@ -182,12 +168,30 @@ class Generator:
         self.graph = []
         self.surface_polys = [polygon(r) for r in self.doc.get("surface_areas",[])]
         self.districts = []
+        self.road_ground_grid = {}
 
     def _retire_owned(self):
         for attribution in self.doc.get("attributions", []):
             if not attribution.get("source", "").startswith(self.family + ":"): continue
             try: meta = json.loads(attribution["notice"])
             except ValueError: continue
+            self.prior_metadata.append(meta)
+            # A facility is the ownership unit. Boundary crossings, any manual
+            # member edit and member deletion preserve the entire assembly.
+            frozen=set()
+            for site in meta.get('sites',[]):
+                if not site.get('boundaries'): continue
+                area=unary_union([polygon(p) for p in site['boundaries']])
+                members=[o for o in meta.get('owned',[]) if o['id'].startswith(site['id']+'-')]
+                changed=False
+                for member in members:
+                    current=next((r for r in self.doc.get(member['field'],[]) if record_id(member['field'],r)==member['id']),None)
+                    if current is None or digest(stable_record(current))!=member['sha256']: changed=True;break
+                if changed or not self.window.buffer(-64*self.scale).covers(area):
+                    frozen.update((o['field'],o['id']) for o in members)
+                    retained={k:v for k,v in site.items() if k not in ('boundaries','entrances')}
+                    retained.update(geometry=area,entrance=unary_union([polygon(p) for p in site.get('entrances',[])]),retained=True)
+                    self.sites.append(retained)
             # Ownership survives source edits to the algorithm, not user edits to
             # its objects. Global stable IDs prevent reexecution duplicates.
             self.new_layout |= meta.get("new_layout", meta.get("request", {}).get("mode") == "new")
@@ -196,9 +200,10 @@ class Generator:
                 current = next((r for r in self.doc.get(field,[]) if record_id(field,r)==identity),None)
                 if current is None:
                     self.preserved_ids.add((field,identity)) # user deletion is an edit
+                    self.owned.append(owned) # Keep the tombstone through later reruns.
                     continue
                 position = owned.get("anchor_cm")
-                selected = field in ("placements", "surface_areas") and "-pier-" not in identity and position is not None and self.window.buffer(-64*self.scale).covers(Point(position[0]/100,position[1]/100))
+                selected = (field,identity) not in frozen and field in ("placements", "surface_areas") and "-pier-" not in identity and position is not None and self.window.buffer(-64*self.scale).covers(Point(position[0]/100,position[1]/100))
                 if selected and digest(stable_record(current)) == owned["sha256"]:
                     self.doc[field].remove(current)
                     self.owned_before[(field,identity)] = current
@@ -251,6 +256,18 @@ class Generator:
             distance=self.water.distance(p)
             if self.water.covers(p): return -2
             if distance<18: result=2+(result-2)*min(1,distance/18)
+        # Cut/fill the generated ground to the slope-limited road profile. Infill
+        # returned above and never changes imported terrain or source roads.
+        key=(math.floor(x/(32*self.scale)),math.floor(y/(32*self.scale)))
+        nearby=self.road_ground_grid.get(key,[])
+        if nearby:
+            edge,a,b,width=min(nearby,key=lambda e:e[0].distance(p))
+            distance=edge.distance(p)
+            if distance<width+12:
+                t=edge.project(p)/max(.01,edge.length)
+                level=a+(b-a)*t
+                blend=max(0,min(1,(distance-width-1)/11))
+                result=level+(result-level)*blend
         # Flatten facilities and blend their verges into the landscape. Trees
         # and rocks use sampled natural terrain, not floating level platforms.
         pad_key=(math.floor(x/(32*self.scale)),math.floor(y/(32*self.scale)))
@@ -274,27 +291,7 @@ class Generator:
             self.add("water_bodies",dict(id="env-water",polygon=outer,islands=holes,surface_cm=100,bottom_cm=-500,flow_cm_s=[0,10]),area.centroid.coords[0])
             self.water=area
 
-    def districts_stage(self):
-        """Reserve semantic neighbourhoods before tracing their access network."""
-        x,y,X,Y=self.world.bounds;w,h=X-x,Y-y
-        urban=self.profile.urban
-        uses=("residential","commercial","farmland","park") if self.profile.id=="village" else ("commercial","residential","industrial","industrial") if self.profile.id=="neon-harbor" else ("commercial","industrial","industrial","industrial") if self.profile.id=="machine-factory" else ("commercial","recreation_ground","recreation_ground","park") if urban else ("forest","bare_rock","recreation_ground","forest")
-        for i,use in enumerate(uses):
-            a=x+(i%2)*w/2;b=y+(i//2)*h/2
-            area=box(a,b,a+w/2,b+h/2).difference(self.water)
-            self.districts.append(dict(id="district-"+str(i),landuse=use,geometry=area))
 
-    def road_height(self,x,y):
-        level=self.raw_height(x,y)
-        if self.profile.id=="sky-park":
-            a,b,A,B=self.world.bounds
-            # An 8 m elevated outer promenade with 1:12 sloping approaches.
-            edge=min(x-a,y-b,A-x,B-y)
-            level+=max(0,8-(max(0,edge-32)/12))
-        if self.profile.id=="neon-harbor" and not self.water.is_empty:
-            d=Point(x,y).distance(self.water)
-            level=max(level,6-max(0,d-10)/12)
-        return level
 
     def tensor(self,x,y,minor=False):
         x0,y0,x1,y1=self.world.bounds;cx=(x0+x1)/2;cy=(y0+y1)/2
@@ -311,78 +308,13 @@ class Generator:
             angle=.5*math.atan2(math.sin(2*angle)+weight*math.sin(2*contour), math.cos(2*angle)+weight*math.cos(2*contour))
         return angle+(math.pi/2 if minor else 0)
 
-    def road_stage(self):
-        if self.request.mode=="new":
-            x,y,X,Y=self.window.bounds;margin=32
-            boundary=box(x+margin,y+margin,X-margin,Y-margin)
-            spacing=self.profile.road_spacing_m
-            paths=[LineString(boundary.exterior.coords)]
-            def trace(seed,minor):
-                halves=[]
-                for direction in (-1,1):
-                    p=seed;points=[p]
-                    for _ in range(400):
-                        angle=self.tensor(*p,minor)
-                        mid=(p[0]+direction*12*math.cos(angle),p[1]+direction*12*math.sin(angle))
-                        angle=self.tensor(*mid,minor)
-                        p=(p[0]+direction*24*math.cos(angle),p[1]+direction*24*math.sin(angle))
-                        points.append(p)
-                        if not boundary.covers(Point(p)): break
-                    halves.append(points)
-                return LineString(list(reversed(halves[0]))+halves[1][1:]).intersection(boundary)
-            for yy in range(math.ceil((y+margin+spacing)/spacing)*spacing,int(Y-margin),spacing): paths.extend(lines(trace(((x+X)/2,yy),False)))
-            for xx in range(math.ceil((x+margin+spacing)/spacing)*spacing,int(X-margin),spacing): paths.extend(lines(trace((xx,(y+Y)/2),True)))
-            # Water is an explicit exclusion. A single cross-water bridge is
-            # planned before noding so its two approaches share exact nodes.
-            if not self.water.is_empty:
-                paths=[line for path in paths for line in lines(path.difference(self.water.buffer(10)))]
-                if self.profile.id=="neon-harbor":
-                    # Harbor bridge spans a dock basin, with dry approaches.
-                    bx=x+(X-x)*.80
-                    paths.append(LineString([(x+32,y+90),(bx+35,y+90),(bx+35,Y-90),(x+32,Y-90)]))
-            network=shapely.set_precision(unary_union(paths),.01)
-            self.graph=lines(network)
-            if self.profile.id=='sky-park':
-                # Bound elevated authoring spans so a support is certified
-                # against its local deck, including all deck footprint corners.
-                divided=[]
-                for line in self.graph:
-                    if any(self.road_height(*p)-self.raw_height(*p)>.05 for p in line.coords):
-                        points=list(line.segmentize(40).coords)
-                        divided.extend(LineString([a,b]) for a,b in zip(points,points[1:]))
-                    else: divided.append(line)
-                self.graph=divided
-            for index,line in enumerate(sorted(self.graph,key=lambda g:g.wkb_hex)):
-                if line.length<2: continue
-                coordinates=list(line.segmentize(24).coords)
-                points=[[round(a*100),round(self.road_height(a,b)*100),round(b*100)] for a,b in coordinates]
-                wet=not self.water.is_empty and line.intersects(self.water)
-                elevated=self.profile.id=="sky-park" and any(self.road_height(a,b)-self.raw_height(a,b)>.05 for a,b in coordinates)
-                name="env-road-"+digest([xy(p) for p in coordinates])[:14]
-                def node(p): return "env-node-"+digest(p)[:14]
-                # Ground endpoints are keyed by horizontal point, including
-                # bridge approaches; all heights use the same terrain function.
-                road(self.doc,name,points,"bridge" if wet else "elevated" if elevated else "ground",800 if self.profile.urban else 600,
-                     "dirt" if self.profile.id=="deep-forest" else "asphalt",node(points[0]),node(points[-1]))
-                self.doc["roads"][-1]["sidewalk_cm"]=180 if self.profile.urban else 0
-        for record in self.doc.get("roads",[]):
-            line=LineString([(p[0]/100,p[2]/100) for p in record["points"]])
-            self.road_lines.append(line)
-            width=max(record["widths_cm"])/100
-            self.road_buffers.append(line.buffer(width/2+2*self.scale,cap_style=2))
-        self.road_union=unary_union(self.road_lines)
-        self.road_space=unary_union(self.road_buffers)
-        self.road_tree=STRtree(self.road_lines)
-        blocks,cuts,dangles,invalid=polygonize_full(unary_union(self.road_lines))
-        self.blocks=polygons(blocks)
-        self.diagnostics.append(dict(stage="blocks",blocks=len(self.blocks),dead_ends=len(getattr(dangles,"geoms",[])),
-            cut_edges=len(getattr(cuts,"geoms",[])),invalid_rings=len(getattr(invalid,"geoms",[]))))
-        if not invalid.is_empty: raise ValueError("Road graph has invalid rings")
 
     def asset(self,identity):
         key=identity+"-env-"+str(self.context.source_denominator if self.request.mode=="fill" else 1)+"-"+str(self.request.texture_profile)
         existing=next((a for a in self.doc["assets"] if a["id"]==key),None)
         if existing: return existing
+        if identity.startswith('environment-pier-h') and identity not in self.modules:
+            self.modules[identity]=support_module(int(identity.split('-h')[-1]))
         if identity in self.modules: original,source=self.modules[identity]
         else:
             original,root=self.library[identity];source=(root/original["path"]).read_bytes()
@@ -413,17 +345,25 @@ class Generator:
         if aprons:
             # Keep foundations and prop planting outside level transition pads.
             self.road_space=unary_union([self.road_space,*[a.buffer(5) for a,_ in aprons]])
+            # Aprons can join a ramp to a local street at the same final level.
+            # Node identity follows the emitted 3D geometry, not pre-apron height.
+            nodes={}
+            for record in self.doc['roads']:
+                for end,point in (('from',record['points'][0]),('to',record['points'][-1])):
+                    identity='env-node-'+digest(point)[:14]
+                    record[end]=identity;nodes[identity]=dict(id=identity,position=point,level=0 if point[1]==0 else 1)
+            self.doc['nodes']=sorted(nodes.values(),key=lambda n:n['id'])
         self.diagnostics.append(dict(stage='approaches',level_aprons=len(aprons)))
 
-    def footprint(self,record,position,yaw):
+    def footprint(self,record,position,yaw,foliage=True):
         points=[]
         for proxy in record.get("collision",[]):
             c,s=proxy["center"],proxy["size_cm"]
             points.extend((c[0]+a*s[0]/2,c[2]+b*s[2]/2) for a in (-1,1) for b in (-1,1))
         for convex in record.get("convex_collision",[]): points.extend((p[0],p[2]) for p in convex["vertices"])
         # Canopies have narrow trunk proxies; reserve their visual footprint too.
-        if any(k in record["id"] for k in ("canopy","pine","grove")):
-            r=(5 if record["id"].startswith("environment-canopy") else 4 if "grove" not in record["id"] else 2)*self.scale
+        if foliage and any(k in record["id"] for k in ("canopy","pine","grove")):
+            r=(8 if 'mature' in record['id'] else 5 if record["id"].startswith("environment-canopy") else 4 if "grove" not in record["id"] else 2)*self.scale
             points.extend((a*r*100,b*r*100) for a in (-1,1) for b in (-1,1))
         if not points: points=[(-50,-50),(50,-50),(50,50),(-50,50)]
         angle=math.radians(yaw);c,s=math.cos(angle),math.sin(angle)
@@ -460,7 +400,7 @@ class Generator:
         return [p for key in self.grid_keys(area) for p in self.occupied_grid.get(key,[])]
 
     def surface(self,identity,area,material,anchor):
-        if self.surface_polys: area = area.difference(unary_union(self.surface_polys))
+        if self.surface_polys: area = area.difference(unary_union(self.surface_polys).buffer(.03,join_style=2))
         pieces=[]
         for poly in polygons(area):
             if poly.area<.05*self.scale**2: continue
@@ -474,14 +414,25 @@ class Generator:
             outer,_=rings(poly)
             snapped=Polygon(outer)
             if len(outer)<3 or len(outer)>512 or not snapped.is_valid or snapped.area<100 or len(set(map(tuple,outer)))!=len(outer): continue
-            if self.add("surface_areas",dict(id=identity+"-"+str(index),polygon=outer,surface=material),anchor): self.surface_polys.append(poly)
+            emitted=shapely.affinity.scale(snapped,.01,.01,origin=(0,0))
+            # Acute triangulation tips can move outward under centimetre rounding.
+            # Reject only that residual ground sliver, never a facility/collider.
+            if any(emitted.intersection(existing).area>1e-9 for existing in self.surface_polys): continue
+            if self.add("surface_areas",dict(id=identity+"-"+str(index),polygon=outer,surface=material),anchor): self.surface_polys.append(emitted)
 
     def place(self,identity,model,point,yaw=0,plot=None,natural=False,clearance=.8):
         if ("placements",identity) in self.preserved_ids: return False
+        point=(round(point[0]*100)/100,round(point[1]*100)/100)
+        yaw=round(yaw*1000)/1000
         asset=self.asset(model);area=self.footprint(asset,point,yaw)
+        # Closed woodland may interlock soft crowns, while every solid trunk
+        # keeps its full collision proxy. Roads, water and facility lots still
+        # reserve the visual canopy envelope.
+        occupied=self.footprint(asset,point,yaw,False) if natural and any(k in model for k in ('canopy','pine','sapling')) else area
         if not self.window.covers(area.buffer(.1*self.scale)) or (plot is not None and not plot.covers(area)):
             return False
-        if area.intersects(self.forbidden) or any(area.distance(p)<clearance*self.scale for p in self.nearby(area.buffer(clearance*self.scale))): return False
+        gap=max(.025,clearance*self.scale)
+        if area.intersects(self.forbidden) or any(occupied.intersection(p).area>1e-8 or occupied.distance(p)<gap for p in self.nearby(occupied.buffer(gap))): return False
         if not natural:
             corners=list(area.exterior.coords)
             heights=[self.height(*p) for p in corners]
@@ -501,145 +452,14 @@ class Generator:
             # PNG16 round-trip interpolation must not drift a level footing.
             record["position"][1]=previous["position"][1]
         if not self.add("placements",record,point): return False
-        self.occupied.append(area)
-        self.index_occupied(area)
+        self.occupied.append(occupied)
+        self.index_occupied(occupied)
         return True
 
     def footing_limit(self, area):
         return max((4 if self.request.mode=='new' else 2)*self.scale,math.sqrt(area.area)*(.25 if self.request.mode=='new' else .12))
 
-    def parcel(self,rule,target,identity,region=None):
-        if not self.road_lines:
-            self.diagnostics.append(dict(stage="facility",id=identity,error="No road access"));return False
-        centre=Point(target);nearest=self.road_lines[int(self.road_tree.nearest(centre))]
-        along=max(10*self.scale,min(nearest.length-10*self.scale,nearest.project(centre)))
-        p=nearest.interpolate(along);q=nearest.interpolate(min(nearest.length,along+1*self.scale))
-        if p.equals(q): q=nearest.interpolate(max(0,along-1*self.scale))
-        angle=math.atan2(q.y-p.y,q.x-p.x)
-        width=max(36,math.sqrt(rule.area_m2[0]))*self.scale
-        depth=max(40,rule.area_m2[0]/(width/self.scale))*self.scale
-        columns=2 if len(rule.objects)>1 else 1
-        if rule.objects:
-            sizes=[self.footprint(self.asset(model),(0,0),0).bounds for model in rule.objects]
-            width=max(width,columns*(max(p[2]-p[0] for p in sizes)+4*self.scale))
-            depth=max(depth,math.ceil(len(rule.objects)/columns)*(max(p[3]-p[1] for p in sizes)+4*self.scale)+12*self.scale)
-        for attempt in range(12):
-            side=1 if attempt%2==0 else -1
-            offset=(attempt//2-2)*width*.45
-            tangent=(math.cos(angle),math.sin(angle));normal=(-tangent[1]*side,tangent[0]*side)
-            near=(p.x+tangent[0]*offset+normal[0]*9*self.scale,p.y+tangent[1]*offset+normal[1]*9*self.scale)
-            points=[(near[0]+tangent[0]*a+normal[0]*b,near[1]+tangent[1]*a+normal[1]*b) for a,b in [(-width/2,0),(width/2,0),(width/2,depth),(-width/2,depth)]]
-            plot=Polygon(points)
-            if not self.window.covers(plot) or plot.intersects(self.forbidden) or any(plot.intersects(site["geometry"]) for site in self.sites): continue
-            if region is not None and not region.covers(plot): continue
-            anchor=(near[0]+normal[0]*depth/2,near[1]+normal[1]*depth/2)
-            placed=[]
-            candidates=[]
-            for index,model in enumerate(rule.objects):
-                a=(index%columns-(columns-1)/2)*width*.43
-                b=depth*(.48 if index<columns else .78)
-                pos=(near[0]+tangent[0]*a+normal[0]*b,near[1]+tangent[1]*a+normal[1]*b)
-                yaw=math.degrees(angle)+(180 if side<0 else 0)
-                area=self.footprint(self.asset(model),pos,yaw)
-                candidates.append((model,pos,yaw,area))
-            if self.request.mode=='new':
-                blocked=False
-                for model,pos,yaw,area in candidates:
-                    levels=[self.height(*p) for p in area.exterior.coords]
-                    if not plot.covers(area) or area.intersects(self.forbidden) or any(area.distance(p)<.8*self.scale for p in self.nearby(area.buffer(.8*self.scale))) or (rule.access and max(levels)-min(levels)>self.footing_limit(area)):
-                        blocked=True;break
-                if blocked: continue
-            # Frontage and service yard are explicit open polygons. Keep a
-            # through entrance wide enough for vehicle access to the road.
-            for index,(model,pos,yaw,area) in enumerate(candidates):
-                if self.place(identity+"-object-"+str(index),model,pos,yaw,plot,natural=not rule.access): placed.append(identity+"-object-"+str(index))
-            if rule.objects and not placed: continue
-            if rule.id=='fields':
-                # Tilled parcels are productive open space: repeat crop modules
-                # across the usable interior, retaining turning room at each end.
-                spacing=8*self.scale
-                for row in range(1,int(depth/spacing)-1):
-                    for column in range(1,int(width/spacing)):
-                        a=-width/2+column*spacing;b=(row+1)*spacing
-                        pos=(near[0]+tangent[0]*a+normal[0]*b,near[1]+tangent[1]*a+normal[1]*b)
-                        model=rule.objects[(row+column)%len(rule.objects)]
-                        crop=identity+'-crop-'+str(row)+'-'+str(column)
-                        if self.place(crop,model,pos,math.degrees(angle),plot): placed.append(crop)
-            front=(near[0]+normal[0]*depth*.20,near[1]+normal[1]*depth*.20)
-            entrance=LineString([(p.x+tangent[0]*offset,p.y+tangent[1]*offset),front]).buffer(2*self.scale,cap_style=2)
-            if rule.access and rule.id!='fields':
-                branches=[entrance]
-                for model,pos,yaw,area in candidates:
-                    if any(name in model for name in ('house','shop','shed','school','farm','nord','tower','courtyard')):
-                        door=nearest_points(Point(front),area)[1]
-                        branches.append(LineString([front,(door.x,door.y)]).buffer(1.5*self.scale,cap_style=2))
-                entrance=unary_union(branches)
-            yard=plot
-            self.surface(identity+"-entry",entrance.difference(self.road_space),"concrete" if self.profile.urban else "gravel",anchor)
-            self.surface(identity+"-yard",yard,rule.surface,anchor)
-            self.sites.append(dict(id=identity,group=rule.id,landuse=rule.landuse,geometry=plot,anchor=anchor,
-                                   objects=placed,entrance=entrance,access=nearest.distance(Point(anchor)),required=True))
-            return True
-        self.diagnostics.append(dict(stage="facility",id=identity,error="No clear road-facing parcel after 12 attempts"))
-        return False
 
-    def facilities_stage(self):
-        x,y,X,Y=self.world.bounds
-        rules=self.profile.rules
-        if self.new_layout:
-            columns=math.ceil(math.sqrt(len(rules)))
-            for index,rule in enumerate(rules):
-                if rule.landuse=="water": continue
-                if rule.id in ('bridge','elevated-walkways'): continue
-                target=(x+(X-x)*(.15+.65*(index%columns)/max(1,columns-1)),y+(Y-y)*(.17+.62*(index//columns)/max(1,math.ceil(len(rules)/columns)-1)))
-                neighbor=next((site for site in self.sites if site["group"] in rule.adjacent),None)
-                if neighbor: target=(neighbor["anchor"][0]+75,neighbor["anchor"][1]+40)
-                if rule.id in ('docks','waterfront') and self.profile.id=='neon-harbor': target=(x+(X-x)*.76,y+(Y-y)*(.28 if rule.id=='docks' else .72))
-                if not self.parcel(rule,target,"env-facility-"+rule.id):
-                    alternatives=sorted(self.blocks,key=lambda p:p.centroid.distance(Point(target)))
-                    for block in alternatives[:24]:
-                        if self.parcel(rule,block.centroid.coords[0],"env-facility-"+rule.id): break
-            # Build the surrounding neighbourhoods from road-frontage parcels.
-            # The required sites above reserve their access/service space first.
-            if self.profile.id in ("village","neon-harbor","machine-factory","sky-park"):
-                for line in self.road_lines:
-                    key=digest([xy(p) for p in line.coords])[:12]
-                    for slot in range(1,math.floor(line.length/88)):
-                        p=line.interpolate(slot*88)
-                        u,v=(p.x-x)/(X-x),(p.y-y)/(Y-y)
-                        use=next((d["landuse"] for d in self.districts if d["geometry"].covers(p)),"park")
-                        choices=[r for r in rules if r.landuse==use and r.objects]
-                        if not choices: continue
-                        random=rng(self.request.seed,"parcel",key,slot)
-                        if random.random()>min(1,self.request.density*.8): continue
-                        selected=random.choice(choices)
-                        self.parcel(selected,(p.x,p.y),"env-parcel-"+key+"-"+str(slot))
-        else:
-            for region in sorted(self.context.regions,key=lambda r:r["id"]):
-                if region.get("protected") or region.get("landuse") in ("water","wetland"): continue
-                area=polygon(region).intersection(self.window).difference(self.forbidden)
-                matching=[r for r in rules if r.landuse==region.get("landuse") and r.objects]
-                for part in polygons(area):
-                    if matching:
-                        # Stable global lattice: region-local random draws never
-                        # shift after edits elsewhere or a smaller selection.
-                        step=64*self.scale
-                        a,b,A,B=part.bounds
-                        for ix in range(math.floor(a/step),math.ceil(A/step)):
-                            for iy in range(math.floor(b/step),math.ceil(B/step)):
-                                key="env-infill-"+digest([region["source_id"],ix,iy])[:16]
-                                target=((ix+.5)*step,(iy+.5)*step)
-                                if not part.covers(Point(target)): continue
-                                rule=matching[int(digest(key)[:6],16)%len(matching)]
-                                self.parcel(rule,target,key,part)
-                    else:
-                        # Unknown land use never guesses a building. Low-impact
-                        # ground cover still records intentional open space.
-                        self.surface("env-open-"+digest([region["id"],part.wkb_hex])[:16],part,"grass",part.centroid.coords[0])
-            if not self.context.regions:
-                # Respect existing buildings/access/water; unknown space gets
-                # sparse grass patches below, no fabricated residential lots.
-                self.diagnostics.append(dict(stage="semantics",warning="No land-use evidence; only low-intensity ground cover"))
 
     def details_stage(self):
         for site in list(self.sites):
@@ -654,10 +474,10 @@ class Generator:
                     self.place(site['id']+'-fence-'+str(i),'environment-fence',(p.x,p.y),yaw,clearance=.02)
         if self.profile.id=='snow-mountain':
             for record,line in zip(self.doc['roads'],self.road_lines):
-                for i in range(1,int(line.length/32)):
-                    p=line.interpolate(i*32);q=line.interpolate(min(line.length,i*32+1))
+                for i in range(1,int(line.length/4)):
+                    p=line.interpolate(i*4);q=line.interpolate(min(line.length,i*4+1))
                     angle=math.atan2(q.y-p.y,q.x-p.x)
-                    self.place(record['id']+'-guard-'+str(i),'environment-guardrail',(p.x-math.sin(angle)*7,p.y+math.cos(angle)*7),math.degrees(angle))
+                    self.place(record['id']+'-guard-'+str(i),'environment-guardrail',(p.x-math.sin(angle)*5,p.y+math.cos(angle)*5),math.degrees(angle),clearance=0)
         if self.request.mode!='new': return
         # Shared native roads supply deck collision; explicit piers supply the
         # load-bearing structure. They stop below decks and keep ground roads clear.
@@ -666,11 +486,23 @@ class Generator:
             if line.length<12: continue
             samples=[line.length/2] if line.length<80 else list(range(40,int(line.length),40))
             for i,distance in enumerate(samples):
-                p=line.interpolate(distance)
-                if self.road_height(p.x,p.y)-self.raw_height(p.x,p.y)<7.8: continue
-                q=line.interpolate(min(line.length,distance+1));yaw=math.degrees(math.atan2(q.y-p.y,q.x-p.x))
-                a=self.asset('environment-pier')
-                level=min(p[1] for p in record['points'])/100-8.1
+                chosen=None
+                for candidate in (distance,line.length*.25,line.length*.75):
+                    p=line.interpolate(candidate);q=line.interpolate(min(line.length,candidate+1))
+                    yaw=math.degrees(math.atan2(q.y-p.y,q.x-p.x))
+                    footing=self.footprint(self.asset('environment-pier'),(p.x,p.y),yaw)
+                    if not any(footing.intersects(buffer) for r,buffer in zip(self.doc['roads'],self.road_buffers) if r['kind']=='ground'):
+                        chosen=(p,yaw);break
+                # A crossing is spanned from adjacent deck supports; a pier may
+                # never obstruct the ground road beneath it.
+                if chosen is None: continue
+                p,yaw=chosen
+                deck=min(point[1] for point in record['points'])/100
+                ground=min(self.height(p.x+dx,p.y+dy) for dx,dy in ((0,0),(-3,-1),(3,1)))-.25
+                if deck-ground<2: continue
+                height_cm=math.ceil((deck-ground-.12)*100)
+                a=self.asset('environment-pier-h'+str(height_cm))
+                level=deck-height_cm/100-.12
                 self.add('placements',dict(id=record['id']+'-pier-'+str(i),asset_id=a['id'],position=[round(p.x*100),round(level*100),round(p.y*100)],quarter_turns=0,yaw_offset_mdeg=round(yaw*1000)),(p.x,p.y))
 
     def driving_stage(self):
@@ -682,7 +514,7 @@ class Generator:
             for a,b in zip(r['points'],r['points'][1:]):
                 length=math.hypot(b[0]-a[0],b[2]-a[2])
                 grade=abs(b[1]-a[1])/max(1,length)
-                if length>1800 and grade<.10: candidates.append((r,a,b))
+                if length>1000 and grade<.10: candidates.append((r,a,b))
         for index,kind in enumerate(('target_speed','jump_height')):
             if len(candidates)<=index: break
             r,a,b=candidates[len(candidates)*(index+1)//3]
@@ -695,31 +527,6 @@ class Generator:
             g['rotation_mdeg'][0]=round(-math.degrees(math.atan2(b[1]-a[1],math.hypot(b[0]-a[0],b[2]-a[2])))*1000)
             self.add('gimmicks',g,(p[0]/100,p[2]/100))
 
-    def nature_stage(self):
-        scale=self.scale;step=(14 if self.profile.id=="deep-forest" else 18 if self.profile.id=="snow-mountain" else 32)*scale
-        x,y,X,Y=self.window.bounds
-        sites=unary_union([s["geometry"] for s in self.sites])
-        # Use full existing context for exclusions, not just selected objects.
-        for ix in range(math.floor(x/step),math.ceil(X/step)):
-            for iy in range(math.floor(y/step),math.ceil(Y/step)):
-                random=rng(self.request.seed,"nature",ix,iy)
-                p=((ix+.2+.6*random.random())*step,(iy+.2+.6*random.random())*step)
-                if not self.window.covers(Point(p)) or sites.covers(Point(p)): continue
-                if self.request.mode=="fill" and not self.new_layout:
-                    regions=[r for r in self.context.regions if polygon(r).covers(Point(p))]
-                    if not regions or not any(r["landuse"] in ("forest","orchard","park","scrub","grassland") for r in regions):
-                        if random.random()<.12 and not Point(p).buffer(2*scale).intersects(self.forbidden):
-                            self.surface("env-cover-%d-%d"%(ix,iy),Point(p).buffer(1.5*scale,quad_segs=3),"grass",p)
-                        continue
-                # Correlated habitat density plus independent jitter yields
-                # groves with enforced spacing rather than a uniform point fog.
-                cluster=.45+.3*math.sin(p[0]/(85*scale))*math.cos(p[1]/(100*scale))
-                if self.profile.id=="snow-mountain": cluster*=max(.15,1-self.height(*p)/180)
-                if random.random()>cluster*self.request.density: continue
-                model=random.choice(self.profile.natural_assets)
-                if self.profile.id=='deep-forest' and random.random()<.20:
-                    model=random.choice(('richer-grove-0','richer-grove-1','richer-rock-0'))
-                self.place("env-nature-%d-%d"%(ix,iy),model,p,random.randrange(360),natural=True)
 
     def terrain_stage(self):
         if self.request.mode!="new": return
@@ -735,18 +542,22 @@ class Generator:
 
     def quality_stage(self):
         required={r.id for r in self.profile.rules};present={s["group"] for s in self.sites}
+        if self.doc['roads']: present.update(r.id for r in self.profile.rules if r.landuse=='transport' and not r.objects and r.id not in ('bridge','elevated-walkways'))
         if not self.water.is_empty: present.update(r.id for r in self.profile.rules if r.landuse=="water")
         if self.profile.id=='neon-harbor' and any(r['kind']=='bridge' for r in self.doc['roads']): present.add('bridge')
         if self.profile.id=='sky-park' and any(r['kind']=='elevated' for r in self.doc['roads']): present.add('elevated-walkways')
         missing=sorted(required-present) if self.request.mode=="new" else []
         # Facilities that cannot be placed are visible blocking diagnostics.
         errors=["Missing required group: "+name for name in missing]
+        errors.extend(d['error']+': '+d['id'] for d in self.diagnostics if d.get('required_failure'))
         for site in self.sites:
             if site["access"]>150*self.scale: errors.append("Facility access too far: "+site["id"])
             if site["entrance"].intersects(self.protected) or site["entrance"].intersects(self.water): errors.append("Blocked facility access: "+site["id"])
             rule=next(r for r in self.profile.rules if r.id==site['group'])
-            if self.request.mode=='new' and site['id'].startswith('env-facility-') and not all(site['id']+'-object-'+str(i) in site['objects'] for i in range(len(rule.objects))): errors.append('Incomplete facility objects: '+site['id'])
-        return dict(errors=errors,stages=self.diagnostics,required=sorted(required),present=sorted(present),
+            if self.request.mode=='new' and site['id'].startswith('env-facility-') and len(site['objects'])<len(rule.objects): errors.append('Incomplete facility objects: '+site['id'])
+        metrics,composition_errors,issues=measure(self)
+        errors.extend(composition_errors);self.diagnostics.extend(issues)
+        return dict(errors=errors,stages=self.diagnostics,metrics=metrics,required=sorted(required),present=sorted(present),
             counts={f:len(self.doc.get(f,[])) for f in FIELDS},facilities=len(self.sites),
             texture_memory_bytes=sum(r["texture_memory_bytes"] for r in self.asset_reports.values()),
             payload_bytes=sum(map(len,self.payloads.values())),assets=self.asset_reports,
@@ -754,10 +565,13 @@ class Generator:
 
     def run(self):
         self.water_stage();self.districts_stage();self.road_stage();self.approaches_stage();self.driving_stage();self.fixed_stage();self.facilities_stage();self.details_stage();self.nature_stage();self.terrain_stage()
+        self.sites.sort(key=lambda s:s['id'])
         diagnostics=self.quality_stage()
         self.owned.sort(key=lambda r:(r['field'],r['id']))
         metadata=dict(version=1,owner=OWNER,new_layout=self.new_layout,algorithm=fingerprint(),request={k:v for k,v in asdict(self.request).items() if k not in ('mode','bounds_cm')},owned=self.owned,
-            inference="Estimated game environment; not surveyed source data",sites=[{k:v for k,v in s.items() if k not in ("geometry","entrance")} for s in self.sites])
+            inference="Estimated game environment; not surveyed source data",**self.composition_metadata())
+        metadata["metrics"]=diagnostics["metrics"]
+        diagnostics["composition"]=self.composition_metadata()
         attribution=dict(source=self.family+":"+digest(self.doc['bounds'])[:12],license="MIT",notice=canonical(metadata).decode())
         self.doc["attributions"].append(attribution)
         patches=diff(self.original,self.doc)

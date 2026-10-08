@@ -1864,6 +1864,12 @@
     "Facilities": "Facilities",
     "Undo size": "Undo size",
     "Apply is one Undo. Reduce the area if it exceeds 16 MiB.": "Apply is one Undo. Reduce the area if it exceeds 16 MiB.",
-    "Environment applied. Undo restores the previous area.": "Environment applied. Undo restores the previous area."
+    "Environment applied. Undo restores the previous area.": "Environment applied. Undo restores the previous area.",
+    "Districts and density": "Districts and density",
+    "Road hierarchy": "Road hierarchy",
+    "Parcels and entrances": "Parcels and entrances",
+    "Protected areas": "Protected areas",
+    "Diagnostics": "Diagnostics",
+    "Core %.1f%% · Natural %.1f%% · Junctions %d": "Core %.1f%% · Natural %.1f%% · Junctions %d"
   }
 }

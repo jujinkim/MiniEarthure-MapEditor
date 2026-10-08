@@ -23,6 +23,27 @@ var submitted_settings := ""
 
 class PlanPreview extends Control:
 	var document := {}
+	var composition := {}
+	var diagnostics: Array = []
+	var layers := {"districts":true,"roads":true,"parcels":true,"protected":true,"diagnostics":true}
+	var project_point: Callable
+	func _rings(boundaries: Array, project: Callable, color: Color, filled: bool = false) -> void:
+		for boundary: Dictionary in boundaries:
+			var points := PackedVector2Array()
+			for p: Array in boundary.polygon: points.append(project.call(p))
+			if points.size()<3: continue
+			if filled: draw_colored_polygon(points,Color(color,color.a*.22))
+			points.append(points[0]);draw_polyline(points,color,1,true)
+			for hole: Array in boundary.get("holes",[]):
+				var ring := PackedVector2Array()
+				for p: Array in hole: ring.append(project.call(p))
+				if ring.size()>2: ring.append(ring[0]);draw_polyline(ring,color,1,true)
+	func _get_tooltip(at_position: Vector2) -> String:
+		if not project_point.is_valid(): return ""
+		for issue: Dictionary in diagnostics:
+			if issue.has("position_cm") and at_position.distance_to(project_point.call(issue.position_cm))<12:
+				return str(issue.get("district",issue.get("id","")))+"\n"+I18N.diagnostic(str(issue.get("error",issue.get("warning",""))))
+		return ""
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO,size),Color("202a25"))
 		if document.is_empty(): return
@@ -31,18 +52,43 @@ class PlanPreview extends Control:
 		var extent := Vector2(bounds.max[0],bounds.max[1])-origin
 		var scale := minf((size.x-16)/extent.x,(size.y-16)/extent.y)
 		var project := func(p): return Vector2(8,8)+(Vector2(p[0],p[1])-origin)*scale
+		project_point=project
+		if layers.districts:
+			for district: Dictionary in composition.get("districts",[]):
+				var colors := {"residential":Color("76bc82"),"commercial":Color("e6be6c"),"industrial":Color("a5a0d0"),"recreation_ground":Color("ef98b1"),"farmland":Color("ada95e")}
+				var color: Color=colors.get(district.landuse,Color("659b7d"))
+				_rings(district.boundaries,project,color,true)
+				var anchor: Array=district.anchor
+				var caption: String=str(district.id)+" · %d–%d%%"%[roundi(district.density[0]*100),roundi(district.density[1]*100)]
+				draw_string(ThemeDB.fallback_font,project.call([anchor[0]*100,anchor[1]*100]),caption,HORIZONTAL_ALIGNMENT_LEFT,-1,11,color)
 		for water: Dictionary in document.get("water_bodies",[]):
 			var points := PackedVector2Array()
 			for p: Array in water.polygon: points.append(project.call(p))
 			if points.size()>2: draw_colored_polygon(points,Color("387eaa"))
 		for road: Dictionary in document.get("roads",[]):
+			if not layers.roads: continue
 			var points := PackedVector2Array()
 			for p: Array in road.points: points.append(project.call([p[0],p[2]]))
-			if points.size()>1: draw_polyline(points,Color("c0b999"),1.2,true)
+			var role: String=composition.get("road_hierarchy",{}).get(road.id,"")
+			var color := Color("f5cc69") if role in ["arterial","main"] else Color("8dbdd0") if role in ["connector","access","promenade"] else Color("acada2")
+			if points.size()>1: draw_polyline(points,color,maxf(1,float(road.widths_cm[0])*scale),true)
+		if layers.parcels:
+			for site: Dictionary in composition.get("sites",[]):
+				_rings(site.get("boundaries",[]),project,Color("d5ba88"))
+				_rings(site.get("entrances",[]),project,Color("f3a951"),true)
+		if layers.protected:
+			for region: Dictionary in composition.get("protected",[]):
+				_rings(region.boundaries,project,Color("e77686"),true)
 		for placement: Dictionary in document.get("placements",[]):
 			var p: Array = placement.position
 			var color := Color("75a560") if "canopy" in placement.asset_id or "pine" in placement.asset_id or "grove" in placement.asset_id else Color("e0b36b")
 			draw_circle(project.call([p[0],p[2]]),1.8,color)
+		if layers.diagnostics:
+			for issue: Dictionary in diagnostics:
+				if not issue.has("position_cm") or not issue.has("error"): continue
+				var p: Vector2=project.call(issue.position_cm)
+				draw_circle(p,5,Color("f16262"),false,2,true)
+				draw_line(p-Vector2(3,3),p+Vector2(3,3),Color("f16262"),2,true)
 
 func build(owner: Control) -> void:
 	editor = owner
@@ -72,6 +118,13 @@ func build(owner: Control) -> void:
 	preview = PlanPreview.new()
 	preview.custom_minimum_size = Vector2(700,300)
 	column.add_child(preview)
+	var layers := HFlowContainer.new()
+	column.add_child(layers)
+	for entry: Array in [["districts","Districts and density"],["roads","Road hierarchy"],["parcels","Parcels and entrances"],["protected","Protected areas"],["diagnostics","Diagnostics"]]:
+		var toggle := CheckButton.new();toggle.text=I18N.t(entry[1]);toggle.button_pressed=true
+		var key: String=entry[0]
+		toggle.toggled.connect(func(enabled): preview.layers[key]=enabled;preview.queue_redraw())
+		layers.add_child(toggle)
 	message = RichTextLabel.new()
 	message.custom_minimum_size = Vector2(700,130)
 	column.add_child(message)
@@ -119,7 +172,7 @@ func open_mode(value: String) -> void:
 			low=low.max(a-Vector2(3200,3200));high=high.min(b+Vector2(3200,3200))
 		for i in range(4): coordinates[i].set_value_no_signal([low.x,low.y,high.x,high.y][i]/100.0)
 	message.text=I18N.t("Choose theme, seed and bounds, then preview. Generated scenery is an estimated game environment. Existing and manually edited objects are protected.")
-	preview.document={};preview.queue_redraw()
+	preview.document={};preview.composition={};preview.diagnostics=[];preview.queue_redraw()
 	popup_centered()
 
 func _default_size() -> void:
@@ -161,8 +214,10 @@ func _process(_delta: float) -> void:
 	job.set_meta("displayed",true)
 	var report: Dictionary=job.bundle.report.diagnostics
 	var candidate: Dictionary=job.bundle.snapshot.get("document",job._prepared.get("candidate",{}))
-	preview.document=candidate;preview.queue_redraw()
+	preview.document=candidate;preview.composition=report.get("composition",{});preview.diagnostics=report.get("stages",[]);preview.queue_redraw()
 	message.text=I18N.t("Preview ready")+"\n"+I18N.t("Facilities")+": "+str(report.facilities)+" · "+I18N.t("Objects")+": "+str(report.counts.placements)+"\n"+I18N.t("Undo size")+": %.2f MiB"%(float(report.history_bytes)/1048576.0)
+	var metrics: Dictionary=report.get("metrics",{})
+	if not metrics.is_empty(): message.text+="\n"+I18N.t("Core %.1f%% · Natural %.1f%% · Junctions %d")%[float(metrics.core_land_fraction)*100,float(metrics.natural_land_fraction)*100,int(metrics.road_graph.junctions)]
 	for error: String in report.errors: message.text+="\n"+I18N.diagnostic(error)
 	if generation_mode=="fill": message.text+="\n"+I18N.t("Apply is one Undo. Reduce the area if it exceeds 16 MiB.")
 	apply_button.disabled=not report.errors.is_empty()

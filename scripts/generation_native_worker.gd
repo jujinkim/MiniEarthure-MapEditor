@@ -10,7 +10,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 	if request.get("request") != identity or request.get("generation") is not Dictionary or request.get("document") is not Dictionary or request.get("python") is not String or request.python.is_empty():
 		failure = "Invalid environment generation request."
 	progress.call("source",0,0)
-	var modules := ["environment_generation.py","environment_profiles.py","environment_assets.py","asset_derivatives.py","reference_maps.py","special_driving_maps.py","city_assets.py","driving_school_map.py"]
+	var modules := ["environment_generation.py","environment_profiles.py","environment_assets.py","environment_layout.py","environment_composition.py","environment_metrics.py","asset_derivatives.py","reference_maps.py","special_driving_maps.py","city_assets.py","driving_school_map.py"]
 	for module: String in modules:
 		if failure != "": break
 		failure = FILES.write_new(directory.path_join(module),FileAccess.get_file_as_string("res://scripts/"+module).to_utf8_buffer())
@@ -50,13 +50,8 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 			report = raw.value
 			candidate = source.value
 			# Inspect bounded representative dense cells, not a whole-world bake.
-			var density := {}
-			for placement: Dictionary in candidate.get("placements",[]):
-				var cell := Vector2i(floori((placement.position[0]-candidate.bounds.min[0])/candidate.cell_size_cm),floori((placement.position[2]-candidate.bounds.min[1])/candidate.cell_size_cm))
-				density[cell] = int(density.get(cell,0))+1
-			cells = density.keys()
-			cells.sort_custom(func(a,b): return density[a]>density[b])
-			cells.resize(mini(6,cells.size()))
+			for cost: Dictionary in report.diagnostics.metrics.cost_cells:
+				cells.append(Vector2i(int(cost.x),int(cost.y)))
 			if cells.is_empty(): cells.append(Vector2i.ZERO)
 	if failure == "":
 		for path: String in report.payloads:

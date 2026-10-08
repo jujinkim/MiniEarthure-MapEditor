@@ -10,7 +10,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from environment_generation import fingerprint, PROFILES
 from environment_catalog import routes
 
-SOURCE=Path(__file__).resolve().parents[1]/'examples/environment-world'
+SOURCE=Path(__file__).resolve().parents[1]/'examples/environment-world-varied'
 
 
 class EnvironmentCatalogTests(unittest.TestCase):
@@ -24,6 +24,15 @@ class EnvironmentCatalogTests(unittest.TestCase):
                 self.assertEqual(doc['cell_size_cm'],3200)
                 self.assertEqual(meta['authoring']['algorithm'],fingerprint())
                 self.assertEqual(set(meta['validation']['required']),set(meta['validation']['present']))
+                metrics=meta['validation']['metrics']
+                self.assertLessEqual(metrics['max_road_grade'],.1205)
+                self.assertEqual(metrics['road_graph']['components'],1)
+                self.assertTrue(metrics['staging_straights'])
+                self.assertTrue(metrics['cost_cells'])
+                if profile.road_mode=='loop':
+                    self.assertEqual(metrics['road_graph']['cycle_rank'],1)
+                    self.assertEqual(metrics['road_graph']['dead_ends'],3)
+                    self.assertGreaterEqual(metrics['natural_land_fraction'],.85)
                 ids=[p['id'] for p in doc['placements']]
                 self.assertEqual(len(ids),len(set(ids)))
 

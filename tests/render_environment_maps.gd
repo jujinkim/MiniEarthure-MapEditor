@@ -32,7 +32,7 @@ func run() -> void:
 		var seen:Dictionary={}
 		var presentation:Dictionary={}
 		var selected := {}
-		var centers: Array = [meta.preview_center_m]
+		var centers: Array = [meta.preview_center_m, meta.ground_position_m, meta.ground_target_m]
 		for view: Dictionary in meta.review_views: centers.append(view.target_m)
 		for center_point: Array in centers:
 			var cx := floori(float(center_point[0])/32);var cy := floori(float(center_point[2])/32)
@@ -119,22 +119,29 @@ func run() -> void:
 			environment.environment.ambient_light_energy=.55
 			sun.light_color=Color("94b6e1");sun.light_energy=.35
 		var camera:=Camera3D.new();world.add_child(camera);camera.current=true
+		camera.far=700
 		camera.projection=Camera3D.PROJECTION_ORTHOGONAL;camera.size=170
 		var center:=Vector3(meta.preview_center_m[0],meta.preview_center_m[1],-meta.preview_center_m[2])
 		camera.position=center+Vector3(100,330,220);camera.look_at(center)
 		await process_frame;await RenderingServer.frame_post_draw
 		var directory:=output.path_join(id);DirAccess.make_dir_recursive_absolute(directory)
 		root.get_texture().get_image().save_png(directory.path_join("overview.png"))
-		camera.projection=Camera3D.PROJECTION_ORTHOGONAL;camera.size=100;camera.fov=45
-		camera.position=center+Vector3(42,60,-42)
-		camera.look_at(center+Vector3(0,4,0))
+		camera.projection=Camera3D.PROJECTION_PERSPECTIVE;camera.fov=68
+		camera.far=200
+		environment.environment.fog_enabled=true
+		environment.environment.fog_density=.002
+		environment.environment.fog_light_color=environment.environment.background_color
+		var eye: Array=meta.ground_position_m
+		var eye_target: Array=meta.ground_target_m
+		camera.position=Vector3(eye[0],eye[1],-eye[2])
+		camera.look_at(Vector3(eye_target[0],eye_target[1],-eye_target[2]))
 		await process_frame;await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png(directory.path_join("ground.png"))
 		for view:Dictionary in meta.get("review_views",[]):
 			camera.projection=Camera3D.PROJECTION_PERSPECTIVE
 			var p:Array=view.position_m;var t:Array=view.target_m
-			p=p.duplicate();p[1]=maxf(float(p[1]),float(t[1])+45)
-			if id=="sky-park":
+			p=p.duplicate()
+			if id=="sky-park" and view.name=="signature":
 				t=t.duplicate();t[1]+=12
 				p=[float(t[0])+70,float(t[1])+40,float(t[2])+70]
 			camera.position=Vector3(p[0],p[1],-p[2]);camera.look_at(Vector3(t[0],t[1],-t[2]))
