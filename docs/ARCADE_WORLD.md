@@ -20,6 +20,42 @@ and semantic infill remain available. The seven themes retain these dimensions:
 | Machine Factory | 1440 × 1440 | 2025 |
 | Sky Amusement Park | 1920 × 1600 | 3000 |
 
+## Roads, tracks and landscape in one document
+
+The `Roads & tracks` and `Terrain & scenery` tabs select tools on the same map.
+They do not change `free_roam`, load another map or replace the document. Open
+any current default-world source to edit its ordinary roads: select a road in
+the viewport/list, choose an anchor/handle, edit X/height/Z, width, shoulder and
+terrain policy, then apply the alignment. Moving a shared node updates connected
+roads; anchors carry their handles and paired handles retain a continuous tangent.
+
+The complete existing track palette works on that terrain. A new piece's entry
+uses the pointed terrain height; a nearby road/track port takes precedence for
+height and direction. Disable `Use pointed terrain height` to enter a height.
+Selected pieces can snap to a road port or create a connecting curve from it.
+Ordinary roads and track surfaces share attached action/obstacle/rail placement.
+
+Ordinary roads default to derived cut/fill and shoulder fitting. Original PNGs
+are unchanged, and moving/deleting a road restores its previous fitted area.
+Preserve/elevated policies retain the source landscape; special pieces keep
+their authored shape with terrain-based supports. Existing buildings, water,
+assets and independent gimmicks stay in the document. Unsafe terrain, occupied
+driving space or support interference blocks execution export and displays the
+reported location; the editor never deletes or relocates those objects.
+
+A road, its terrain fit, connected pieces and attached tools form one Undo
+command. History records changed fields/IDs within its existing byte budget.
+Terrain/scenery previews use cancellable native workers and disposable 32 m
+cells, with bounded asset/picking/render work and reuse of unchanged meshes.
+Late responses cannot update a replaced document. See
+[editing ownership](TRACK_EDIT_PERFORMANCE.md).
+
+Free-roam maps can run unconnected pieces without a race course. Unsafe geometry
+still blocks export. Publishing a race route additionally requires its connection,
+start and checkpoint validation. Driving-content changes invalidate old course
+hashes/proofs. User projects are saved only after explicit edits/save; no automatic
+conversion or overwrite occurs. All own formats remain v1.
+
 ## Authoring
 
 Configure the root `.venv` Python in Import settings. **Create → New region** and
@@ -193,175 +229,63 @@ five-feature demo from the retired default-map batch script.
 
 ## Focused validation
 
-On macOS ARM64 / Godot 4.7.2, the five Village authored-world Python tests pass: exact
-reproduction, 1,050 terrain-cell seams, road/water separation, bridge support,
-three distinct routes and paired assets. Native validation generates all 1,050
-cells. Maximum road grade is 11.165%. Package size is 1,271,545 bytes; native
-validation peak allowance is 698,787,330 bytes, within the existing source budget.
-This is an admission estimate, not measured whole-map residency.
+Current independent roads are compiled from editable cubic controls, with analytic
+lateral frames and continuous shared junction boundaries. Default profiles retain
+broad hills and valleys. Red Canyon's close wash branch was rerouted, bridge
+clearance was opened in Canyon/Forest and Snow's three climbs were lengthened.
+The seven IDs, bounds and principal landmarks are unchanged. Original height PNGs
+contain the landscape and explicit foundation pads; road cut/fill is derived at
+runtime and restores when a road moves or is removed.
 
-Three asset-derivative tests and Editor paired-file save/Undo/Save As/hash/cancel/
-release checks pass, including small-prop quality changes. Package restoration
-and common display-quality validators pass. General environment generation's
-four regressions and the extracted five-feature demo regression pass after
-removing the default-specific scripts. The owned-worker validator also passes
-29 checks for preview, cancellation, stale result, one Undo/Redo, recovery,
-atomic publication and reopening. Full Editor interaction was not rerun.
+On macOS ARM64 / Godot 4.7.2, native generation passes every execution cell and
+`mapkit audit-roads` checks actual collision triangles every 0.5 m along five width
+lines, junctions and the road-paint display budget. The tolerance is 1 cm and the
+maximum designed grade is 12%:
 
-All five actual Village captures pass strict diagnostics on the Compatibility
-renderer. The near/far terrain comparison has a maximum RGB difference of 1/255.
-A bounded dense-street comparison renders the same 174 cells normally and with
-forced authored-far geometry: draw calls 1,563→432, shared-cache allowance
-92,779,776→63,963,136 bytes. Visible primitives increase 145,593→187,650 because
-batching/occlusion differs; this is not an FPS or device-performance pass. Largest
-far-cell retained/display charge is 2,270,208 bytes. Far resource owners retire
-after capture cancellation. No execution/admission cap was raised.
+| Theme | Generated cells | Collision samples | Max error (cm) | Max designed grade |
+| --- | ---: | ---: | ---: | ---: |
+| Village Driving Park | 1,050 | 43,053 | 0.489 | 11.856% |
+| Neon Harbor | 2,400 | 70,745 | 0.500 | 8.871% |
+| Deep Forest | 3,025 | 52,862 | 0.494 | 11.294% |
+| Red Canyon | 2,850 | 62,773 | 0.489 | 8.450% |
+| Snow Mountain | 3,250 | 58,854 | 0.486 | 10.582% |
+| Machine Factory | 2,025 | 50,994 | 0.000 | 0.000% |
+| Sky Amusement Park | 3,000 | 41,210 | 0.477 | 10.641% |
 
-Visual review removed terrain tint seams, a deep road cut and canal/road overlap;
-farms, foreground crop rows, river vegetation and shop frontages were adjusted.
-**The user approved Village's art direction on 2026-10-09**. Detailed driving/course completion, editing
-interaction and device performance are user checks; object counts and automated
-success do not establish visual acceptance.
+All 17,600 cells and 380,491 collision samples pass. The MapKit feature suites
+also cover curves, grade transitions, explicit junctions, overpasses, cell seams,
+the complete palette over terrain, occupied supports, source preservation, shared
+attachments, race binding and free-roam export. Recipe tests cover deterministic
+reconstruction, terrain seams, connected routes, bridge clearance and supports.
 
-The current default recipe is a scripted authoring workflow. Its editable source
-can be opened and modified in Editor, but the general New region command does not
-reproduce this authored result. A reusable asset/assembly palette and general 3D
-object gizmos/surface snapping remain separate, incomplete usability work; the
-Track Mode tools do not establish those capabilities for arbitrary assets.
+The strict Editor `composite_road_validator`, `track_workbench_validator` and
+`document_history_validator` pass road controls/width/policy, road-to-track
+connections, attachments, derived-terrain restoration, bounded Undo/Redo,
+save/reopen, original preservation on failure, cancellation, stale document
+protection and preview mesh reuse. Locale key parity passes in English, Korean
+and Japanese. Road previews prepare a bounded 3 × 3-cell window asynchronously;
+owner/resource budgets are unchanged.
 
-Harbor's four additional recipe tests pass reproducibility, all 2,400 terrain-cell
-seams, centimetre-valid nonoverlapping ground paint, water/road separation, flat
-bridge approaches, pier/container support and paired neon bindings. Native
-validation generates every cell, with a 5.782% maximum road grade. The package is
-1,597,761 bytes; its validation peak allowance is 853,060,542 bytes. Native course
-preparation seals all three routes and checks each of eight maximum-vehicle grid
-footprints. Six actual views pass strict diagnostics and release far owners.
-Model review removed aliasing from fine container rib geometry, fixed approach
-junctions and kept crane/bridge openings in the authored far mesh.
+All 38 actual common-renderer views pass strict diagnostics and owner release,
+including a fixed-camera Red Canyon junction comparison against its original
+package. The old large junction step is absent in the new capture. Peak shared
+cache charge is 133,667,072 bytes, below 128 MiB; the largest far-cell charge is
+4,948,800 bytes. This is a bounded display/admission result, not an FPS benchmark.
+Each `review/<theme>-render-report.json` binds images to the final package SHA-256.
+Runtime seals all 21 recommended courses and validates eight maximum-vehicle/
+glider start footprints per course. Human completion remains unverified.
 
-The bounded Harbor day-street comparison uses the same 175 cells: draw calls
-1,184→616, primitives 147,000→275,122, shared-cache allowance
-83,064,832→63,963,136 bytes. Its largest far-cell charge is 3,719,936 bytes. The
-six normal captures peak at 126,376,960 shared-cache bytes, below the existing
-128 MiB preview limit. This is a display-work comparison, not an FPS benchmark.
-Harbor art, full course driving and device performance remain user checks.
+Earlier paired-asset, source/cancel/release, near/far terrain and water-color
+regressions remain recorded in their owning contracts. No automatic full suite,
+export matrix or prolonged performance run was added. The existing 49-piece
+track-edit completion target remains unmet; see [editing performance](TRACK_EDIT_PERFORMANCE.md).
 
-Deep Forest keeps its 1760 × 1760 m bounds and explicitly connects a ranger
-station, old-growth crest, fern hollow, cedar valley and lake camp through two
-supported gorge crossings. Cedar, beech and sapling crowns have different growth
-forms; shrubs, spatial fern patches, fallen timber, riparian reeds and rock groups
-continue below the canopy. Only declared habitat fill uses deterministic jitter.
-The first forest camera is sampled on the actual road centreline; the lake and
-camp overview stays within the existing view distance. Review removed submerged
-riverbank plants from the lake interior and corrected the common near/far water
-material discontinuity, without changing physical water or admission caps.
+Detailed editing feel, driving, course completion, other themes' art and device
+performance are user checks. The first Village art direction was approved before
+this road revision; that is not acceptance of the new road rendering. Client
+verification stops at standalone startup and the initial menu.
 
-Four forest recipe tests cover exact reconstruction, 3,025 shared terrain seams,
-connected/distinct courses, road-water separation, flat bridge aprons, eight pier
-supports and dry tree/shrub roots. Native all-cell validation passes with a
-maximum road grade of 11.862%, 22,093 placements and a 2,399,979-byte package.
-Its validation peak allowance is 939,973,474 bytes. Forest's five fixed views
-show the hollow road, ranger station, camp, lake/river distance and an overview.
-The common water pixel test passes low/high quality on Compatibility and Forward
-Mobile on the same M1; mean near/far RGB delta stays below 1/255, terrain colour
-remains matched and far water resources retire. These automated counts and colour
-checks do not constitute human art/driving/device acceptance.
-
-Forest's native preparation seals all three courses and eight-car footprints. The
-five final captures pass strict diagnostics and resource release, with a maximum
-127,009,472-byte shared-cache allowance and 2,372,352-byte far-cell charge. On the
-same 172-cell forest-road view, normal→authored-far draws are 2,107→677, primitives
-391,947→301,114 and cache 106,520,576→63,963,136 bytes. This bounded comparison
-does not measure frame rate or device performance.
-
-Red Canyon's 2400 × 1200 m source connects two gorge bridges, layered cliff
-roads, a dry wash descent/switchback, mesa overlooks and a quarry with crushers,
-conveyors, static loaders, stockpiles and an office. Continuous sculpted terrain
-backs four eroded sandstone silhouettes; talus and sparse cactus/scrub fill the
-landscape. Visual review widened excessive road cuts and removed terrain from
-under the bridge decks. The source paint helper clips at world bounds.
-
-Four canyon tests pass exact reconstruction, all 2,850 cell seams, connected
-courses, 6.709% maximum grade, flat aprons, eight grounded piers and bridge/terrain
-clearance. Two model tests retain far silhouettes and open crusher/bridge bays.
-Native validation generates every cell, with 4,926 placements and a 1,784,540-byte
-package; its validation peak allowance is 478,718,812 bytes. Human art, course
-driving and device acceptance remain separate user checks.
-
-Five final canyon captures pass strict diagnostics and release checks. The same
-174-cell cliff-road comparison uses normal→authored-far draws
-689→225, primitives 96,914→91,710
-and shared cache 72,317,696→63,963,136 bytes. Normal views peak at
-77,969,408 cache bytes; the largest far cell is
-693,248 bytes. These stay within existing caps, not an FPS acceptance.
-The common sky's dark lower-horizon step was removed; day/night pixel deltas
-stay below .024 in Compatibility and .012 in Forward Mobile.
-
-Snow Mountain's 1600 × 2080 m recipe follows a broad alpine valley from six
-timber lodges through fir woods to a treeless ridge, rock cirque and sheltered
-lookout. Snow-covered tree ages, granite outcrops, a solid frozen tarn, roadside
-drifts and 138 grounded guardrail sections mark altitude and exposure. Road
-heights follow the terrain profile before detailed cut/fill; the maximum grade
-is 10.389%. The lookout remains beside the road, retaining the native conservative
-placement/road-clearance contract.
-
-Four snow recipe tests pass exact reproduction, all 3,250 terrain seams, distinct
-connected routes, altitude-dependent woodland, the frozen surface and grounded
-shelter. Native validation generates every cell: 4,777 placements, a 2,003,102-byte
-package and a 525,841,638-byte validation peak allowance. Human art, detailed
-course driving and device performance remain separate user checks.
-
-The frozen shore is an open rocky clearing. Its solid surface sits above the
-terrain basin, avoiding coplanar flicker; the representative eye follows the
-actual ridge ground height.
-
-Five actual snow captures, all three native courses and eight-car start footprints
-pass. On the same 165-cell valley view, normal→authored-far draws are
-1,115→254, primitives 130,601→106,782
-and cache 75,973,376→63,963,136 bytes. Normal captures peak at
-93,686,528 cache bytes and 601,856 per far cell.
-Far leases retire; no cap changed. This is a bounded render comparison, not FPS.
-
-Machine Factory keeps 1440 × 1440 m bounds. Its level industrial grid connects
-production, process tanks, boiler courts, electrical equipment, maintenance,
-administration and a crane/warehouse yard. Continuous supported racks and feed
-branches link tanks; elevated busbars connect transformers. Concrete gate access
-links each work yard to the road. A stormwater channel and wooded perimeter frame
-the site. Review bounds include the actual highest placed model, preserving tall
-stacks and later landmark silhouettes without increasing render distance.
-
-Four factory tests pass exact reconstruction, 2,025 terrain seams, road/water
-separation, connected/distinct routes, pipe spans, gate access and tall-model
-review bounds. Native all-cell validation passes: 3,044 placements, zero road
-grade, a 1,358,915-byte package and 624,130,158-byte validation peak allowance.
-Human art, detailed driving and device performance remain separate user checks.
-
-Five actual factory views, all three sealed courses and their eight-car start
-footprints pass. The bounded 171-cell production view changes normal→authored-far
-draws 589→261, primitives 111,240→110,546
-and cache 90,481,408→63,963,136 bytes. Normal views peak at
-97,811,456 cache bytes and 1,142,144 per far cell.
-Far leases retire; this is a render-work comparison, not FPS acceptance.
-
-Sky Park retains 1920 × 1600 m bounds. Five garden/plaza terraces connect a
-carousel, a 61 m observation wheel, a static coaster, kiosks, open queue lanes,
-flowerbeds and seating. Two level viaducts use ten grounded piers with clear
-valleys below. Their ground approaches meet flat deck aprons. The carousel
-arrival sightline stays open and its access path follows a broad terrain rise;
-trees and flowers break up the wheel plaza. The original rides are static scenery.
-
-Four park recipe tests and two focused model tests pass reproduction, all 3,000
-terrain seams, connected/distinct routes, grade, ground/deck clearance, physical
-support, paired silhouettes and wheel/pier openings. Native all-cell validation
-passes with 5,766 placements, maximum road grade 8.689%, a 2,094,619-byte package
-and a 749,722,990-byte validation peak allowance. All three sealed courses and
-eight-car start footprints pass. Six actual views cover the garden road, wheel,
-coaster, far approach, plaza overview and exposed viaduct supports.
-
-The same 170-cell garden scene changes normal→authored-far draws 1,617→468,
-primitives 233,593→204,193 and shared cache 132,653,312→63,963,136 bytes.
-Normal views peak at 132,653,312 cache bytes, below the existing 128 MiB cap;
-the largest normal-capture far cell is 2,943,552 bytes. Far leases retire.
-This is a bounded render-work comparison, not detailed driving or device FPS.
-The final distribution contains all seven maps, 21 courses and 37 actual review
-views; its aggregate bytes, 512 px texture limit and hash/reference checks pass.
+The recipes are a scripted authoring workflow. Their editable sources open in
+Editor, but general New region does not reproduce these authored worlds. General
+asset gizmos and a reusable scenery assembly palette remain separate usability
+work; the road/track tools do not implement arbitrary asset editing.

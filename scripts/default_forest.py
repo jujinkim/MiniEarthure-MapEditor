@@ -18,7 +18,15 @@ def terrain(x,y):
     valley=np.abs(x-river_x(y));bank=smooth((valley-10)/52)
     h=h*bank+18*(1-bank)
     lake=((x-1110)/128)**2+((y-1115)/118)**2
-    return h*smooth((lake-.88)/.45)+18*(1-smooth((lake-.88)/.45))
+    h=h*smooth((lake-.88)/.45)+18*(1-smooth((lake-.88)/.45))
+    # Author the two gorge openings beneath the independent bridge decks.
+    # Endpoint pads below restore the level abutments; the rest is original
+    # valley terrain and no longer depends on a nearby ground road's height.
+    for lo,hi,cy,deck in [(960,1240,1370,36),(980,1200,570,40)]:
+        distance=np.maximum(np.maximum(lo-x,x-hi),np.abs(y-cy)-8)
+        weight=1-smooth(distance/8)
+        h=np.minimum(h,h*(1-weight)+(deck-3)*weight)
+    return h
 
 def compose(w):
     w.base=terrain;w.doc['theme']='rural'

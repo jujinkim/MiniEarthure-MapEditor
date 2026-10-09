@@ -27,6 +27,8 @@ var framed_cell := Vector2i(-1, -1)
 var preview_stats := {"generated": 0, "reused": 0, "attachment_frames": 0, "max_batch_usec": 0, "max_frame_usec": 0}
 var export_report: AcceptDialog
 var last_export_report := {}
+var tool_workspace := "track"
+var workspace_tabs: TabBar
 var track_workbench: Node
 var new_map_dialog: ConfirmationDialog
 var new_free_roam: CheckBox
@@ -172,6 +174,12 @@ func _ready() -> void:
 	track_workbench=preload("./track_workbench.gd").new()
 	add_child(track_workbench)
 	track_workbench.build(self)
+	workspace_tabs = TabBar.new()
+	workspace_tabs.add_tab(I18N.t("Roads & tracks"))
+	workspace_tabs.add_tab(I18N.t("Terrain & scenery"))
+	left_dock.add_child(workspace_tabs)
+	left_dock.move_child(workspace_tabs,0)
+	workspace_tabs.tab_changed.connect(func(index: int): set_tool_workspace("track" if index == 0 else "landscape"))
 	commands.settings_changed.connect(func():
 		snap_toggle.tooltip_text = commands.tooltip("edit.toggle_snap")
 		track_workbench.snap.tooltip_text = commands.tooltip("edit.toggle_snap"))
@@ -972,9 +980,17 @@ func _tool_help(name: String) -> String:
 	}
 	return str(hints.get(name, "")) + "\nWheel zooms · Middle drag pans"
 
+func set_tool_workspace(value: String) -> void:
+	if value not in ["track", "landscape"]: return
+	_cancel_editing()
+	tool_workspace = value
+	if is_instance_valid(workspace_tabs): workspace_tabs.set_current_tab(0 if value == "track" else 1)
+	track_workbench.refresh()
+	commands.refresh_buttons()
+
 func _set_tool(name: String) -> void:
 	_cancel_editing()
-	if not store.document.get("free_roam", false):
+	if tool_workspace == "track":
 		if track_workbench != null: track_workbench.show_hint()
 		return
 	canvas.tool = name
@@ -983,33 +999,33 @@ func _set_tool(name: String) -> void:
 	canvas.queue_redraw()
 
 func _has_selection() -> bool:
-	if not store.document.get("free_roam", false):
-		return track_workbench != null and track_workbench.selected >= 0
+	if tool_workspace == "track":
+		return track_workbench != null and (track_workbench.selected >= 0 or track_workbench.road_tools.selected != "")
 	return canvas != null and not canvas.selected.is_empty()
 
 func _duplicate_current() -> void:
 	_cancel_editing()
-	if store.document.get("free_roam", false): canvas.duplicate_selection()
+	if tool_workspace == "landscape": canvas.duplicate_selection()
 	else: track_workbench.duplicate_piece()
 
 func _can_delete() -> bool:
-	return _has_selection() or (store.document.get("free_roam", false) and not canvas.draft.is_empty())
+	return _has_selection() or (tool_workspace == "landscape" and not canvas.draft.is_empty())
 
 func _delete_current() -> void:
-	if store.document.get("free_roam", false) and not canvas.draft.is_empty():
+	if tool_workspace == "landscape" and not canvas.draft.is_empty():
 		canvas.draft.pop_back()
 		canvas.queue_redraw()
 		return
 	_cancel_editing()
-	if store.document.get("free_roam", false): canvas.delete_selection()
+	if tool_workspace == "landscape": canvas.delete_selection()
 	else: track_workbench.delete_piece()
 
 func _frame_current() -> void:
-	if store.document.get("free_roam", false): canvas.fit_map()
+	if tool_workspace == "landscape": canvas.fit_map()
 	else: track_workbench.frame_selection()
 
 func _toggle_snap() -> void:
-	if store.document.get("free_roam", false): snap_toggle.button_pressed = not snap_toggle.button_pressed
+	if tool_workspace == "landscape": snap_toggle.button_pressed = not snap_toggle.button_pressed
 	else:
 		track_workbench.snap.button_pressed = not track_workbench.snap.button_pressed
 		track_workbench.placement.invalidate_candidate()
@@ -1019,7 +1035,7 @@ func _cancel_editing() -> void:
 	if track_workbench != null: track_workbench.cancel_interaction()
 
 func _register_commands() -> void:
-	commands.context_source = func(): return "roam" if store.document.get("free_roam", false) else "track"
+	commands.context_source = func(): return "roam" if tool_workspace == "landscape" else "track"
 	commands.blocked_source = _shortcuts_blocked
 	commands.availability_source = func(_id: String):
 		return store.EDIT_BUSY if store.editing_locked() else ""
@@ -1117,11 +1133,11 @@ func _restore_workbench() -> void:
 	right_dock.split_offset = int(view_settings.get_value("panels", "vertical", 0))
 	snap_toggle.button_pressed = bool(view_settings.get_value("snap", "enabled", true))
 	snap_size.value = clampf(float(view_settings.get_value("snap", "metres", 1.0)), 0.01, 100.0)
-	author_panel.visible = store.document.get("free_roam",false) and bool(view_settings.get_value("panels", "authoring_visible", true))
+	author_panel.visible = tool_workspace == "landscape" and bool(view_settings.get_value("panels", "authoring_visible", true))
 	if author_panel.visible and author_panel.tabs.get_tab_count() == 0: author_panel.open()
 	canvas.layer_state = view_settings.get_value("layers", displayed_map_id, {}).duplicate(true)
 	layers.refresh()
-	if not store.document.get("free_roam",false):
+	if tool_workspace == "track":
 		_set_view_mode("split")
 		workspace_views.move_child(preview_dock,0)
 		preview_dock.size_flags_horizontal=Control.SIZE_EXPAND_FILL
@@ -1272,7 +1288,7 @@ func _frame_selection() -> void:
 	preview_due = Time.get_ticks_msec() + 150
 
 func _show_cached(cell: Vector2i) -> void:
-	if store.document.get("assembled_track") is Dictionary and not preview_world.has_node("ToyTrackStage"):
+	if store.document.get("assembled_track") is Dictionary and not (store.document.assembled_track.get("authoring") is Dictionary and store.document.assembled_track.authoring.get("terrain_integration",false)) and not preview_world.has_node("ToyTrackStage"):
 		var b: Dictionary = store.document.bounds
 		preview_world.add_child(preload("res://addons/mapkit/godot/track_stage.gd").create(PackedInt64Array([b.min[0],b.min[1],b.max[0],b.max[1]]), store.document.assembled_track))
 	cache_clock += 1
@@ -1724,6 +1740,7 @@ func _status(text: String) -> void:
 	if validation_label != null and text.contains("E_"):
 		validation_label.text = I18N.t("Edit/operation rejected · ") + text
 	status_label.text = I18N.display(text)
+	if track_workbench!=null and track_workbench.road_tools!=null:track_workbench.road_tools.show_issue(text)
 
 func _exit_tree() -> void:
 	store.shutdown_track_edit()

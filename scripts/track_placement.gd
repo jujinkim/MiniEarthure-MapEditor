@@ -11,6 +11,7 @@ var document_id := ""
 var serial := 0
 var candidate: Dictionary = {}
 var height := 0.0
+var manual_height := false
 var yaw := 0.0
 var width_cm := 400
 var jump_height_cm := 200
@@ -43,12 +44,13 @@ func begin_move(index: int, point: Vector3) -> void:
 	tool = move_item.preset
 	kind = "piece"
 	height = float(move_item.position_cm[1]) * 0.01
+	manual_height = true
 	yaw = float(move_item.rotation_mdeg[1]) * 0.001
 	epoch = bench.editor.store.command_epoch
 	document_id = str(bench.editor.store.session_id)
 
 func resume_tool(state: Dictionary) -> void:
-	for field in ["tool", "kind", "height", "yaw", "width_cm", "landing", "jump_height_cm", "panel_width_percent", "panel_alignment"]: set(field, state[field])
+	for field in ["tool", "kind", "height", "yaw", "width_cm", "landing", "jump_height_cm", "panel_width_percent", "panel_alignment", "manual_height"]: set(field, state[field])
 	epoch = bench.editor.store.command_epoch
 	document_id = str(bench.editor.store.session_id)
 	hint = "Placed · Move to preview the next piece · Click to place"
@@ -72,6 +74,7 @@ func activate(type: String, preset: String) -> void:
 	document_id = str(bench.editor.store.session_id)
 	height = float(bench.source.instances[bench.selected].position_cm[1]) / 100.0 if bench.selected >= 0 else 0.0
 	yaw = 0.0
+	manual_height = false
 	if kind == "piece":
 		for entry: Dictionary in bench.catalogue.entries:
 			if entry.id == tool: width_cm = int(entry.default_width_cm) if tool.begins_with("cylinder") else 400 if entry.widths_cm.any(func(value): return int(value) == 400) else int(entry.widths_cm[0])
@@ -126,8 +129,13 @@ func build_controls(parent: Node) -> void:
 	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(heading)
 	if kind == "piece":
+		var automatic := CheckButton.new()
+		automatic.text=I18N.t("Use pointed terrain height")
+		automatic.button_pressed=not manual_height
+		parent.add_child(automatic)
+		automatic.toggled.connect(func(value: bool): manual_height=not value;invalidate_candidate())
 		var elevation: SpinBox = bench._spin(parent, "Height (m)", height)
-		elevation.value_changed.connect(func(value: float): height = value; invalidate_candidate())
+		elevation.value_changed.connect(func(value: float): height = value; manual_height = true; automatic.set_pressed_no_signal(false); invalidate_candidate())
 		yaw_control = bench._spin(parent, "Rotation (degrees)", yaw, -360, 360, 0.1)
 		yaw_control.value_changed.connect(func(value: float): yaw = value; invalidate_candidate())
 		var width := OptionButton.new()
@@ -176,6 +184,7 @@ func solve_item(item: Dictionary, excluded := -1) -> Dictionary:
 	var result: Dictionary = JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
 	if not result.ok: return {"error":I18N.error(result.error)}
 	var snap_index := -1
+	var road_snap := {}
 	var nearest := 3.0
 	if bench.snap.button_pressed:
 		var pieces: Array = bench.editor.store.track_pieces()
@@ -185,13 +194,22 @@ func solve_item(item: Dictionary, excluded := -1) -> Dictionary:
 			if other.path.is_empty(): continue
 			var distance := PREVIEW.point(result.data.path[0].position_cm).distance_to(PREVIEW.point(other.path.back().position_cm))
 			if distance < nearest: nearest = distance; snap_index = i
+		for port: Dictionary in bench.road_tools.ports():
+			var distance := PREVIEW.point(result.data.path[0].position_cm).distance_to(PREVIEW.point(port.sample.position_cm))
+			if distance < nearest: nearest=distance; road_snap=port; snap_index=-1
+	if not road_snap.is_empty():
+		var snapped: Dictionary=JSON.parse_string(bench.editor.store.bridge.snap_track_surface(JSON.stringify(item),JSON.stringify(road_snap.sample)))
+		if not snapped.ok: return {"error":I18N.error(snapped.error)}
+		item=snapped.data
+		result=JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
+		if not result.ok: return {"error":I18N.error(result.error)}
 	if snap_index >= 0:
 		var snapped: Dictionary = JSON.parse_string(bench.editor.store.bridge.snap_track_instance(JSON.stringify(item), JSON.stringify(bench.source.instances[snap_index])))
 		if not snapped.ok: return {"error":I18N.error(snapped.error)}
 		item = snapped.data
 		result = JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
 		if not result.ok: return {"error":I18N.error(result.error)}
-	return {"item":item, "piece":result.data, "snap":snap_index}
+	return {"item":item, "piece":result.data, "snap":snap_index, "road_snap":road_snap}
 
 func preview_at(point: Vector3) -> bool:
 	if not current(): invalidate_candidate(); return false
@@ -208,14 +226,17 @@ func preview_at(point: Vector3) -> bool:
 		item.position_cm[2] -= roundi(delta.z * 100)
 	else:
 		item = _instance(tool, width_cm)
-		item.position_cm = [roundi(point.x * 100), roundi(height * 100), roundi(-point.z * 100)]
+		item.position_cm = [roundi(point.x * 100), roundi((height if manual_height else point.y) * 100), roundi(-point.z * 100)]
 		item.rotation_mdeg[1] = roundi(yaw * 1000)
+		if not manual_height:
+			var local: Dictionary=JSON.parse_string(bench.editor.store.bridge.track_instance(JSON.stringify(item)))
+			if local.ok: item.position_cm[1]+=roundi(point.y*100)-int(local.data.path[0].position_cm[1])
 	var solved := solve_item(item, moving_index)
 	if solved.has("error"): _failure(solved.error); return false
-	candidate = {"serial":serial, "epoch":epoch, "document":document_id, "kind":kind, "tool":tool, "item":solved.item, "snap":solved.snap}
+	candidate = {"serial":serial, "epoch":epoch, "document":document_id, "kind":kind, "tool":tool, "item":solved.item, "snap":solved.snap,"road_snap":solved.road_snap}
 	if moving_index >= 0: _show_move(solved.piece)
 	elif not _show_ghost(solved.item, -1, solved.piece): return false
-	hint = (I18N.t("Release to move") if moving_index >= 0 else I18N.t("Click to place · Rotate with the preview controls")) + (I18N.t(" · Snap to ") + bench.source.instances[solved.snap].id if solved.snap >= 0 else I18N.t(" · No port snap"))
+	hint = (I18N.t("Release to move") if moving_index >= 0 else I18N.t("Click to place · Rotate with the preview controls")) + (I18N.t(" · Snap to ") + bench.source.instances[solved.snap].id if solved.snap >= 0 else I18N.t(" · Snap to ")+str(solved.road_snap.road) if not solved.road_snap.is_empty() else I18N.t(" · No port snap"))
 	bench.show_hint()
 	return true
 
@@ -242,6 +263,8 @@ func commit_move() -> bool:
 	if candidate.item == move_item: return false
 	var next: Dictionary = bench.source.duplicate(true)
 	next.instances[moving_index] = candidate.item.duplicate(true)
+	next.road_connections=next.get("road_connections",[]).filter(func(link):return link.instance!=candidate.item.id)
+	if not candidate.get("road_snap",{}).is_empty():next.road_connections.append({"road":candidate.road_snap.road,"start":candidate.road_snap.start,"instance":candidate.item.id})
 	if candidate.snap >= 0:
 		var edge := {"from":next.instances[candidate.snap].id, "to":candidate.item.id}
 		if not next.connections.has(edge): next.connections.append(edge)
@@ -275,9 +298,18 @@ func commit(expected_serial := -1) -> bool:
 	if candidate.serial != serial or candidate.epoch != epoch or candidate.document != document_id or candidate.tool != tool: return false
 	var next: Dictionary = bench.source.duplicate(true)
 	var next_selection: int = bench.selected
+	if candidate.has("surface"):
+		var items: Array=bench.editor.store.document.get("surface_attachments",[]).duplicate(true)
+		items.append(candidate.attachment)
+		var failure: String=bench.editor.store.edit_surface_attachments(items)
+		if failure!="":_failure(failure);return false
+		cancel();return true
 	if kind == "piece":
 		var item: Dictionary = candidate.item.duplicate(true)
 		item.id = "p-" + Crypto.new().generate_random_bytes(4).hex_encode()
+		if not candidate.get("road_snap",{}).is_empty():
+			next.terrain_integration=true
+			next.get_or_add("road_connections",[]).append({"road":candidate.road_snap.road,"start":candidate.road_snap.start,"instance":item.id})
 		if candidate.snap >= 0: next.connections.append({"from":next.instances[candidate.snap].id, "to":item.id})
 		if next.paths.is_empty(): next.paths = [{"id":"base", "pieces":[]}]
 		next.paths[clampi(bench.route_index, 0, next.paths.size() - 1)].pieces.append(item.id)
@@ -296,7 +328,7 @@ func commit(expected_serial := -1) -> bool:
 				line.id="grind-"+Crypto.new().generate_random_bytes(6).hex_encode()
 				next.get_or_add("grind_lines",[]).append(line)
 	var state := {"tool":tool, "kind":kind, "height":float(next.instances[next_selection].position_cm[1]) / 100.0 if kind == "piece" else height,
-		"yaw":yaw, "width_cm":width_cm, "landing":landing, "jump_height_cm":jump_height_cm, "panel_width_percent":panel_width_percent, "panel_alignment":panel_alignment}
+		"yaw":yaw, "width_cm":width_cm, "landing":landing, "manual_height":manual_height, "jump_height_cm":jump_height_cm, "panel_width_percent":panel_width_percent, "panel_alignment":panel_alignment}
 	if not bench._commit(next, next_selection, {"repeat":state}): return false
 	# The new draft has already been published; repeat placement uses its epoch.
 	resume_tool(state)
@@ -321,7 +353,9 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 	local.position_cm = [0, 0, 0]
 	local.rotation_mdeg = [0, 0, 0]
 	var source: Dictionary = bench.source.duplicate(true)
-	for field in ["connections", "paths", "checkpoints", "actions", "attachments", "grind_lines", "structures"]: source[field] = []
+	for field in ["connections", "paths", "checkpoints", "actions", "attachments", "grind_lines", "structures", "road_connections"]: source[field] = []
+	source.terrain_policies = {}
+	source.terrain_integration = false
 	source.instances = [local]
 	source.original_seed = null
 	source.grounded_supports = false
@@ -441,7 +475,7 @@ func _surface_at(screen: Vector2) -> Dictionary:
 	var ray := camera.project_ray_normal(screen)
 	var best := {"distance":INF, "piece":-1, "sample":-1}
 	var pieces: Array = bench.editor.store.track_pieces()
-	for node: MeshInstance3D in bench.view.get_meta("objects", {}).values() + bench.view.get_meta("draft_objects", {}).values():
+	for node: MeshInstance3D in (bench.view.get_meta("objects", {}).values() + bench.view.get_meta("draft_objects", {}).values()) if is_instance_valid(bench.view) else []:
 		if not node.visible or not node.get_meta("road", false) or node.mesh == null: continue
 		var owner := int(node.get_meta("owner", -1))
 		if owner < 0 or owner >= pieces.size(): continue
@@ -466,10 +500,17 @@ func _surface_at(screen: Vector2) -> Dictionary:
 func update_pointer(screen: Vector2) -> bool:
 	last_screen = screen
 	if kind == "piece":
-		var point: Variant = bench._plane_point(screen, height)
+		var actual: Dictionary=bench.road_tools.raycast(screen)
+		var point: Variant = bench._plane_point(screen,height) if manual_height or moving_index>=0 else actual.get("point")
+		if point==null:
+			var fallback: Variant=bench._plane_point(screen,height)
+			if fallback is Vector3:bench.road_tools.focus_point(fallback)
+			if bench.editor.store.document.get("heightmaps",[]).is_empty():point=fallback
 		if point == null: _failure("Point at the placement plane."); return false
 		return preview_at(point)
 	var hit := _surface_at(screen)
+	var road_hit: Dictionary=bench.road_tools.raycast(screen,true)
+	if road_hit.get("road","")!="" and road_hit.distance<hit.distance:return preview_road_attachment(road_hit.road,road_hit.sample)
 	return preview_attachment(hit.piece, hit.sample)
 
 func input(event: InputEvent) -> bool:
@@ -503,3 +544,18 @@ func _exit_tree() -> void:
 	cancel()
 	for entry: Dictionary in cache.values(): entry.node.free()
 	cache.clear()
+
+func preview_road_attachment(id: String, sample: int) -> bool:
+	if not current() or kind=="piece":return false
+	serial+=1
+	var attachment: Dictionary={"id":"a-"+Crypto.new().generate_random_bytes(4).hex_encode(),"surface":{"surface_id":id,"station_cm":bench.road_tools.station(id,sample)},"kind":tool,"height_cm":jump_height_cm,"panel_width_percent":panel_width_percent,"panel_alignment":panel_alignment,"side":1}
+	var result: Dictionary=JSON.parse_string(bench.editor.store.bridge.preview_surface_attachment(JSON.stringify(bench.editor.store.document),JSON.stringify(attachment)))
+	if not result.ok:_failure(bench.editor.store.reason(result));return false
+	if is_instance_valid(ghost):ghost.queue_free()
+	ghost=Node3D.new()
+	for g: Dictionary in result.data:
+		var node: Node3D=PREVIEW.GIMMICK.visual(g);node.transform=PREVIEW.GIMMICK.pose(g,0);ghost.add_child(node)
+	_tint(ghost);bench.editor.preview_world.add_child(ghost)
+	candidate={"serial":serial,"epoch":epoch,"document":document_id,"tool":tool,"surface":id,"attachment":attachment}
+	hint=I18N.t("Click to attach · ")+id
+	bench.show_hint();return true

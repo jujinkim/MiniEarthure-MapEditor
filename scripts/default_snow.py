@@ -23,10 +23,10 @@ def compose(w):
     M=(700,1330);N=(910,1110)
     w.path('arrival-road',[A,B],10,level=60)
     for name,points in [('lodge-lane',[B,(690,1730),C]),('eastern-ascent',[C,(990,1630),D]),
-        ('timberline-road',[D,(1150,1340),E]),('rock-cirque',[E,(1230,1010),F]),
+        ('timberline-road',[D,(1150,1340),E]),('rock-cirque',[E,(1330,1080),(1330,950),F]),
         ('snow-wall-climb',[F,(1140,700),G]),('summit-ridge',[G,(835,474),H]),
-        ('western-switchback',[H,(515,540),(412,605),I]),('fir-slope',[I,(505,893),J]),
-        ('valley-descent',[J,(462,1210),K]),('lower-fir-road',[K,(352,1400),L]),
+        ('western-switchback',[H,(515,540),(412,605),I]),('fir-slope',[I,(615,880),J]),
+        ('valley-descent',[J,(395,1180),K]),('lower-fir-road',[K,(352,1400),L]),
         ('lodge-return',[L,(289,1610),A]),('valley-link',[K,(570,1333),M]),
         ('central-climb',[M,(806,1212),N]),('cirque-link',[N,(1040,1139),E]),
         ('lodge-shortcut',[M,(654,1500),(599,1622),B]),

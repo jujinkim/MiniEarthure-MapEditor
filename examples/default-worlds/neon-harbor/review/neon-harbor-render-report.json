@@ -1,0 +1,196 @@
+[
+  {
+    "far_cells": 129,
+    "far_display_triangles": 224723,
+    "image": "neon-harbor-main-street.png",
+    "largest_far_cell_bytes": 3547456,
+    "near_cells": 46,
+    "near_collision_triangles": 43455,
+    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
+    "preparation_ms": 6223,
+    "render": {
+      "draw_calls": 462,
+      "objects": 462,
+      "primitives": 145251
+    },
+    "shared_cache_bytes": 83064832,
+    "view": {
+      "name": "main-street",
+      "position_m": [
+        478.0,
+        9.7,
+        560.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        591.0,
+        10.0,
+        560.0
+      ],
+      "time_minutes": 1088.0,
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 129,
+    "far_display_triangles": 224723,
+    "image": "neon-harbor-day-street.png",
+    "largest_far_cell_bytes": 3547456,
+    "near_cells": 46,
+    "near_collision_triangles": 43455,
+    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
+    "preparation_ms": 5440,
+    "render": {
+      "draw_calls": 1196,
+      "objects": 1196,
+      "primitives": 145251
+    },
+    "shared_cache_bytes": 83064832,
+    "view": {
+      "name": "day-street",
+      "position_m": [
+        478.0,
+        9.7,
+        560.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        591.0,
+        10.0,
+        560.0
+      ],
+      "time_minutes": 900.0,
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 114,
+    "far_display_triangles": 100442,
+    "image": "neon-harbor-port-road.png",
+    "largest_far_cell_bytes": 2740160,
+    "near_cells": 52,
+    "near_collision_triangles": 36064,
+    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
+    "preparation_ms": 4771,
+    "render": {
+      "draw_calls": 891,
+      "objects": 891,
+      "primitives": 133160
+    },
+    "shared_cache_bytes": 89928192,
+    "view": {
+      "name": "port-road",
+      "position_m": [
+        950.0,
+        7.7,
+        960.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        1080.0,
+        8.0,
+        1003.0
+      ],
+      "time_minutes": 840.0,
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 124,
+    "far_display_triangles": 133597,
+    "image": "neon-harbor-coastal-road.png",
+    "largest_far_cell_bytes": 2801984,
+    "near_cells": 49,
+    "near_collision_triangles": 45059,
+    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
+    "preparation_ms": 4371,
+    "render": {
+      "draw_calls": 1475,
+      "objects": 1475,
+      "primitives": 152867
+    },
+    "shared_cache_bytes": 114921472,
+    "view": {
+      "name": "coastal-road",
+      "position_m": [
+        465.0,
+        7.7,
+        758.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        640.0,
+        8.0,
+        805.0
+      ],
+      "time_minutes": 1030.0,
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 113,
+    "far_display_triangles": 80737,
+    "image": "neon-harbor-distant.png",
+    "largest_far_cell_bytes": 1314176,
+    "near_cells": 48,
+    "near_collision_triangles": 55909,
+    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
+    "preparation_ms": 4069,
+    "render": {
+      "draw_calls": 942,
+      "objects": 942,
+      "primitives": 122900
+    },
+    "shared_cache_bytes": 81908480,
+    "view": {
+      "name": "distant",
+      "position_m": [
+        1280.0,
+        11.7,
+        960.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        1440.0,
+        20.0,
+        1028.0
+      ],
+      "time_minutes": 1010.0,
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 148,
+    "far_display_triangles": 248600,
+    "image": "neon-harbor-overview.png",
+    "largest_far_cell_bytes": 3547456,
+    "near_cells": 108,
+    "near_collision_triangles": 123782,
+    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
+    "preparation_ms": 8787,
+    "render": {
+      "draw_calls": 3506,
+      "objects": 3506,
+      "primitives": 382148
+    },
+    "shared_cache_bytes": 126376960,
+    "view": {
+      "name": "overview",
+      "position_m": [
+        680.0,
+        230.0,
+        615.0
+      ],
+      "projection": "orthogonal",
+      "quality": 2.0,
+      "size_m": 300.0,
+      "target_m": [
+        610.0,
+        8.0,
+        555.0
+      ],
+      "time_minutes": 840.0,
+      "view_distance_m": 384.0
+    }
+  }
+]

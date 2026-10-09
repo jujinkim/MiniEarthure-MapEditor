@@ -12,6 +12,7 @@ var source: Dictionary={}
 var selected := -1
 var route_index := 0
 var snap: CheckButton
+var road_tools: RefCounted
 var active := false
 var view: Node3D
 var controls: Array[SpinBox]=[]
@@ -52,6 +53,8 @@ func build(owner: Control) -> void:
 		elif not editor.store.editing_locked(): editor._status(I18N.t("Track edit complete · Draft saved in document history."))
 		editor.commands.refresh_buttons())
 	catalogue = JSON.parse_string(editor.store.bridge.track_catalogue()).data
+	road_tools = preload("./road_workbench.gd").new()
+	road_tools.bench = self
 	placement = preload("./track_placement.gd").new()
 	placement.bench = self
 	add_child(placement)
@@ -108,6 +111,7 @@ func build(owner: Control) -> void:
 	selection.size_flags_stretch_ratio = 0.6
 	palette.add_child(selection)
 	selection.item_selected.connect(select_piece)
+	road_tools.build(palette)
 	snap = CheckButton.new()
 	snap.text = I18N.t("Port snap")
 	snap.tooltip_text = I18N.t("Snap entry to a nearby exit within 3 m · S")
@@ -138,6 +142,8 @@ func select_piece(index: int) -> void:
 	selection_serial += 1
 	interaction_serial += 1
 	selected = index
+	road_tools.selected = ""
+	road_tools.clear_guides()
 	if selected >= 0: selection.select(selected)
 	else: selection.deselect_all()
 	_properties()
@@ -154,7 +160,7 @@ func cancel_interaction(rebuild_properties := true) -> void:
 
 func refresh() -> void:
 	if updating: return
-	active=not editor.store.document.get("free_roam",false)
+	active=editor.tool_workspace == "track"
 	editor.canvas.navigation_only = active
 	palette.visible=active
 	properties.visible=active
@@ -162,22 +168,23 @@ func refresh() -> void:
 	editor.author_panel.visible=not active
 	editor.full_generation.visible=not active
 	editor.regional_grouping.visible=not active
-	editor.preview_dock.get_child(0).visible=not active
+	editor.preview_dock.get_child(0).visible=not active or not editor.store.document.get("heightmaps",[]).is_empty()
 	if active:
-		editor.selection_label.text=I18N.t("TRACK WORKSPACE · 3D + navigation plan")
+		editor.selection_label.text=I18N.t("ROADS & TRACKS · 3D + navigation plan")
 		show_hint()
-		editor.status_label.text=I18N.t("Choose a piece to preview, or generate a Seed Track.") if source.get("instances",[]).is_empty() else I18N.t("Draft can be saved · Execution export requires valid connections and courses.")
+		editor.status_label.text=I18N.t("Choose a piece to preview, or generate a Seed Track.") if source.get("instances",[]).is_empty() else I18N.t("Draft can be saved · Free roam needs safe geometry; races also need a valid course.")
 	for child in editor.left_dock.get_children():
-		if child!=palette: child.visible=not active
+		if child!=palette and child!=editor.workspace_tabs: child.visible=not active
 	editor.properties.visible=not active
 	editor.apply_button.visible=not active
 	if not active:
 		if editor.author_panel.tabs.get_tab_count() == 0: editor.author_panel.open()
-		if editor.store.document.has("assembled_track"): _draw()
+		if editor.store.document.has("assembled_track") or not editor.store.document.get("roads",[]).is_empty(): _draw()
 		elif is_instance_valid(view): view.queue_free()
 		return
 	var selected_id: String = str(source.instances[selected].id) if selected >= 0 and selected < source.get("instances", []).size() else ""
 	source=editor.store.track_source()
+	road_tools.refresh()
 	if apply_context.get("selection_serial", -1) != selection_serial and selected_id != "":
 		selected = -1
 		for i in source.instances.size():
@@ -244,8 +251,13 @@ func _properties() -> void:
 	controls.clear()
 	port_widths.clear()
 	if source.is_empty(): return
+	if road_tools.selected != "":
+		road_tools.properties(properties)
+		if placement.tool != "" and placement.moving_index < 0: placement.build_controls(properties)
+		return
 	var policy := CheckButton.new()
-	policy.text = I18N.t("Switch to free roam")
+	policy.text = I18N.t("Free roam map")
+	policy.button_pressed = editor.store.document.get("free_roam",false)
 	properties.add_child(policy)
 	policy.toggled.connect(func(value: bool):
 		cancel_interaction()
@@ -309,6 +321,7 @@ func _properties() -> void:
 		for section in [transform, connections, actions_box]: editor._label(section, "Select a piece to edit its properties.")
 		return
 	var item: Dictionary = source.instances[selected]
+	road_tools.terrain_policy_control(transform, str(source.get("terrain_policies",{}).get(item.id,"auto_fit" if item.preset in ["straight","gentle45","gentle90","gentle45_left","gentle90_left","free_curve","slope_up","slope_down"] else "preserve")), func(value: String): var next := source.duplicate(true); next.get_or_add("terrain_policies",{})[item.id]=value; _commit(next))
 	for j in 3: controls.append(_spin(transform, ["X (m)", "Height (m)", "Z (m)"][j], float(item.position_cm[j]) / 100.0))
 	for j in 3: controls.append(_spin(transform, ["Pitch X°", "Yaw Y°", "Roll Z°"][j], float(item.rotation_mdeg[j]) / 1000.0, -360.0, 360.0, 0.1))
 	width = OptionButton.new()
@@ -332,6 +345,17 @@ func _properties() -> void:
 	for i in source.instances.size():
 		if i != selected: target.add_item(source.instances[i].id, i)
 	connections.add_child(target)
+	var road_ports: Array=road_tools.ports()
+	if not road_ports.is_empty():
+		var road_target:=OptionButton.new()
+		for port: Dictionary in road_ports:road_target.add_item(str(port.road)+I18N.t(" · start" if port.start else " · end"))
+		connections.add_child(road_target)
+		_button(connections,"Snap entry to road port",func():road_tools.connect_track(road_ports[road_target.selected],false))
+		_button(connections,"Connect curve from road port",func():road_tools.connect_track(road_ports[road_target.selected],true))
+	for link: Dictionary in source.get("road_connections",[]):
+		if link.instance==item.id:
+			editor._label(connections,I18N.t("Road port · ")+str(link.road))
+			_button(connections,"Detach road port",func():var next:=source.duplicate(true);next.road_connections=next.road_connections.filter(func(c):return c.instance!=item.id);_commit(next))
 	_selected_button(connections, "Snap entry to target exit", snap_to_target, target.item_count > 0, I18N.t("Add another piece to connect."))
 	_selected_button(connections, "Connect exit to target entry", connect_curve, target.item_count > 0, I18N.t("Add another piece to connect."))
 	var piece: Dictionary = editor.store.track_pieces()[selected]
@@ -449,6 +473,7 @@ func apply_properties() -> void:
 	_commit(next)
 
 func duplicate_piece() -> void:
+	if road_tools.selected != "": road_tools.duplicate_road(); return
 	if selected<0: return
 	var next:=source.duplicate(true)
 	var item: Dictionary=next.instances[selected].duplicate(true)
@@ -458,10 +483,13 @@ func duplicate_piece() -> void:
 	_commit(next, next.instances.size()-1)
 
 func delete_piece() -> void:
+	if road_tools.selected != "": road_tools.delete_road(); return
 	if selected<0: return
 	var next:=source.duplicate(true)
 	var id: String=next.instances[selected].id
 	next.instances.remove_at(selected)
+	next.get_or_add("terrain_policies",{}).erase(id)
+	next.road_connections=next.get("road_connections",[]).filter(func(c):return c.instance!=id)
 	next.connections=next.connections.filter(func(c): return c.from!=id and c.to!=id)
 	next.checkpoints=next.checkpoints.filter(func(c): return c.piece!=id)
 	next.attachments=next.attachments.filter(func(c): return c.piece!=id)
@@ -532,6 +560,7 @@ func add_action(kind: String) -> void:
 	placement.activate("action", kind)
 
 func _process(_delta: float) -> void:
+	if road_tools != null: road_tools.poll()
 	if not final_preview_due or editor.store.draft_pending(): return
 	var focus := editor.get_viewport().gui_get_focus_owner()
 	if placement.moving_index >= 0 or focus is LineEdit or focus is TextEdit or editor.store.has_gesture(): return
@@ -550,7 +579,7 @@ func _draw() -> void:
 		return
 	drawn_epoch = editor.store.command_epoch
 	var a: Dictionary=editor.store.document.get("assembled_track",{})
-	if a.is_empty():
+	if a.is_empty() and editor.store.document.get("roads",[]).is_empty():
 		if is_instance_valid(view): view.queue_free()
 		view = null
 		display_document = {}
@@ -576,6 +605,8 @@ func _draw() -> void:
 		mesh.surface_add_vertex(Vector3(-50,-0.05,station)); mesh.surface_add_vertex(Vector3(50,-0.05,station))
 	mesh.surface_end()
 	var grid:=MeshInstance3D.new()
+	var assembly: Dictionary=editor.store.document.assembled_track if editor.store.document.get("assembled_track") is Dictionary else {}
+	grid.visible=not (assembly.get("authoring") is Dictionary and assembly.authoring.get("terrain_integration",false)) and editor.store.document.get("roads",[]).is_empty()
 	grid.mesh=mesh
 	var material:=StandardMaterial3D.new()
 	material.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -599,6 +630,9 @@ func input(event: InputEvent) -> bool:
 				if camera.is_position_behind(point): continue
 				var d := camera.unproject_position(point).distance_to(event.position)
 				if d < nearest: nearest = d; index = i
+		var road_hit: Dictionary=road_tools.raycast(event.position,true)
+		if road_hit.get("road","")!="" and index<0:
+			road_tools.select(road_hit.road);return true
 		select_piece(index)
 		if selected >= 0 and not editor.store.editing_locked() and not editor.busy:
 			var start: Variant = _plane_point(event.position, float(source.instances[selected].position_cm[1])*0.01)
@@ -614,7 +648,13 @@ func add_obstacle(kind: String) -> void:
 	placement.activate("obstacle", kind)
 
 func frame_selection() -> void:
-	if selected<0: editor.preview_camera.frame(Vector3.ZERO,80.0); return
+	if road_tools.selected != "" and road_tools.paths.has(road_tools.selected):
+		var point: Vector3=PREVIEW.point(road_tools.design.control_points[road_tools.point_index])
+		editor.preview_camera.frame(point,48);road_tools.focus_point(point);return
+	if selected<0:
+		if not road_tools.paths.is_empty():road_tools.select(road_tools.paths.keys()[0])
+		else:editor.preview_camera.frame(Vector3.ZERO,80.0)
+		return
 	var piece: Dictionary=editor.store.track_pieces()[selected]
 	var center:=Vector3.ZERO
 	for point: Dictionary in piece.path: center+=PREVIEW.point(point.position_cm)
@@ -629,3 +669,6 @@ func open_grind_lines() -> void:
 	var panel := preload("./grind_line_panel.gd").new()
 	add_child(panel)
 	panel.open(self)
+
+func _exit_tree() -> void:
+	if road_tools != null: road_tools.shutdown()

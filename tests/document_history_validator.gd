@@ -147,6 +147,7 @@ func canvas_gestures() -> void:
 	var ui: Node = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	ui.store.new_track(true)
+	ui.set_tool_workspace("landscape")
 	await process_frame
 	var store: RefCounted = ui.store
 	check(store.apply_command("Building", [patch("buildings", "a", null, building("a"))]) == "", "UI fixture")

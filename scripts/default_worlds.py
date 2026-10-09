@@ -129,10 +129,49 @@ class World:
 
     def path(self,name,points,width=7,sidewalk=0,kind='ground',level=None,surface='asphalt',markings=True):
         points=curve(points)
+        line=LineString(points);length=line.length
+        # Explicit level approaches keep the entire junction overlap on the
+        # shared node plane. Cosine shoulders make the design grade continuous.
+        flat=min(width*2.5,length*.10)
+        stations=[0.0]
+        for a,b in zip(points,points[1:]):stations.append(stations[-1]+math.dist(a,b))
+        raw=[float(self.base(x,y)) if level is None else (level(x,y) if callable(level) else level) for x,y in points]
+        ends=[raw[0],raw[-1]]
+        for i,p in enumerate((points[0],points[-1])):
+            node=next((n for n in self.doc['nodes'] if n['position'][::2]==[round(p[0]*100),round(p[1]*100)]),None)
+            if node:ends[i]=node['position'][1]/100
+        distances=sorted(set(stations+[flat,2*flat,length-2*flat,length-flat]+list(np.arange(0,min(2*flat,length),5))+list(np.arange(max(0,length-2*flat),length,5))))
+        def progress(s):
+            if s<=flat:return 0.0
+            if s<2*flat:
+                q=s-flat
+                return q/2-flat/(2*math.pi)*math.sin(math.pi*q/flat)
+            if s<=length-2*flat:return s-1.5*flat
+            return length-3*flat-progress(length-s)
+        spaced=[]
+        for distance in distances:
+            if not spaced or distance-spaced[-1]>=1.0:spaced.append(distance)
+        if length-spaced[-1]<1.0:spaced[-1]=length
+        else:spaced.append(length)
+        travel=[progress(s) for s in spaced]
+        heights=[]
+        for q in travel:
+            t=q/(length-3*flat);at=t*length
+            heights.append(float(np.interp(at,stations,raw))+(ends[0]-raw[0])*(1-t)+(ends[1]-raw[-1])*t)
+        # Bound the authored profile before cubic compilation. Keep fixed node
+        # levels and broad crests; distribute their approaches over the road.
+        cap=.10
+        if abs(ends[1]-ends[0])>cap*travel[-1]:raise ValueError('Road needs a longer grade transition: '+name)
+        heights[0]=ends[0]
+        for i in range(1,len(heights)):
+            step=cap*(travel[i]-travel[i-1]);heights[i]=float(np.clip(heights[i],heights[i-1]-step,heights[i-1]+step))
+        heights[-1]=ends[1]
+        for i in range(len(heights)-2,-1,-1):
+            step=cap*(travel[i+1]-travel[i]);heights[i]=float(np.clip(heights[i],heights[i+1]-step,heights[i+1]+step))
         values=[]
-        for x,y in points:
-            h=float(self.base(x,y)) if level is None else (level(x,y) if callable(level) else level)
-            values.append([round(x*100),round(h*100),round(y*100)])
+        for distance,h in zip(spaced,heights):
+            p=line.interpolate(distance)
+            values.append([round(p.x*100),round(h*100),round(p.y*100)])
         # A shared node owns its level. Approaches explicitly meet that level.
         for point in (values[0],values[-1]):
             node=next((n for n in self.doc['nodes'] if n['position'][::2]==point[::2]),None)
@@ -249,7 +288,11 @@ class World:
 
     def bake_terrain(self):
         xs=np.arange(0,self.size[0]+2,2);ys=np.arange(0,self.size[1]+2,2)
-        heights=np.rint(self.height(xs[None,:],ys[:,None])*100).astype(np.int32)
+        x=xs[None,:];y=ys[:,None];raw=self.base(x,y)
+        for cx,cy,rx,ry,z in self.pads:
+            weight=1-smooth(np.maximum(np.abs(x-cx)-rx,np.abs(y-cy)-ry)/6)
+            raw=raw*(1-weight)+z*weight
+        heights=np.rint(raw*100).astype(np.int32)
         if np.max(heights)-np.min(heights)>65535:raise ValueError('Height profile out of range')
         # All tiles slice the same integer sample grid, including shared borders.
         offset=-10000
@@ -293,7 +336,17 @@ class World:
             if more<=reached:break
             reached|=more
         if nodes!=reached:errors.append('Disconnected road graph')
-        grade=max(abs(b[1]-a[1])/math.hypot(b[0]-a[0],b[2]-a[2]) for r in roads for a,b in zip(r['points'],r['points'][1:]))
+        def grades(r):
+            if 'design' not in r:
+                return [abs(b[1]-a[1])/math.hypot(b[0]-a[0],b[2]-a[2]) for a,b in zip(r['points'],r['points'][1:])]
+            controls=r['design']['control_points'];result=[]
+            for i in range(0,len(controls)-1,3):
+                a,b,c,d=controls[i:i+4]
+                for t in np.linspace(0,1,129):
+                    v=[3*((1-t)**2*(b[k]-a[k])+2*(1-t)*t*(c[k]-b[k])+t*t*(d[k]-c[k])) for k in range(3)]
+                    result.append(abs(v[1])/math.hypot(v[0],v[2]))
+            return result
+        grade=max(g for r in roads for g in grades(r))
         if grade>.12:errors.append('Road grade exceeds 12%: '+str(grade))
         # Architectural solids must stay out of the travelled carriageway.
         carriageway=unary_union([self.routes[r['id']].buffer(r['widths_cm'][0]/200+.20) for r in roads])
@@ -356,12 +409,19 @@ def publish(destination,theme,kit,cli):
     if pending.exists():raise FileExistsError(pending)
     pending.mkdir()
     try:
-        (pending/'document.json').write_bytes(canonical(world.doc))
+        (pending/'uncompiled.json').write_bytes(canonical(world.doc))
+        subprocess.run([str(cli.resolve()),'design-roads',str(pending/'uncompiled.json'),str(pending/'document.json')],check=True)
+        (pending/'uncompiled.json').unlink()
+        world.doc=json.loads((pending/'document.json').read_bytes())
+        meta['validation'].update(world.validate())
         (pending/'region.json').write_bytes(canonical(meta))
         for path,data in world.payloads.items():
             full=pending/path;full.parent.mkdir(parents=True,exist_ok=True);full.write_bytes(data)
         temporary_package=destination/(theme+'.pending.memap')
         subprocess.run([str(cli.resolve()),'pack',str(pending),str(temporary_package)],check=True)
+        audit=subprocess.run([str(cli.resolve()),'audit-roads',str(temporary_package)],capture_output=True,text=True)
+        if audit.returncode:raise RuntimeError('Native collision profile validation failed: '+audit.stderr.strip())
+        meta['validation']['collision_profile']=json.loads(audit.stdout)
         checked=subprocess.run([str(cli.resolve()),'validate-cells',str(temporary_package)],capture_output=True,text=True)
         if checked.returncode:
             raise RuntimeError('Native all-cell validation failed: '+checked.stderr.strip())

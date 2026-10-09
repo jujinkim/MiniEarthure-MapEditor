@@ -39,7 +39,7 @@ def compose(w):
     ramp('coaster-climb',[G,(1500,589),H],74,88)
     w.path('coaster-boulevard',[H,I],9,1.8,level=88)
     w.path('northern-skyway',[I,J],8,kind='bridge',level=88)
-    ramp('west-garden-descent',[J,(735,480),(655,512),(580,632),K],88,58,start_apron=35)
+    ramp('west-garden-descent',[J,(742,480),(725,480),(655,512),(580,632),K],88,58,start_apron=35)
     ramp('sculpture-garden-road',[K,(420,787),(353,852),L],58,48)
     ramp('entry-return',[L,(286,1040),A],48,42)
     ramp('garden-shortcut',[K,(652,849),(710,965),C],58,58,7.5)

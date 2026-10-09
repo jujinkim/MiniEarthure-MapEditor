@@ -39,25 +39,16 @@ def compose(w):
     ramp('quarry-ridge',[J,(1310,919),K],72,70)
     ramp('quarry-return',[K,(880,950),C],70,60)
     ramp('western-rim',[C,(539,1080),(365,1100),(227,1060),A],60,70)
-    ramp('wash-descent',[B,(627,933),(810,812),(968,746),Q],70,22,7)
-    ramp('dry-river-road',[Q,(1270,690),(1410,705),R],22,22,7)
+    ramp('wash-descent',[C,(720,810),(800,760),(950,740),Q],60,23,7)
+    ramp('dry-river-road',[Q,(1270,690),(1410,705),R],23,23,7)
     # A deliberate switchback gives the eastern climb enough length for 12%.
-    ramp('wash-climb',[R,(1650,601),(1770,640),(1840,743),(1810,805),(1780,817),(1775,850),(1850,895)],22,60,7)
-    # Broad excavated shoulders follow each designed grade. The narrow common
-    # road cut then adds only its final verge; it must not form a 50 m trench.
-    ground_roads=[r for r in w.doc['roads'] if r['kind']=='ground']
+    ramp('wash-climb',[R,(1650,601),(1770,640),(1840,743),(1810,805),(1780,817),(1775,850),(1850,895)],23,60,7)
+    # Preserve the natural heightfield. Native road fitting derives local cuts
+    # from independent profiles; removing a road restores this terrain.
     def sculpted(x,y):
         x=np.asarray(x);y=np.asarray(y);h=terrain(x,y)
-        best=np.full(np.broadcast_shapes(x.shape,y.shape),np.inf);z=h.copy()
-        for r in ground_roads:
-            for a,b in zip(r['points'],r['points'][1:]):
-                ax,az,ay=np.array(a)/100;bx,bz,by=np.array(b)/100
-                dx=bx-ax;dy=by-ay;t=np.clip(((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy),0,1)
-                distance=np.hypot(x-ax-t*dx,y-ay-t*dy);take=distance<best
-                best=np.minimum(best,distance);z=np.where(take,az+t*(bz-az),z)
-        weight=1-smooth((best-15)/65);h=h*(1-weight)+z*weight
         for cx,lo,hi in [(670,435,780),(1920,470,815)]:
-            weight=(1-smooth((np.abs(x-cx)-15)/45))*(1-smooth((np.maximum(lo+22-y,y-hi+22))/22))
+            weight=(1-smooth((np.abs(x-cx)-15)/45))*(1-smooth(np.maximum(lo-y,y-hi)/15))
             h=h*(1-weight)+np.minimum(h,45)*weight
         distance=np.maximum(np.abs(x-1080)-142,np.abs(y-1050)-60)
         weight=1-smooth(distance/50);h=h*(1-weight)+73*weight
@@ -107,11 +98,11 @@ def compose(w):
     outer=['arrival-road','quarry-gate','west-bridge-apron','west-canyon-bridge','north-bridge-apron','red-wall-road','layered-cliff-road','east-overlook','east-bridge-apron','east-canyon-bridge','south-bridge-apron','south-mesa-road','quarry-ridge','quarry-return','western-rim']
     routes=[w.course('intro','Quarry Rim',['arrival-road','quarry-gate','western-rim']),
         w.course('tour','Twin Canyon Bridges',outer),
-        w.course('technical','Dry Wash Climb',['arrival-road','wash-descent','dry-river-road','wash-climb','south-mesa-road','quarry-ridge','quarry-return','western-rim'])]
+        w.course('technical','Dry Wash Climb',['arrival-road','quarry-gate','wash-descent','dry-river-road','wash-climb','south-mesa-road','quarry-ridge','quarry-return','western-rim'])]
     def road_view(name,road,s,look=90):
         line=w.routes[road];a=line.interpolate(s);b=line.interpolate(s+look)
         return dict(name=name,position_m=[a.x,float(w.height(a.x,a.y))+1.7,a.y],target_m=[b.x,float(w.height(b.x,b.y))+1.8,b.y],quality=2,view_distance_m=384)
-    views=[road_view('canyon-road','red-wall-road',80),road_view('wash-road','dry-river-road',80),
+    views=[dict(name='junction-close',position_m=[665,61.8,908],target_m=[670,60,895],quality=2,view_distance_m=128),road_view('canyon-road','red-wall-road',80),road_view('wash-road','dry-river-road',80),
         dict(name='quarry-road',position_m=[1090,74.7,1038],target_m=[980,80,1030],quality=2,view_distance_m=384),
         dict(name='distant',position_m=[670,61.7,630],target_m=[855,56,665],quality=2,view_distance_m=384),
         dict(name='overview',position_m=[1040,270,1115],target_m=[1040,70,1060],projection='orthogonal',size_m=280,quality=2,view_distance_m=384)]

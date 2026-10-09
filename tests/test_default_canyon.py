@@ -29,6 +29,11 @@ class CanyonWorld(unittest.TestCase):
         for a in self.world.doc['surface_areas']:
             self.assertTrue(Polygon(a['polygon']).is_valid,a['id'])
             self.assertTrue(all(0<=x<=240000 and 0<=y<=120000 for x,y in a['polygon']),a['id'])
+    def test_descent_joins_quarry_gate_explicitly(self):
+        roads={r['id']:r for r in self.world.doc['roads']}
+        self.assertEqual(roads['wash-descent']['from'],roads['quarry-gate']['to'])
+        self.assertEqual(roads['wash-descent']['points'][0],roads['quarry-return']['points'][-1])
+
     def test_bridge_grounding_and_aprons(self):
         roads={r['id']:r for r in self.world.doc['roads']}
         for name in ['west-bridge-apron','north-bridge-apron','east-bridge-apron','south-bridge-apron']:
@@ -44,6 +49,6 @@ class CanyonWorld(unittest.TestCase):
     def test_distinct_scenery_and_capture_coverage(self):
         for kind in ['sandstone-0','sandstone-1','sandstone-2','canyon-rubble','desert-scrub','cactus','quarry-crusher','quarry-loader','quarry-office','quarry-conveyor']:
             self.assertGreater(self.meta['validation']['asset_instances'].get(kind,0),0,kind)
-        self.assertEqual(len(self.meta['review_views']),5)
+        self.assertEqual(len(self.meta['review_views']),6)
         self.assertTrue(set(self.meta['menu_views'].values())<=set(v['name'] for v in self.meta['review_views']))
 if __name__=='__main__':unittest.main()

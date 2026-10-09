@@ -1,17 +1,17 @@
 [
   {
     "far_cells": 114,
-    "far_display_triangles": 90129,
+    "far_display_triangles": 88132,
     "image": "machine-factory-production-road.png",
-    "largest_far_cell_bytes": 929344,
+    "largest_far_cell_bytes": 816896,
     "near_cells": 57,
-    "near_collision_triangles": 40833,
-    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
-    "preparation_ms": 1644,
+    "near_collision_triangles": 40181,
+    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
+    "preparation_ms": 2584,
     "render": {
-      "draw_calls": 589,
-      "objects": 589,
-      "primitives": 111240
+      "draw_calls": 583,
+      "objects": 583,
+      "primitives": 108404
     },
     "shared_cache_bytes": 90481408,
     "view": {
@@ -32,17 +32,17 @@
   },
   {
     "far_cells": 114,
-    "far_display_triangles": 102818,
+    "far_display_triangles": 99709,
     "image": "machine-factory-process-road.png",
-    "largest_far_cell_bytes": 1142144,
+    "largest_far_cell_bytes": 833472,
     "near_cells": 57,
-    "near_collision_triangles": 39791,
-    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
-    "preparation_ms": 1662,
+    "near_collision_triangles": 39152,
+    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
+    "preparation_ms": 2549,
     "render": {
-      "draw_calls": 633,
-      "objects": 633,
-      "primitives": 129107
+      "draw_calls": 632,
+      "objects": 632,
+      "primitives": 126276
     },
     "shared_cache_bytes": 94686464,
     "view": {
@@ -63,17 +63,17 @@
   },
   {
     "far_cells": 117,
-    "far_display_triangles": 96931,
+    "far_display_triangles": 96211,
     "image": "machine-factory-shipping-road.png",
-    "largest_far_cell_bytes": 904256,
+    "largest_far_cell_bytes": 816000,
     "near_cells": 56,
-    "near_collision_triangles": 38792,
-    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
-    "preparation_ms": 1418,
+    "near_collision_triangles": 38192,
+    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
+    "preparation_ms": 2286,
     "render": {
-      "draw_calls": 582,
-      "objects": 582,
-      "primitives": 115563
+      "draw_calls": 578,
+      "objects": 578,
+      "primitives": 114365
     },
     "shared_cache_bytes": 77225216,
     "view": {
@@ -94,17 +94,17 @@
   },
   {
     "far_cells": 114,
-    "far_display_triangles": 89736,
+    "far_display_triangles": 87429,
     "image": "machine-factory-distant.png",
-    "largest_far_cell_bytes": 1142144,
+    "largest_far_cell_bytes": 816000,
     "near_cells": 52,
-    "near_collision_triangles": 40130,
-    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
-    "preparation_ms": 1345,
+    "near_collision_triangles": 39709,
+    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
+    "preparation_ms": 2188,
     "render": {
-      "draw_calls": 645,
-      "objects": 645,
-      "primitives": 116000
+      "draw_calls": 653,
+      "objects": 653,
+      "primitives": 113224
     },
     "shared_cache_bytes": 78414848,
     "view": {
@@ -125,17 +125,17 @@
   },
   {
     "far_cells": 62,
-    "far_display_triangles": 65873,
+    "far_display_triangles": 61157,
     "image": "machine-factory-overview.png",
-    "largest_far_cell_bytes": 1019840,
+    "largest_far_cell_bytes": 833472,
     "near_cells": 114,
-    "near_collision_triangles": 83081,
-    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
-    "preparation_ms": 1780,
+    "near_collision_triangles": 81384,
+    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
+    "preparation_ms": 2759,
     "render": {
-      "draw_calls": 1635,
-      "objects": 1635,
-      "primitives": 145291
+      "draw_calls": 1626,
+      "objects": 1626,
+      "primitives": 141388
     },
     "shared_cache_bytes": 97811456,
     "view": {

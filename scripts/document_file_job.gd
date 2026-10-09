@@ -32,8 +32,8 @@ func _run(snapshot: Dictionary) -> Dictionary:
 		var failure: String = worker.save_project(request.path)
 		return {"ok":failure == "", "error":failure, "published":failure == "",
 			"path":worker.project_path, "digest":worker._disk_digest, "signature":worker._saved_signature, "canonical":worker._saved_canonical}
-	var issues: Array = snapshot.document.get("assembled_track", {}).get("issues", [])
-	if not issues.is_empty(): return {"ok":false, "error":"Fix connections and courses before execution export: " + " / ".join(issues)}
+	var issues: Array = snapshot.document.get("assembled_track", {}).get("geometry_issues" if snapshot.document.get("free_roam",false) else "issues", [])
+	if not issues.is_empty(): return {"ok":false, "error":"Fix geometry or the selected race course before execution export: " + " / ".join(issues)}
 	package.regional_side_cells = int(request.options.get("regional_side_cells", 0))
 	var result: Dictionary = package.run(snapshot.document, snapshot.project_path, "export", Vector2i.ZERO, {}, bool(request.options.get("full", false)))
 	if not result.ok: return {"ok":false, "error":str(result.error.code) + ": " + str(result.error.message)}

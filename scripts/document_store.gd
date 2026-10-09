@@ -13,8 +13,8 @@ const PAYLOADS := preload("./authoring_files.gd")
 const FILES := preload("./document_files.gd")
 const HISTORY_BYTES := 16 * 1024 * 1024
 const HISTORY_COMMANDS := 200
-const RECORD_FIELDS := ["nodes", "roads", "buildings", "water_bodies", "surface_areas", "zones", "assets", "placements", "gimmicks", "repetitions", "heightmaps", "attributions", "courses"]
-const VALUE_FIELDS := ["free_roam", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment"]
+const RECORD_FIELDS := ["nodes", "roads", "buildings", "water_bodies", "surface_areas", "zones", "assets", "placements", "gimmicks", "repetitions", "heightmaps", "attributions", "courses", "grind_lines", "surface_attachments"]
+const VALUE_FIELDS := ["map_id", "free_roam", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment", "assembled_track"]
 var document: Dictionary = {}
 var project_path := ""
 var undo_stack: Array[Dictionary] = []
@@ -103,9 +103,6 @@ func start_track_edit(source: Dictionary, expected_epoch := -1, context: Diction
 	if before == source:
 		retry_track_edit()
 		return ""
-	if not document.has("assembled_track"):
-		for field: String in ["nodes","roads","heightmaps","surface_areas","water_bodies","buildings","zones","assets","placements","repetitions","gimmicks"]:
-			if not document.get(field, []).is_empty(): return "Existing free roam geometry was preserved. Start a New Map to author track pieces."
 	var command := {"label":"Track assembly", "patches":[], "track_before":before, "track_after":source.duplicate(true)}
 	command.bytes = JSON.stringify(command).to_utf8_buffer().size()
 	if command.bytes > HISTORY_BYTES: return "Command exceeds the 16 MiB undo budget; split this operation."
@@ -386,7 +383,7 @@ func _patch_error(patch: Variant) -> String:
 	if field in VALUE_FIELDS:
 		if patch.get("id", "") != "":
 			return "Map-value commands have no record ID."
-		if field == "environment": return "" # Optional map profile: Undo restores its absence.
+		if field in ["environment", "assembled_track"]: return "" # Optional map profile: Undo restores its absence.
 		return "Map values cannot be removed." if patch.before == null or patch.after == null else ""
 	if field not in RECORD_FIELDS:
 		return "Unsupported command field: " + field
@@ -416,7 +413,7 @@ func _apply(target: Dictionary, patches: Array, reverse: bool) -> String:
 			target.merge(_json_copy(after))
 			continue
 		if field in VALUE_FIELDS:
-			if field == "environment" and after == null: target.erase(field)
+			if field in ["environment", "assembled_track"] and after == null: target.erase(field)
 			else: target[field] = _json_copy(after)
 			continue
 		var records: Array = target.get(field, [])
@@ -761,7 +758,7 @@ func track_source() -> Dictionary:
 	for field in ["authoring", "seed_source"]:
 		if assembly.get(field) is Dictionary:
 			var source: Dictionary=assembly[field].duplicate(true)
-			source.grind_lines=document.get("grind_lines",[]).duplicate(true)
+			if not source.get("terrain_integration", false): source.grind_lines=document.get("grind_lines",[]).duplicate(true)
 			return source
 	var result: Dictionary = JSON.parse_string(bridge.track_authoring_source(JSON.stringify(document)))
 	return result.data if result.ok else {}
@@ -775,32 +772,55 @@ func edit_track(source: Dictionary, expected_epoch: int = -1) -> String:
 	if prepared.has("error"): return prepared.error
 	return _install_command(prepared)
 
+func document_patches(candidate: Dictionary) -> Array:
+	var patches: Array = []
+	for field: String in VALUE_FIELDS:
+		if document.get(field) != candidate.get(field):
+			patches.append({"field":field, "before":document.get(field), "after":candidate.get(field)})
+	for field: String in RECORD_FIELDS:
+		var before := {}
+		var after := {}
+		for item: Dictionary in document.get(field, []): before[record_id(field,item)] = item
+		for item: Dictionary in candidate.get(field, []): after[record_id(field,item)] = item
+		var ids := before.duplicate()
+		ids.merge(after)
+		for id: String in ids:
+			if before.get(id) != after.get(id):
+				patches.append({"field":field, "id":id, "before":before.get(id), "after":after.get(id)})
+	return patches
+
+func edit_road(id: String, design: Dictionary, width_cm: int) -> String:
+	if editing_locked() or draft_pending(): return EDIT_BUSY
+	var result: Dictionary = JSON.parse_string(bridge.edit_road_design(JSON.stringify(document), id, JSON.stringify(design), width_cm))
+	if not result.ok: return reason(result)
+	return apply_command("Road alignment and terrain fit", document_patches(result.data.document))
+
+func edit_surface_attachments(items: Array) -> String:
+	if editing_locked() or draft_pending(): return EDIT_BUSY
+	var result: Dictionary = JSON.parse_string(bridge.apply_surface_attachments(JSON.stringify(document), JSON.stringify(items)))
+	if not result.ok: return reason(result)
+	return apply_command("Surface attachment", document_patches(result.data.document))
+
 func _prepare_track(source: Dictionary, record_history := true) -> Dictionary:
-	if not document.has("assembled_track"):
-		for field: String in ["nodes","roads","heightmaps","surface_areas","water_bodies","buildings","zones","assets","placements","repetitions","gimmicks"]:
-			if not document.get(field,[]).is_empty(): return {"error":"Existing free roam geometry was preserved. Start a New Map to author track pieces."}
 	if document.get("assembled_track", {}).get("authoring") == source: return {"noop":true}
-	var result: Dictionary = JSON.parse_string(bridge.compile_track_source(JSON.stringify(source)))
+	var authored: Variant=document.get("assembled_track",{}).get("authoring")
+	var mixed: bool = not document.has("assembled_track") or (authored is Dictionary and authored.get("terrain_integration",false))
+	var result: Dictionary = JSON.parse_string(bridge.apply_track_source(JSON.stringify(document), JSON.stringify(source)) if mixed else bridge.compile_track_source(JSON.stringify(source)))
 	if not result.ok: return {"error":reason(result)}
 	var candidate: Dictionary = result.data.document
-	candidate.free_roam = document.free_roam
-	candidate.provenance = document.provenance.duplicate(true)
-	candidate.attributions = document.get("attributions",[]).duplicate(true)
-	if candidate.free_roam:
-		result = JSON.parse_string(bridge.reseal_track_document(JSON.stringify(candidate)))
-		if not result.ok: return {"error":reason(result)}
-		candidate=result.data.document
+	if not mixed:
+		candidate.free_roam = document.free_roam
+		candidate.provenance = document.provenance.duplicate(true)
+		candidate.attributions = document.get("attributions",[]).duplicate(true)
+		if candidate.free_roam:
+			result = JSON.parse_string(bridge.reseal_track_document(JSON.stringify(candidate)))
+			if not result.ok: return {"error":reason(result)}
+			candidate=result.data.document
 	var validation := _validate(candidate)
 	if not validation.ok: return {"error":reason(validation)}
 	candidate = validation.data.document
 	if not record_history: return {"candidate":candidate, "signature":_signature(candidate)}
-	var command := {"label":"Track assembly", "patches":[{"field":"track_document", "id":"", "before":document, "after":candidate}]}
-	var text := JSON.stringify(command)
-	command.bytes = text.to_utf8_buffer().size()
-	if command.bytes > HISTORY_BYTES: return {"error":"Command exceeds the 16 MiB undo budget; split this operation."}
-	# Live edits replace documents, never mutate mementos; provenance is detached.
-	command = command.duplicate(true)
-	return {"candidate":candidate, "command":command, "signature":_signature(candidate)}
+	return _prepare_command("Track assembly", document_patches(candidate))
 
 func new_track(free_roam := false) -> void:
 	if editing_locked(): return

@@ -15,7 +15,8 @@ func run() -> void:
 	store.new_track()
 	check(store.document.assembled_track.authoring is Dictionary and not store.document.free_roam,"new track draft")
 	var source: Dictionary=JSON.parse_string(store.bridge.track_shortcut_source()).data
-	check(store.edit_track(source)=="","compile composed branch")
+	var compiled: String=store.edit_track(source)
+	check(compiled=="","compile composed branch: "+compiled)
 	var before:=store._signature(store.document)
 	var changed:=source.duplicate(true)
 	changed.instances[0].position_cm[0]+=137
@@ -35,9 +36,10 @@ func run() -> void:
 	check(reopened.open_project(path)=="" and reopened.document.assembled_track==store.document.assembled_track,"draft project reopens")
 	var native: RefCounted=ClassDB.instantiate("MapKitBridge")
 	var exported: Dictionary=JSON.parse_string(native.export_project(path,ProjectSettings.globalize_path("user://draft.memap")))
-	check(not exported.ok and exported.error.code=="E_TRACK_DRAFT","draft execution export refused")
+	check(not exported.ok and exported.error.code in ["E_TRACK_DRAFT","E_TRACK_GEOMETRY"],"draft execution export refused: "+str(exported))
 	var geometry: Dictionary=store.document.assembled_track.duplicate(true)
-	check(store.set_free_roam(true)=="" and store.document.assembled_track==geometry,"free roam keeps track geometry")
+	var policy: String=store.set_free_roam(true)
+	check(policy=="" and store.document.assembled_track==geometry,"free roam keeps track geometry: "+policy)
 	check(store.undo()=="" and not store.document.free_roam,"policy undo")
 	var screen:=EDITOR.new()
 	root.add_child(screen)
