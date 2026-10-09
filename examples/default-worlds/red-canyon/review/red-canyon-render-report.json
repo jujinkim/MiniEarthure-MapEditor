@@ -1,0 +1,159 @@
+[
+  {
+    "far_cells": 127,
+    "far_display_triangles": 111392,
+    "image": "red-canyon-canyon-road.png",
+    "largest_far_cell_bytes": 621568,
+    "near_cells": 47,
+    "near_collision_triangles": 26194,
+    "package_sha256": "e144f027e5c12cbaa75198bdc222bbbd72b1e03450087d97f4b7df73759e12c1",
+    "preparation_ms": 2289,
+    "render": {
+      "draw_calls": 689,
+      "objects": 689,
+      "primitives": 96914
+    },
+    "shared_cache_bytes": 72317696,
+    "view": {
+      "name": "canyon-road",
+      "position_m": [
+        819.736829529169,
+        63.0234471588195,
+        366.482834072817
+      ],
+      "quality": 2.0,
+      "target_m": [
+        909.299018954017,
+        64.6152623898172,
+        375.282450593124
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 125,
+    "far_display_triangles": 108242,
+    "image": "red-canyon-wash-road.png",
+    "largest_far_cell_bytes": 693248,
+    "near_cells": 46,
+    "near_collision_triangles": 27336,
+    "package_sha256": "e144f027e5c12cbaa75198bdc222bbbd72b1e03450087d97f4b7df73759e12c1",
+    "preparation_ms": 2158,
+    "render": {
+      "draw_calls": 711,
+      "objects": 711,
+      "primitives": 92691
+    },
+    "shared_cache_bytes": 77227776,
+    "view": {
+      "name": "wash-road",
+      "position_m": [
+        1179.27943043549,
+        23.7,
+        699.289160000724
+      ],
+      "quality": 2.0,
+      "target_m": [
+        1268.77687189803,
+        23.8,
+        690.060169253287
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 111,
+    "far_display_triangles": 86339,
+    "image": "red-canyon-quarry-road.png",
+    "largest_far_cell_bytes": 621568,
+    "near_cells": 48,
+    "near_collision_triangles": 26846,
+    "package_sha256": "e144f027e5c12cbaa75198bdc222bbbd72b1e03450087d97f4b7df73759e12c1",
+    "preparation_ms": 2013,
+    "render": {
+      "draw_calls": 473,
+      "objects": 473,
+      "primitives": 75467
+    },
+    "shared_cache_bytes": 77129088,
+    "view": {
+      "name": "quarry-road",
+      "position_m": [
+        1090.0,
+        74.7,
+        1038.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        980.0,
+        80.0,
+        1030.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 129,
+    "far_display_triangles": 111328,
+    "image": "red-canyon-distant.png",
+    "largest_far_cell_bytes": 621568,
+    "near_cells": 47,
+    "near_collision_triangles": 31328,
+    "package_sha256": "e144f027e5c12cbaa75198bdc222bbbd72b1e03450087d97f4b7df73759e12c1",
+    "preparation_ms": 2065,
+    "render": {
+      "draw_calls": 600,
+      "objects": 600,
+      "primitives": 101070
+    },
+    "shared_cache_bytes": 77969408,
+    "view": {
+      "name": "distant",
+      "position_m": [
+        670.0,
+        61.7,
+        630.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        855.0,
+        56.0,
+        665.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 100,
+    "far_display_triangles": 75197,
+    "image": "red-canyon-overview.png",
+    "largest_far_cell_bytes": 621568,
+    "near_cells": 87,
+    "near_collision_triangles": 44378,
+    "package_sha256": "e144f027e5c12cbaa75198bdc222bbbd72b1e03450087d97f4b7df73759e12c1",
+    "preparation_ms": 2123,
+    "render": {
+      "draw_calls": 927,
+      "objects": 927,
+      "primitives": 81754
+    },
+    "shared_cache_bytes": 77129088,
+    "view": {
+      "name": "overview",
+      "position_m": [
+        1040.0,
+        270.0,
+        1115.0
+      ],
+      "projection": "orthogonal",
+      "quality": 2.0,
+      "size_m": 280.0,
+      "target_m": [
+        1040.0,
+        70.0,
+        1060.0
+      ],
+      "view_distance_m": 384.0
+    }
+  }
+]

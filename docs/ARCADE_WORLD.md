@@ -5,7 +5,7 @@ Editor owns `environment_generation.py`, the layout/composition/metrics modules,
 MapKit owns current v1 validation, cell geometry,
 package I/O and common rendering. Client/Host receive finished packages and assets;
 they do not receive this layout engine. Default worlds now use separate, explicitly
-authored recipes in `default_worlds.py`, `default_village.py`, `default_harbor.py` and `default_forest.py`; generic generation
+authored recipes in `default_worlds.py`, `default_village.py`, `default_harbor.py`, `default_forest.py` and `default_canyon.py`; generic generation
 and semantic infill remain available. The seven themes retain these dimensions:
 
 | Theme | Metres | 32 m cells |
@@ -133,9 +133,9 @@ or whole-building interiors are generated.
 ## Authored default-world workflow
 
 [`examples/default-worlds`](../examples/default-worlds/) contains the current
-Village, Neon Harbor and Deep Forest sources, v1 packages and three road-route plans each.
+Village, Neon Harbor, Deep Forest and Red Canyon sources, v1 packages and three road-route plans each.
 Their IDs are `default-<theme>-authored-20261009`. The user approved the five actual
-Village renders on 2026-10-09; four themes remain after Deep Forest.
+Village renders on 2026-10-09; three themes remain after Red Canyon.
 A partial catalog is an authoring checkpoint, not a seven-map release.
 
 The Village recipe explicitly lays out Market Street and its clock hall,
@@ -152,7 +152,7 @@ Generate one theme into a fresh location, then validate every cell:
 rtk proxy .venv/bin/python map-editor/scripts/default_worlds.py /absolute/new-worlds --theme village --kit map-kit --cli map-kit/target/debug/mapkit
 ```
 
-The CLI accepts `village`, `neon-harbor` or `deep-forest` and rejects existing theme destinations;
+The CLI accepts `village`, `neon-harbor`, `deep-forest` or `red-canyon` and rejects existing theme destinations;
 the remaining recipes are still to be implemented. Source recipes, geometry helpers and model
 code determine the recorded authoring fingerprint. Package/world hashes change
 with content. Own formats stay v1. The final seven-map distribution budget is
@@ -269,3 +269,26 @@ five final captures pass strict diagnostics and resource release, with a maximum
 same 172-cell forest-road view, normal→authored-far draws are 2,107→677, primitives
 391,947→301,114 and cache 106,520,576→63,963,136 bytes. This bounded comparison
 does not measure frame rate or device performance.
+
+Red Canyon's 2400 × 1200 m source connects two gorge bridges, layered cliff
+roads, a dry wash descent/switchback, mesa overlooks and a quarry with crushers,
+conveyors, static loaders, stockpiles and an office. Continuous sculpted terrain
+backs four eroded sandstone silhouettes; talus and sparse cactus/scrub fill the
+landscape. Visual review widened excessive road cuts and removed terrain from
+under the bridge decks. The source paint helper clips at world bounds.
+
+Four canyon tests pass exact reconstruction, all 2,850 cell seams, connected
+courses, 6.709% maximum grade, flat aprons, eight grounded piers and bridge/terrain
+clearance. Two model tests retain far silhouettes and open crusher/bridge bays.
+Native validation generates every cell, with 4,926 placements and a 1,784,540-byte
+package; its validation peak allowance is 478,718,812 bytes. Human art, course
+driving and device acceptance remain separate user checks.
+
+Five final canyon captures pass strict diagnostics and release checks. The same
+174-cell cliff-road comparison uses normal→authored-far draws
+689→225, primitives 96,914→91,710
+and shared cache 72,317,696→63,963,136 bytes. Normal views peak at
+77,969,408 cache bytes; the largest far cell is
+693,248 bytes. These stay within existing caps, not an FPS acceptance.
+The common sky's dark lower-horizon step was removed; day/night pixel deltas
+stay below .024 in Compatibility and .012 in Forward Mobile.

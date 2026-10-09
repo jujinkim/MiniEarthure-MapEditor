@@ -44,7 +44,7 @@ for this documentation review. Parts of its original remaining list were deliver
   placement/dragging, sequential worker commits and prepared preview reuse.
 - Current [default-world authoring](ARCADE_WORLD.md) replaces the former default
   batches. Village's actual-render art direction was approved on 2026-10-09;
-  Neon Harbor and Deep Forest are implemented with actual review views; four themes remain.
+  Neon Harbor, Deep Forest and Red Canyon are implemented with actual review views; three themes remain.
   Practice/physics/shared fixtures remain; retired default-only artifacts use Git
   history. General generation and semantic infill remain available.
 

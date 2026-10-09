@@ -85,7 +85,7 @@ class DefaultWorlds(unittest.TestCase):
             root=Path(temporary);(root/'village').mkdir();marker=root/'village/user.txt';marker.write_text('retained')
             with self.assertRaises(FileExistsError):publish(root,'village',KIT,Path('unused'))
             self.assertEqual(marker.read_text(),'retained')
-        with self.assertRaisesRegex(ValueError,'not yet been authored'):build('red-canyon',KIT)
+        with self.assertRaisesRegex(ValueError,'not yet been authored'):build('snow-mountain',KIT)
 
 class HarborWorld(unittest.TestCase):
     @classmethod

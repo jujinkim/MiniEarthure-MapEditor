@@ -27,7 +27,7 @@ from reference_maps import empty, canonical, road
 
 THEMES={'village':(1120,960),'neon-harbor':(1920,1280),'deep-forest':(1760,1760),
     'red-canyon':(2400,1200),'snow-mountain':(1600,2080),'machine-factory':(1440,1440),'sky-park':(1920,1600)}
-RECIPES={'village':'default_village.py','neon-harbor':'default_harbor.py','deep-forest':'default_forest.py'}
+RECIPES={'village':'default_village.py','neon-harbor':'default_harbor.py','deep-forest':'default_forest.py','red-canyon':'default_canyon.py'}
 def digest(data):return hashlib.sha256(data).hexdigest()
 def smooth(value):return np.clip(value,0,1)**2*(3-2*np.clip(value,0,1))
 
@@ -55,6 +55,9 @@ class World:
         if theme=='deep-forest':
             from forest_assets import library as forest_library
             self.library.update(forest_library())
+        if theme=='red-canyon':
+            from canyon_assets import library as canyon_library
+            self.library.update(canyon_library())
         self.footprints=[];self.footprint_grid=defaultdict(list);self._road_exclusion=None
         self.routes={};self.paints=[];self.water=[];self.places=[];self.reviews=[]
         self.doc=empty('default-'+theme+'-authored-20261009',self.size[0]*100,3200)
@@ -156,7 +159,7 @@ class World:
         a,b,c,d=footprint.bounds
         keys=[(gx,gy) for gx in range(math.floor(a/16),math.floor(c/16)+1) for gy in range(math.floor(b/16),math.floor(d/16)+1)]
         neighbors={index for key in keys for index in self.footprint_grid[key]}
-        if not solid and not asset.startswith(('bridge-support','harbor-pier','forest-pier')):
+        if not solid and not asset.startswith(('bridge-support','harbor-pier','forest-pier','canyon-pier')):
             if self._road_exclusion is None:self._road_exclusion=self.road_area(.35)
             if footprint.intersects(self._road_exclusion):return None
             if any(footprint.buffer(.08).intersects(self.footprints[index][1]) for index in neighbors):return None
@@ -172,7 +175,7 @@ class World:
         return area
 
     def paint(self,name,shape,surface):
-        shape=shape.difference(self.road_area(.08))
+        shape=shape.intersection(box(0,0,*self.size)).difference(self.road_area(.08))
         # A 2.5 cm separator prevents independently rounded clipped rings from
         # crossing their neighbour at the centimetre precision of current v1.
         if self.paints:shape=shape.difference(unary_union(self.paints).buffer(.025))
@@ -308,6 +311,8 @@ def build(theme,kit):
         from default_harbor import compose
     elif theme=='deep-forest':
         from default_forest import compose
+    elif theme=='red-canyon':
+        from default_canyon import compose
     else:raise ValueError('Theme recipe has not yet been authored: '+theme)
     world=World(theme,kit);meta=compose(world)
     meta['validation']=world.validate()
@@ -316,6 +321,7 @@ def build(theme,kit):
     sources=[Path(__file__),Path(__file__).with_name(RECIPES[theme]),kit/'scripts/authored_assets.py',kit/'scripts/world_geometry.py']
     if theme=='neon-harbor':sources.append(kit/'scripts/harbor_assets.py')
     if theme=='deep-forest':sources.append(kit/'scripts/forest_assets.py')
+    if theme=='red-canyon':sources.append(kit/'scripts/canyon_assets.py')
     fingerprint=digest(b''.join(p.read_bytes() for p in sources))
     world.doc['provenance']['fingerprint']=fingerprint
     meta['authoring']=dict(recipe_sha256=fingerprint,texture_max_px=512,format_version=1,owner='MapEditor')
