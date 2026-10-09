@@ -1,0 +1,159 @@
+[
+  {
+    "far_cells": 128,
+    "far_display_triangles": 278123,
+    "image": "deep-forest-forest-road.png",
+    "largest_far_cell_bytes": 1818624,
+    "near_cells": 44,
+    "near_collision_triangles": 28768,
+    "package_sha256": "c329d5a191909a916156987a1f53eadb4a0fcfb21cdb8019c88da6eccc4025df",
+    "preparation_ms": 4505,
+    "render": {
+      "draw_calls": 2107,
+      "objects": 2107,
+      "primitives": 391947
+    },
+    "shared_cache_bytes": 106520576,
+    "view": {
+      "name": "forest-road",
+      "position_m": [
+        703.596496518151,
+        38.0008995669585,
+        800.517174986254
+      ],
+      "quality": 2.0,
+      "target_m": [
+        702.234834541711,
+        40.2358768116474,
+        721.521483895242
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 132,
+    "far_display_triangles": 301388,
+    "image": "deep-forest-ranger-road.png",
+    "largest_far_cell_bytes": 1711104,
+    "near_cells": 45,
+    "near_collision_triangles": 29138,
+    "package_sha256": "c329d5a191909a916156987a1f53eadb4a0fcfb21cdb8019c88da6eccc4025df",
+    "preparation_ms": 3270,
+    "render": {
+      "draw_calls": 1683,
+      "objects": 1683,
+      "primitives": 355614
+    },
+    "shared_cache_bytes": 118016256,
+    "view": {
+      "name": "ranger-road",
+      "position_m": [
+        393.0,
+        33.7,
+        1300.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        480.0,
+        38.8421029379449,
+        1268.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 128,
+    "far_display_triangles": 196449,
+    "image": "deep-forest-camp-road.png",
+    "largest_far_cell_bytes": 1827584,
+    "near_cells": 42,
+    "near_collision_triangles": 29726,
+    "package_sha256": "c329d5a191909a916156987a1f53eadb4a0fcfb21cdb8019c88da6eccc4025df",
+    "preparation_ms": 3802,
+    "render": {
+      "draw_calls": 1967,
+      "objects": 1967,
+      "primitives": 298806
+    },
+    "shared_cache_bytes": 125373120,
+    "view": {
+      "name": "camp-road",
+      "position_m": [
+        839.0,
+        33.7718175231768,
+        1208.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        908.0,
+        34.0,
+        1227.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 128,
+    "far_display_triangles": 257678,
+    "image": "deep-forest-distant.png",
+    "largest_far_cell_bytes": 2372352,
+    "near_cells": 44,
+    "near_collision_triangles": 30773,
+    "package_sha256": "c329d5a191909a916156987a1f53eadb4a0fcfb21cdb8019c88da6eccc4025df",
+    "preparation_ms": 2657,
+    "render": {
+      "draw_calls": 1894,
+      "objects": 1894,
+      "primitives": 315411
+    },
+    "shared_cache_bytes": 122377408,
+    "view": {
+      "name": "distant",
+      "position_m": [
+        1010.0,
+        37.7,
+        1370.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        1085.0,
+        23.0,
+        1160.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 100,
+    "far_display_triangles": 217996,
+    "image": "deep-forest-overview.png",
+    "largest_far_cell_bytes": 2372352,
+    "near_cells": 92,
+    "near_collision_triangles": 60871,
+    "package_sha256": "c329d5a191909a916156987a1f53eadb4a0fcfb21cdb8019c88da6eccc4025df",
+    "preparation_ms": 3031,
+    "render": {
+      "draw_calls": 3269,
+      "objects": 3269,
+      "primitives": 366065
+    },
+    "shared_cache_bytes": 127009472,
+    "view": {
+      "name": "overview",
+      "position_m": [
+        1020.0,
+        230.0,
+        1245.0
+      ],
+      "projection": "orthogonal",
+      "quality": 2.0,
+      "size_m": 280.0,
+      "target_m": [
+        1020.0,
+        22.0,
+        1200.0
+      ],
+      "view_distance_m": 384.0
+    }
+  }
+]

@@ -5,7 +5,7 @@ Editor owns `environment_generation.py`, the layout/composition/metrics modules,
 MapKit owns current v1 validation, cell geometry,
 package I/O and common rendering. Client/Host receive finished packages and assets;
 they do not receive this layout engine. Default worlds now use separate, explicitly
-authored recipes in `default_worlds.py`, `default_village.py` and `default_harbor.py`; generic generation
+authored recipes in `default_worlds.py`, `default_village.py`, `default_harbor.py` and `default_forest.py`; generic generation
 and semantic infill remain available. The seven themes retain these dimensions:
 
 | Theme | Metres | 32 m cells |
@@ -133,9 +133,9 @@ or whole-building interiors are generated.
 ## Authored default-world workflow
 
 [`examples/default-worlds`](../examples/default-worlds/) contains the current
-Village and Neon Harbor sources, v1 packages and three road-route plans each.
+Village, Neon Harbor and Deep Forest sources, v1 packages and three road-route plans each.
 Their IDs are `default-<theme>-authored-20261009`. The user approved the five actual
-Village renders on 2026-10-09; five themes remain after Harbor.
+Village renders on 2026-10-09; four themes remain after Deep Forest.
 A partial catalog is an authoring checkpoint, not a seven-map release.
 
 The Village recipe explicitly lays out Market Street and its clock hall,
@@ -152,7 +152,7 @@ Generate one theme into a fresh location, then validate every cell:
 rtk proxy .venv/bin/python map-editor/scripts/default_worlds.py /absolute/new-worlds --theme village --kit map-kit --cli map-kit/target/debug/mapkit
 ```
 
-The CLI accepts `village` or `neon-harbor` and rejects existing theme destinations;
+The CLI accepts `village`, `neon-harbor` or `deep-forest` and rejects existing theme destinations;
 the remaining recipes are still to be implemented. Source recipes, geometry helpers and model
 code determine the recorded authoring fingerprint. Package/world hashes change
 with content. Own formats stay v1. The final seven-map distribution budget is
@@ -241,3 +241,31 @@ The bounded Harbor day-street comparison uses the same 175 cells: draw calls
 six normal captures peak at 126,376,960 shared-cache bytes, below the existing
 128 MiB preview limit. This is a display-work comparison, not an FPS benchmark.
 Harbor art, full course driving and device performance remain user checks.
+
+Deep Forest keeps its 1760 × 1760 m bounds and explicitly connects a ranger
+station, old-growth crest, fern hollow, cedar valley and lake camp through two
+supported gorge crossings. Cedar, beech and sapling crowns have different growth
+forms; shrubs, spatial fern patches, fallen timber, riparian reeds and rock groups
+continue below the canopy. Only declared habitat fill uses deterministic jitter.
+The first forest camera is sampled on the actual road centreline; the lake and
+camp overview stays within the existing view distance. Review removed submerged
+riverbank plants from the lake interior and corrected the common near/far water
+material discontinuity, without changing physical water or admission caps.
+
+Four forest recipe tests cover exact reconstruction, 3,025 shared terrain seams,
+connected/distinct courses, road-water separation, flat bridge aprons, eight pier
+supports and dry tree/shrub roots. Native all-cell validation passes with a
+maximum road grade of 11.862%, 22,093 placements and a 2,399,979-byte package.
+Its validation peak allowance is 939,973,474 bytes. Forest's five fixed views
+show the hollow road, ranger station, camp, lake/river distance and an overview.
+The common water pixel test passes low/high quality on Compatibility and Forward
+Mobile on the same M1; mean near/far RGB delta stays below 1/255, terrain colour
+remains matched and far water resources retire. These automated counts and colour
+checks do not constitute human art/driving/device acceptance.
+
+Forest's native preparation seals all three courses and eight-car footprints. The
+five final captures pass strict diagnostics and resource release, with a maximum
+127,009,472-byte shared-cache allowance and 2,372,352-byte far-cell charge. On the
+same 172-cell forest-road view, normal→authored-far draws are 2,107→677, primitives
+391,947→301,114 and cache 106,520,576→63,963,136 bytes. This bounded comparison
+does not measure frame rate or device performance.

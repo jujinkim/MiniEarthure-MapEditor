@@ -33,11 +33,11 @@ func require(result: Dictionary, label: String) -> bool:
 	if result.get("ok",false): return true
 	push_error(label+": "+str(result));quit(1);return false
 
-func visible_cell(camera: Camera3D, x: int, y: int, eye: Vector3) -> bool:
+func visible_cell(camera: Camera3D, x: int, y: int, eye: Vector3, heights: Array) -> bool:
 	if Vector2(x*32+16,y*32+16).distance_to(Vector2(eye.x,-eye.z))<48: return true
 	# Frustum culling only reduces offline work; include vertical and visual
 	# margins, so trees/buildings anchored just outside a cell remain visible.
-	var bounds := AABB(Vector3(x*32-18,-6,-(y+1)*32-18),Vector3(68,86,68))
+	var bounds := AABB(Vector3(x*32-18,float(heights[0]),-(y+1)*32-18),Vector3(68,float(heights[1])-float(heights[0]),68))
 	for plane: Plane in camera.get_frustum():
 		var all_outside := true
 		for corner in 8:
@@ -100,7 +100,7 @@ func run() -> void:
 			for x in ceili(float(meta.size[0])/32.0):
 				var distance:=Vector2(x*32+16,y*32+16).distance_to(Vector2(camera.position.x,-camera.position.z))
 				if distance-32*.707107>float(view.view_distance_m): continue
-				if not visible_cell(camera,x,y,camera.position): continue
+				if not visible_cell(camera,x,y,camera.position,meta.get("display_height_range_m",[-6,80])): continue
 				# Same 128m detail radius, 16m prefetch and visual margin as the
 				# current display streamer. No altered execution-cell budgets.
 				if not view.get("force_distant",false) and maxf(0.0,distance-32*.707107-margin)<=128+16:
