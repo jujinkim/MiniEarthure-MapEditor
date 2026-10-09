@@ -1,7 +1,7 @@
 # G01 offline driving map
 
 `g01-driving-v1`, revision 1, is an original MIT four-cell 1,024 m square
-project. It uses unchanged recipe 4 and contains no downloaded input. This is
+project. It uses the current v1 source contract and contains no downloaded input. This is
 small reproducible gameplay geometry, not a representative performance workload.
 The P01 reference profile remains independently frozen.
 

@@ -61,7 +61,7 @@ approved dimensions match the previous package. Package/entry SHA256 is
 `8de012b0c189449c14f8f6826c178904497f480ae2f8c87a8985407e0d039727`.
 CLI validation and native Editor source/save/reopen pass. The old package remains
 preserved; human completion is still unverified.
-[Current implementation and scoped results](../../docs/TRACK_EDIT_PERFORMANCE.md#fixed-input-latency-improvement--2026-10-03).
+[Current implementation and scoped results](../../docs/TRACK_EDIT_PERFORMANCE.md).
 
 ## Earlier geometry refresh — 2026-10-03
 

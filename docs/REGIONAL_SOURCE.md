@@ -29,9 +29,7 @@ region network requests and L02 area/density acceptance are separate work.
 audit, cancellation, byte-exact unused PNG recovery, corruption and refusal to
 overwrite. Existing preview/export and editor regressions remain applicable.
 
-L01-C (2026-09-12): exports now write MapKit index **v2**. Reopen accepts both v1
-and v2 with each version's complete dependency audit; it never rewrites the input.
-Local dependencies and byte-verified decoder planning reduce source duplication
-and validation cost while preserving the original source, all declared payloads
-and generated geometry. Older MapKit readers reject new v2 files explicitly.
-The authoring limits, worker cancellation and new-destination requirement remain.
+Only current v1 is read and written. Local dependencies and byte-verified decoder
+planning reduce duplication while preserving source, all payloads and geometry.
+There are no old readers or converters. Worker epochs, budgets, complete audit
+and new-destination publication remain required.

@@ -228,3 +228,13 @@ then adopts a separate UV-mapped GLB through native asset validation. See
 [world profiles, language separation and limits](WORLD_THEME_AUTHORING.md).
 
 Planting: choose a GLB under **Planting tree**, set canopy half-width and obstacle clearance, then draw Forest/Orchard. The model's declared collision must fit within that footprint (up to the existing 2m tree radius). Polygons, exclusions, spacing, density and seed drive MapKit generation; there is no fixed count or relocation. Density zero or an occupied zone may produce no trees.
+
+## Current boundaries
+
+General 3D picking/gizmos outside Track Mode, broad asset/dependency and collision
+editing, deployment-cost profiles and camera-neighborhood streaming remain open.
+Track preview reuse and default-world examples do not imply those tools exist.
+The 49-piece commit p95 remains 532.745 ms against a 500 ms target; see
+[editing performance](TRACK_EDIT_PERFORMANCE.md). Detailed authoring and devices
+remain user verification. Package restore/export tests cover original/unused asset
+preservation, corruption, cancellation, obsolete results and new destinations.

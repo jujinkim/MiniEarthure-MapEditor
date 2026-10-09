@@ -4,7 +4,7 @@
 It is not a surveyed region, a calibrated dense-city workload, a 50 MB transfer
 fixture or a performance acceptance pass. No user dataset is read or published.
 MapKit owns all validation, packaging and generation; the Python tool writes only
-public source documents and PNG16 payloads. Existing recipe 4 / generated 6 and
+public source documents and PNG16 payloads. Current v1 recipe / generated contracts and
 all admission limits remain unchanged.
 
 ## Frozen profile

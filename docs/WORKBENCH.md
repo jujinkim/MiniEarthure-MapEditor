@@ -34,7 +34,7 @@ profile with an explicit estimate/warning before adoption. The original source
 and classifications are preserved. This applies equally to solid and courtyard
 buildings; Overture no longer needs a separate post-conversion substitution.
 
-Focused validation and remaining scope are in [AUTHORING_WORKSPACE_STATUS.md](AUTHORING_WORKSPACE_STATUS.md).
+Focused validation and remaining scope are in [AUTHORING_WORKSPACE_STATUS.md](AUTHORING.md).
 
 ## Earlier workbench behavior
 

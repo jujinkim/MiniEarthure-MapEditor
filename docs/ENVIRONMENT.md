@@ -2,7 +2,7 @@
 
 Open **Authoring settings → Environment**. Choose a map concept, independent
 architecture/climate/settlement dimensions, latitude/longitude, time zone and
-sunrise/sunset defaults. Applying explicitly adopts recipe 8 and supports Undo /
+sunrise/sunset defaults. Applying updates the current v1 document and supports Undo /
 Redo, including restoring the absence of a profile on old source documents.
 
 Regional overrides are ordered centimetre polygons. The first matching region
