@@ -5,7 +5,7 @@ Editor owns `environment_generation.py`, the layout/composition/metrics modules,
 MapKit owns current v1 validation, cell geometry,
 package I/O and common rendering. Client/Host receive finished packages and assets;
 they do not receive this layout engine. Default worlds now use separate, explicitly
-authored recipes in `default_worlds.py` / `default_village.py`; generic generation
+authored recipes in `default_worlds.py`, `default_village.py` and `default_harbor.py`; generic generation
 and semantic infill remain available. The seven themes retain these dimensions:
 
 | Theme | Metres | 32 m cells |
@@ -133,9 +133,9 @@ or whole-building interiors are generated.
 ## Authored default-world workflow
 
 [`examples/default-worlds`](../examples/default-worlds/) contains the current
-Village source, v1 package, three road-route plans and five actual review images.
-Its ID is `default-village-authored-20261009`. The user approved the five actual
-Village renders on 2026-10-09; the other six themes now proceed in the agreed order.
+Village and Neon Harbor sources, v1 packages and three road-route plans each.
+Their IDs are `default-<theme>-authored-20261009`. The user approved the five actual
+Village renders on 2026-10-09; five themes remain after Harbor.
 A partial catalog is an authoring checkpoint, not a seven-map release.
 
 The Village recipe explicitly lays out Market Street and its clock hall,
@@ -152,8 +152,8 @@ Generate one theme into a fresh location, then validate every cell:
 rtk proxy .venv/bin/python map-editor/scripts/default_worlds.py /absolute/new-worlds --theme village --kit map-kit --cli map-kit/target/debug/mapkit
 ```
 
-The CLI rejects existing theme destinations; the remaining recipes are still to
-be implemented. Source recipes, geometry helpers and model
+The CLI accepts `village` or `neon-harbor` and rejects existing theme destinations;
+the remaining recipes are still to be implemented. Source recipes, geometry helpers and model
 code determine the recorded authoring fingerprint. Package/world hashes change
 with content. Own formats stay v1. The final seven-map distribution budget is
 256 MiB with textures at most 512 px; runtime budgets remain unchanged.
@@ -164,9 +164,22 @@ Optional `DEFAULT_WORLD_THEME` and `DEFAULT_WORLD_VIEWS` select one theme/view.
 The five Village views are main street, farm road, nature road, river distance
 and overview. All use common near/distant renderers, quality 2 and a 384 m view
 limit. Road eyes are 1.7 m above the surface; the overview is orthographic.
-Images live in `village/review/`; the report binds them to the package hash.
+Images live in each theme’s `review/`; the report binds them to the package hash.
+Harbor adds paired daytime/nighttime high-street views, cargo road, coastal
+promenade, channel-bridge distance and a city overview. Each view records its
+authoritative time; the common bounded streetlight pool is included.
 Client tooling seals routes and eight-car grids using Runtime, then publishes
-only this completed local candidate under `client/maps/default-worlds`.
+only completed local candidates under `client/maps/default-worlds`.
+
+Neon Harbor is an explicitly designed 1920 × 1280 m coast. Its commercial streets,
+residential courtyards and service alleys lead through warehouses to two cargo
+quays and a supported channel bridge. Original MapKit shop/apartment variants have
+storefronts, entrances, balconies, rear stairs and rooftop equipment. Container
+stacks, open gantry cranes, loading docks, parked trucks, pipe runs, quay walls and
+moorings define working spaces. Coastal woodland frames the northern hills;
+vegetation fills only those declared habitats. Paired neon bindings preserve sign
+colour at night and disable emission during daylight. Far mesh GLTF colours use
+the same colour space as the primary importer on both common render backends.
 
 Default-only historical source/distribution families, previews, course catalogs
 and batch improvers were removed. Git retains history. Shared sign/climate
@@ -176,7 +189,7 @@ five-feature demo from the retired default-map batch script.
 
 ## Focused validation
 
-On macOS ARM64 / Godot 4.7.2, five authored-world Python tests pass: exact
+On macOS ARM64 / Godot 4.7.2, the five Village authored-world Python tests pass: exact
 reproduction, 1,050 terrain-cell seams, road/water separation, bridge support,
 three distinct routes and paired assets. Native validation generates all 1,050
 cells. Maximum road grade is 11.165%. Package size is 1,271,545 bytes; native
@@ -211,3 +224,20 @@ can be opened and modified in Editor, but the general New region command does no
 reproduce this authored result. A reusable asset/assembly palette and general 3D
 object gizmos/surface snapping remain separate, incomplete usability work; the
 Track Mode tools do not establish those capabilities for arbitrary assets.
+
+Harbor's four additional recipe tests pass reproducibility, all 2,400 terrain-cell
+seams, centimetre-valid nonoverlapping ground paint, water/road separation, flat
+bridge approaches, pier/container support and paired neon bindings. Native
+validation generates every cell, with a 5.782% maximum road grade. The package is
+1,597,761 bytes; its validation peak allowance is 853,060,542 bytes. Native course
+preparation seals all three routes and checks each of eight maximum-vehicle grid
+footprints. Six actual views pass strict diagnostics and release far owners.
+Model review removed aliasing from fine container rib geometry, fixed approach
+junctions and kept crane/bridge openings in the authored far mesh.
+
+The bounded Harbor day-street comparison uses the same 175 cells: draw calls
+1,184→616, primitives 147,000→275,122, shared-cache allowance
+83,064,832→63,963,136 bytes. Its largest far-cell charge is 3,719,936 bytes. The
+six normal captures peak at 126,376,960 shared-cache bytes, below the existing
+128 MiB preview limit. This is a display-work comparison, not an FPS benchmark.
+Harbor art, full course driving and device performance remain user checks.

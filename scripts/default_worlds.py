@@ -19,8 +19,9 @@ import sys
 import numpy as np
 from PIL import Image
 from shapely.geometry import LineString, Point, Polygon, MultiPoint, box
-from shapely.ops import triangulate, unary_union
+from shapely.ops import unary_union
 from shapely import affinity
+from shapely import constrained_delaunay_triangles
 
 from reference_maps import empty, canonical, road
 
@@ -47,13 +48,16 @@ class World:
         sys.path.insert(0,str(kit/'scripts'))
         from authored_assets import library
         self.library=library();self.payloads={};self.pads=[];self.obstacles=[];self.scenery=[]
+        if theme=='neon-harbor':
+            from harbor_assets import library as harbor_library
+            self.library.update(harbor_library())
         self.footprints=[];self.footprint_grid=defaultdict(list);self._road_exclusion=None
         self.routes={};self.paints=[];self.water=[];self.places=[];self.reviews=[]
         self.doc=empty('default-'+theme+'-authored-20261009',self.size[0]*100,3200)
         self.doc.update(bounds=dict(min=[0,0],max=[v*100 for v in self.size]),free_roam=True,
             seed=10092026,terrain_base_cm=0,surface_areas=[],water_bodies=[],courses=[],gimmicks=[])
         self.doc['attributions']=[dict(source='mapeditor-default-worlds-v1',license='MIT',
-            notice='Original fictional landscape, roads and places; authored recipe in default_village.py. No surveyed/user data.')]
+            notice='Original fictional landscape, roads and places; authored recipe in '+('default_village.py' if theme=='village' else 'default_harbor.py')+'. No surveyed/user data.')]
         self.doc['provenance'].update(tool_id='mapeditor-default-worlds',build_id='authored-worlds-v1',
             first_created='2026-10-09T00:00:00Z',last_edited='2026-10-09T00:00:00Z')
         self.doc['theme']='rural'
@@ -148,7 +152,7 @@ class World:
         a,b,c,d=footprint.bounds
         keys=[(gx,gy) for gx in range(math.floor(a/16),math.floor(c/16)+1) for gy in range(math.floor(b/16),math.floor(d/16)+1)]
         neighbors={index for key in keys for index in self.footprint_grid[key]}
-        if not solid and not asset.startswith('bridge-support'):
+        if not solid and not asset.startswith(('bridge-support','harbor-pier')):
             if self._road_exclusion is None:self._road_exclusion=self.road_area(.35)
             if footprint.intersects(self._road_exclusion):return None
             if any(footprint.buffer(.08).intersects(self.footprints[index][1]) for index in neighbors):return None
@@ -165,15 +169,28 @@ class World:
 
     def paint(self,name,shape,surface):
         shape=shape.difference(self.road_area(.08))
-        if self.paints:shape=shape.difference(unary_union(self.paints))
+        # A 2.5 cm separator prevents independently rounded clipped rings from
+        # crossing their neighbour at the centimetre precision of current v1.
+        if self.paints:shape=shape.difference(unary_union(self.paints).buffer(.025))
         parts=[shape] if isinstance(shape,Polygon) else list(getattr(shape,'geoms',[]))
         index=0
         for part in parts:
             if not isinstance(part,Polygon) or part.area<.5:continue
-            polygons=[p for p in triangulate(part) if part.covers(p.representative_point())] if part.interiors else [part]
+            polygons=list(constrained_delaunay_triangles(part).geoms) if part.interiors else [part]
             for polygon in polygons:
+                # Clip operations can leave sub-centimetre edges. Collapse only
+                # consecutive equal quantized vertices before writing v1 rings.
+                points=[]
+                for x,y in list(polygon.exterior.coords)[:-1]:
+                    point=[round(x*100),round(y*100)]
+                    if not points or point!=points[-1]:points.append(point)
+                if len(points)>1 and points[-1]==points[0]:points.pop()
+                if len(points)<3:continue
+                quantized=Polygon(points)
+                if quantized.area==0:continue
+                if not quantized.is_valid:raise ValueError('Paint ring invalid after centimetre quantization: '+name)
                 self.doc['surface_areas'].append(dict(id=name+'-'+str(index),surface=surface,
-                    polygon=[[round(x*100),round(y*100)] for x,y in list(polygon.exterior.coords)[:-1]]));index+=1
+                    polygon=points));index+=1
             self.paints.append(part)
 
     def water_body(self,name,shape,level=3.8):
@@ -249,8 +266,9 @@ class World:
                 points.append(dict(x_cm=round(p.x*100),y_cm=round(p.y*100),surface_id=key,structural=r['kind']!='ground'))
         if len(points)>60:
             tail=points[2:];points=points[:2]+[tail[round(i*(len(tail)-1)/57)] for i in range(58)]
-        return dict(id=identity,name=name,waypoints=points,start=dict(x_cm=22000,y_cm=48000,
-            surface_id='arrival-road',heading_radians=-math.pi/2),mode='sprint',laps=1,checkpoint_radius_cm=400,length_m=round(length-100,1))
+        start=getattr(self,'spawn',dict(x_cm=22000,y_cm=48000,surface_id='arrival-road',heading_radians=-math.pi/2))
+        return dict(id=identity,name=name,waypoints=points,start=copy.deepcopy(start),mode='sprint',laps=1,
+            checkpoint_radius_cm=400,length_m=round(length-100,1))
 
     def validate(self):
         errors=[];roads=self.doc['roads'];nodes={n['id'] for n in self.doc['nodes']};reached={roads[0]['from']}
@@ -280,12 +298,16 @@ class World:
             formats=1,cell_size_m=32,art_status='user review required')
 
 def build(theme,kit):
-    if theme!='village':raise ValueError('The first village art review precedes authoring the remaining themes')
-    from default_village import compose
+    if theme=='village':
+        from default_village import compose
+    elif theme=='neon-harbor':
+        from default_harbor import compose
+    else:raise ValueError('Theme recipe has not yet been authored: '+theme)
     world=World(theme,kit);meta=compose(world)
     meta['validation']=world.validate()
     heights=world.bake_terrain();meta['relief']=round(float(heights.max()-heights.min())/100,2)
-    sources=[Path(__file__),Path(__file__).with_name('default_village.py'),kit/'scripts/authored_assets.py',kit/'scripts/world_geometry.py']
+    sources=[Path(__file__),Path(__file__).with_name('default_village.py' if theme=='village' else 'default_harbor.py'),kit/'scripts/authored_assets.py',kit/'scripts/world_geometry.py']
+    if theme=='neon-harbor':sources.append(kit/'scripts/harbor_assets.py')
     fingerprint=digest(b''.join(p.read_bytes() for p in sources))
     world.doc['provenance']['fingerprint']=fingerprint
     meta['authoring']=dict(recipe_sha256=fingerprint,texture_max_px=512,format_version=1,owner='MapEditor')
@@ -306,7 +328,9 @@ def publish(destination,theme,kit,cli):
             full=pending/path;full.parent.mkdir(parents=True,exist_ok=True);full.write_bytes(data)
         temporary_package=destination/(theme+'.pending.memap')
         subprocess.run([str(cli.resolve()),'pack',str(pending),str(temporary_package)],check=True)
-        checked=subprocess.run([str(cli.resolve()),'validate-cells',str(temporary_package)],check=True,capture_output=True,text=True)
+        checked=subprocess.run([str(cli.resolve()),'validate-cells',str(temporary_package)],capture_output=True,text=True)
+        if checked.returncode:
+            raise RuntimeError('Native all-cell validation failed: '+checked.stderr.strip())
         cells=json.loads(checked.stdout)
         meta['validation']['native_generated_cells']=len(cells)
         meta['validation']['cell_hashes_sha256']=digest(canonical(cells))

@@ -4,8 +4,9 @@
 recipe-version selection, automatic promotion and previous-format compatibility.
 
 [Authored default worlds and semantic infill](docs/ARCADE_WORLD.md) documents the
-new Village source, actual-render art review, reproducible recipes and general
-Editor generation. The other six themes await first-Village art approval.
+authored sources, actual-render art review, reproducible recipes and general
+Editor generation. Village’s art direction is user-approved; the remaining themes
+are being completed in order.
 
 Independent Godot 4.7.2 Windows/Linux editor foundation, licensed MIT. Requires
 only this repository and its public MapKit submodule; no game installation or

@@ -63,8 +63,11 @@ func run() -> void:
 	if OS.get_environment("DEFAULT_WORLD_LOD_COMPARISON")=="1":
 		# One fixed dense street, one normal pass and one authored-far pass.
 		# This measures display work only; it is not a device/FPS acceptance run.
-		views=[views[0],views[0].duplicate(true)]
-		views[1].name="main-street-authored-far-comparison"
+		var dense: Dictionary=views[0]
+		for view: Dictionary in views:
+			if view.name=="day-street":dense=view
+		views=[dense,dense.duplicate(true)]
+		views[1].name=str(dense.name)+"-authored-far-comparison"
 		views[1]["force_distant"]=true
 	for view: Dictionary in views:
 		if not wanted.is_empty() and view.name not in wanted: continue
@@ -83,7 +86,7 @@ func run() -> void:
 		camera.position=scene_point(view.position_m);camera.look_at(scene_point(view.target_m))
 		var state:=StillSky.new();state.profile=doc.environment;state.config=doc.environment.duplicate(true)
 		state.config.merge({"intensity":.3,"aurora_probability":0.0,"celestial_mode":"simple"})
-		state.seconds=float(doc.environment.start_minutes)*60
+		state.seconds=float(view.get("time_minutes",doc.environment.start_minutes))*60
 		var cache:=CACHE.new();cache.environment_profile=state.profile
 		cache.quality_profile=QUALITY.active()
 		var leases: Array[Lease]=[]
@@ -127,6 +130,7 @@ func run() -> void:
 					print("REVIEW_PROGRESS ",view.name," cells=",near_count+far_count)
 					await process_frame
 		environment.update_environment(state,camera.position,[],cache,true)
+		environment.update_dynamic_lights(camera.position,[])
 		for frame in 12: await process_frame
 		await RenderingServer.frame_post_draw
 		var frame_stats: Dictionary={"objects":RenderingServer.viewport_get_render_info(root.get_viewport_rid(),RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE,RenderingServer.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME),
