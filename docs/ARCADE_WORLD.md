@@ -5,7 +5,7 @@ Editor owns `environment_generation.py`, the layout/composition/metrics modules,
 MapKit owns current v1 validation, cell geometry,
 package I/O and common rendering. Client/Host receive finished packages and assets;
 they do not receive this layout engine. Default worlds now use separate, explicitly
-authored recipes in `default_worlds.py`, `default_village.py`, `default_harbor.py`, `default_forest.py` and `default_canyon.py`; generic generation
+authored recipes in `default_worlds.py`, `default_village.py`, `default_harbor.py`, `default_forest.py`, `default_canyon.py` and `default_snow.py`; generic generation
 and semantic infill remain available. The seven themes retain these dimensions:
 
 | Theme | Metres | 32 m cells |
@@ -133,9 +133,9 @@ or whole-building interiors are generated.
 ## Authored default-world workflow
 
 [`examples/default-worlds`](../examples/default-worlds/) contains the current
-Village, Neon Harbor, Deep Forest and Red Canyon sources, v1 packages and three road-route plans each.
+Village, Neon Harbor, Deep Forest, Red Canyon and Snow Mountain sources, v1 packages and three road-route plans each.
 Their IDs are `default-<theme>-authored-20261009`. The user approved the five actual
-Village renders on 2026-10-09; three themes remain after Red Canyon.
+Village renders on 2026-10-09; two themes remain after Snow Mountain.
 A partial catalog is an authoring checkpoint, not a seven-map release.
 
 The Village recipe explicitly lays out Market Street and its clock hall,
@@ -152,7 +152,7 @@ Generate one theme into a fresh location, then validate every cell:
 rtk proxy .venv/bin/python map-editor/scripts/default_worlds.py /absolute/new-worlds --theme village --kit map-kit --cli map-kit/target/debug/mapkit
 ```
 
-The CLI accepts `village`, `neon-harbor`, `deep-forest` or `red-canyon` and rejects existing theme destinations;
+The CLI accepts `village`, `neon-harbor`, `deep-forest`, `red-canyon` or `snow-mountain` and rejects existing theme destinations;
 the remaining recipes are still to be implemented. Source recipes, geometry helpers and model
 code determine the recorded authoring fingerprint. Package/world hashes change
 with content. Own formats stay v1. The final seven-map distribution budget is
@@ -292,3 +292,28 @@ and shared cache 72,317,696→63,963,136 bytes. Normal views peak at
 693,248 bytes. These stay within existing caps, not an FPS acceptance.
 The common sky's dark lower-horizon step was removed; day/night pixel deltas
 stay below .024 in Compatibility and .012 in Forward Mobile.
+
+Snow Mountain's 1600 × 2080 m recipe follows a broad alpine valley from six
+timber lodges through fir woods to a treeless ridge, rock cirque and sheltered
+lookout. Snow-covered tree ages, granite outcrops, a solid frozen tarn, roadside
+drifts and 138 grounded guardrail sections mark altitude and exposure. Road
+heights follow the terrain profile before detailed cut/fill; the maximum grade
+is 10.389%. The lookout remains beside the road, retaining the native conservative
+placement/road-clearance contract.
+
+Four snow recipe tests pass exact reproduction, all 3,250 terrain seams, distinct
+connected routes, altitude-dependent woodland, the frozen surface and grounded
+shelter. Native validation generates every cell: 4,777 placements, a 2,003,102-byte
+package and a 525,841,638-byte validation peak allowance. Human art, detailed
+course driving and device performance remain separate user checks.
+
+The frozen shore is an open rocky clearing. Its solid surface sits above the
+terrain basin, avoiding coplanar flicker; the representative eye follows the
+actual ridge ground height.
+
+Five actual snow captures, all three native courses and eight-car start footprints
+pass. On the same 165-cell valley view, normal→authored-far draws are
+1,115→254, primitives 130,601→106,782
+and cache 75,973,376→63,963,136 bytes. Normal captures peak at
+93,686,528 cache bytes and 601,856 per far cell.
+Far leases retire; no cap changed. This is a bounded render comparison, not FPS.

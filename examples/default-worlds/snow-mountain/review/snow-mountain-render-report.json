@@ -1,0 +1,159 @@
+[
+  {
+    "far_cells": 108,
+    "far_display_triangles": 72408,
+    "image": "snow-mountain-valley-road.png",
+    "largest_far_cell_bytes": 601856,
+    "near_cells": 57,
+    "near_collision_triangles": 33540,
+    "package_sha256": "bea34dfdf2c11fcadf80329010932926b7f57c2dab3b12f8123ba786d75c1b16",
+    "preparation_ms": 1904,
+    "render": {
+      "draw_calls": 1115,
+      "objects": 1115,
+      "primitives": 130601
+    },
+    "shared_cache_bytes": 75973376,
+    "view": {
+      "name": "valley-road",
+      "position_m": [
+        393.176787681341,
+        75.7143428959166,
+        1375.61396420296
+      ],
+      "quality": 2.0,
+      "target_m": [
+        335.178942024739,
+        71.8518462925054,
+        1432.74578721763
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 113,
+    "far_display_triangles": 97700,
+    "image": "snow-mountain-lodge-road.png",
+    "largest_far_cell_bytes": 579456,
+    "near_cells": 60,
+    "near_collision_triangles": 37026,
+    "package_sha256": "bea34dfdf2c11fcadf80329010932926b7f57c2dab3b12f8123ba786d75c1b16",
+    "preparation_ms": 1703,
+    "render": {
+      "draw_calls": 1186,
+      "objects": 1186,
+      "primitives": 152389
+    },
+    "shared_cache_bytes": 92145152,
+    "view": {
+      "name": "lodge-road",
+      "position_m": [
+        591.822569657762,
+        61.7,
+        1723.85405855537
+      ],
+      "quality": 2.0,
+      "target_m": [
+        676.590404461579,
+        62.0,
+        1729.95340654782
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 113,
+    "far_display_triangles": 60452,
+    "image": "snow-mountain-snow-road.png",
+    "largest_far_cell_bytes": 528384,
+    "near_cells": 60,
+    "near_collision_triangles": 32504,
+    "package_sha256": "bea34dfdf2c11fcadf80329010932926b7f57c2dab3b12f8123ba786d75c1b16",
+    "preparation_ms": 1549,
+    "render": {
+      "draw_calls": 402,
+      "objects": 402,
+      "primitives": 80431
+    },
+    "shared_cache_bytes": 69658112,
+    "view": {
+      "name": "snow-road",
+      "position_m": [
+        942.948589837763,
+        150.30316717212,
+        495.899362611646
+      ],
+      "quality": 2.0,
+      "target_m": [
+        859.921383624675,
+        151.07209716038,
+        477.750859687216
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 111,
+    "far_display_triangles": 97966,
+    "image": "snow-mountain-distant.png",
+    "largest_far_cell_bytes": 562432,
+    "near_cells": 61,
+    "near_collision_triangles": 33656,
+    "package_sha256": "bea34dfdf2c11fcadf80329010932926b7f57c2dab3b12f8123ba786d75c1b16",
+    "preparation_ms": 1462,
+    "render": {
+      "draw_calls": 962,
+      "objects": 962,
+      "primitives": 145032
+    },
+    "shared_cache_bytes": 76977920,
+    "view": {
+      "name": "distant",
+      "position_m": [
+        917.0,
+        106.003073830357,
+        1228.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        946.0,
+        93.4,
+        1290.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 73,
+    "far_display_triangles": 65512,
+    "image": "snow-mountain-overview.png",
+    "largest_far_cell_bytes": 579456,
+    "near_cells": 151,
+    "near_collision_triangles": 89942,
+    "package_sha256": "bea34dfdf2c11fcadf80329010932926b7f57c2dab3b12f8123ba786d75c1b16",
+    "preparation_ms": 2184,
+    "render": {
+      "draw_calls": 3582,
+      "objects": 3582,
+      "primitives": 195564
+    },
+    "shared_cache_bytes": 93686528,
+    "view": {
+      "name": "overview",
+      "position_m": [
+        643.0,
+        260.0,
+        1770.0
+      ],
+      "projection": "orthogonal",
+      "quality": 2.0,
+      "size_m": 280.0,
+      "target_m": [
+        643.0,
+        60.0,
+        1710.0
+      ],
+      "view_distance_m": 384.0
+    }
+  }
+]

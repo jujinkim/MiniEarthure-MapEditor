@@ -27,7 +27,7 @@ from reference_maps import empty, canonical, road
 
 THEMES={'village':(1120,960),'neon-harbor':(1920,1280),'deep-forest':(1760,1760),
     'red-canyon':(2400,1200),'snow-mountain':(1600,2080),'machine-factory':(1440,1440),'sky-park':(1920,1600)}
-RECIPES={'village':'default_village.py','neon-harbor':'default_harbor.py','deep-forest':'default_forest.py','red-canyon':'default_canyon.py'}
+RECIPES={'village':'default_village.py','neon-harbor':'default_harbor.py','deep-forest':'default_forest.py','red-canyon':'default_canyon.py','snow-mountain':'default_snow.py'}
 def digest(data):return hashlib.sha256(data).hexdigest()
 def smooth(value):return np.clip(value,0,1)**2*(3-2*np.clip(value,0,1))
 
@@ -58,6 +58,9 @@ class World:
         if theme=='red-canyon':
             from canyon_assets import library as canyon_library
             self.library.update(canyon_library())
+        if theme=='snow-mountain':
+            from snow_assets import library as snow_library
+            self.library.update(snow_library())
         self.footprints=[];self.footprint_grid=defaultdict(list);self._road_exclusion=None
         self.routes={};self.paints=[];self.water=[];self.places=[];self.reviews=[]
         self.doc=empty('default-'+theme+'-authored-20261009',self.size[0]*100,3200)
@@ -313,6 +316,8 @@ def build(theme,kit):
         from default_forest import compose
     elif theme=='red-canyon':
         from default_canyon import compose
+    elif theme=='snow-mountain':
+        from default_snow import compose
     else:raise ValueError('Theme recipe has not yet been authored: '+theme)
     world=World(theme,kit);meta=compose(world)
     meta['validation']=world.validate()
@@ -322,6 +327,7 @@ def build(theme,kit):
     if theme=='neon-harbor':sources.append(kit/'scripts/harbor_assets.py')
     if theme=='deep-forest':sources.append(kit/'scripts/forest_assets.py')
     if theme=='red-canyon':sources.append(kit/'scripts/canyon_assets.py')
+    if theme=='snow-mountain':sources.append(kit/'scripts/snow_assets.py')
     fingerprint=digest(b''.join(p.read_bytes() for p in sources))
     world.doc['provenance']['fingerprint']=fingerprint
     meta['authoring']=dict(recipe_sha256=fingerprint,texture_max_px=512,format_version=1,owner='MapEditor')
