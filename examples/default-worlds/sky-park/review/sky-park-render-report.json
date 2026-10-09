@@ -1,0 +1,190 @@
+[
+  {
+    "far_cells": 99,
+    "far_display_triangles": 150429,
+    "image": "sky-park-garden-road.png",
+    "largest_far_cell_bytes": 2180160,
+    "near_cells": 71,
+    "near_collision_triangles": 98160,
+    "package_sha256": "ffd086040a189a66e1102223f1baf0c38666cd667038198e1807212b92019e87",
+    "preparation_ms": 3577,
+    "render": {
+      "draw_calls": 1617,
+      "objects": 1617,
+      "primitives": 233593
+    },
+    "shared_cache_bytes": 132653312,
+    "view": {
+      "name": "garden-road",
+      "position_m": [
+        595.465199244144,
+        49.4254813658853,
+        1171.96998955992
+      ],
+      "quality": 2.0,
+      "target_m": [
+        542.0,
+        53.0,
+        1028.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 99,
+    "far_display_triangles": 110978,
+    "image": "sky-park-wheel-road.png",
+    "largest_far_cell_bytes": 1804736,
+    "near_cells": 74,
+    "near_collision_triangles": 97982,
+    "package_sha256": "ffd086040a189a66e1102223f1baf0c38666cd667038198e1807212b92019e87",
+    "preparation_ms": 3089,
+    "render": {
+      "draw_calls": 1669,
+      "objects": 1669,
+      "primitives": 228155
+    },
+    "shared_cache_bytes": 113332480,
+    "view": {
+      "name": "wheel-road",
+      "position_m": [
+        1300.71224039874,
+        67.2742069107117,
+        937.26926193232
+      ],
+      "quality": 2.0,
+      "target_m": [
+        1390.0,
+        84.0,
+        894.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 100,
+    "far_display_triangles": 115157,
+    "image": "sky-park-coaster-road.png",
+    "largest_far_cell_bytes": 1715136,
+    "near_cells": 68,
+    "near_collision_triangles": 47131,
+    "package_sha256": "ffd086040a189a66e1102223f1baf0c38666cd667038198e1807212b92019e87",
+    "preparation_ms": 2591,
+    "render": {
+      "draw_calls": 1042,
+      "objects": 1042,
+      "primitives": 162698
+    },
+    "shared_cache_bytes": 98820096,
+    "view": {
+      "name": "coaster-road",
+      "position_m": [
+        1330.0,
+        89.7,
+        480.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        1240.0,
+        101.0,
+        585.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 100,
+    "far_display_triangles": 131991,
+    "image": "sky-park-distant.png",
+    "largest_far_cell_bytes": 2943552,
+    "near_cells": 74,
+    "near_collision_triangles": 57568,
+    "package_sha256": "ffd086040a189a66e1102223f1baf0c38666cd667038198e1807212b92019e87",
+    "preparation_ms": 2691,
+    "render": {
+      "draw_calls": 1799,
+      "objects": 1799,
+      "primitives": 222702
+    },
+    "shared_cache_bytes": 99744256,
+    "view": {
+      "name": "distant",
+      "position_m": [
+        1050.0,
+        71.7,
+        800.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        1390.0,
+        90.0,
+        894.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 69,
+    "far_display_triangles": 71822,
+    "image": "sky-park-overview.png",
+    "largest_far_cell_bytes": 1803840,
+    "near_cells": 167,
+    "near_collision_triangles": 166560,
+    "package_sha256": "ffd086040a189a66e1102223f1baf0c38666cd667038198e1807212b92019e87",
+    "preparation_ms": 3944,
+    "render": {
+      "draw_calls": 5425,
+      "objects": 5425,
+      "primitives": 296582
+    },
+    "shared_cache_bytes": 113332480,
+    "view": {
+      "name": "overview",
+      "position_m": [
+        1335.0,
+        160.0,
+        960.0
+      ],
+      "projection": "orthogonal",
+      "quality": 2.0,
+      "size_m": 240.0,
+      "target_m": [
+        1380.0,
+        64.0,
+        895.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 102,
+    "far_display_triangles": 99298,
+    "image": "sky-park-skyway-supports.png",
+    "largest_far_cell_bytes": 1340608,
+    "near_cells": 73,
+    "near_collision_triangles": 46186,
+    "package_sha256": "ffd086040a189a66e1102223f1baf0c38666cd667038198e1807212b92019e87",
+    "preparation_ms": 2569,
+    "render": {
+      "draw_calls": 1357,
+      "objects": 1357,
+      "primitives": 164991
+    },
+    "shared_cache_bytes": 99744256,
+    "view": {
+      "name": "skyway-supports",
+      "position_m": [
+        940.0,
+        42.0,
+        958.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        970.0,
+        53.0,
+        800.0
+      ],
+      "view_distance_m": 384.0
+    }
+  }
+]

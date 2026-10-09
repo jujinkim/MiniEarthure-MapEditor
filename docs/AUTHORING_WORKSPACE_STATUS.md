@@ -29,8 +29,8 @@ Automated checks on macOS/Godot 4.7.2 using isolated user data:
 
 During implementation, tests caught temporary fixture-name collisions, minimum
 window overflow, a menu/button test selector collision and unsupported GeoJSON
-default use. These were corrected; failing logs are retained alongside passing
-rechecks in the superproject's `work/authoring-checks/`.
+default use. These were corrected; the essential validation results are recorded
+above. Finished task notes and raw logs are not permanent documentation.
 
 ## Later implementation and remaining scope — 2026-10-03 review
 
@@ -44,7 +44,9 @@ for this documentation review. Parts of its original remaining list were deliver
   placement/dragging, sequential worker commits and prepared preview reuse.
 - Current [default-world authoring](ARCADE_WORLD.md) replaces the former default
   batches. Village's actual-render art direction was approved on 2026-10-09;
-  Five further themes through Machine Factory are implemented with actual review views; Sky Park remains.
+  All seven themes are implemented with actual review views and editable sources.
+  Their authored recipes and custom models do not establish an easy GUI-only
+  workflow for reproducing the same art quality.
   Practice/physics/shared fixtures remain; retired default-only artifacts use Git
   history. General generation and semantic infill remain available.
 

@@ -5,7 +5,9 @@ Editor owns `environment_generation.py`, the layout/composition/metrics modules,
 MapKit owns current v1 validation, cell geometry,
 package I/O and common rendering. Client/Host receive finished packages and assets;
 they do not receive this layout engine. Default worlds now use separate, explicitly
-authored recipes in `default_worlds.py`, `default_village.py`, `default_harbor.py`, `default_forest.py`, `default_canyon.py`, `default_snow.py` and `default_factory.py`; generic generation
+authored recipes in `default_worlds.py`, `default_village.py`, `default_harbor.py`,
+`default_forest.py`, `default_canyon.py`, `default_snow.py`, `default_factory.py`
+and `default_park.py`; generic generation
 and semantic infill remain available. The seven themes retain these dimensions:
 
 | Theme | Metres | 32 m cells |
@@ -133,10 +135,11 @@ or whole-building interiors are generated.
 ## Authored default-world workflow
 
 [`examples/default-worlds`](../examples/default-worlds/) contains the current
-Village, Neon Harbor, Deep Forest, Red Canyon, Snow Mountain and Machine Factory sources, v1 packages and three road-route plans each.
+Village, Neon Harbor, Deep Forest, Red Canyon, Snow Mountain, Machine Factory and
+Sky Park sources, v1 packages and three road-route plans each.
 Their IDs are `default-<theme>-authored-20261009`. The user approved the five actual
-Village renders on 2026-10-09; Sky Park remains after Machine Factory.
-A partial catalog is an authoring checkpoint, not a seven-map release.
+Village renders on 2026-10-09. All seven themes are implemented; detailed driving,
+device performance and the remaining themes' human art acceptance are separate.
 
 The Village recipe explicitly lays out Market Street and its clock hall,
 orchard cottages, ridge gardens, two working farms, crops and irrigation, river
@@ -152,8 +155,9 @@ Generate one theme into a fresh location, then validate every cell:
 rtk proxy .venv/bin/python map-editor/scripts/default_worlds.py /absolute/new-worlds --theme village --kit map-kit --cli map-kit/target/debug/mapkit
 ```
 
-The CLI accepts `village`, `neon-harbor`, `deep-forest`, `red-canyon`, `snow-mountain` or `machine-factory` and rejects existing theme destinations;
-the remaining recipes are still to be implemented. Source recipes, geometry helpers and model
+The CLI accepts `village`, `neon-harbor`, `deep-forest`, `red-canyon`, `snow-mountain`,
+`machine-factory` or `sky-park` and rejects existing theme destinations.
+Source recipes, geometry helpers and model
 code determine the recorded authoring fingerprint. Package/world hashes change
 with content. Own formats stay v1. The final seven-map distribution budget is
 256 MiB with textures at most 512 px; runtime budgets remain unchanged.
@@ -338,3 +342,26 @@ draws 589→261, primitives 111,240→110,546
 and cache 90,481,408→63,963,136 bytes. Normal views peak at
 97,811,456 cache bytes and 1,142,144 per far cell.
 Far leases retire; this is a render-work comparison, not FPS acceptance.
+
+Sky Park retains 1920 × 1600 m bounds. Five garden/plaza terraces connect a
+carousel, a 61 m observation wheel, a static coaster, kiosks, open queue lanes,
+flowerbeds and seating. Two level viaducts use ten grounded piers with clear
+valleys below. Their ground approaches meet flat deck aprons. The carousel
+arrival sightline stays open and its access path follows a broad terrain rise;
+trees and flowers break up the wheel plaza. The original rides are static scenery.
+
+Four park recipe tests and two focused model tests pass reproduction, all 3,000
+terrain seams, connected/distinct routes, grade, ground/deck clearance, physical
+support, paired silhouettes and wheel/pier openings. Native all-cell validation
+passes with 5,766 placements, maximum road grade 8.689%, a 2,094,619-byte package
+and a 749,722,990-byte validation peak allowance. All three sealed courses and
+eight-car start footprints pass. Six actual views cover the garden road, wheel,
+coaster, far approach, plaza overview and exposed viaduct supports.
+
+The same 170-cell garden scene changes normal→authored-far draws 1,617→468,
+primitives 233,593→204,193 and shared cache 132,653,312→63,963,136 bytes.
+Normal views peak at 132,653,312 cache bytes, below the existing 128 MiB cap;
+the largest normal-capture far cell is 2,943,552 bytes. Far leases retire.
+This is a bounded render-work comparison, not detailed driving or device FPS.
+The final distribution contains all seven maps, 21 courses and 37 actual review
+views; its aggregate bytes, 512 px texture limit and hash/reference checks pass.
