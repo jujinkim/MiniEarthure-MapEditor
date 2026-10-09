@@ -5,7 +5,7 @@ Editor owns `environment_generation.py`, the layout/composition/metrics modules,
 MapKit owns current v1 validation, cell geometry,
 package I/O and common rendering. Client/Host receive finished packages and assets;
 they do not receive this layout engine. Default worlds now use separate, explicitly
-authored recipes in `default_worlds.py`, `default_village.py`, `default_harbor.py`, `default_forest.py`, `default_canyon.py` and `default_snow.py`; generic generation
+authored recipes in `default_worlds.py`, `default_village.py`, `default_harbor.py`, `default_forest.py`, `default_canyon.py`, `default_snow.py` and `default_factory.py`; generic generation
 and semantic infill remain available. The seven themes retain these dimensions:
 
 | Theme | Metres | 32 m cells |
@@ -133,9 +133,9 @@ or whole-building interiors are generated.
 ## Authored default-world workflow
 
 [`examples/default-worlds`](../examples/default-worlds/) contains the current
-Village, Neon Harbor, Deep Forest, Red Canyon and Snow Mountain sources, v1 packages and three road-route plans each.
+Village, Neon Harbor, Deep Forest, Red Canyon, Snow Mountain and Machine Factory sources, v1 packages and three road-route plans each.
 Their IDs are `default-<theme>-authored-20261009`. The user approved the five actual
-Village renders on 2026-10-09; two themes remain after Snow Mountain.
+Village renders on 2026-10-09; Sky Park remains after Machine Factory.
 A partial catalog is an authoring checkpoint, not a seven-map release.
 
 The Village recipe explicitly lays out Market Street and its clock hall,
@@ -152,7 +152,7 @@ Generate one theme into a fresh location, then validate every cell:
 rtk proxy .venv/bin/python map-editor/scripts/default_worlds.py /absolute/new-worlds --theme village --kit map-kit --cli map-kit/target/debug/mapkit
 ```
 
-The CLI accepts `village`, `neon-harbor`, `deep-forest`, `red-canyon` or `snow-mountain` and rejects existing theme destinations;
+The CLI accepts `village`, `neon-harbor`, `deep-forest`, `red-canyon`, `snow-mountain` or `machine-factory` and rejects existing theme destinations;
 the remaining recipes are still to be implemented. Source recipes, geometry helpers and model
 code determine the recorded authoring fingerprint. Package/world hashes change
 with content. Own formats stay v1. The final seven-map distribution budget is
@@ -317,3 +317,24 @@ pass. On the same 165-cell valley view, normal→authored-far draws are
 and cache 75,973,376→63,963,136 bytes. Normal captures peak at
 93,686,528 cache bytes and 601,856 per far cell.
 Far leases retire; no cap changed. This is a bounded render comparison, not FPS.
+
+Machine Factory keeps 1440 × 1440 m bounds. Its level industrial grid connects
+production, process tanks, boiler courts, electrical equipment, maintenance,
+administration and a crane/warehouse yard. Continuous supported racks and feed
+branches link tanks; elevated busbars connect transformers. Concrete gate access
+links each work yard to the road. A stormwater channel and wooded perimeter frame
+the site. Review bounds include the actual highest placed model, preserving tall
+stacks and later landmark silhouettes without increasing render distance.
+
+Four factory tests pass exact reconstruction, 2,025 terrain seams, road/water
+separation, connected/distinct routes, pipe spans, gate access and tall-model
+review bounds. Native all-cell validation passes: 3,044 placements, zero road
+grade, a 1,358,915-byte package and 624,130,158-byte validation peak allowance.
+Human art, detailed driving and device performance remain separate user checks.
+
+Five actual factory views, all three sealed courses and their eight-car start
+footprints pass. The bounded 171-cell production view changes normal→authored-far
+draws 589→261, primitives 111,240→110,546
+and cache 90,481,408→63,963,136 bytes. Normal views peak at
+97,811,456 cache bytes and 1,142,144 per far cell.
+Far leases retire; this is a render-work comparison, not FPS acceptance.

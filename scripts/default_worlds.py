@@ -27,7 +27,7 @@ from reference_maps import empty, canonical, road
 
 THEMES={'village':(1120,960),'neon-harbor':(1920,1280),'deep-forest':(1760,1760),
     'red-canyon':(2400,1200),'snow-mountain':(1600,2080),'machine-factory':(1440,1440),'sky-park':(1920,1600)}
-RECIPES={'village':'default_village.py','neon-harbor':'default_harbor.py','deep-forest':'default_forest.py','red-canyon':'default_canyon.py','snow-mountain':'default_snow.py'}
+RECIPES={'village':'default_village.py','neon-harbor':'default_harbor.py','deep-forest':'default_forest.py','red-canyon':'default_canyon.py','snow-mountain':'default_snow.py','machine-factory':'default_factory.py'}
 def digest(data):return hashlib.sha256(data).hexdigest()
 def smooth(value):return np.clip(value,0,1)**2*(3-2*np.clip(value,0,1))
 
@@ -49,7 +49,7 @@ class World:
         sys.path.insert(0,str(kit/'scripts'))
         from authored_assets import library
         self.library=library();self.payloads={};self.pads=[];self.obstacles=[];self.scenery=[]
-        if theme=='neon-harbor':
+        if theme in ('neon-harbor','machine-factory'):
             from harbor_assets import library as harbor_library
             self.library.update(harbor_library())
         if theme=='deep-forest':
@@ -61,6 +61,9 @@ class World:
         if theme=='snow-mountain':
             from snow_assets import library as snow_library
             self.library.update(snow_library())
+        if theme=='machine-factory':
+            from factory_assets import library as factory_library
+            self.library.update(factory_library())
         self.footprints=[];self.footprint_grid=defaultdict(list);self._road_exclusion=None
         self.routes={};self.paints=[];self.water=[];self.places=[];self.reviews=[]
         self.doc=empty('default-'+theme+'-authored-20261009',self.size[0]*100,3200)
@@ -318,16 +321,21 @@ def build(theme,kit):
         from default_canyon import compose
     elif theme=='snow-mountain':
         from default_snow import compose
+    elif theme=='machine-factory':
+        from default_factory import compose
     else:raise ValueError('Theme recipe has not yet been authored: '+theme)
     world=World(theme,kit);meta=compose(world)
     meta['validation']=world.validate()
     heights=world.bake_terrain();meta['relief']=round(float(heights.max()-heights.min())/100,2)
-    meta['display_height_range_m']=[float(heights.min())/100-5,float(heights.max())/100+35]
+    bounds={r['id']:b for r,_,b in world.library.values()}
+    top=max((p['position'][1]/100+bounds[p['asset_id']][1][1] for p in world.doc['placements']),default=0)
+    meta['display_height_range_m']=[float(heights.min())/100-5,max(float(heights.max())/100+35,top+5)]
     sources=[Path(__file__),Path(__file__).with_name(RECIPES[theme]),kit/'scripts/authored_assets.py',kit/'scripts/world_geometry.py']
-    if theme=='neon-harbor':sources.append(kit/'scripts/harbor_assets.py')
+    if theme in ('neon-harbor','machine-factory'):sources.append(kit/'scripts/harbor_assets.py')
     if theme=='deep-forest':sources.append(kit/'scripts/forest_assets.py')
     if theme=='red-canyon':sources.append(kit/'scripts/canyon_assets.py')
     if theme=='snow-mountain':sources.append(kit/'scripts/snow_assets.py')
+    if theme=='machine-factory':sources.append(kit/'scripts/factory_assets.py')
     fingerprint=digest(b''.join(p.read_bytes() for p in sources))
     world.doc['provenance']['fingerprint']=fingerprint
     meta['authoring']=dict(recipe_sha256=fingerprint,texture_max_px=512,format_version=1,owner='MapEditor')

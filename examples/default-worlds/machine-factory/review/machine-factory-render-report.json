@@ -1,0 +1,159 @@
+[
+  {
+    "far_cells": 114,
+    "far_display_triangles": 90129,
+    "image": "machine-factory-production-road.png",
+    "largest_far_cell_bytes": 929344,
+    "near_cells": 57,
+    "near_collision_triangles": 40833,
+    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
+    "preparation_ms": 1644,
+    "render": {
+      "draw_calls": 589,
+      "objects": 589,
+      "primitives": 111240
+    },
+    "shared_cache_bytes": 90481408,
+    "view": {
+      "name": "production-road",
+      "position_m": [
+        590.0,
+        13.7,
+        750.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        630.0,
+        16.0,
+        630.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 114,
+    "far_display_triangles": 102818,
+    "image": "machine-factory-process-road.png",
+    "largest_far_cell_bytes": 1142144,
+    "near_cells": 57,
+    "near_collision_triangles": 39791,
+    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
+    "preparation_ms": 1662,
+    "render": {
+      "draw_calls": 633,
+      "objects": 633,
+      "primitives": 129107
+    },
+    "shared_cache_bytes": 94686464,
+    "view": {
+      "name": "process-road",
+      "position_m": [
+        930.0,
+        13.7,
+        430.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        960.0,
+        16.0,
+        520.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 117,
+    "far_display_triangles": 96931,
+    "image": "machine-factory-shipping-road.png",
+    "largest_far_cell_bytes": 904256,
+    "near_cells": 56,
+    "near_collision_triangles": 38792,
+    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
+    "preparation_ms": 1418,
+    "render": {
+      "draw_calls": 582,
+      "objects": 582,
+      "primitives": 115563
+    },
+    "shared_cache_bytes": 77225216,
+    "view": {
+      "name": "shipping-road",
+      "position_m": [
+        1100.0,
+        13.7,
+        965.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        996.0,
+        16.0,
+        924.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 114,
+    "far_display_triangles": 89736,
+    "image": "machine-factory-distant.png",
+    "largest_far_cell_bytes": 1142144,
+    "near_cells": 52,
+    "near_collision_triangles": 40130,
+    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
+    "preparation_ms": 1345,
+    "render": {
+      "draw_calls": 645,
+      "objects": 645,
+      "primitives": 116000
+    },
+    "shared_cache_bytes": 78414848,
+    "view": {
+      "name": "distant",
+      "position_m": [
+        720.0,
+        38.0,
+        1090.0
+      ],
+      "quality": 2.0,
+      "target_m": [
+        950.0,
+        29.0,
+        820.0
+      ],
+      "view_distance_m": 384.0
+    }
+  },
+  {
+    "far_cells": 62,
+    "far_display_triangles": 65873,
+    "image": "machine-factory-overview.png",
+    "largest_far_cell_bytes": 1019840,
+    "near_cells": 114,
+    "near_collision_triangles": 83081,
+    "package_sha256": "c3247a2a10d55fc070659540bb4978779ea07706be3af3ef0d996d4fb8e61eac",
+    "preparation_ms": 1780,
+    "render": {
+      "draw_calls": 1635,
+      "objects": 1635,
+      "primitives": 145291
+    },
+    "shared_cache_bytes": 97811456,
+    "view": {
+      "name": "overview",
+      "position_m": [
+        872.0,
+        235.0,
+        645.0
+      ],
+      "projection": "orthogonal",
+      "quality": 2.0,
+      "size_m": 280.0,
+      "target_m": [
+        872.0,
+        12.0,
+        585.0
+      ],
+      "view_distance_m": 384.0
+    }
+  }
+]
