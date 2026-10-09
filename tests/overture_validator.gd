@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const UI := preload("res://scripts/editor_main.gd")
@@ -60,10 +61,10 @@ func run() -> void:
 	check(ui.store.document.buildings.size()==1,"one-shot candidate")
 	var project:=ProjectSettings.globalize_path("user://overture-project")
 	check(ui.store.save_project(project)=="","save provenance")
-	check(ui.store.autosave()=="","recovery snapshot")
+	check(RECOVERY_FIXTURE.write(ui.store)=="","recovery snapshot")
 	var reopened:=STORE.new()
 	check(reopened.open_project(project)=="" and reopened.document.attributions==ui.store.document.attributions,"source notices roundtrip")
-	check(reopened.recover(ui.store.recovery_path())=="","recover source layer")
+	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store))=="","recover source layer")
 	var pack:=ProjectSettings.globalize_path("user://overture.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,pack)).ok,"package imported building")
 	var pack_hash:=FileAccess.get_sha256(pack)

@@ -4,6 +4,55 @@ const PAYLOADS := preload("./authoring_files.gd")
 const FILES := preload("./document_files.gd")
 const MAX_BYTES := 64 * 1024 * 1024
 
+# Only explicit Save / Export / Test Drive call materialize. Preview never does.
+static func capture_working(working: RefCounted, source: String, history: Array = []) -> Dictionary:
+	var prepared: Dictionary = working.materialize()
+	if not prepared.ok: return prepared
+	var value: Dictionary = prepared.data
+	value.document = JSON.parse_string(value.canonical)
+	var hashes := {}
+	var bytes := 0
+	var paths := {}
+	for command: Dictionary in history:
+		for patch: Dictionary in command.get("patches", []):
+			for record in [patch.before, patch.after]:
+				if record is Dictionary and patch.field in ["heightmaps","assets"]:
+					for path: String in PAYLOADS.paths(record): paths[path] = true
+				if record is Dictionary and patch.field == "courses" and record.has("validation"): paths[record.validation.path] = true
+	for path: String in paths:
+		if value.blobs.has(path): continue
+		if not safe_relative(path): return error("Unsafe history payload path.")
+		var read := PAYLOADS.read(source.path_join(path), MAX_BYTES)
+		if read.has("error"): return error(read.error)
+		value.blobs[path] = read.bytes
+	for path: String in value.blobs:
+		bytes += value.blobs[path].size()
+		if bytes > MAX_BYTES: return error("Snapshot payloads exceed 64 MiB.")
+		hashes[path] = PAYLOADS.digest(value.blobs[path])
+	for command: Dictionary in history:
+		for path: String in command.get("binary_mementos", {}):
+			if value.blobs.get(path) != command.binary_mementos[path]: return error("History payload changed: " + path)
+	value.hashes = hashes
+	value.bytes = bytes
+	return {"ok":true,"data":value}
+
+static func publish(snapshot: Dictionary, destination: String, expected: String, writer: RefCounted, token: RefCounted = null) -> String:
+	var document_path := destination.path_join("document.json")
+	if writer.digest(document_path) != expected: return "The file changed on disk. Open it again or Save As to a new directory."
+	for path: String in snapshot.blobs:
+		if token != null and token.is_cancelled(): return "Operation cancelled; draft retained."
+		var cursor := destination.path_join(path)
+		while cursor != cursor.get_base_dir():
+			var parent := DirAccess.open(cursor.get_base_dir())
+			if parent != null and parent.is_link(cursor.get_file()): return "Save refuses a destination symlink: " + cursor
+			cursor = cursor.get_base_dir()
+		var failure := install_payload(destination.path_join(path), snapshot.blobs[path], snapshot.hashes[path])
+		if failure != "": return failure
+	for path: String in snapshot.blobs:
+		if FileAccess.get_sha256(destination.path_join(path)) != snapshot.hashes[path]: return "Payload changed before document publication: " + path
+	if token != null and token.is_cancelled(): return "Operation cancelled; draft retained."
+	return writer.write(document_path, snapshot.canonical, expected)
+
 static func error(message: String) -> Dictionary:
 	return {"ok": false, "error": {"code": "E_PROJECT_COPY", "message": message}}
 

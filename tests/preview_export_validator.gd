@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const SNAPSHOT := preload("res://scripts/project_snapshot.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
@@ -55,6 +56,7 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	ui.store.new_track(true)
+	ui.set_tool_workspace("landscape")
 	ok(ui.store.apply_command("bounds", [{"field":"bounds", "before":ui.store.document.bounds, "after":{"min":[-51200,-51200], "max":[307200,307200]}}]), "negative origin / seven cells")
 	add_building("near", 1000)
 	ui.preview_x.value = 1
@@ -107,7 +109,7 @@ func run() -> void:
 	ui._validate()
 	await wait_work()
 	check(ui.last_export_report.get("cell_count",0) == 49, "native report cell count")
-	check(ui.last_export_report.base_package_bytes == ui.last_export_report.package_bytes, "no-user compressed base accounting")
+	check(ui.last_export_report.memory_snapshot and not ui.last_export_report.has("package_bytes"), "validation does not encode a package")
 	check(ui.last_export_report.full_generation_cells == 0, "full 3D is optional")
 	check(JSON.stringify(ui.store.document) == document_before and ui.store.dirty, "validation preserves source and dirty state")
 	ui.export_report.hide()
@@ -132,6 +134,7 @@ func run() -> void:
 	ui.preview_enabled = false
 	ui.preview_due = 0
 	ui.store.new_track(true)
+	ui.set_tool_workspace("landscape")
 	var source := ProjectSettings.globalize_path("user://e04-source")
 	ok(ui.store.save_project(source), "initial save")
 	var image := Image.create(4,4,false,Image.FORMAT_RGBA8)
@@ -154,9 +157,9 @@ func run() -> void:
 	var second_copy := ProjectSettings.globalize_path("user://e04-current-copy")
 	ok(reopened.save_project(second_copy), "Save As copies current referenced asset")
 	check(FileAccess.get_file_as_bytes(second_copy.path_join(path)) == bytes, "current asset byte-exact copy")
-	ok(reopened.autosave(), "relocated recovery")
+	ok(RECOVERY_FIXTURE.write(reopened), "relocated recovery")
 	var recovered := STORE.new()
-	ok(recovered.recover(reopened.recovery_path()), "recover copied project")
+	ok(recovered.recover(RECOVERY_FIXTURE.path(reopened)), "recover copied project")
 	check(recovered.project_path == second_copy, "recovery keeps copied origin")
 	var collision_target := ProjectSettings.globalize_path("user://e04-conflict")
 	ok(FILES.write_new(collision_target.path_join(path), "unrelated".to_utf8_buffer()), "conflict fixture")
@@ -169,6 +172,11 @@ func run() -> void:
 	ui._validate()
 	await wait_work()
 	check(ui.last_export_report.full_generation_cells == 4, "opt-in full generation checks every cell")
+	check(ui.last_export_report.memory_snapshot and not ui.last_export_report.has("package_bytes"),"full validation still creates no package")
+	ui.export_report.hide()
+	ui.full_generation.button_pressed = false
+	ui._start_package("export",export_path+"-assets.memap")
+	await wait_work()
 	check(ui.last_export_report.user_asset_bytes == bytes.size() and ui.last_export_report.user_asset_compressed_bytes > 0, "expanded and compressed assets distinguished")
 	check(ui.last_export_report.base_package_bytes + ui.last_export_report.user_asset_compressed_bytes == ui.last_export_report.package_bytes, "package partition exact")
 	var capture := OS.get_environment("MAPEDITOR_CAPTURE_PATH")
@@ -193,6 +201,7 @@ func run() -> void:
 	check(not SNAPSHOT.capture(ui.store.document,target).ok, "snapshot byte limit before allocation")
 	# Dense terrain must span frames, and cancellation after a batch retains old root.
 	ui.store.new_track(true)
+	ui.set_tool_workspace("landscape")
 	var dense_source := ProjectSettings.globalize_path("user://e04-dense")
 	ok(ui.store.save_project(dense_source), "dense source")
 	ui.preview_x.value = 0

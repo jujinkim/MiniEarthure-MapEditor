@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const JOB := preload("res://scripts/generation_native_job.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const REGIONS := preload("res://scripts/import_regions.gd")
@@ -42,9 +43,9 @@ func run() -> void:
 	check(store.undo()=="" and store._signature(store.document)==store._signature(JSON.parse_string(original)),"one Undo restores all metadata and scenery")
 	check(store.redo()=="" and store._signature(store.document)==store._signature(JSON.parse_string(applied)),"Redo restores exact environment")
 	applied=JSON.stringify(store.document)
-	check(store.autosave()=="","generation recovery write")
+	check(RECOVERY_FIXTURE.write(store)=="","generation recovery write")
 	var recovered := STORE.new()
-	check(recovered.recover(store.recovery_path())=="" and recovered.document==store.document,"generation metadata recovery")
+	check(recovered.recover(RECOVERY_FIXTURE.path(store))=="" and recovered.document==store.document,"generation metadata recovery")
 	job.cleanup()
 	var stale := JOB.new();check(stale.start_generation(store,settings,python)=="","start stale preview")
 	await wait_job(stale)

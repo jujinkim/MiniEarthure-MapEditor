@@ -21,12 +21,18 @@ func _ready() -> void:
 
 func show_report(value: Dictionary) -> void:
 	data = value
+	if data.get("memory_snapshot",false):
+		summary.text = I18N.t("Memory snapshot validated · %d cells. Package size is calculated only during explicit export.") % data.cell_count
+		overview.hide()
+		popup_centered()
+		return
+	overview.show()
 	summary.text = (I18N.t("Validated files, seams, inventory and spatial index · %d cells / %d index references\n")
 		+ I18N.t("Compressed package: %d bytes\nBase including ZIP/manifest overhead: %d / %d bytes · %s\n")
 		+ I18N.t("User assets: %d compressed / %d expanded bytes\nBase data expanded: %d bytes · Total expanded: %d bytes\n")
 		+ I18N.t("Native validation estimate: %d bytes peak / %d retained (not measured RSS)\n")
 		+ I18N.t("Full 3D generation: %s · %.3f seconds\n")
-		+ I18N.t("Preview: 256 MiB work + 256 MiB / 4 cached cells; 8 ms/frame batch admission.\n")
+		+ I18N.t("Preview: 256 MiB work + 256 MiB / 4 cached cells; 3 ms/frame batch admission.\n")
 		+ I18N.t("2D overview: roads / buildings; source map and export ignore layer filters.")) % [
 		data.cell_count, data.index_references, data.package_bytes, data.base_package_bytes, data.base_target_bytes,
 		I18N.t("within 50 MB goal") if data.base_target_met else I18N.t("over goal; reduce base data"),
@@ -54,7 +60,7 @@ func show_report(value: Dictionary) -> void:
 
 func _draw_overview() -> void:
 	overview.draw_rect(Rect2(Vector2.ZERO, overview.size), Color("15181e"))
-	if data.is_empty(): return
+	if data.is_empty() or not data.has("overview"): return
 	var map: Dictionary = data.overview
 	var low := Vector2(map.bounds.min[0], map.bounds.min[1])
 	var span := Vector2(map.bounds.max[0], map.bounds.max[1]) - low

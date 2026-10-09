@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 var ui: Control
 var checks := 0
@@ -50,8 +51,8 @@ func write(path: String, value: String) -> void:
 	file.close()
 func finish() -> void:
 	var deadline := Time.get_ticks_msec() + 20000
-	while ui.busy and Time.get_ticks_msec() < deadline: await process_frame
-	check(not ui.busy, "operation finishes within bounded wait")
+	while (ui.busy or ui.store.editing_locked()) and Time.get_ticks_msec() < deadline: await process_frame
+	check(not ui.busy and not ui.store.editing_locked(), "operation finishes within bounded wait")
 	await process_frame
 func capture(name: String) -> void:
 	var directory := OS.get_environment("MAPEDITOR_UX_CAPTURE_DIR")
@@ -65,6 +66,7 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	ui.store.new_track(true)
+	ui.set_tool_workspace("landscape")
 	ui.dialog.use_native_dialog = false
 	await process_frame
 	await process_frame
@@ -86,11 +88,11 @@ func run() -> void:
 	await click(ui.unsaved_dialog.get_cancel_button())
 	check(state() == before, "cancel Close preserves document")
 	var original_id: String = ui.store.document.map_id
-	var retained_path: String = ui.store.recovery_path()
+	var retained_path: String = RECOVERY_FIXTURE.path(ui.store)
 	await menu_command("New")
 	await click(ui.recovery_continue_button)
-	check(ui.store.document.map_id != original_id and ui.store.undo_stack.is_empty(), "explicit recovery continuation creates new document")
-	check(FileAccess.file_exists(retained_path), "explicit continuation retains recovery snapshot")
+	check(ui.store.document.map_id != original_id and ui.store.undo_stack.is_empty(), "explicit discard creates new document")
+	check(not FileAccess.file_exists(retained_path), "discard continuation writes no recovery snapshot")
 	# Save picker cancellation must consume no deferred replacement, including late callbacks.
 	before = state()
 	await menu_command("New")
@@ -101,14 +103,10 @@ func run() -> void:
 	var abandoned := ProjectSettings.globalize_path("user://abandoned-save")
 	ui._path_selected(abandoned)
 	check(state() == before and not DirAccess.dir_exists_absolute(abandoned), "cancel picker rejects late save/transition")
-	# First export guides Save -> new filename; export never alters source or overwrites output.
+	# Exporting a new map chooses only its explicit output, preserving dirty state.
 	await menu_command("Export map")
-	check(ui.dialog_action == "save_for_export", "first export enters save flow")
+	check(ui.dialog_action == "export", "first export chooses package directly")
 	var project := ProjectSettings.globalize_path("user://ux-project")
-	ui.dialog.hide()
-	ui._path_selected(project)
-	await process_frame
-	check(ui.dialog_action == "export" and ui.dialog.visible and not ui.store.dirty, "successful save continues export")
 	var package := ProjectSettings.globalize_path("user://ux-export.memap")
 	ui.dialog.hide()
 	ui._path_selected(package)
@@ -117,13 +115,17 @@ func run() -> void:
 	ui.export_report.hide()
 	var digest := FileAccess.get_sha256(package)
 	ui._start_package("export", package)
+	await finish()
 	check(not ui.busy and ui.validation_label.text.contains("E_EXPORT_EXISTS") and FileAccess.get_sha256(package) == digest, "existing output reports persistent recoverable error and retains bytes")
+	check(ui.store.project_path.is_empty() and ui.store.dirty,"export leaves unsaved map dirty")
+	check(ui.store.save_project(project) == "","explicit baseline for conflict test")
 	check(ui.store.apply_command("Change seed", [{"field":"seed", "before":ui.store.document.seed,"after":17}]) == "", "dirty fixture")
 	before = state()
 	# Failed Save-and-continue retains edits, history and conflicting disk bytes.
 	write(project.path_join("document.json"), "external writer")
 	await menu_command("New")
 	await click(ui.unsaved_dialog.get_ok_button())
+	await finish()
 	check(state() == before and ui.pending_document_action.is_empty() and ui.status_label.text.contains("Save As"), "save conflict blocks replacement and explains recovery")
 	check(FileAccess.get_file_as_string(project.path_join("document.json")) == "external writer", "conflicting original remains untouched")
 	var safe_project := ProjectSettings.globalize_path("user://safe-project")
@@ -133,6 +135,7 @@ func run() -> void:
 	original_id = ui.store.document.map_id
 	await menu_command("New")
 	await click(ui.unsaved_dialog.get_ok_button())
+	await finish()
 	var reopened := STORE.new()
 	check(reopened.open_project(safe_project) == "" and reopened.document.seed == 18 and ui.store.document.map_id != original_id, "Save and continue persists exact edits before replacement")
 	# A deferred document action cannot consume a replacement document.
@@ -183,7 +186,7 @@ func run() -> void:
 	check(ui.pending_import == null and ui.store.document.buildings.is_empty(), "cancel prevents late adoption")
 	ui._set_tool("Select")
 	await capture("retry")
-	check(ui.right_dock.get_global_rect().end.x <= ui.size.x and ui.status_label.get_global_rect().end.y <= ui.size.y, "controls and feedback fit minimum window")
+	check(ui.right_dock.get_global_rect().end.x <= ui.size.x and ui.status_label.get_global_rect().end.y <= ui.size.y, "controls and feedback fit minimum window: "+str([ui.size,ui.right_dock.get_global_rect(),ui.status_label.get_global_rect()]))
 	check(ui.tool_hint.get_global_rect().end.x <= ui.workspace_views.get_global_rect().end.x, "tool help wraps within central views")
 	ui.store.dirty = false
 	ui.queue_free()

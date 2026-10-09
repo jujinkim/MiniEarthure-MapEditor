@@ -5,7 +5,8 @@ signal draft_changed(context: Dictionary)
 signal validated_changed
 signal file_operation_finished(result: Dictionary)
 signal lock_changed
-signal autosave_finished(failure: String)
+signal terrain_preview_changed(cells: Array)
+signal dirty_changed
 signal track_edit_finished(failure: String)
 const TRACK_JOB := preload("./track_edit_job.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
@@ -28,8 +29,6 @@ var _saved_signature := ""
 var _saved_canonical := ""
 var _disk_path := ""
 var _disk_digest := ""
-var _recovery_id := ""
-var _autosaved_signature := ""
 var _gesture: Dictionary = {}
 # Monotonic even when undo/redo or a gesture restores the same document.
 var command_epoch := 0
@@ -59,13 +58,113 @@ var file_job_factory: Callable = func(): return load("res://scripts/document_fil
 var draft_paths: Dictionary = {}
 var paths_revision := -1
 var cached_pieces: Array = []
-var recovery_thread := Thread.new()
-var recovery_session := -1
 var save_token: RefCounted
+var working: RefCounted
+var _working_epoch := -1
+var terrain_revision := 0
+var terrain_state := 0
+var saved_terrain_state := 0
+var terrain_sequence := 0
+var active_terrain: RefCounted
+var water_job: RefCounted
+var water_request := 0
+var water_pending := {}
+var _file_saved_terrain := 0
+
+func working_snapshot() -> RefCounted:
+	if working == null:
+		working = ClassDB.instantiate("MapKitWorkingSnapshot")
+		working.configure(JSON.stringify(document), project_path)
+		_working_epoch = command_epoch
+	elif _working_epoch != command_epoch:
+		working.set_document(JSON.stringify(document), project_path)
+		_working_epoch = command_epoch
+	return working
+
+func finish_active_terrain() -> String:
+	return active_terrain.finish() if active_terrain != null else ""
+
+func terrain_preview(cells: Array) -> void:
+	terrain_revision += 1
+	dirty = true
+	dirty_changed.emit()
+	terrain_preview_changed.emit(cells)
+
+func start_water(point: Vector2, remove := false, refresh := false, delta := PackedInt32Array()) -> String:
+	if editing_locked() or draft_pending(): return EDIT_BUSY
+	water_request += 1
+	water_pending = {"id":water_request,"session":session_id,"revision":command_epoch,"delta":delta}
+	water_job = preload("./water_edit_job.gd").new()
+	var failure: Error = water_job.start(working_snapshot().fork(), point, remove, refresh)
+	if failure != OK:
+		water_job = null
+		water_pending = {}
+		return error_string(failure)
+	lock_changed.emit()
+	return ""
+
+func cancel_water() -> void:
+	if water_job != null: water_job.cancel()
+
+func poll_water() -> void:
+	if water_job == null or water_job.is_alive(): return
+	var result: Dictionary = water_job.finish()
+	water_job = null
+	var pending := water_pending
+	water_pending = {}
+	var valid: bool = pending.id == water_request and pending.session == session_id and pending.revision == command_epoch
+	if valid:
+		var failure := reason(result) if not result.ok else install_terrain_command(pending.delta, result.data)
+		if failure != "":
+			if not pending.delta.is_empty(): working.apply_delta(pending.delta, true)
+			dirty = _signature(document) != _saved_signature or (working != null and working.has_changes())
+			dirty_changed.emit()
+			terrain_revision += 1
+			terrain_preview_changed.emit([])
+			track_edit_finished.emit(failure)
+			if not file_request.is_empty(): _finish_file({"ok":false,"error":failure})
+	lock_changed.emit()
+	_poll_file()
+
+func install_terrain_command(delta: PackedInt32Array, water: Array) -> String:
+	var patches: Array = []
+	var next := document.duplicate(true)
+	next.water_bodies = water
+	if not delta.is_empty() and next.get("assembled_track") is Dictionary and next.assembled_track.get("authoring") is Dictionary:
+		next.assembled_track.authoring.terrain_integration = true
+	var checked := _validate(next)
+	if not checked.ok: return reason(checked)
+	next = checked.data.document
+	if next.get("assembled_track") != document.get("assembled_track"):
+		patches.append({"field":"assembled_track","before":document.assembled_track,"after":next.assembled_track})
+	for record: Dictionary in document.get("water_bodies", []):
+		var after: Variant = _get_value(next, "water_bodies", record.id)
+		if record != after: patches.append({"field":"water_bodies","id":record.id,"before":record,"after":after})
+	for record: Dictionary in next.get("water_bodies", []):
+		if _get_value(document,"water_bodies",record.id) == null: patches.append({"field":"water_bodies","id":record.id,"before":null,"after":record})
+	if delta.is_empty() and patches.is_empty():
+		dirty = _signature(document) != _saved_signature or (working != null and working.has_changes())
+		dirty_changed.emit()
+		return ""
+	var command := {"label":"Terrain / water", "patches":patches, "terrain_delta":delta,
+		"terrain_before":terrain_state,"terrain_after":terrain_state}
+	command.bytes = delta.size()*4 + JSON.stringify(patches).to_utf8_buffer().size()
+	if command.bytes > HISTORY_BYTES: return "Command exceeds the 16 MiB undo budget; split this operation."
+	if not delta.is_empty():
+		terrain_sequence += 1
+		command.terrain_after = terrain_sequence
+	terrain_state = command.terrain_after
+	_record_command(command)
+	document = next
+	_after_edit()
+	terrain_revision += 1
+	terrain_preview_changed.emit([])
+	return ""
+
 
 
 func editing_locked() -> bool:
-	return external_lock or not file_request.is_empty()
+	return external_lock or not file_request.is_empty() or water_job != null
 
 func set_external_lock(value: bool) -> void:
 	if external_lock == value: return
@@ -199,9 +298,10 @@ func poll_track_edit() -> void:
 				track_preview_cache = prepared.preview
 			if prepared.get("noop", false): prepared_track_preview = track_preview_cache
 			validated_revision = draft_revision
+			_working_epoch = -1
 			pending_since = -1
 			draft_error = {}
-			dirty = _signature(document) != _saved_signature
+			dirty = _signature(document) != _saved_signature or (working != null and working.has_changes())
 			validated_changed.emit()
 			last_track_apply_ms = (Time.get_ticks_usec() - begin) / 1000.0
 			last_track_timings = prepared.get("timings", {})
@@ -212,16 +312,21 @@ func poll_track_edit() -> void:
 func shutdown_track_edit() -> void:
 	if track_edit_job != null: track_edit_job.shutdown()
 	if file_job != null: file_job.shutdown()
-	if recovery_thread.is_started(): _consume_recovery(recovery_thread.wait_to_finish())
+	if water_job != null: water_job.shutdown(); water_job = null
 	track_edit_job = null
 	file_job = null
 	pending_track = {}
 	track_edit_busy = false
 
 func start_file_operation(operation: String, path: String, options: Dictionary = {}) -> String:
-	if editing_locked(): return EDIT_BUSY
+	if external_lock or not file_request.is_empty(): return EDIT_BUSY
 	if operation not in ["save", "export"]: return "Unsupported file operation."
-	cancel_gesture()
+	var finish_failure := finish_active_terrain()
+	if finish_failure != "": return finish_failure
+	if has_gesture():
+		finish_failure = commit_gesture()
+		if finish_failure != "": return finish_failure
+	_file_saved_terrain = terrain_state
 	file_sequence += 1
 	file_request = {"id":file_sequence, "session":session_id, "revision":draft_revision,
 		"operation":operation, "path":path, "options":options.duplicate(true), "cancelled":false}
@@ -244,10 +349,13 @@ func poll_file_operation() -> void:
 func _poll_file() -> void:
 	if file_request.is_empty(): return
 	if file_job == null:
+		if water_job != null: return
 		if file_request.cancelled:
 			if track_edit_job == null: _finish_file({"ok":false, "cancelled":true, "error":"Operation cancelled; draft retained."})
 			return
 		if draft_pending(): return
+		_file_saved_terrain = terrain_state
+		file_request.revision = draft_revision
 		file_job = file_job_factory.call()
 		var failure: Error = file_job.start(self, file_request)
 		if failure != OK:
@@ -266,8 +374,13 @@ func _poll_file() -> void:
 		_disk_digest = result.digest
 		_saved_signature = result.signature
 		_saved_canonical = result.canonical
-		_autosaved_signature = ""
-		dirty = _signature(document) != _saved_signature or draft_pending()
+		if working != null: working.accept_saved(result.canonical, project_path)
+		command_epoch += 1
+		_working_epoch = command_epoch
+		saved_terrain_state = _file_saved_terrain
+		dirty = false
+		dirty_changed.emit()
+		changed.emit()
 	_finish_file(result)
 
 func _finish_file(result: Dictionary) -> void:
@@ -278,7 +391,6 @@ func _finish_file(result: Dictionary) -> void:
 
 func new_document() -> void:
 	if editing_locked(): return
-	if dirty and autosave() != "": return
 	bridge = ClassDB.instantiate("MapKitBridge")
 	var stamp := Time.get_datetime_string_from_system(true) + "Z"
 	document = {
@@ -296,9 +408,6 @@ func new_document() -> void:
 
 func open_project(path: String) -> String:
 	if editing_locked(): return EDIT_BUSY
-	if dirty:
-		var retention := autosave()
-		if retention != "": return retention
 	# A failed native open clears its bridge: retain the live bridge until success.
 	var candidate: RefCounted = ClassDB.instantiate("MapKitBridge")
 	var disk := path.path_join("document.json")
@@ -315,6 +424,7 @@ func open_project(path: String) -> String:
 	_disk_path = project_path.path_join("document.json")
 	_disk_digest = digest_before
 	_saved_signature = _signature(document)
+	_saved_canonical = JSON.stringify(document)
 	dirty = false
 	changed.emit()
 	return ""
@@ -339,8 +449,12 @@ func _reset_session() -> void:
 	_saved_signature = ""
 	_disk_path = ""
 	_disk_digest = ""
-	_recovery_id = Crypto.new().generate_random_bytes(12).hex_encode()
-	_autosaved_signature = ""
+	working = null
+	_working_epoch = -1
+	terrain_state = 0
+	saved_terrain_state = 0
+	terrain_revision += 1
+	active_terrain = null
 
 func _validate(value: Dictionary) -> Dictionary:
 	return JSON.parse_string(bridge.validate_document(JSON.stringify(value)))
@@ -454,6 +568,9 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 	var validation := _validate(candidate)
 	if not validation.ok:
 		return {"error": reason(validation)}
+	if working != null:
+		var memory_check: Dictionary = JSON.parse_string(working.fork().set_document(JSON.stringify(candidate),project_path))
+		if not memory_check.ok: return {"error":reason(memory_check)}
 	candidate = validation.data.document
 	# Keep canonical first-before/final-after for touched records only. Native
 	# normalization adds defaults and sorts records; undo must match that result.
@@ -534,9 +651,16 @@ func _prepare_history(command: Dictionary, reverse: bool) -> Dictionary:
 			var payload_source := PAYLOADS.read(project_path.path_join(path), HISTORY_BYTES)
 			if payload_source.has("error") or payload_source.bytes != command.binary_mementos[path]:
 				return {"error":"History payload changed or is missing: " + path}
-		failure = PAYLOADS.validate(self, candidate)
-		if failure != "": return {"error":failure}
-	return {"candidate":validation.data.document, "signature":_signature(validation.data.document)}
+	var native: RefCounted = working_snapshot().fork()
+	if command.has("terrain_delta") and not command.terrain_delta.is_empty():
+		var applied: Dictionary = JSON.parse_string(native.apply_delta(command.terrain_delta, reverse))
+		if not applied.ok: return {"error":reason(applied)}
+	var replayed: Dictionary = JSON.parse_string(native.replay_document(JSON.stringify(validation.data.document),project_path))
+	if not replayed.ok: return {"error":reason(replayed)}
+	if command.has("binary_mementos"):
+		replayed = JSON.parse_string(native.validate_memory())
+		if not replayed.ok: return {"error":reason(replayed)}
+	return {"candidate":validation.data.document, "signature":_signature(validation.data.document),"working":native}
 
 func _install_history(prepared: Dictionary, reverse: bool) -> void:
 	# Transfer only after every patch and invariant passed.
@@ -544,7 +668,11 @@ func _install_history(prepared: Dictionary, reverse: bool) -> void:
 	var command: Dictionary = source.pop_back()
 	(redo_stack if reverse else undo_stack).append(command)
 	document = prepared.candidate
+	working = prepared.working
+	if command.has("terrain_before"): terrain_state = command.terrain_before if reverse else command.terrain_after
 	_after_edit(prepared.signature)
+	terrain_revision += 1
+	terrain_preview_changed.emit([])
 
 func has_gesture() -> bool:
 	return not _gesture.is_empty()
@@ -605,88 +733,47 @@ func _after_edit(prepared_signature: String = "") -> void:
 	cached_pieces = []
 	command_epoch += 1
 	document.provenance.last_edited = Time.get_datetime_string_from_system(true) + "Z"
-	dirty = (prepared_signature if prepared_signature != "" else _signature(document)) != _saved_signature
+	dirty = (prepared_signature if prepared_signature != "" else _signature(document)) != _saved_signature or (working != null and working.has_changes())
+	dirty_changed.emit()
 	changed.emit()
 
 func save_project(path: String) -> String:
 	if editing_locked() or draft_pending(): return EDIT_BUSY
-	if has_gesture():
-		return "Finish or cancel the current gesture before saving."
-	if path.is_empty():
-		return "Choose a project directory first."
-	var validation := _validate(document)
-	if not validation.ok:
-		return reason(validation)
-	if save_token != null and save_token.is_cancelled(): return "Operation cancelled; draft retained."
+	var failure := finish_active_terrain()
+	if failure != "": return failure
+	if has_gesture() or water_job != null: return "Wait for the current edit before synchronous saving."
+	if path.is_empty(): return "Choose a project directory first."
 	var absolute := ProjectSettings.globalize_path(path).simplify_path()
 	var destination := absolute.path_join("document.json")
 	var expected := _disk_digest if destination == _disk_path else ""
-	var failure := ""
-	if absolute != project_path and (not document.heightmaps.is_empty() or not document.assets.is_empty() or not document.get("courses",[]).is_empty() or history_bytes > 0):
-		var captured := SNAPSHOT.capture(document, project_path, undo_stack + redo_stack)
-		if not captured.ok: return reason(captured)
-		failure = SNAPSHOT.copy_to(captured.data, absolute)
-	else:
-		failure = files.write(destination, str(validation.data.canonical), expected)
-	if failure == "":
+	if files.digest(destination) != expected: return "The file changed on disk. Open it again or Save As to a new directory."
+	if absolute == project_path and not dirty and expected != "":
 		command_epoch += 1
-		document = validation.data.document
-		if project_path != absolute: _autosaved_signature = ""
-		project_path = absolute
-		_disk_path = destination
-		_disk_digest = str(validation.data.canonical).sha256_text()
-		_saved_canonical = str(validation.data.canonical)
-		_saved_signature = _signature(document)
-		dirty = false
-	return failure
-
-func recovery_path() -> String:
-	return "user://recovery/" + str(document.get("map_id", "new")).sha256_text() + "-" + _recovery_id + ".json"
-
-func recovery_snapshot() -> Dictionary:
-	return {"recovery_version":1, "project_path":project_path, "base_sha256":_disk_digest,
-		"document":document.duplicate(true), "document_sha256":JSON.stringify(document).sha256_text(),
-		"draft":track_source() if draft_pending() else {}, "draft_revision":draft_revision,
-		"validated_revision":validated_revision,
-		"draft_sha256":JSON.stringify(track_source() if draft_pending() else {}).sha256_text()}
-
-func start_autosave() -> void:
-	if document.is_empty() or recovery_thread.is_started(): return
-	var snapshot := recovery_snapshot()
-	var path := recovery_path()
-	var writer := files
-	var text := JSON.stringify(snapshot)
-	var signature := text.sha256_text()
-	if signature == _autosaved_signature and FileAccess.file_exists(path): return
-	recovery_session = session_id
-	var failure := recovery_thread.start(func():
-		return {"failure":writer.write(path, text, writer.digest(path)), "signature":signature})
-	if failure != OK: autosave_finished.emit(error_string(failure))
-
-func poll_autosave() -> void:
-	if not recovery_thread.is_started() or recovery_thread.is_alive(): return
-	_consume_recovery(recovery_thread.wait_to_finish())
-
-func _consume_recovery(result: Dictionary) -> void:
-	if recovery_session != session_id: return
-	if result.failure == "": _autosaved_signature = result.signature
-	autosave_finished.emit(result.failure)
-
-func autosave() -> String:
-	# Close/switch waits for retention, then writes the latest revision if needed.
-	if recovery_thread.is_started(): _consume_recovery(recovery_thread.wait_to_finish())
-	if document.is_empty(): return ""
-	var text := JSON.stringify(recovery_snapshot())
-	if text.sha256_text() == _autosaved_signature and FileAccess.file_exists(recovery_path()): return ""
-	var failure := files.write(recovery_path(), text, files.digest(recovery_path()))
-	if failure == "": _autosaved_signature = text.sha256_text()
-	return failure
+		_working_epoch = command_epoch
+		changed.emit()
+		return ""
+	if save_token != null and save_token.is_cancelled(): return "Operation cancelled; draft retained."
+	var captured := SNAPSHOT.capture_working(working_snapshot(), project_path, undo_stack + redo_stack)
+	if not captured.ok: return reason(captured)
+	if save_token != null and save_token.is_cancelled(): return "Operation cancelled; draft retained."
+	failure = SNAPSHOT.publish(captured.data, absolute, expected, files, save_token)
+	if failure != "": return failure
+	project_path = absolute
+	_disk_path = destination
+	_disk_digest = str(captured.data.canonical).sha256_text()
+	_saved_canonical = captured.data.canonical
+	_saved_signature = _signature(document)
+	saved_terrain_state = terrain_state
+	working.accept_saved(_saved_canonical, project_path)
+	command_epoch += 1
+	_working_epoch = command_epoch
+	dirty = false
+	dirty_changed.emit()
+	changed.emit()
+	return ""
 
 func recover(path: String) -> String:
 	if editing_locked(): return EDIT_BUSY
-	if dirty:
-		var retention := autosave()
-		if retention != "": return retention
 	var result := files.read_json(path)
 	if result.has("error"):
 		return str(result.error)
@@ -727,8 +814,6 @@ func open_generated(value: Dictionary, preview: Dictionary = {}) -> String:
 	if editing_locked(): return EDIT_BUSY
 	var checked := _validate(value)
 	if not checked.ok: return reason(checked)
-	var failure := autosave() if dirty else ""
-	if failure != "": return failure
 	document = checked.data.document
 	project_path = ""
 	bridge = ClassDB.instantiate("MapKitBridge")
@@ -824,7 +909,6 @@ func _prepare_track(source: Dictionary, record_history := true) -> Dictionary:
 
 func new_track(free_roam := false) -> void:
 	if editing_locked(): return
-	if dirty and autosave() != "": return
 	new_document()
 	if free_roam:
 		document.free_roam=true

@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const EDIT := preload("res://scripts/workbench_edit.gd")
@@ -84,10 +85,10 @@ func run() -> void:
 	await wait_work()
 	check(ui.pending_import == null and ui.store.document == retained, "invalid final part rejects whole source")
 	var project := ProjectSettings.globalize_path("user://overture-geometry-project")
-	check(ui.store.save_project(project) == "" and ui.store.autosave() == "", "save and recoverable history")
+	check(ui.store.save_project(project) == "" and RECOVERY_FIXTURE.write(ui.store) == "", "save and recoverable history")
 	var reopened := STORE.new()
 	check(reopened.open_project(project) == "" and reopened.document.buildings == ui.store.document.buildings and reopened.document.attributions == ui.store.document.attributions, "project roundtrip")
-	check(reopened.recover(ui.store.recovery_path()) == "" and reopened.document.buildings == ui.store.document.buildings, "recovery roundtrip")
+	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "" and reopened.document.buildings == ui.store.document.buildings, "recovery roundtrip")
 	var package := ProjectSettings.globalize_path("user://overture-geometry.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,package)).ok, "package export")
 	var package_hash := FileAccess.get_sha256(package)

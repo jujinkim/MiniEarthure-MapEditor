@@ -7,7 +7,7 @@ catalogue, generation and package verification are owned by MapKit.
 
 Generation and initial package save run through MapKit's cancellable worker.
 The result opens as a new unsaved document; the original project remains on disk
-and dirty source is autosaved to recovery first. A changed document epoch or
+and unsaved edits use the explicit Save / discard / Cancel lifecycle. A changed document epoch or
 cancelled/replaced request prevents a late result from replacing the current
 document. Existing Save/Export and 2D/3D preview work with the generated document.
 Reopening retains seed, settings, resolved placements and generator fingerprints,
@@ -80,9 +80,8 @@ Focused generation/display and source preservation checks pass; detailed driving
 and authoring remain user checks. Integration evidence: root
 `docs/SIMPLIFIED_SEED_TRACKS.md`.
 
-The recovery validator explicitly writes an autosave before attempting to recover
-its finish-policy change. The production timer owns autosave in the application;
-a bare store fixture cannot assume that timer ran.
+The recovery validator creates a retained v1 fixture explicitly. Production has
+no automatic recovery writer; existing recovery files remain readable.
 
 2026-09-29: The panel consumes MapKit `selection_ids`, with one **장애물** checkbox
 and **질주코스 · 16m**. Both modes offer 60/90/120 seconds; 90 is displayed as

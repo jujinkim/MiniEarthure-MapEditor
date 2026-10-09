@@ -60,6 +60,7 @@ func _process(_delta: float) -> void:
 	if due == 0 or Time.get_ticks_msec() < due or store.has_gesture() or (busy_source.is_valid() and busy_source.call()): return
 	due = 0
 	task = WORK.new()
+	task.working = store.working_snapshot().fork()
 	running_generation = generation
 	var document: Dictionary = store.document.duplicate(true)
 	var source: String = store.project_path

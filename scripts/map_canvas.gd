@@ -5,13 +5,13 @@ signal course_point_selected(point: Vector2)
 var course_points: Array = []
 signal selection_changed(ids: Array)
 signal status(text: String)
-signal terrain_requested(request: Dictionary)
 var interaction_revision := 0
 var authoring_revision := 0
 const AUTHOR := preload("./authoring_tools.gd")
 var author := AUTHOR.new()
 var brush_cursor := Vector2.ZERO
 var terrain_textures := {}
+var terrain_versions := {}
 const EDIT := preload("./workbench_edit.gd")
 var store: RefCounted
 var navigation_only := false
@@ -37,9 +37,18 @@ var density_cells: Array = []
 
 func _ready() -> void:
 	author.configure(store, self)
+	store.terrain_preview_changed.connect(_terrain_changed)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
 	clip_contents = true
+
+func _terrain_changed(cells: Array) -> void:
+	if cells.is_empty(): terrain_textures.clear(); return
+	var n: int = int(store.document.cell_size_cm)
+	for cell: Vector2i in cells:
+		for y in range(maxi(0,(cell.y*3200-1)/n),(cell.y*3200+3200)/n+1):
+			for x in range(maxi(0,(cell.x*3200-1)/n),(cell.x*3200+3200)/n+1):
+				terrain_versions[Vector2i(x,y)] = store.terrain_revision
 
 func _scale() -> float:
 	var bounds: Dictionary = store.document.bounds
@@ -127,31 +136,31 @@ func _draw() -> void:
 				for sample: Dictionary in path: line.append(screen([sample.position_cm[0],sample.position_cm[2]]))
 				if line.size()>1: draw_polyline(line,Color("f2c94c") if path!=piece.path else Color("50b7ee"),3.0,true)
 	var visible_tiles := {}
-	for tile: Dictionary in doc.heightmaps:
+	var working: RefCounted = store.working_snapshot()
+	for tile_cell: Vector2i in working.tile_cells():
+		var tile := {"cell":{"x":tile_cell.x,"y":tile_cell.y},"offset_cm":0}
 		if not available({"field":"heightmaps", "record":{"id":"terrain"}}): continue
 		var start := screen([bounds.min[0] + tile.cell.x * cell, bounds.min[1] + tile.cell.y * cell])
 		var end := screen([bounds.min[0] + (tile.cell.x + 1) * cell, bounds.min[1] + (tile.cell.y + 1) * cell])
 		var area := Rect2(start, end - start).abs()
-		if not area.intersects(Rect2(Vector2.ZERO, size)) or visible_tiles.size() >= 16: continue
-		var key: String = store.project_path + ":" + str(tile.path) + ":" + str(tile.offset_cm) + ":" + str(tile.step_cm) + ":" + str(doc.terrain_base_cm)
+		if not area.intersects(Rect2(Vector2.ZERO, size)): continue
+		var key: String = str([store.session_id,tile_cell,terrain_versions.get(tile_cell,0),doc.terrain_base_cm,store.command_epoch])
 		var texture: Texture2D = terrain_textures.get(key)
 		if texture == null:
-			var source := AUTHOR.FILES.read(store.project_path.path_join(tile.path), AUTHOR.TERRAIN.PNG.MAX_BYTES)
-			if not source.has("error"):
-				var side := int(doc.cell_size_cm) / int(tile.spacing_cm) + 1
-				var decoded := AUTHOR.TERRAIN.PNG.decode(source.bytes, side, int(tile.offset_cm), int(tile.step_cm))
-				if not decoded.has("error"):
-					var thumbnail := Image.create(33, 33, false, Image.FORMAT_RGB8)
-					for y in range(33):
-						for x in range(33):
-							var h := int(decoded.heights[mini(side-1, (32-y)*(side-1)/32)*side + mini(side-1, x*(side-1)/32)])
-							var elevation := clampf(float(h - doc.terrain_base_cm) / 2000.0, -1, 1)
-							thumbnail.set_pixel(x, y, Color(0.16, 0.23, 0.15).lerp(Color(0.75,0.68,0.40) if elevation >= 0 else Color(0.10,0.20,0.38), absf(elevation)))
-					texture = ImageTexture.create_from_image(thumbnail)
+			var decoded: Dictionary = working.tile(tile_cell)
+			if decoded.ok:
+				var side := int(decoded.data.side)
+				var thumbnail := Image.create(33, 33, false, Image.FORMAT_RGB8)
+				for y in range(33):
+					for x in range(33):
+						var h := int(decoded.data.heights[mini(side-1, (32-y)*(side-1)/32)*side + mini(side-1, x*(side-1)/32)])
+						var elevation := clampf(float(h - doc.terrain_base_cm) / 2000.0, -1, 1)
+						thumbnail.set_pixel(x, y, Color(0.16, 0.23, 0.15).lerp(Color(0.75,0.68,0.40) if elevation >= 0 else Color(0.10,0.20,0.38), absf(elevation)))
+				texture = ImageTexture.create_from_image(thumbnail)
 		if texture != null:
 			draw_texture_rect(texture, area, false, Color(1,1,1,0.8 * opacity({"field":"heightmaps", "record":{"id":"terrain"}})))
 			visible_tiles[key] = texture
-		draw_string(get_theme_default_font(), Vector2(start.x + 4, end.y + 18), I18N.t("PNG16 %d,%d · offset %.2fm") % [tile.cell.x, tile.cell.y, tile.offset_cm / 100.0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("a4c88c"))
+		draw_string(get_theme_default_font(), Vector2(start.x + 4, end.y + 18), I18N.t("Terrain %d,%d · base %.2fm") % [tile.cell.x, tile.cell.y, tile.offset_cm / 100.0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("a4c88c"))
 	terrain_textures = visible_tiles
 	if tool == "Terrain":
 		var center := screen([brush_cursor.x, brush_cursor.y])
@@ -262,8 +271,7 @@ func _snap_vertex(p: Vector2) -> Vector2:
 	return best
 
 func _gui_input(event: InputEvent) -> void:
-	if store != null and store.editing_locked(): return
-	if navigation_only:
+	if navigation_only or (store != null and store.editing_locked()):
 		if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
 			pan += event.relative
 		elif event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
@@ -289,6 +297,8 @@ func _gui_input(event: InputEvent) -> void:
 					var options: Dictionary = author.options.duplicate(true)
 					options.spacing_cm = options.grid_cm
 					_report(author.terrain.begin(p, options))
+				elif tool in ["Water", "Remove water"]:
+					if available({"field":"water_bodies","record":{"id":"water"}}, true): _report(store.start_water(p, tool == "Remove water"))
 				elif tool == "Select":
 					var hit := _hit(raw_world(event.position))
 					_select_at(raw_world(event.position), event.shift_pressed)
@@ -307,10 +317,7 @@ func _gui_input(event: InputEvent) -> void:
 					elif event.double_click: finish_shape()
 			else:
 				if author.terrain.active:
-					var request: Dictionary = author.terrain.take_stroke()
-					cancel_interaction(false)
-					if request.has("error"): _report(request.error)
-					else: terrain_requested.emit(request)
+					_report(author.terrain.finish())
 					accept_event()
 					return
 				elif marquee:

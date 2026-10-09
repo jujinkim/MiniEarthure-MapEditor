@@ -1,6 +1,6 @@
 # Document, history and recovery contract
 
-Current track contract, 2026-10-03: `document_store.gd` separates the latest accepted
+Current contract: `document_store.gd` separates the latest accepted
 authoring draft from the last MapKit-validated MapDocument. `track_source()` returns
 the draft. `draft_changed`, `validated_changed` and `file_operation_finished` have
 separate consumers; worker completion never resets the next gesture or inspector
@@ -28,15 +28,14 @@ rigidly moved meshes, draws changed paths and attachment/grind guides, and hides
 obsolete heavy geometry. Final preview adoption waits for the current drag or
 text input to finish; completed calculations never rebuild the active inspector.
 
-Automatic validation/autosave has no dim or edit lock. An unconfirmed calculation
+Automatic track validation has no dim or edit lock. An unconfirmed calculation
 lasting 500 ms shows a small indeterminate “Applying changes” indicator; successive
 edits do not reset its timer. The existing reduced-motion preference and English,
 Korean and Japanese catalogs apply.
 
-Save, Save As, execution export and explicit long operations cancel unsubmitted
-gestures, immediately dim the workspace (including destination selection) and lock
-pointer, shortcut, command and
-direct mutation entrypoints. One file request freezes the last submitted revision,
+Save, Save As and execution export finish the current terrain stroke in memory,
+cancel other unsubmitted gestures, and lock edits while keeping the UI and camera
+responsive. One file request freezes the last submitted revision,
 waits for its validation, and performs file work on an owned worker. Only actual
 successful publication advances the savepoint. Normal project Save accepts valid
 structural drafts with course issues; execution export additionally checks that
@@ -67,7 +66,7 @@ Each retained record Command/Memento contains only the touched records' first-be
 and final-after values, captured after native normalization. Unchanged objects,
 whole documents and rendered meshes are not history entries. E03 file commands
 add only their affected immutable binary payloads to the same retention budget.
-Undo and redo share **200 commands / 16 MiB of serialized UTF-8 mementos**. Moving
+Undo and redo share **200 commands / 16 MiB of UTF-8 patches and sparse binary height deltas**. Moving
 between stacks retains the charge; a new branch releases redo, then evicts oldest
 undo entries as needed. One oversized command is rejected before publication.
 This is a serialized retention budget, not a claim about allocator overhead/RSS.
@@ -79,8 +78,7 @@ match the previous staged `after`. Staging never changes the committed document;
 an invalid batch preserves the prior staged batch. Pending mementos have their
 own 16 MiB cap while the retained history remains intact. The commit validates
 the whole result. Cancel discards pending work; saving or history travel requires
-finishing/cancelling the gesture. Autosave excludes unsubmitted pointer gestures but
-retains accepted, unconfirmed track drafts.
+finishing/cancelling the gesture. No timer or document transition writes recovery.
 
 The existing polygon drag uses this boundary. Motion affects only its preview;
 release commits once. Escape, tool/focus change and document replacement discard
@@ -89,7 +87,7 @@ Recover reset history; returning by Undo to saved content clears dirty (edit tim
 alone does not make content dirty). Scene and worker generation invalidation
 continues through the document's `changed` signal.
 
-E03 now uses this boundary for raster brushes and immutable binary tile mementos;
+Terrain uses sparse before/after height samples plus water patches in one command;
 see [AUTHORING.md](AUTHORING.md). File-command raw before/after bytes count toward
 the shared 16 MiB budget. History detects changed payloads before travel. Cell
 identities use canonical integer coordinates across JSON number/key normalization.
@@ -106,31 +104,38 @@ not silently overwritten by Save As. These checks are not collaborative locking;
 simultaneous writers at the final rename boundary are outside this single-user
 contract. Filesystem/power-loss durability beyond Godot flush/rename is not proven.
 
-Autosave runs every 15 seconds while dirty and before replacing or closing a dirty
-document. New/Open/Recover and window Close stop if retention fails; the status
-shows the error. For unsaved changes the Editor now asks **Save and continue**,
-**Keep recovery and continue**, or **Keep editing** (initial keyboard focus).
-Open/Recover ask after selecting the target. Save first asks for a project directory
-when needed; cancelling that picker cancels the transition. Save conflicts keep
-edits/history open and suggest Save As to a new directory. Recovery continuation
-rechecks retention before replacing the document, and a replaced document invalidates
-a pending action. No option deletes recovery snapshots or original files. Each document session gets a separate recovery path, so another
-session cannot overwrite it. Unchanged snapshots do not rotate. The current v1
-envelope stores `document` and `draft` separately, each with a SHA-256 of Godot
-`JSON.stringify` content, plus `draft_revision`, `validated_revision`, original
-project directory and disk base checksum. Timer saves use a separate worker without
-dim; document transitions join retention and capture the latest draft before leaving.
-Recovery starts a fresh session/history and resubmits any unconfirmed draft to MapKit. Snapshots and input JSON are bounded to 64 MiB before reading or
-writing; MapKit's smaller package document limits still apply at packaging.
+Only **Save**, **Ctrl+S**, or **Cmd+S** publishes the project. A new map can be
+sculpted and filled before selecting a directory. Dirty content highlights Save;
+Undo/Redo reaching the saved content clears it. Sparse modified sample sets and a
+saved baseline determine terrain dirtiness; there is no per-frame full-document
+serialization/hash. Save preserves both history stacks. Repeated Save of an
+unchanged existing project performs no writes. Failure or cancellation keeps edits
+and the previous baseline.
 
-Use **Recover** to select an autosave, `.previous`, or a complete `.pending-*`
+Terrain arrays and detached resource providers feed queries, road fitting, previews,
+validation and explicit outputs. Brush `finish` records memory history; it never
+encodes PNG. The Save worker freezes the revision, waits for current water/track
+validation, encodes only changed PNG16 tiles, installs immutable payloads and
+publishes the document last. Source checksums and destination conflicts remain
+checked. A successful publication alone updates the baseline.
+The working document keeps command source identities separate from published PNG
+descriptors. Save therefore preserves earlier import → sculpt → Undo/Redo chains;
+Save As includes the original referenced bytes needed by those commands.
+
+New/Open/Recover and Close offer **Save and continue**, **Continue without saving**,
+or **Cancel**. Cancelling the first-save picker cancels the transition. Discarding
+writes no recovery copy. Existing recovery files are preserved. The old 15-second
+timer and transition/exit recovery writes are removed. Tests create explicit v1
+recovery fixtures to verify the retained reader; production does not create them.
+
+Use **Recover** to select an existing recovery snapshot, `.previous`, or a complete `.pending-*`
 document. Opening a corrupt project suggests this path. Selection is explicit;
 no recovery file is automatically adopted, repaired or deleted. A valid snapshot
 restores content with fresh history and dirty state. Truncation, bad checksum,
 unsupported version, invalid schema or relative origin rejects the candidate
 without replacing the current document/native session.
 
-An autosave retains its original disk base: if someone saved a newer project,
+A retained recovery snapshot retains its original disk base: if someone saved a newer project,
 Save reports a conflict. Reopen that project or use **Save As** to a new directory.
 An explicitly selected raw previous/pending document binds the current primary
 digest and can restore it with Save; later external changes still conflict.
@@ -150,7 +155,7 @@ the user; automatic disk cleanup is not implemented.
 After building the public MapKit binding, run without any private game checkout:
 
 ```sh
-rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --full --log-dir /new/path/editor-document-checks
+rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --script document_history_validator --script document_recovery_validator --script terrain_native_validator --log-dir /new/path/editor-document-checks
 ```
 
 The Python stdlib runner copies only Editor scripts/scenes, the public renderer
@@ -165,7 +170,7 @@ held-worker/clock, lock, publication-race and draft recovery checks.
 `document_history_validator.gd` covers grouped edits, exact save/reopen, no-ops,
 stale/partial failure, metadata identity, both budget caps and canvas cancellation.
 `document_recovery_validator.gd` covers write/backup/publish failures, origin/hash/
-size validation, conflicts and UI retention failures. It starts disposable Godot
+size validation, conflicts and the three-way unsaved guard. It starts disposable Godot
 children that kill **themselves** before backup, before primary replacement and
 after replacement, then verifies primary/previous/pending recovery. Kill messages
 from these fixtures are expected; script/engine failures are not.

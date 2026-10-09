@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const CANVAS := preload("res://scripts/map_canvas.gd")
 var failures: Array[String] = []
@@ -52,8 +53,8 @@ func _run() -> void:
 	check(store.document == before, "failed command leaves document intact")
 	var base := ProjectSettings.globalize_path("user://editor-contract")
 	check(store.save_project(base) == "", "save project")
-	check(store.autosave() == "", "autosave")
-	var recovery := store.recovery_path()
+	check(RECOVERY_FIXTURE.write(store) == "", "recovery fixture")
+	var recovery := RECOVERY_FIXTURE.path(store)
 	var reopened := STORE.new()
 	check(reopened.open_project(base) == "", "reopen public project")
 	check(reopened.document.buildings == store.document.buildings, "save/reopen geometry")

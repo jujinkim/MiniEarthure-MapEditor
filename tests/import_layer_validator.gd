@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 var failures: Array[String] = []
 func check(condition: bool, message: String) -> void:
@@ -71,7 +72,7 @@ func run() -> void:
 		return
 	var first: Dictionary = ui.store.document.buildings[0].duplicate(true)
 	check(ui.store.save_project(base.path_join("project")) == "", "save adopted import")
-	check(ui.store.autosave() == "", "recoverable import attribution")
+	check(RECOVERY_FIXTURE.write(ui.store) == "", "recoverable import attribution")
 	var saved := FileAccess.get_sha256(base.path_join("project/document.json"))
 	ui._start_worker("import", path, "MIT")
 	await wait_import(ui)

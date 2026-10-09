@@ -6,6 +6,7 @@ const INDEX := preload("./preview_index.gd")
 const PREVIEW_BYTES := 256 * 1024 * 1024
 const OVERVIEW_BYTES := 4 * 1024 * 1024
 var regional_side_cells := 0
+var working: RefCounted
 var mutex := Mutex.new()
 var cancelled := false
 var progress := "Preparing snapshot"
@@ -37,7 +38,12 @@ func failure(code: String, message: String) -> Dictionary:
 
 func run(document: Dictionary, source: String, operation: String, cell: Vector2i, cached: Dictionary, full: bool) -> Dictionary:
 	var start := Time.get_ticks_usec()
-	var captured := SNAPSHOT.capture(document, source)
+	if working == null:
+		working = ClassDB.instantiate("MapKitWorkingSnapshot")
+		var configured: Dictionary = JSON.parse_string(working.configure(JSON.stringify(document), source))
+		if not configured.ok: return configured
+	if operation != "export": return _memory_preview(document, operation, cell, full, start, cached)
+	var captured := SNAPSHOT.capture_working(working, source)
 	if not captured.ok: return captured
 	if stopped(): return failure("E_CANCELLED", "Operation cancelled; previous preview and files retained.")
 	update("Validating files, seams and package inventory")
@@ -50,6 +56,47 @@ func run(document: Dictionary, source: String, operation: String, cell: Vector2i
 		PAYLOADS.remove_scratch(staged.data.path)
 	if result.ok: result.data.seconds = (Time.get_ticks_usec() - start) / 1000000.0
 	return result
+
+func _memory_preview(document: Dictionary, operation: String, cell: Vector2i, full: bool, started: int, cached: Dictionary) -> Dictionary:
+	var checked: Dictionary = JSON.parse_string(working.validate_memory())
+	if not checked.ok: return checked
+	if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
+	if operation == "preview":
+		var result: Dictionary = working.generate_packed(cell.x, cell.y, false)
+		if not result.ok: return result
+		if cached.get("signature", "") == result.data.preview_signature:
+			return {"ok":true,"data":{"reused":true,"signature":result.data.preview_signature,"cell":cell}}
+		result.data.signature = result.data.preview_signature
+		result.data.cell = cell
+		var cost: Dictionary = JSON.parse_string(working.estimate(cell.x,cell.y))
+		if not cost.ok: return cost
+		result.data.charge = work_bytes(cost.data) + result.data.preview_bytes
+		if result.data.charge > PREVIEW_BYTES: return failure("E_PREVIEW_BUDGET", "Cell exceeds preview allowance.")
+		result.data.generation_seconds = (Time.get_ticks_usec()-started)/1000000.0
+		result.data.seconds = result.data.generation_seconds
+		return result
+	var rows := {}
+	var bounds: Dictionary = document.bounds
+	var nx := ceili(float(bounds.max[0]-bounds.min[0])/document.cell_size_cm)
+	var ny := ceili(float(bounds.max[1]-bounds.min[1])/document.cell_size_cm)
+	for y in ny:
+		for x in nx:
+			if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
+			var cost: Dictionary = JSON.parse_string(working.estimate(x,y))
+			if not cost.ok: return cost
+			var row: Dictionary = cost.data
+			row.cell = Vector2i(x,y)
+			row.signature = str([x,y])
+			row.work_bytes = work_bytes(row)
+			row.warning = "over limit" if row.work_bytes > PREVIEW_BYTES else ("high" if row.work_bytes >= PREVIEW_BYTES*3/4 else "")
+			rows["%d/%d" % [x,y]] = row
+			if full:
+				var generated: Dictionary = working.generate_packed(x,y,false)
+				if not generated.ok: return generated
+	checked.data.chunk_costs = rows
+	checked.data.seconds = (Time.get_ticks_usec()-started)/1000000.0
+	checked.data.full_generation_cells = nx*ny if full else 0
+	return checked
 
 func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: String, cell: Vector2i, cached: Dictionary, full: bool) -> Dictionary:
 	var native: RefCounted = staged.bridge

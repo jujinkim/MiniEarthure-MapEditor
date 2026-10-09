@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/heightmap_import_layer.gd")
 const PNG := preload("res://scripts/terrain_png.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
@@ -23,6 +24,8 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	ui.store.new_document()
+	ui.set_tool_workspace("landscape")
 	var terrain: RefCounted = ui.canvas.author.terrain
 	var project := ProjectSettings.globalize_path("user://raster-project")
 	check(ui.store.save_project(project) == "", "save isolated project")
@@ -36,7 +39,11 @@ func run() -> void:
 	var attribution := {"source":"Synthetic terrain","license":"MIT","notice":"original fixture"}
 	var layer := LAYER.new()
 	var before := state()
-	check(layer.stage(terrain,source,Vector2i.ZERO,3200,0,1,500,attribution) == "", "stage valid cell")
+	var failure: String = layer.stage(terrain,source,Vector2i.ZERO,3200,0,1,500,attribution)
+	check(failure == "", "stage valid cell: " + failure)
+	if failure != "":
+		quit(1)
+		return
 	check(state() == before and not FileAccess.file_exists(project.path_join(layer.value.heightmap.path)), "staging does not publish payload/document/history")
 	var id: String = layer.value.layer_id
 	check(layer.summary().contains("500") and layer.summary().contains("rows +local y"), "review accuracy and orientation")
@@ -68,10 +75,10 @@ func run() -> void:
 	check(ui.store.undo() == "" and ui.store.document.heightmaps[0] == first, "undo reactivates old file")
 	check(ui.store.redo() == "", "redo reimport")
 	check(FileAccess.get_sha256(output) == package_hash and FILES.read(project.path_join(first.path)).bytes == encoded.bytes, "original package and old payload preserved")
-	check(ui.store.save_project(project) == "" and ui.store.autosave() == "", "persist imported layer")
+	check(ui.store.save_project(project) == "" and RECOVERY_FIXTURE.write(ui.store) == "", "persist imported layer")
 	var reopened := STORE.new()
 	check(reopened.open_project(project) == "" and reopened.document.attributions == ui.store.document.attributions, "metadata reopen")
-	check(reopened.recover(ui.store.recovery_path()) == "", "recovery references retained")
+	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "", "recovery references retained")
 	check(layer.stage(terrain,source,Vector2i.ZERO,3200,0,1,0,attribution) == "", "stage before document change")
 	check(ui.store.undo() == "" and ui.store.redo() == "", "document changes then returns to same content")
 	before = state()

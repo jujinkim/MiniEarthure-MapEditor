@@ -3,7 +3,7 @@ const I18N := preload("./locale_text.gd")
 const PACKAGE_WORK := preload("./package_work.gd")
 const PAYLOAD_FILES := preload("./authoring_files.gd")
 const REPORT := preload("./export_report.gd")
-const ATTACH_USEC := 8000
+const ATTACH_USEC := 3000
 const CACHE_CELLS := 4
 const CACHE_BYTES := 256 * 1024 * 1024
 var package_work: RefCounted
@@ -107,6 +107,7 @@ var file_dialog_lock := false
 
 var unsaved_dialog: ConfirmationDialog
 var recovery_continue_button: Button
+var landscape_brush := preload("./landscape_brush.gd").new()
 var pending_document_action := {}
 var tool_hint: Label
 var cancel_button: Button
@@ -126,7 +127,6 @@ var import_summary: TextEdit
 var import_review_generation := 0
 var import_review_controls: Array = []
 const IMPORT_JOB := preload("./import_job.gd")
-const TERRAIN_NATIVE_JOB := preload("./terrain_native_job.gd")
 const HEIGHTMAP_NATIVE_JOB := preload("./heightmap_native_job.gd")
 const ASSET_NATIVE_JOB := preload("./asset_native_job.gd")
 const DEM_NATIVE_JOB := preload("./dem_native_job.gd")
@@ -190,21 +190,14 @@ func _ready() -> void:
 	_build_operation_ui()
 	store.lock_changed.connect(_sync_operation_ui)
 	store.file_operation_finished.connect(_file_finished)
-	store.autosave_finished.connect(func(failure: String):
-		if failure != "": _status(I18N.diagnostic(failure)))
+	store.dirty_changed.connect(_draft_status_changed)
+	store.terrain_preview_changed.connect(func(_cells: Array): canvas.queue_redraw())
+	landscape_brush.editor = self
 	store.changed.connect(_document_changed)
 	store.new_track()
 	_restore_workbench.call_deferred()
-	var timer := Timer.new()
-	timer.wait_time = 15
-	timer.timeout.connect(_autosave)
-	add_child(timer)
-	timer.start()
 	if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path("user://recovery")):
 		_status(I18N.t("Recovery snapshots are available. Use Recover to inspect one; saved projects stay unchanged."))
-
-func _autosave() -> void:
-	if store.dirty: store.start_autosave()
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT: _cancel_editing()
@@ -273,7 +266,6 @@ func _build_ui() -> void:
 	canvas.custom_minimum_size = Vector2(100, 100)
 	canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	canvas.status.connect(_status)
-	canvas.terrain_requested.connect(_start_terrain)
 	canvas.selection_changed.connect(_selection)
 	left_dock = VBoxContainer.new()
 	var left := left_dock
@@ -283,9 +275,11 @@ func _build_ui() -> void:
 	roam_palette.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(roam_palette)
 	var tool_entries: Array[Dictionary] = []
-	for name in ["Select", "Road", "Surface area", "Water", "Island", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
+	for name in ["Select", "Road", "Surface area", "Water", "Remove water", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
 		tool_entries.append({"id":"tool." + name.to_snake_case(), "group":"Free roam", "section":"Drawing tools"})
 	roam_palette.build(commands, "roam", tool_entries)
+	# Leave room for persistent operation feedback at the 1024 × 720 minimum.
+	roam_palette.tabs.custom_minimum_size.y = 88
 	for tile in roam_palette.tiles: tool_buttons[commands.commands[commands.index_of(tile.id)].label] = tile.button
 	author_panel = AUTHOR_PANEL.new()
 	author_panel.editor = self
@@ -408,7 +402,9 @@ func _build_ui() -> void:
 	preview_dock.add_child(preview_container)
 	preview_container.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.pressed: preview_container.grab_focus()
-		if track_workbench != null and track_workbench.input(event):
+		if landscape_brush.input(event):
+			preview_container.accept_event()
+		elif track_workbench != null and track_workbench.input(event):
 			preview_container.accept_event()
 		elif author_panel != null and author_panel.gimmick_panel != null and author_panel.gimmick_panel.surface_input(event):
 			preview_container.accept_event()
@@ -465,6 +461,8 @@ func _build_ui() -> void:
 	validation_label = Label.new()
 	validation_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	validation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	validation_label.max_lines_visible = 1
+	validation_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	activity.add_child(validation_label)
 	density_panel = preload("./chunk_density_panel.gd").new()
 	density_panel.name = "Problems"
@@ -473,6 +471,8 @@ func _build_ui() -> void:
 	density_panel.busy_source = func(): return busy
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.max_lines_visible = 1
+	status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	status_label.custom_minimum_size.y = 20
 	status_label.text = I18N.t("Choose a tool. Search commands or open Shortcuts for keyboard controls.")
 	activity.add_child(status_label)
@@ -492,11 +492,11 @@ func _build_ui() -> void:
 	unsaved_dialog = ConfirmationDialog.new()
 	unsaved_dialog.title = I18N.t("Unsaved changes")
 	unsaved_dialog.ok_button_text = I18N.t("Save and continue")
-	unsaved_dialog.cancel_button_text = I18N.t("Keep editing")
-	recovery_continue_button = unsaved_dialog.add_button(I18N.t("Keep recovery and continue"), false, "recovery")
+	unsaved_dialog.cancel_button_text = I18N.t("Cancel")
+	recovery_continue_button = unsaved_dialog.add_button(I18N.t("Continue without saving"), false, "discard")
 	unsaved_dialog.confirmed.connect(_save_before_document_action)
 	unsaved_dialog.custom_action.connect(func(action):
-		if action == "recovery":
+		if action == "discard":
 			unsaved_dialog.hide()
 			_continue_document_action()
 	)
@@ -624,6 +624,9 @@ func _label(parent: Node, text: String) -> Label:
 	return label
 
 func _new() -> void:
+	var failure: String = store.finish_active_terrain()
+	if failure != "": _status(failure); return
+	while store.water_job != null: await get_tree().process_frame
 	_cancel_editing()
 	if not is_instance_valid(new_map_dialog):
 		new_map_dialog=ConfirmationDialog.new()
@@ -637,19 +640,17 @@ func _new() -> void:
 	new_map_dialog.popup_centered(Vector2i(400,160))
 
 func _request_document_action(action: String, path: String = "") -> void:
+	var finish_failure: String = store.finish_active_terrain()
+	if finish_failure != "": _status(finish_failure); return
+	while store.water_job != null: await get_tree().process_frame
 	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	_cancel_editing()
 	canvas.cancel_interaction()
-	if store.dirty:
-		var failure := store.autosave()
-		if failure != "":
-			_status((I18N.t("Cannot close safely: ") if action == "close" else I18N.t("Cannot leave document: ")) + I18N.diagnostic(failure))
-			return
 	pending_document_action = {"action": action, "path": path, "session": store.session_id}
 	if not store.dirty:
 		_continue_document_action()
 		return
-	unsaved_dialog.dialog_text = I18N.t("Save changes before %s?\nA recovery snapshot retains committed changes and file references.\nKeep original imported files available. Keep editing cancels this action.") % {"new":I18N.t("creating a new map"), "open":I18N.t("opening another project"), "recover":I18N.t("recovering another document"), "close":I18N.t("closing the editor")}[action]
+	unsaved_dialog.dialog_text = I18N.t("Save changes before %s?\nContinue without saving discards these edits. Cancel keeps this map open.") % {"new":I18N.t("creating a new map"), "open":I18N.t("opening another project"), "recover":I18N.t("recovering another document"), "close":I18N.t("closing the editor")}[action]
 	unsaved_dialog.popup_centered(Vector2i(700, 200))
 	unsaved_dialog.get_cancel_button().grab_focus()
 
@@ -676,15 +677,11 @@ func _continue_document_action() -> void:
 	if request.session != store.session_id:
 		_status(I18N.t("Document changed; request the action again."))
 		return
-	# Recheck retention at consumption, including edits since the prompt opened.
-	var failure := store.autosave() if store.dirty else ""
-	if failure != "":
-		_status(I18N.t("Cannot leave document: ") + I18N.diagnostic(failure))
-		return
+	var failure := ""
 	match request.action:
 		"new":
 			store.new_track(new_free_roam.button_pressed if is_instance_valid(new_free_roam) else false)
-			_status(I18N.t("New map. Previous unsaved changes remain in Recover."))
+			_status(I18N.t("New map."))
 		"open": failure = store.open_project(request.path)
 		"recover": failure = store.recover(request.path)
 		"close": get_tree().quit()
@@ -692,15 +689,18 @@ func _continue_document_action() -> void:
 	elif request.action in ["open", "recover"]: _status(I18N.t("Ready: ") + request.path)
 
 func _choose(action: String) -> void:
+	var failure: String = store.finish_active_terrain()
+	if failure != "": _status(failure); return
+	while store.water_job != null: await get_tree().process_frame
 	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	_cancel_editing()
 	dialog_action = action
-	if action in ["save", "save_transition", "save_for_export", "save_for_drive", "export"]:
+	if action in ["save", "save_transition", "export"]:
 		file_dialog_lock = true
 		store.set_external_lock(true)
 	dialog.filters = PackedStringArray()
-	dialog.title = {"open":I18N.t("Open project directory"), "save":I18N.t("Save project to directory"), "save_transition":I18N.t("Save before continuing"), "save_for_export":I18N.t("Save project before export"), "save_for_drive":I18N.t("Save project before test drive"), "export":I18N.t("Export package — choose a new filename"), "recover":I18N.t("Recover a document"), "import":I18N.t("Choose source to review")}.get(action, I18N.t("Choose file"))
-	if action in ["open", "save", "save_for_drive", "save_transition", "save_for_export"]:
+	dialog.title = {"open":I18N.t("Open project directory"), "save":I18N.t("Save project to directory"), "save_transition":I18N.t("Save before continuing"), "export":I18N.t("Export package — choose a new filename"), "recover":I18N.t("Recover a document"), "import":I18N.t("Choose source to review")}.get(action, I18N.t("Choose file"))
+	if action in ["open", "save", "save_transition"]:
 		dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 	else:
 		dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE if action == "export" else FileDialog.FILE_MODE_OPEN_FILE
@@ -751,7 +751,7 @@ func _path_selected(path: String) -> void:
 		"open", "recover":
 			_request_document_action(dialog_action, path)
 			return
-		"save", "save_transition", "save_for_export", "save_for_drive":
+		"save", "save_transition":
 			if dialog_action == "save_transition" and (pending_document_action.is_empty() or pending_document_action.session != store.session_id):
 				pending_document_action.clear()
 				_status(I18N.t("Document changed or action cancelled; choose Save again."))
@@ -768,6 +768,9 @@ func _path_selected(path: String) -> void:
 	if failure == "": _document_changed()
 
 func _save() -> void:
+	var failure: String = store.finish_active_terrain()
+	if failure != "": _status(failure); return
+	while store.water_job != null: await get_tree().process_frame
 	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	if busy:
 		_status(I18N.t("Wait for the active operation before saving."))
@@ -788,17 +791,13 @@ func _export() -> void:
 	if busy:
 		_status(I18N.t("Cancel the active operation or wait before exporting."))
 		return
-	if store.project_path == "":
-		_choose("save_for_export")
-		return
 	_choose("export")
 
 func _validate() -> void:
-	if track_workbench != null and track_workbench.active:
+	if store.draft_pending():
 		store.retry_track_edit()
-		track_workbench.refresh()
-		_status(track_workbench.report.text)
-		return
+		while store.track_edit_busy: await get_tree().process_frame
+		if store.draft_pending(): _status(str(store.draft_error)); return
 	_start_package("report")
 
 func _selection(ids: Array) -> void:
@@ -967,8 +966,8 @@ func _tool_help(name: String) -> String:
 		"Select":"Click to select; Shift toggles. Drag empty space to box-select. Edit in Properties, then Apply.",
 		"Road":"Click at least two points; right-click to finish. Set width, surface and structure in Authoring settings.",
 		"Building":"Click at least three corners; right-click to finish. Select the building to edit height and material.",
-		"Water":"Draw a non-solid water polygon; right-click finishes. Set surface, bottom and flow in Authoring settings.",
-		"Island":"Select a water body, then draw a dry island; right-click finishes.",
+		"Water":"Click a slope to fill connected lower terrain at the clicked height. Flat terrain does not change.",
+		"Remove water":"Click to remove the entire connected water surface. Raise terrain to make islands.",
 		"Cylinder wall":"Click the centre to place a solid round wall. Set radius and height in Authoring settings; select it to resize.",
 		"Forest":"Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
 		"Orchard":"Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
@@ -1037,11 +1036,12 @@ func _cancel_editing() -> void:
 func _register_commands() -> void:
 	commands.context_source = func(): return "roam" if tool_workspace == "landscape" else "track"
 	commands.blocked_source = _shortcuts_blocked
-	commands.availability_source = func(_id: String):
+	commands.availability_source = func(id: String):
+		if id in ["file.save","file.save_as"] and store.water_job != null and store.file_request.is_empty() and not store.external_lock: return ""
 		return store.EDIT_BUSY if store.editing_locked() else ""
 
 	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Restore package", _choose.bind("reopen_package")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Import vector", _import_geojson], ["Export map", _export]]:
-		commands.register("File", entry[0], entry[1], "Primary+S" if entry[0] == "Save" else "")
+		commands.register("File", entry[0], entry[1], "Ctrl+S" if entry[0] == "Save" else "", {"keys":["Cmd+S"]} if entry[0] == "Save" else {})
 	commands.register("Edit", "Undo", _history.bind(false), "Primary+Z", {"enabled":func(): return not store.undo_stack.is_empty(), "reason":"No committed edit to undo."})
 	commands.register("Edit", "Redo", _history.bind(true), "Primary+Shift+Z", {"keys":["Primary+Y"], "enabled":func(): return not store.redo_stack.is_empty(), "reason":"No edit to redo."})
 	commands.register("Edit", "Duplicate", _duplicate_current, "Primary+D", {"enabled":_has_selection, "reason":"Select an object in the current mode first."})
@@ -1058,7 +1058,7 @@ func _register_commands() -> void:
 	commands.register("View", "Reset panels", _reset_panels)
 	for mode in ["2d", "3d", "split"]:
 		commands.register("View", mode.to_upper(), _set_view_mode.bind(mode), "", {"id":"view." + mode, "icon":mode})
-	for tool in ["Select", "Road", "Surface area", "Water", "Island", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
+	for tool in ["Select", "Road", "Surface area", "Water", "Remove water", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
 		var shortcut: String = {"Select":"V", "Road":"R", "Building":"B", "Forest":"G", "Orchard":"O"}.get(tool, "")
 		commands.register("Create", tool, _set_tool.bind(tool), shortcut, {"id":"tool." + tool.to_snake_case(), "context":"global" if tool == "Select" else "roam", "description":"Select in the active workspace: track pieces in 3D, or free roam objects on the plan." if tool == "Select" else _tool_help(tool), "menu":false})
 	commands.register("Create", "Authoring settings…", func(): author_panel.open(), "", {"context":"roam"})
@@ -1176,6 +1176,9 @@ func _preview_cell_changed(_value: float) -> void:
 		preview_due = Time.get_ticks_msec() + 150
 
 func _start_package(operation: String, destination: String = "") -> void:
+	var finish_failure: String = store.finish_active_terrain()
+	if finish_failure != "": _status(finish_failure); return
+	while store.water_job != null: await get_tree().process_frame
 	if operation == "export":
 		if store.editing_locked(): _status(store.EDIT_BUSY); return
 		_cancel_editing()
@@ -1196,6 +1199,7 @@ func _start_package(operation: String, destination: String = "") -> void:
 		_operation_status(I18N.t("Export failed · E_EXPORT_EXISTS"), I18N.t("Choose a new package filename; existing files are preserved."))
 		return
 	package_work = PACKAGE_WORK.new()
+	package_work.working = store.working_snapshot().fork()
 	package_work.regional_side_cells = int(regional_grouping.value) if destination.get_extension().to_lower() == "mkregions" else 0
 	package_operation = operation
 	package_started_usec = Time.get_ticks_usec()
@@ -1225,6 +1229,7 @@ func _cancel_operation() -> void:
 	if generation_lock:
 		_cancel_track_generation()
 		return
+	if store.water_job != null and store.file_request.is_empty(): store.cancel_water()
 	if not store.file_request.is_empty():
 		store.cancel_file_operation()
 		_status(I18N.t("Stopping operation… Waiting for publication result."))
@@ -1324,7 +1329,7 @@ func _package_finished(result: Dictionary) -> void:
 				return
 			last_export_report.path = package_destination
 		_status(I18N.t("Exported validated package: ") + package_destination if package_operation == "export" else I18N.t("Validated immutable snapshot; capacity report ready."))
-		validation_label.text = I18N.t("Validated · %d bytes · base goal %s") % [result.data.package_bytes, "met" if result.data.base_target_met else "exceeded"]
+		validation_label.text = I18N.t("Memory snapshot validated") if result.data.get("memory_snapshot",false) else I18N.t("Validated · %d bytes · base goal %s") % [result.data.package_bytes, "met" if result.data.base_target_met else "exceeded"]
 		export_report.show_report(result.data)
 		return
 	if result.data.get("reused", false):
@@ -1472,9 +1477,10 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 	busy = true
 	worker_generation = generation
 	var test_request := drive_request.duplicate(true)
+	var drive_snapshot: RefCounted = store.working_snapshot().fork()
 	var err := worker.start(func():
 		if operation == "test_drive":
-			return {"operation": operation, "result": TEST_DRIVE.prepare(source, destination, test_request.document, test_request.x_cm, test_request.y_cm, test_request.surface)}
+			return {"operation": operation, "result": TEST_DRIVE.prepare_working(drive_snapshot, source, destination, test_request.x_cm, test_request.y_cm, test_request.surface)}
 		return {"operation": operation, "result": TEST_DRIVE.error("E_STATE", "Unsupported worker operation.")}
 	)
 	if err != OK:
@@ -1482,45 +1488,16 @@ func _start_worker(operation: String, source: String, destination: String) -> vo
 		_status(I18N.diagnostic(error_string(err)))
 	else: _status(I18N.t("Preparing test drive…"))
 
-func _terrain_selection() -> String:
-	return JSON.stringify([canvas.interaction_revision, canvas.authoring_revision, canvas.tool, canvas.author.options, canvas.layer_state]).sha256_text()
-
-func _start_terrain(request: Dictionary) -> void:
-	if busy:
-		_status(I18N.t("Finish the running operation before painting terrain."))
-		return
-	if not canvas.available({"field":"heightmaps", "record":{"id":"terrain"}}, true):
-		_status(I18N.t("Show and unlock terrain before painting."))
-		return
-	var job := TERRAIN_NATIVE_JOB.new()
-	job.editor_generation = generation
-	var failure := job.start_terrain(store, request, _terrain_selection(), Crypto.new().generate_random_bytes(16).hex_encode())
-	if failure != "":
-		_status(I18N.diagnostic(failure))
-		return
-	import_job = job
-	worker_generation = generation
-	busy = true
-	import_progress.visible = true
-	_status(I18N.t("Preparing terrain stroke · 120s deadline · Cancel preserves the map."))
-
-func _finish_terrain(job: RefCounted, result: Dictionary) -> void:
-	if job.editor_generation != generation or not job.matches(store, _terrain_selection()):
-		_status(I18N.t("Terrain stroke cancelled or stale; nothing was changed."))
-		return
-	if not result.get("ok", false) or not result.get("data", {}).get("ok", false):
-		_status(I18N.result(result.get("data", result)))
-		return
-	var failure: String = job.commit(store)
-	_status(I18N.diagnostic(failure) if failure != "" else I18N.t("Terrain stroke applied. Undo: ") + commands.shortcut_text("edit.undo"))
-
 func _process(_delta: float) -> void:
 	if generation_lock and not track_job.busy():
 		generation_lock = false
 		store.set_external_lock(busy)
 	store.poll_track_edit()
 	store.poll_file_operation()
-	store.poll_autosave()
+	store.poll_water()
+	if canvas.author.terrain.active:
+		var failure: String = canvas.author.terrain.tick()
+		if failure != "": _status(failure)
 	_sync_operation_ui()
 	if track_workbench != null and track_workbench.placement.tool != "" and _popup_open(self): _cancel_editing()
 	if not density_deferred_package.is_empty() and density_panel.task == null:
@@ -1528,13 +1505,11 @@ func _process(_delta: float) -> void:
 		density_deferred_package = {}
 		busy = false
 		_start_package(pending.operation,pending.destination)
-	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy and store.file_request.is_empty()
+	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy and store.file_request.is_empty() and store.water_job == null
 	cancel_button.tooltip_text = I18N.t("Cancel the running operation; keep prior preview and original files.") if busy or store.track_edit_busy else I18N.t("No running operation.")
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	if import_job != null:
-		if import_job is TERRAIN_NATIVE_JOB:
-			if generation != worker_generation or not import_job.matches(store, _terrain_selection()): import_job.cancel()
-		elif import_job is ASSET_NATIVE_JOB:
+		if import_job is ASSET_NATIVE_JOB:
 			if generation != worker_generation or import_job.document_epoch != store.command_epoch or import_job.selection_signature != author_panel.asset_selection(): import_job.cancel()
 			author_panel.asset_progress(import_job.progress)
 		elif import_job is HEIGHTMAP_NATIVE_JOB:
@@ -1547,15 +1522,14 @@ func _process(_delta: float) -> void:
 		var progress: Dictionary = import_job.progress
 		if not progress.is_empty():
 			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
-			validation_label.text = "%s %s · %d / %d %s" % [I18N.t("Terrain") if import_job is TERRAIN_NATIVE_JOB else I18N.t("DEM") if dem_mode.begins_with("dem") else I18N.t("Import"), I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
+			validation_label.text = "%s %s · %d / %d %s" % [I18N.t("DEM") if dem_mode.begins_with("dem") else I18N.t("Import"), I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
 		if import_job.done:
 			var completed: RefCounted = import_job
 			var result: Dictionary = import_job.result
 			import_job = null
 			busy = false
 			import_progress.visible = false
-			if completed is TERRAIN_NATIVE_JOB: _finish_terrain(completed, result)
-			elif completed is ASSET_NATIVE_JOB: author_panel.finish_asset(completed, result)
+			if completed is ASSET_NATIVE_JOB: author_panel.finish_asset(completed, result)
 			elif completed is HEIGHTMAP_NATIVE_JOB: author_panel.finish_heightmap(completed, result)
 			elif completed is DEM_NATIVE_JOB: dem_panel.finish_native(completed, result)
 			elif completed is IMPORT_NATIVE_JOB: _finish_native_import(completed, result)
@@ -1740,6 +1714,8 @@ func _status(text: String) -> void:
 	if validation_label != null and text.contains("E_"):
 		validation_label.text = I18N.t("Edit/operation rejected · ") + text
 	status_label.text = I18N.display(text)
+	status_label.tooltip_text = status_label.text
+	if validation_label != null: validation_label.tooltip_text = validation_label.text
 	if track_workbench!=null and track_workbench.road_tools!=null:track_workbench.road_tools.show_issue(text)
 
 func _exit_tree() -> void:
@@ -1752,19 +1728,17 @@ func _exit_tree() -> void:
 		var output: Variant = worker.wait_to_finish()
 		if output is Dictionary and output.operation == "package" and output.result.ok and output.result.data.has("scratch"):
 			PAYLOAD_FILES.remove_scratch(output.result.data.scratch)
-	if store.dirty:
-		store.autosave()
 
 
 func _build_test_drive_dialog() -> void:
 	drive_dialog = ConfirmationDialog.new()
 	drive_dialog.title = I18N.t("Test Drive")
-	drive_dialog.ok_button_text = I18N.t("Save, Package and Launch")
+	drive_dialog.ok_button_text = I18N.t("Package and Launch")
 	drive_dialog.theme = theme
 	var layout := VBoxContainer.new()
 	layout.custom_minimum_size = Vector2(650, 270)
 	drive_dialog.add_child(layout)
-	_label(layout, "Saves the current project and opens a separate snapshot in installed Client.")
+	_label(layout, "Exports the current edits to a separate snapshot in installed Client. The project remains unsaved.")
 	var path_row := HBoxContainer.new()
 	layout.add_child(path_row)
 	client_path = LineEdit.new()
@@ -1802,13 +1776,11 @@ func _build_test_drive_dialog() -> void:
 
 
 func _test_drive() -> void:
-	_cancel_editing()
+	var failure: String = store.finish_active_terrain()
+	if failure != "": _status(failure); return
+	while store.water_job != null: await get_tree().process_frame
 	if busy:
 		_status(I18N.t("Wait for the current operation before starting test drive."))
-		return
-	if store.project_path == "":
-		_status(I18N.t("Choose a project directory before test drive."))
-		_choose("save_for_drive")
 		return
 	var bounds: Dictionary = store.document.bounds
 	drive_x.min_value = float(bounds.min[0]) / 100
@@ -1840,7 +1812,10 @@ func _launch_test_drive() -> void:
 		last_drive_result = checked
 		_status(I18N.result(checked))
 		return
-	_start_save(store.project_path, "launch_drive")
+	var failure: String = store.finish_active_terrain()
+	if failure != "": _status(failure); return
+	while store.water_job != null: await get_tree().process_frame
+	_prepare_test_drive()
 
 func _prepare_test_drive() -> void:
 	var directory := ProjectSettings.globalize_path("user://test-drives")
@@ -1851,7 +1826,7 @@ func _prepare_test_drive() -> void:
 	var snapshot := directory.path_join(Crypto.new().generate_random_bytes(16).hex_encode() + ".memap")
 	drive_request = {"client": client_path.text, "x_cm": roundi(drive_x.value * 100),
 		"y_cm": roundi(drive_y.value * 100), "surface": drive_surface.get_selected_metadata(),
-		"document": store._saved_canonical}
+		"document": store._signature(store.document), "epoch":store.command_epoch, "session":store.session_id}
 	var settings := ConfigFile.new()
 	settings.load("user://editor_tools.cfg")
 	settings.set_value("test_drive", "client_executable", client_path.text)
@@ -1959,13 +1934,15 @@ func _build_operation_ui() -> void:
 	operation_dim = ColorRect.new()
 	operation_dim.color = Color(0, 0, 0, 0.55)
 	operation_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	operation_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	operation_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	operation_dim.z_index = 100
 	add_child(operation_dim)
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	operation_dim.add_child(center)
 	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(box)
 	operation_spinner = preload("res://addons/mapkit/godot/work_progress.gd").new()
 	box.add_child(operation_spinner)
@@ -1994,10 +1971,16 @@ func _draft_status_changed() -> void:
 	canvas.queue_redraw()
 	project_label.text = (store.project_path if store.project_path != "" else I18N.t("Unsaved project")) + (I18N.t("  • modified") if store.dirty else "")
 	commands.refresh_buttons()
+	for item: Dictionary in commands.buttons:
+		if item.get("id", "") == "file.save":
+			var button: Button = item.control.get_ref()
+			if button == null: continue
+			button.modulate = Color("ffd077") if store.dirty else Color.WHITE
+			button.tooltip_text = commands.tooltip("file.save") + (I18N.t(" · Unsaved changes") if store.dirty else "")
 
 func _start_save(path: String, continuation := "save") -> void:
-	if store.editing_locked(): _status(store.EDIT_BUSY); return
-	_cancel_editing()
+	if store.editing_locked() and store.water_job == null: _status(store.EDIT_BUSY); return
+	if store.active_terrain == null: _cancel_editing()
 	file_continuation = continuation
 	var failure := store.start_file_operation("save", path)
 	if failure != "":
@@ -2020,6 +2003,3 @@ func _file_finished(result: Dictionary) -> void:
 	_status(I18N.t("Project saved."))
 	match continuation:
 		"save_transition": _continue_document_action()
-		"save_for_export": _choose.call_deferred("export")
-		"save_for_drive": _test_drive()
-		"launch_drive": _prepare_test_drive()

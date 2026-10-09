@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 var failures: Array[String] = []
@@ -108,11 +109,11 @@ func run() -> void:
 	check(FileAccess.get_sha256(path) == source_hash, "local source preserved after adoption")
 	check(ui.store.bridge.generate_chunk(0,0) == baseline_chunk, "adoption preserves loaded bridge")
 	check(ui.store.save_project(base.path_join("adopted")) == "", "save multipart document")
-	check(ui.store.autosave() == "", "autosave multipart provenance")
+	check(RECOVERY_FIXTURE.write(ui.store) == "", "recovery fixture multipart provenance")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	var reopened := STORE.new()
 	check(reopened.open_project(ui.store.project_path) == "" and reopened.document == adopted, "saved geometry and exact provenance reopen")
-	check(reopened.recover(ui.store.recovery_path()) == "" and reopened.document == adopted, "recovery retains parts and source mapping")
+	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "" and reopened.document == adopted, "recovery retains parts and source mapping")
 	var derived := base.path_join("adopted.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(ui.store.project_path, derived)).ok, "export multipart package")
 	check(JSON.parse_string(reopened.bridge.open_package(derived)).ok, "open multipart package")

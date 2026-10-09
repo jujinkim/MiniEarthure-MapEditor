@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 var failures: Array[String] = []
@@ -69,8 +70,8 @@ func run() -> void:
 	check(JSON.stringify(footprint) == JSON.stringify(JSON.parse_string('[[51200,51200],[52479,51200],[52479,53426],[51200,53426]]')), "axis/centimetre fixture")
 	var base := ProjectSettings.globalize_path("user://project")
 	check(ui.store.save_project(base) == "", "save projection")
-	check(ui.store.autosave() == "", "retain projection recovery")
-	var recovery: String = ui.store.recovery_path()
+	check(RECOVERY_FIXTURE.write(ui.store) == "", "retain projection recovery")
+	var recovery: String = RECOVERY_FIXTURE.path(ui.store)
 	var reopened := STORE.new()
 	check(reopened.open_project(base) == "", "reopen projection")
 	check(reopened.document.attributions == ui.store.document.attributions, "projection attribution roundtrip")

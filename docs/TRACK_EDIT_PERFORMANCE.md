@@ -3,7 +3,7 @@
 ## Drafts and operation ownership
 
 Road/track edits retain the current document and its landscape. Automatic
-validation/autosave permits continuous source drafts. Release records one Undo
+validation permits continuous source drafts. Release records one Undo
 command immediately; a single running worker plus the latest pending snapshot
 coalesces calculation. Only a matching document session, revision, request ID and
 command epoch may install once. Failure, cancellation, supersession and a replaced

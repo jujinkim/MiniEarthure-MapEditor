@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const DEM := preload("res://scripts/dem_import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 var ui: Control
@@ -101,10 +102,10 @@ func run() -> void:
 	check(ui.store.document.attributions.size()==2 and ui.store.document.heightmaps.size()==1,"UI explicit reimport keeps both notices and one active tile")
 	check(ui.store.undo()=="" and ui.store.document.heightmaps[0]==first,"reimport Undo selects original")
 	check(ui.store.redo()=="" and FileAccess.get_sha256(output)==package_sha and FileAccess.get_sha256(first_destination+".source-0.tif")==source_sha,"redo preserves original package/capture")
-	check(ui.store.save_project(project)=="" and ui.store.autosave()=="","save and recovery DEM metadata")
+	check(ui.store.save_project(project)=="" and RECOVERY_FIXTURE.write(ui.store)=="","save and recovery DEM metadata")
 	var reopened := STORE.new()
 	check(reopened.open_project(project)=="" and reopened.document.attributions==ui.store.document.attributions,"reopen exact provenance")
-	check(reopened.recover(ui.store.recovery_path())=="","recover imported DEM")
+	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store))=="","recover imported DEM")
 	check(layer.stage_dem(ui.canvas.author.terrain,result,reviewed,first_destination)=="","stage before stale generation")
 	ui.store.undo();ui.store.redo()
 	before=state()

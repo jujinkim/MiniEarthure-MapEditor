@@ -1,248 +1,183 @@
-extends "res://tests/heightmap_import_validator.gd"
-const JOB := preload("res://scripts/terrain_native_job.gd")
-class PausedJob extends JOB:
-	func _spawn(path: String, arguments: PackedStringArray) -> Dictionary:
-		var index := arguments.find("--")
-		arguments.insert(index, "--script")
-		arguments.insert(index + 1, ProjectSettings.globalize_path("res://tests/command_worker_fixture.gd"))
-		return super._spawn(path, arguments)
-class PlanJob extends JOB:
-	func _spawn(path: String, arguments: PackedStringArray) -> Dictionary:
-		var index := arguments.find("--")
-		arguments.insert(index, "--script")
-		arguments.insert(index + 1, ProjectSettings.globalize_path("res://tests/terrain_worker_fixture.gd"))
-		return super._spawn(path, arguments)
-class StopJob extends JOB:
-	var reached := false
-	var target := "validate"
-	func _event(line: PackedByteArray) -> void:
-		super._event(line)
-		if progress.get("stage") == target and not reached:
-			reached = true
-			cancel()
-class MissingJob extends JOB:
-	func _spawn(_path: String, _arguments: PackedStringArray) -> Dictionary: return {}
-class FaultJob extends JOB:
-	var mode := "wait"
-	func _spawn(_path: String, _arguments: PackedStringArray) -> Dictionary:
-		return OS.execute_with_pipe(OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON"), PackedStringArray(["-B", "-u", ProjectSettings.globalize_path("res://tests/native_child_fixture.py"), mode, identity, directory]), false)
-class CorruptJob extends JOB:
-	func _finish_result() -> void:
-		if result.get("ok", false) and result.data.get("ok", false):
-			var file := FileAccess.open(directory.path_join("bundle.bin"), FileAccess.WRITE)
-			file.store_8(0); file.close()
-		super._finish_result()
-class MalformedJob extends JOB:
-	var mode := "duplicate-output"
-	func _finish_result() -> void:
-		if result.get("ok", false) and result.data.get("ok", false):
-			var transfer := COMMAND.read_bundle(directory, result.data)
-			var command: Dictionary = JSON.parse_string(transfer.prepared.command_json)
-			match mode:
-				"duplicate-output": transfer.blob_paths.append(transfer.blob_paths[0])
-				"extra-output":
-					var bytes := PackedByteArray([1,2,3])
-					var path := "editor/" + PAYLOADS.digest(bytes) + ".png"
-					transfer.blob_paths.append(path); transfer.prepared.retained[path] = bytes
-				"attribution": command.patches = [{"field":"attributions","id":"unexpected","before":null,"after":{"source":"unexpected","license":"MIT","notice":"synthetic"}}]
-				"duplicate-tile": command.patches.append(command.patches[0].duplicate(true))
-				"foreign-cell": command.patches[0].after.cell = {"x":99,"y":99}
-				"changed-before": command.patches[0].before = {"cell":{"x":0,"y":0},"path":transfer.blob_paths[0]}
-			transfer.prepared.command_json = JSON.stringify(command)
-			DirAccess.remove_absolute(directory.path_join("bundle.bin"))
-			COMMAND.write_bundle(directory, transfer, result.data)
-		super._finish_result()
-var stroke_request := {"stroke":[[6100,6100],[6700,6700]], "options":{"mode":"raise", "spacing_cm":800, "radius_cm":1600, "amount_cm":200, "target_cm":0}}
-func token() -> String: return Crypto.new().generate_random_bytes(16).hex_encode()
-func accepted(job: RefCounted) -> bool:
-	return job.result.get("ok", false) and job.result.get("data", {}).get("ok", false) and not job.bundle.is_empty()
-func start(job: RefCounted, store: RefCounted = null, id: String = "") -> String:
-	return job.start_terrain(ui.store if store == null else store, stroke_request, "test", token() if id == "" else id)
-func wait_job(job: RefCounted, prepare: bool = false, target: String = "prepare") -> void:
-	var until := Time.get_ticks_msec() + 20000
-	var frames := 0
-	while not job.done and Time.get_ticks_msec() < until:
-		job.poll()
-		if prepare and job.progress.get("stage") == target: break
-		frames += 1
-		await process_frame
-	check(job.progress.get("stage") == target and not job.done if prepare else job.done, "terrain reaches state: " + str(job.progress) + " " + str(job.result).left(600))
-	check(frames > 0, "terrain work yields frames")
-	if Time.get_ticks_msec() >= until: job.shutdown()
-	if not prepare: check(job.exited and job.pid == -1, "terrain child reaped")
-func wait_ui() -> void:
-	var until := Time.get_ticks_msec() + 20000
-	while ui.import_job != null and Time.get_ticks_msec() < until: await process_frame
-	check(ui.import_job == null and not ui.busy, "terrain UI job completes: " + ui.status_label.text)
+extends SceneTree
+const STORE := preload("res://scripts/document_store.gd")
+const TERRAIN := preload("res://scripts/terrain_tools.gd")
+const FILES := preload("res://scripts/document_files.gd")
+const WORK := preload("res://scripts/package_work.gd")
+var checks := 0
+var failures: Array[String] = []
+class CompletedWater extends RefCounted:
+	var result: Array = []
+	func is_alive() -> bool: return false
+	func finish() -> Dictionary: return {"ok":true,"data":result}
+class CountingFiles extends FILES:
+	var writes := 0
+	var fail := false
+	var delegate := preload("res://scripts/document_files.gd").new()
+	func digest(path: String) -> String: return delegate.digest(path)
+	func read_json(path: String) -> Dictionary: return delegate.read_json(path)
+	func write(path: String,text: String,expected: String) -> String:
+		writes += 1
+		return "Injected save failure" if fail else delegate.write(path,text,expected)
+func check(value: bool, message: String) -> void:
+	checks += 1
+	if not value: failures.append(message); push_error(message)
+func _initialize() -> void: run.call_deferred()
+func height(store: RefCounted, p := Vector2(3200,3200)) -> int:
+	var result: Dictionary = JSON.parse_string(store.working_snapshot().height(p))
+	check(result.ok,"height query")
+	return int(result.data.height) if result.ok else -999999
+func settle(store: RefCounted) -> void:
+	var deadline := Time.get_ticks_msec()+10000
+	while (store.water_job != null or not store.file_request.is_empty()) and Time.get_ticks_msec()<deadline:
+		store.poll_water(); store.poll_file_operation(); await process_frame
+	check(store.water_job == null and store.file_request.is_empty(),"workers settle")
 func run() -> void:
-	root.size = Vector2i(1024,720)
-	ui = load("res://main.tscn").instantiate()
-	root.add_child(ui)
-	await process_frame
-	check(ui.store.apply_command("Synthetic small terrain", [{"field":"bounds", "before":ui.store.document.bounds, "after":{"min":[0,0],"max":[12800,12800]}},{"field":"cell_size_cm","before":51200,"after":6400}]) == "", "small fixture")
-	var project := ProjectSettings.globalize_path("user://terrain-native-project")
-	check(ui.store.save_project(project) == "", "save synthetic terrain")
-	var package := ProjectSettings.globalize_path("user://original.memap")
-	check(JSON.parse_string(ui.store.bridge.export_project(project, package)).ok, "baseline package")
-	var package_hash := FileAccess.get_sha256(package)
-	var before := state()
-	var bridge: String = ui.store.bridge.document_json()
-	for phase in ["validate", "open", "generate"]:
-		var stopped := StopJob.new(); stopped.target = phase
-		check(start(stopped) == "", "start cancel at " + phase)
-		await wait_job(stopped)
-		check(stopped.reached and stopped.cancelled and not accepted(stopped) and not DirAccess.dir_exists_absolute(stopped.directory), "cancel retires terrain outputs at " + phase)
-	for mode in ["cancel", "deadline", "eof"]:
-		var paused := PausedJob.new()
-		check(start(paused) == "", "prepare barrier " + mode)
-		await wait_job(paused, true)
-		if paused.done: continue
-		match mode:
-			"cancel": paused.cancel()
-			"deadline": paused.deadline_ms = 0
-			"eof": paused.stdio.close(); paused.stdio = null; paused.output_eof = true
-		await wait_job(paused)
-		check(not accepted(paused) and paused.commit(ui.store) != "" and not DirAccess.dir_exists_absolute(paused.directory), "prepare fault retires all terrain outputs " + mode)
-	for mode in ["cancel-ready", "save", "owner", "gesture"]:
-		var ready := JOB.new(); check(start(ready) == "", "ready guard " + mode)
-		await wait_job(ready)
-		check(accepted(ready) and ready.generated_all and ready.command_prepared and ready.bundle.patches.size() == 4, "four seam owners prepared with complete command: " + str(ready.result))
-		if not accepted(ready): finish(); return
-		check(not DirAccess.dir_exists_absolute(ready.directory), "success retires dynamic terrain candidate")
-		for path: String in ready.bundle.blob_paths: check(not FileAccess.file_exists(project.path_join(path)), "prepared terrain publishes no payload")
-		var target: RefCounted = ui.store
-		match mode:
-			"cancel-ready": ready.cancel()
-			"save": check(ui.store.save_project(project) == "", "save advances epoch")
-			"owner": target = STORE.new(); target.document = ui.store.document.duplicate(true); target.project_path = project; target.command_epoch = ui.store.command_epoch
-			"gesture": check(ui.store.begin_gesture("temporary") == "", "temporary gesture"); ui.store.cancel_gesture()
-		check(ready.commit(target) != "" and state() == before, "stale ready command refuses " + mode)
-	var corrupt := CorruptJob.new(); check(start(corrupt) == "", "corrupt terrain transfer")
-	await wait_job(corrupt)
-	check(not accepted(corrupt) and corrupt.commit(ui.store) != "", "corrupt transfer cannot publish")
-	for mode in ["duplicate-output", "extra-output", "attribution", "duplicate-tile", "foreign-cell", "changed-before"]:
-		var malformed := MalformedJob.new(); malformed.mode = mode
-		check(start(malformed) == "", "hash-valid malformed transfer " + mode)
-		await wait_job(malformed)
-		check(not accepted(malformed) and malformed.commit(ui.store) != "" and state() == before, "malformed terrain transfer refuses before installation " + mode)
-	var missing := MissingJob.new()
-	check(start(missing) != "" and not DirAccess.dir_exists_absolute(missing.directory), "missing engine retires reservation")
-	for mode in ["wrong-request", "regress", "flood", "partial", "crash", "diagnostic", "premature-success", "invalid-error"]:
-		var fault := FaultJob.new(); fault.mode = mode
-		check(start(fault) == "", "terrain faulty IPC " + mode)
-		await wait_job(fault)
-		check(not accepted(fault) and state() == before, "invalid IPC cannot publish " + mode)
-	var unknown := FaultJob.new(); check(start(unknown) == "", "unknown scratch fixture")
-	write(unknown.directory.path_join("user-file"), PackedByteArray([1]))
-	write(unknown.directory.path_join(JOB.OUTPUT_MARKER), JSON.stringify({"request":token(), "hashes":["f".repeat(64)]}).to_utf8_buffer())
-	unknown.shutdown()
-	check(FileAccess.file_exists(unknown.directory.path_join("user-file")) and FileAccess.file_exists(unknown.directory.path_join(JOB.OUTPUT_MARKER)), "unknown and wrong-owner marker preserved")
-	for file in ["user-file", JOB.OUTPUT_MARKER, unknown.PRESENCE.MARKER]: DirAccess.remove_absolute(unknown.directory.path_join(file))
-	DirAccess.remove_absolute(unknown.directory)
-	for mode in ["spacing", "points", "radius", "nan", "mode"]:
-		var saved := stroke_request.duplicate(true)
-		match mode:
-			"spacing": stroke_request.options.spacing_cm = 700
-			"points": stroke_request.stroke.resize(2049)
-			"radius": stroke_request.options.radius_cm = 999999
-			"nan": stroke_request.options.amount_cm = NAN
-			"mode": stroke_request.options.mode = "unknown"
-		check(start(JOB.new()) != "", "invalid terrain refused before launch " + mode)
-		stroke_request = saved
-	check(ui.store.bridge.document_json() == bridge and state() == before, "all rejected work preserves live bridge/history")
-	ui._set_tool("Terrain")
-	ui.author_panel.open(); ui.author_panel.hide()
-	for mode in ["tool", "layer", "options", "restore-option", "restore-brush", "document", "project", "cancel", "interaction"]:
-		if mode == "restore-option": ui.canvas.author.options.radius_cm = roundi(ui.author_panel.fields.radius_cm.value * 100)
-		var option_snapshot := JSON.stringify(ui.canvas.author.options)
-		ui._start_terrain(stroke_request)
-		var pending: RefCounted = ui.import_job
-		check(pending is JOB and ui.busy, "UI starts asynchronous terrain " + mode)
-		var document: Dictionary = ui.store.document.duplicate(true)
-		match mode:
-			"tool": ui.canvas.tool = "Select"; ui.canvas.tool = "Terrain"
-			"layer": ui.canvas.set_layer_state("heightmaps", {"locked":true}); ui.canvas.set_layer_state("heightmaps", {})
-			"options": ui.canvas.author.options.radius_cm += 1
-			"restore-option":
-				var control: SpinBox = ui.author_panel.fields.radius_cm
-				control.value += control.step; control.value -= control.step
-			"restore-brush":
-				var control: OptionButton = ui.author_panel.fields.mode
-				var original_mode := control.selected
-				control.item_selected.emit((original_mode + 1) % control.item_count); control.item_selected.emit(original_mode)
-			"document": ui.store.document.theme += " changed"
-			"project": ui.store.project_path += "-changed"
-			"cancel": ui._cancel_operation()
-			"interaction": ui.canvas.cancel_interaction()
-		if mode in ["restore-option", "restore-brush"]:
-			check(JSON.stringify(ui.canvas.author.options) == option_snapshot and ui._terrain_selection() != pending.selection_signature, "same-frame restored options still invalidate terrain " + mode)
-		await wait_ui()
-		check(pending.exited and pending.cancelled, "UI mutation/cancel rejects terrain " + mode)
-		ui.store.document = document; ui.store.project_path = project
-	check(state() == before, "UI cancelled work leaves document/history intact")
-	var guarded := preload("res://tests/command_guard_store.gd").new()
-	guarded.document = ui.store.document.duplicate(true); guarded.project_path = project
-	var guard := JOB.new(); check(start(guard, guarded) == "", "guarded terrain starts")
-	await wait_job(guard)
-	check(accepted(guard), "guarded command prepared")
-	if accepted(guard):
-		var reentrant := []
-		guarded.changed.connect(func(): reentrant.append(guard.commit(guarded)), CONNECT_ONE_SHOT)
-		guarded.forbid_preparation = true
-		check(guard.commit(guarded) == "" and guarded.forbidden_calls == 0, "terrain final commit skips preparation")
-		guarded.forbid_preparation = false
-		check(reentrant.size() == 1 and reentrant[0] != "" and guard.commit(guarded) != "", "terrain is single use before callbacks")
-		check(guarded.undo() == "" and guarded.redo() == "", "prepared binary Undo/Redo")
-	ui._start_terrain(stroke_request); await wait_ui()
-	check(ui.store.document.heightmaps.size() == 4, "UI adopts four seam owners")
-	check(ui.store.save_project(project) == "", "save first terrain")
-	before = state()
-	var original := {}
-	for tile: Dictionary in ui.store.document.heightmaps: original[tile.path] = FILES.read(project.path_join(tile.path)).bytes
-	for mode in ["cancel", "source"]:
-		var planning := PlanJob.new(); check(start(planning) == "", "actual raster plan barrier " + mode)
-		await wait_job(planning, true, "validate")
-		if planning.done: continue
-		var path: String = original.keys()[0]
-		if mode == "cancel": planning.cancel()
-		else:
-			write(project.path_join(path), original[path] + PackedByteArray([1]))
-			write(planning.directory.path_join("test-plan-release"), PackedByteArray([1]))
-		await wait_job(planning)
-		check(not accepted(planning) and planning.commit(ui.store) != "" and state() == before and not DirAccess.dir_exists_absolute(planning.directory), "raster preparation fault preserves state and retires " + mode)
-		if mode == "source":
-			check(str(planning.result).contains("during brush preparation"), "decoded old raster is bound to initial input hash")
-			write(project.path_join(path), original[path])
-	var paused := PausedJob.new(); check(start(paused) == "", "prepare replacement for source mutation")
-	await wait_job(paused, true)
-	if not paused.done:
-		var path: String = original.keys()[0]
-		write(project.path_join(path), original[path] + PackedByteArray([1]))
-		write(paused.directory.path_join("test-prepare-release"), PackedByteArray([1]))
-		await wait_job(paused)
-		check(not accepted(paused) and paused.commit(ui.store) != "" and state() == before, "source mutation during prepare rejects atomically")
-		write(project.path_join(path), original[path])
-	ui._start_terrain(stroke_request); await wait_ui()
-	var after: Dictionary = ui.store.document.duplicate(true)
-	check(after.heightmaps.size() == 4 and ui.store.undo_stack.back().binary_mementos.size() >= 4, "replacement retains old and new images")
-	check(ui.store.undo() == "" and state() != before and not ui.store.dirty, "single Undo reaches saved terrain")
-	check(ui.store.redo() == "" and ui.store.document == after, "Redo exact terrain descriptors")
-	for path: String in original: check(FILES.read(project.path_join(path)).bytes == original[path], "original terrain image preserved")
-	check(FileAccess.get_sha256(package) == package_hash, "original package preserved")
-	var road_store := STORE.new(); road_store.document = ui.store.document.duplicate(true); road_store.project_path = project
-	road_store.document.nodes = [{"id":"a","position":[2000,0,3000],"level":0},{"id":"b","position":[10000,0,3000],"level":0}]
-	road_store.document.roads = [{"id":"road","from":"a","to":"b","points":[[2000,0,3000],[10000,0,3000]],"widths_cm":[800],"surfaces":["asphalt"],"kind":"ground","clearance_cm":null,"sidewalk_cm":null}]
-	var generated := JOB.new(); check(start(generated, road_store) == "", "terrain road candidate starts")
-	await wait_job(generated)
-	check(accepted(generated) and generated.expected_cells == 4 and generated.generated_all, "all four actual terrain/road cells generate")
-	ui._start_terrain(stroke_request)
-	var closing: RefCounted = ui.import_job
-	ui.store.dirty = false; ui.queue_free(); await process_frame
-	check(closing.exited and closing.pid == -1 and not DirAccess.dir_exists_absolute(closing.directory), "owner close reaps terrain child and scratch")
-	ui = null
-	finish()
-func finish() -> void:
-	if ui != null:
-		ui.store.dirty = false; ui.queue_free(); await process_frame
-	print("terrain_native_validator: ", "PASS" if failures.is_empty() else failures, "; checks=", checks)
+	var store := STORE.new();store.new_document()
+	var file_results: Array[Dictionary] = []
+	store.file_operation_finished.connect(func(result: Dictionary): file_results.append(result))
+	store.document.bounds.max = [6400,6400];store.document.cell_size_cm = 3200
+	var writer := CountingFiles.new();store.files = writer
+	var terrain := TERRAIN.new();terrain.store = store
+	var before_files := DirAccess.get_directories_at("user://")
+	var opts := {"mode":"raise","radius_cm":1600,"rate_cm_s":200}
+	check(terrain.begin(Vector2(3200,3200),opts)=="","unsaved brush begins")
+	var times: Array[float] = []
+	for i in 60:
+		var began := Time.get_ticks_usec()
+		check(terrain.step(Vector2(3200,3200),1.0/60)=="","timed brush step")
+		times.append((Time.get_ticks_usec()-began)/1000.0)
+	terrain.last_usec = Time.get_ticks_usec()
+	check(terrain.finish()=="" and store.undo_stack.size()==1,"release creates one memory command")
+	check(height(store)>=200 and height(store)<=201,"time based height")
+	check(writer.writes==0 and DirAccess.get_directories_at("user://")==before_files,"brush and finish perform zero map writes")
+	var raised := height(store)
+	check(store.undo()=="" and height(store)==0,"sparse height undo")
+	check(store.redo()=="" and height(store)==raised,"sparse height redo")
+	var job := WORK.new();job.working = store.working_snapshot().fork()
+	var preview: Dictionary = job.run(store.document,"","preview",Vector2i.ZERO,{},false)
+	check(preview.ok,"unsaved preview: "+str(preview.get("error",{})))
+	check(writer.writes==0 and DirAccess.get_directories_at("user://")==before_files,"preview and history perform zero map writes")
+	var path := ProjectSettings.globalize_path("user://memory-project")
+	check(store.start_file_operation("save",path)=="","first explicit save starts")
+	await settle(store)
+	check(not store.dirty and writer.writes==1 and store.undo_stack.size()==1,"save baseline preserves undo")
+	var reopened := STORE.new();check(reopened.open_project(path)=="" and height(reopened)==raised,"save and reopen memory heights")
+	check(store.start_file_operation("save",path)=="","repeat save starts")
+	await settle(store)
+	check(writer.writes==1,"unchanged save skips writes")
+	check(terrain.begin(Vector2(3200,3200),opts)=="" and terrain.step(Vector2(3200,3200),0.5)=="","second edit")
+	terrain.last_usec = Time.get_ticks_usec();check(terrain.finish()=="" and store.dirty,"second edit dirty")
+	check(store.undo()=="" and not store.dirty and height(store)==raised,"undo reaches saved arrays and clears dirty")
+	check(store.redo()=="" and store.dirty,"redo leaves saved baseline")
+	var edits := height(store);var history := store.undo_stack.size()
+	writer.fail = true
+	check(store.start_file_operation("save",path)=="","failure starts")
+	await settle(store)
+	check(store.dirty and height(store)==edits and store.undo_stack.size()==history,"failed save retains dirty, memory and history")
+	writer.fail = false
+	check(store.start_file_operation("save",path)=="","cancel starts")
+	store.cancel_file_operation();await settle(store)
+	check(store.dirty and height(store)==edits,"cancelled save retains edits")
+	var external := FileAccess.open(path.path_join("document.json"),FileAccess.WRITE);external.store_string("{}\n");external.close()
+	check(store.save_project(path).contains("changed on disk") and store.dirty,"external conflict retains edits")
+	var copy := path+"-copy";check(store.save_project(copy)=="","Save As resolves conflict")
+	var snapshot: RefCounted = store.working_snapshot().fork()
+	check(terrain.begin(Vector2(1000,1000),opts)=="" and terrain.step(Vector2(1000,1000),0.25)=="","save during brush begins")
+	check(store.start_file_operation("save",copy)=="","save finishes brush instead of cancelling")
+	await settle(store);check(not terrain.active and not store.dirty,"active brush included in saved baseline: "+str(file_results.back().get("error","")))
+	# Water fill / terrain refresh are detached and memory-only.
+	var water_store := STORE.new();water_store.new_document();water_store.document.bounds.max=[6400,6400];water_store.document.cell_size_cm=3200
+	water_store.track_edit_finished.connect(func(message: String): if message != "": print("WATER ERROR: ",message))
+	check(water_store.start_water(Vector2(1000,1000))=="","flat fill starts")
+	await settle(water_store);check(water_store.document.get("water_bodies",[]).is_empty() and water_store.undo_stack.is_empty(),"flat fill is no-op")
+	var lower := TERRAIN.new();lower.store=water_store
+	check(lower.begin(Vector2(3200,3200),{"mode":"lower","radius_cm":1600})=="" and lower.step(Vector2(3200,3200),2)=="","basin sculpt")
+	lower.last_usec=Time.get_ticks_usec();check(lower.finish()=="","basin finishes")
+	check(water_store.start_water(Vector2(4000,3200))=="","sloping fill starts")
+	await settle(water_store);check(not water_store.document.get("water_bodies",[]).is_empty(),"connected basin filled")
+	var water_before: Array=water_store.document.get("water_bodies",[]).duplicate(true)
+	var basin_height := height(water_store)
+	check(lower.begin(Vector2(3200,3200),opts)=="" and lower.step(Vector2(3200,3200),4)=="","cancel fixture sculpts")
+	lower.last_usec=Time.get_ticks_usec();check(lower.finish()=="","cancel fixture starts water refresh")
+	# Even a worker that finished before Cancel cannot publish its result later.
+	while water_store.water_job.is_alive(): await process_frame
+	water_store.cancel_water();await settle(water_store)
+	check(height(water_store)==basin_height and water_store.document.water_bodies==water_before and water_store.undo_stack.size()==2,"cancel rolls back terrain and shore without a command")
+	for stale_field in ["id","session","revision"]:
+		water_store.water_pending={"id":water_store.water_request,"session":water_store.session_id,"revision":water_store.command_epoch,"delta":PackedInt32Array()}
+		water_store.water_pending[stale_field]-=1
+		water_store.water_job=CompletedWater.new()
+		water_store.poll_water()
+		check(water_store.document.water_bodies==water_before and water_store.undo_stack.size()==2,"late water result rejected by "+stale_field)
+	check(lower.begin(Vector2(3200,3200),opts)=="" and lower.step(Vector2(3200,3200),4)=="","island sculpt")
+	lower.last_usec=Time.get_ticks_usec();check(lower.finish()=="","terrain water command async")
+	await settle(water_store)
+	check(water_store.undo_stack.size()==3,"terrain and water refresh share one undo step")
+	check(water_store.undo()=="" and water_store.document.get("water_bodies",[])==water_before,"undo restores complete shore")
+	check(water_store.start_water(Vector2(3400,3200),true)=="","remove water starts")
+	await settle(water_store);check(water_store.document.get("water_bodies",[]).is_empty(),"remove entire connected water")
+	# New default track documents accept terrain without a directory or format conversion.
+	var track_store := STORE.new();track_store.new_track()
+	var track_brush := TERRAIN.new();track_brush.store=track_store
+	var origin := Vector2(track_store.document.bounds.min[0]+1600,track_store.document.bounds.min[1]+1600)
+	check(track_brush.begin(origin,opts)=="" and track_brush.step(origin,0.5)=="","unsaved default map accepts terrain")
+	track_brush.last_usec=Time.get_ticks_usec();check(track_brush.finish()=="","default map stroke finishes")
+	await settle(track_store)
+	check(track_store.undo_stack.size()==1 and track_store.document.assembled_track.authoring.terrain_integration,"terrain uses integrated current v1 document")
+	check(track_store.undo()=="" and track_store.redo()=="","first terrain integration is one reversible command")
+	track_store.shutdown_track_edit()
+	# Publishing new PNG identities must not rewrite earlier import commands.
+	var imported := STORE.new();imported.new_document();imported.document.bounds.max=[3200,3200];imported.document.cell_size_cm=3200
+	var import_path := ProjectSettings.globalize_path("user://import-and-sculpt")
+	check(imported.save_project(import_path)=="","save import fixture")
+	var samples := PackedInt64Array();samples.resize(17*17);samples.fill(0);samples[8*17+8]=100
+	var source := ProjectSettings.globalize_path("user://history-source.png")
+	var source_file := FileAccess.open(source,FileAccess.WRITE);source_file.store_buffer(preload("res://scripts/terrain_png.gd").encode(samples,17).bytes);source_file.close()
+	var import_brush := TERRAIN.new();import_brush.store=imported
+	check(import_brush.import_png(source,Vector2i.ZERO,200,0,1,0,{"source":"Synthetic history","license":"MIT","notice":"fixture"})=="","import original heightmap")
+	check(import_brush.begin(Vector2(1600,1600),opts)=="" and import_brush.step(Vector2(1600,1600),1)=="","sculpt imported source")
+	import_brush.last_usec=Time.get_ticks_usec();check(import_brush.finish()=="","finish imported stroke")
+	var imported_height := height(imported,Vector2(1600,1600))
+	check(imported.save_project(import_path)=="","save sculpted source")
+	check(imported.undo()=="" and height(imported,Vector2(1600,1600))==100,"undo stroke after imported PNG publication")
+	var import_undo: String = imported.undo()
+	check(import_undo=="" and imported.document.heightmaps.is_empty(),"undo import after Save: "+import_undo)
+	check(imported.redo()=="" and height(imported,Vector2(1600,1600))==100,"redo original import")
+	check(imported.redo()=="" and height(imported,Vector2(1600,1600))==imported_height and not imported.dirty,"redo sculpt reaches saved baseline")
+	check(imported.save_project(import_path+"-copy")=="","unchanged Save As keeps source and published identities")
+	var import_reopened := STORE.new()
+	check(import_reopened.open_project(import_path+"-copy")=="" and height(import_reopened,Vector2(1600,1600))==imported_height,"Save As reopens exact sculpted heights")
+	check(imported.undo()=="" and imported.undo()=="" and imported.redo()=="" and imported.redo()=="" and not imported.dirty,"Save As retains complete imported terrain history")
+	import_reopened.shutdown_track_edit()
+	imported.shutdown_track_edit()
+	# Build real UI once to check command wiring, startup and dirty highlighting.
+	var ui: Node = load("res://main.tscn").instantiate();root.add_child(ui);await process_frame
+	check(ui.commands.keys_for("file.save").has(KEY_MASK_CTRL|KEY_S) and ui.commands.keys_for("file.save").has(KEY_MASK_META|KEY_S),"Ctrl+S and Cmd+S share Save")
+	check(not ui.has_method("_autosave") and not store.has_method("autosave"),"no timer/transition autosave API")
+	ui._request_document_action("new")
+	check(ui.unsaved_dialog.visible and ui.recovery_continue_button.text.contains("Continue"),"three way unsaved prompt")
+	ui.unsaved_dialog.hide();ui.pending_document_action.clear()
+	ui.store.new_track(true)
+	var save_button: Button
+	for item: Dictionary in ui.commands.buttons:
+		if item.id == "file.save": save_button = item.control.get_ref(); break
+	check(save_button != null and save_button.modulate != Color.WHITE,"dirty content highlights Save")
+	ui._start_save(ProjectSettings.globalize_path("user://shortcut-project"))
+	await settle(ui.store)
+	check(save_button.modulate == Color.WHITE,"successful Save clears highlight")
+	for use_meta in [false,true]:
+		check(ui.store.apply_command("Shortcut fixture",[{"field":"seed","before":ui.store.document.seed,"after":ui.store.document.seed+1}])=="","shortcut dirty fixture")
+		var event := InputEventKey.new();event.keycode=KEY_S;event.pressed=true
+		event.meta_pressed=use_meta;event.ctrl_pressed=not use_meta
+		check(ui.commands.handle_key(event),"platform shortcut dispatches Save")
+		await settle(ui.store)
+		check(not ui.store.dirty and save_button.modulate == Color.WHITE,"shortcut publishes same saved baseline")
+	# Simulating the old timer interval cannot write a recovery file.
+	var recovery_files := DirAccess.get_files_at("user://recovery") if DirAccess.dir_exists_absolute("user://recovery") else PackedStringArray()
+	ui._process(16.0)
+	check((DirAccess.get_files_at("user://recovery") if DirAccess.dir_exists_absolute("user://recovery") else PackedStringArray())==recovery_files,"elapsed autosave interval creates no map data")
+	ui.queue_free();await process_frame
+	times.sort();print("memory brush step p95_ms=",times[int(times.size()*0.95)],"; updates_hz=",1000.0/(times.reduce(func(a,b):return a+b,0.0)/times.size()))
+	store.shutdown_track_edit();water_store.shutdown_track_edit();reopened.shutdown_track_edit()
+	print("terrain_native_validator: ","PASS" if failures.is_empty() else failures,"; checks=",checks)
 	quit(0 if failures.is_empty() else 1)

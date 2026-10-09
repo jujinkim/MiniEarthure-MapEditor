@@ -33,7 +33,7 @@ export requires a valid graph; manual courses also require player completion.
 The first geometry edit converts a seeded result to authoring source and retains
 its original seed settings. Whole-document commands keep source, compiled output,
 course bindings and provenance together through Undo/Redo. Disconnected drafts
-save, reopen and recover through the ordinary project/autosave flow; export is
+save, reopen and recover through the ordinary project and explicit recovery-reader flow; export is
 rejected. Existing non-track geographic geometry is preserved rather than erased
 by an attempted track edit; create a New Map to start a separate track.
 

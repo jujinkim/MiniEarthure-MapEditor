@@ -1,8 +1,7 @@
 # Map authoring tools
 
-Current authoring uses [CURRENT_V1](CURRENT_V1.md). Dated implementation records
-below preserve their original evidence; version selection/promotion requirements
-are superseded. All current features use v1 without a recipe selector.
+Current authoring uses [CURRENT_V1](CURRENT_V1.md). All current features use v1
+without a recipe selector.
 [DOCUMENTS.md](DOCUMENTS.md) defines atomic commands and recovery;
 [WORKBENCH.md](WORKBENCH.md) defines selection, layers and shortcuts.
 
@@ -14,7 +13,7 @@ markings. The retired snow-only default-map improver is no longer required.
 
 ## Start and draw
 
-Save a project directory before file-backed edits. Open **Authoring settings…**.
+Terrain and water can be edited before the first Save. Asset imports require a project directory. Open **Authoring settings…**.
 The Map tab chooses the theme with **Apply theme**. Typed map bounds and implicit
 terrain base have their own atomic Apply; payload seams and road junctions are
 revalidated. Roads, buildings, entrances, repetitions, convex proxies, courtyards,
@@ -61,46 +60,45 @@ status. This is bounded correctness preflight, not incremental preview schedulin
 
 ## Terrain and heightmaps
 
-Terrain has its own 2D Show/Lock/opacity row. Hidden/locked terrain cannot be
-painted or imported. Layer changes cancel a stroke; visibility affects neither
-export nor physics. A cursor circle and continuous stroke samples show the draft.
-Committed tiles have bounded 33×33 height-tint thumbnails (at most 16 visible
-tiles) and coordinate/offset labels. Thumbnails are presentation, never height data.
+The same circular brush works in 2D and 3D. Hold to raise/lower over time and drag
+to interpolate a continuous ridge or valley. Defaults are **16 m radius, 2 m/s,
+50% steepness**. Radius ranges from the existing grid spacing to twice the storage
+cell size; new terrain uses **2 m** samples. Flatten keeps the first click's height
+as its fixed target, or accepts an explicit numeric height. Flatten/smooth strength
+(default **50%**) controls approach speed. Shared cell edges change together.
+Hidden/locked terrain cannot be painted. Escape, focus/tool/layer changes cancel
+an unfinished stroke without publication.
 
-The Terrain tab provides raise, lower, flatten and smooth, brush radius, per-stroke
-amount, flatten target and grid spacing. Left-drag followed by release is one
-operation. Release now snapshots the stroke and launches a disposable owned Godot
-child for PNG decoding/encoding, native candidate validation, road-cell generation
-and history preparation. The main window shows progress and its Cancel control
-remains available. Cancel, Escape, focus loss, a changed tool/layer/brush option,
-a new gesture, document/project change or closing the Editor invalidates pending
-work. Restoring an option/tool/layer does not revive an invalidated result. A valid
-result installs immutable files and publishes one command; a failed or empty stroke
-preserves the map and history. The synchronous `TerrainTools.finish()` script API
-remains available. [Implementation and verification](TERRAIN_ASYNC_VALIDATION.md).
+Working height tiles stay as arrays. `begin / step / preview / finish / cancel`
+manages each stroke; `finish` records one sparse Undo command, including shoreline
+changes. Input time and path are retained while display requests coalesce. Only
+changed 32 m display cells and necessary neighbors rebuild; other meshes, common
+materials and assets are reused. The 2D tint cache invalidates touched storage
+tiles. There is no 16-tile or 2048-point brush cap: a stroke permits **one million
+changed samples**, with **16 MiB / 200 commands** shared Undo/Redo and **64 MiB**
+working height-array/resource admission. Nothing spills to disk.
 
-The whole polyline determines linear radial falloff, so event frequency
-does not repeatedly raise the same point or leave gaps between pointer samples.
-Every touched cell evaluates the same world samples; shared edges/corners agree.
-Smooth reads the original four neighboring samples rather than in-place updates.
-If needed nonflat neighboring context is outside the bounded tile set, it rejects
-with guidance to include that tile rather than assuming flat terrain.
+**Water** clicks a slope and fills connected lower terrain at that height. Flat
+terrain is unchanged. Search reaches the map boundary without draining an open
+edge. Raising terrain makes islands and splits lakes; lowering it joins connected
+same-level water. A horizontally overlapping higher surface removes the entire
+lower connected lake. **Remove water** deletes the clicked connected surface.
+Direct water/island polygon drawing is removed. New water has zero flow; there is
+no fluid/drainage simulation. MapKit uses the common fitted terrain surface.
 
-The lossless authoring adapter reads unsigned grayscale16, non-interlaced PNG,
-including all five PNG row filters and CRC checks. Dimensions must be exactly
-`cell_size / spacing + 1` square, including partial map-edge padding. Spacing must
-be at least 200 cm, divide cell size and match existing raster spacing for brushes.
-Existing sources retain their accuracy metadata; imported accuracy is a separate
-field, not inferred from resolution. Import also requires source/license/notice.
-Native MapKit validates restored heights, all adjacent grids and implicit-flat
-edges before adoption. Invalid seams fail without rewriting or flattening sources.
+Water searches run on cancellable workers. Session, command revision and request
+ID must still match before applying a result. A terrain stroke and its completed
+shore update share one Undo. Large shorelines use valid v1 `water_bodies` fragments;
+connected equal-level fragments behave as one lake. Search and polygon budgets
+fail with a visible error and restore the previous command rather than writing
+intermediate files.
 
-Brush output uses exact 1 cm samples with an explicit offset. A range wider than
-65535 cm, invalid offsets or native-invalid heights rejects the operation; it does
-not quantize away source accuracy. One stroke is bounded to 2048 points, 16 tiles,
-one million samples and eight million point-distance evaluations. Radius is one
-sample through two cells. The adapter caps PNG input at 4 MiB and side at 513;
-these are Editor operation limits, not a replacement MapKit file format.
+Save runs PNG16 encoding in its worker, using exact 1 cm samples and an offset.
+A range wider than 65535 cm cannot be losslessly encoded: Save fails and leaves
+the edit dirty. Existing unmodified PNGs are reused. PNG import still accepts
+unsigned grayscale16, exact full-cell dimensions, CRC/filter checks, explicit
+spacing/accuracy and attribution; original files are preserved. Preview, query,
+road fitting, validation and explicit export use the same unsaved arrays.
 
 ## Assets and proxies
 
@@ -142,11 +140,9 @@ objects. See [environment contracts and checks](ARCADE_WORLD.md). Assets offers
 
 Original PNG/GLB/WebP files are never overwritten. Editor writes content-addressed
 `editor/<sha256>.<ext>` payloads in the saved project, checks an existing file's
-bytes before reuse, and validates a detached temporary project through the native
-reader before publishing a document command. Candidate payload copies are capped
-at 64 MiB; only this operation's random scratch directory is removed. Validation
-for standalone PNG review/adoption, canvas brush preparation and asset/proxy
-authoring runs in a cancellable owned Godot child. Synchronous script APIs remain
+bytes before reuse. Candidate validation uses an in-memory MapKit resource provider
+and a 64 MiB payload allowance. Standalone PNG review/adoption and asset/proxy
+authoring retain their cancellable owned workers. Terrain strokes write no payloads. Synchronous script APIs remain
 available.
 Request/selection signatures, transfer decoding and final file/history installation
 remain synchronous. Large-map latency/RSS calibration is a separate acceptance gate.
@@ -171,45 +167,33 @@ power-loss durability beyond the existing flush/rename contract.
 
 ## Verification and next work
 
-2026-10-03: the existing authoring, course-authoring and palette checks were
-reproduced and repaired for the current explicit free-roam/track workspaces,
-asynchronous placement and command/page navigation. Product code is unchanged.
-All three pass strict diagnostics, preserving history/revision, immutable payload,
-cancel/recovery and unverified-course contracts. The import-review validator also
-passes. Current revisions, classification and logs
-are separate from earlier failures and user acceptance.
+Affected native and isolated Godot validators cover timed brushes, interpolation,
+shared seams, saved baselines, no implicit writes, save failure/cancel/conflicts,
+water topology (including partial map edges), memory preview/export/reopen and
+retained recovery reading. Cancel before adoption rolls back height and shore
+together; late request/session/revision results cannot publish.
+`terrain_frame_validator` measures a short synthetic input-to-installed-mesh loop
+with a 3 ms scene installation budget. Detailed editor feel, long sessions,
+Windows/Linux/device behavior and Client driving remain user verification.
 
-After building the unchanged public MapKit native binding:
+On macOS arm64 / Godot 4.7.2, the 9 native working-snapshot tests and isolated
+memory/save (163), document history (571), retained recovery (63), preview/export
+(82), continuous track editing (271) and minimum-window UI (57) checks passed.
+Water authoring, PNG/asset import, portal safety and test-drive snapshot checks
+also passed. The Client standalone initial screen loaded without blocking errors;
+this does not claim detailed driving or platform acceptance.
+The matching Runtime native dependency rebuilt and its isolated water-cell
+registration/disposal check passed.
+
+Run focused checks after building the matching public MapKit binding:
 
 ```sh
-rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --full --log-dir /new/path/editor-checks
-rtk proxy env MAPEDITOR_CAPTURE_PATH=/new/path/authoring.png python3 scripts/check_documents.py --godot /path/to/godot --script authoring_validator --rendered --log-dir /new/path/editor-rendered
+rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --script terrain_native_validator --script terrain_frame_validator --script water_authoring_validator --script authoring_validator --log-dir /new/path/checks
 ```
 
-The standalone runner copies only public Editor/MapKit sources and the matching
-native library, verifies isolated user data and retains source/native hashes and
-strict diagnostics. `terrain_native_validator` covers child cancellation during
-raster/native/command work, late or corrupt results, source mutation, scratch
-ownership and binary Undo/Redo. `authoring_validator` covers actual viewport creation,
-brush PNG/native generation, file/history/recovery/export, graph structures,
-custom proxies/materials and the shared preview. `authoring_safety_validator`
-covers budgets, stale/cancelled operations, immutable-file conflicts, layer locks
-and terrain/structure rejection. Existing document/recovery/workbench/launch
-adapter regressions remain in `--full`.
-
-Mac evidence is scoped implementation verification. Native Windows/Linux export,
-filesystem and input need Godot 4.7.2 templates, matching native bindings and actual
-OS runners. Run the same checks and exported Editor with synthetic/licensed maps;
-require the complete edit → cancel → Undo/Redo → save/recover → export path,
-visible controls, exact seams/graph invariants and no lost source bytes/diagnostics.
-Representative-map p95/RSS and E05 installed-Client driving remain separate gates.
-
-**E04 preview/export** is implemented in [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md):
-affected-cell invalidation, frame-budgeted preview attachment, file-copy Save As
-and capacity/error presentation preserve these command/payload boundaries.
-E05 installed-Client authoring and final platform-specific function/install
-acceptance remain open. Cross-platform repeat performance is unscheduled and
-non-blocking under root architecture §44.159.
+The runner uses isolated synthetic data and rejects engine/script diagnostics.
+[Preview and explicit output](PREVIEW_EXPORT.md) defines cache and publication
+budgets; [document lifecycle](DOCUMENTS.md) defines Save and the unsaved prompt.
 
 The PNG UI uses staged asynchronous review/adoption, with progress and Cancel in
 the Authoring window. The original PNG must remain unchanged until adoption;

@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const CANVAS := preload("res://scripts/map_canvas.gd")
 var failures: Array[String] = []
@@ -82,9 +83,9 @@ func run() -> void:
 		after.height_cm = height
 		check(store.stage_patches([patch("buildings", "a", before, after)]) == "", "stage sample " + str(height))
 	check(store._gesture.patches.size() == 1 and state(store) == untouched, "100 samples retain one changed-region memento, no Scene/document changes")
-	check(store.autosave() == "", "autosave during gesture captures committed state")
+	check(RECOVERY_FIXTURE.write(store) == "", "recovery fixture during gesture captures committed state")
 	var recovered := STORE.new()
-	check(recovered.recover(store.recovery_path()) == "" and recovered.document.buildings[0].height_cm == 1200, "recovery excludes unfinished gesture")
+	check(recovered.recover(RECOVERY_FIXTURE.path(store)) == "" and recovered.document.buildings[0].height_cm == 1200, "recovery excludes unfinished gesture")
 	check(store.save_project(base) != "" and store.undo() != "", "save/history cannot cut across gesture")
 	var count := store.undo_stack.size()
 	check(store.commit_gesture() == "" and store.undo_stack.size() == count + 1 and store.redo_stack.is_empty(), "one stroke commits once and discards redo branch")

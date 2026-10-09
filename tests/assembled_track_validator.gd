@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const PANEL := preload("res://scripts/track_settings_panel.gd")
 class MissingGroupsPanel extends "res://scripts/track_settings_panel.gd":
@@ -25,7 +26,8 @@ func run() -> void:
 	check(store.save_project(old_path)=="","original save")
 	var original_bytes := FileAccess.get_file_as_bytes(old_path.path_join("document.json"))
 	check(store.apply_command("Seed",[{"field":"seed","id":"","before":store.document.seed,"after":113}])=="","unsaved source")
-	var recovery := store.recovery_path()
+	check(RECOVERY_FIXTURE.write(store)=="", "prepare a retained recovery fixture")
+	var recovery := RECOVERY_FIXTURE.path(store)
 	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
 	var settings: Dictionary = JSON.parse_string(bridge.track_catalogue()).data.defaults
 	settings.seed=42
@@ -47,9 +49,9 @@ func run() -> void:
 	check(store.document.courses[0].course_id!=original_course,"course rebound to updated content hash")
 	check(store.undo()=="" and not store.document.free_roam and store.document.courses[0].course_id==original_course,"policy and course hash undo together")
 	check(store.redo()=="" and store.document.free_roam,"policy redo")
-	check(store.autosave()=="","policy recovery snapshot saved")
+	check(RECOVERY_FIXTURE.write(store)=="","policy recovery snapshot saved")
 	var recovered_policy := STORE.new()
-	var recovery_error := recovered_policy.recover(store.recovery_path())
+	var recovery_error := recovered_policy.recover(RECOVERY_FIXTURE.path(store))
 	check(recovery_error=="" and recovered_policy.document.free_roam,"recovery includes policy: "+recovery_error)
 	var current := ProjectSettings.globalize_path("user://track-project")
 	check(store.save_project(current)=="","generated project saved")

@@ -24,7 +24,9 @@ func _run() -> void:
 	await process_frame
 	ui.store.new_track(true)
 	var directory := ProjectSettings.globalize_path("user://drive contract $ literal " + Crypto.new().generate_random_bytes(6).hex_encode())
-	check(ui.store.save_project(directory) == "", "save synthetic project")
+	var terrain := preload("res://scripts/terrain_tools.gd").new();terrain.store=ui.store
+	check(terrain.begin(Vector2(12025,13075),{"radius_cm":1600})=="" and terrain.step(Vector2(12025,13075),1)=="","unsaved terrain fixture")
+	terrain.last_usec=Time.get_ticks_usec();check(terrain.finish()=="","unsaved terrain ready for test drive")
 	ui._test_drive()
 	ui.drive_dialog.hide()
 	ui.client_path.text = directory + "/missing-client"
@@ -38,16 +40,19 @@ func _run() -> void:
 	ui.drive_y.value = 130.75
 	ui._launch_test_drive()
 	await settle(ui)
-	check(ui.last_drive_result.get("ok", false) and calls.size() == 1, "save/package/launch succeeds once")
+	check(ui.last_drive_result.get("ok", false) and calls.size() == 1, "memory package/launch succeeds once")
 	if calls.size() == 1:
 		var path: String = ui.last_drive_result.data.path
 		check(calls[0].arguments == PackedStringArray(["--", "--test-drive", "--map-file", path, "--spawn-x", "120.25", "--spawn-y", "130.75", "--surface-id", "terrain"]), "Client CLI contract and centimetre precision")
 		var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
 		check(JSON.parse_string(bridge.open_package(path)).ok, "launch snapshot is valid package")
-		check(str(bridge.canonical_document()) == str(ui.drive_request.document), "snapshot matches current editor document")
+		var expected: Dictionary=ui.store.working_snapshot().materialize()
+		check(ui.store._signature(JSON.parse_string(bridge.document_json()).data) == ui.store._signature(JSON.parse_string(expected.data.canonical)), "snapshot matches current memory terrain")
+		check(ui.store.project_path.is_empty() and ui.store.dirty,"test drive does not save new project or clear dirty")
+		check(ui.store.save_project(directory)=="","explicit baseline for disk mismatch checks")
 		var mismatch := LAUNCHER.prepare(directory, directory + "/mismatch.memap", "{}", 12025, 13075, "terrain")
 		check(not mismatch.ok and mismatch.error.code == "E_SNAPSHOT_CHANGED", "changed disk document cannot launch")
-		var invalid := LAUNCHER.prepare(directory, directory + "/invalid.memap", ui.drive_request.document, 12025, 13075, "missing-surface")
+		var invalid := LAUNCHER.prepare(directory, directory + "/invalid.memap", ui.store._saved_canonical, 12025, 13075, "missing-surface")
 		check(not invalid.ok, "invalid surface rejected before process launch")
 		var adapter := LAUNCHER.new()
 		adapter.process_start = func(_exe: String, args: PackedStringArray) -> int:

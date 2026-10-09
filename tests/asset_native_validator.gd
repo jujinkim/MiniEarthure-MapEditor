@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const JOB := preload("res://scripts/asset_native_job.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
 const STORE := preload("res://scripts/document_store.gd")
@@ -177,7 +178,7 @@ func run() -> void:
 		await wait_job(prior)
 		check(not accepted(prior) and state() == before, "prior binary mutation rejects candidate")
 		write(prior_path, replacement)
-	check(ui.store.save_project(project) == "" and ui.store.autosave() == "", "save/recovery after asset adoption")
+	check(ui.store.save_project(project) == "" and RECOVERY_FIXTURE.write(ui.store) == "", "save/recovery after asset adoption")
 	var reopened := STORE.new(); check(reopened.open_project(project) == "" and reopened.document.assets == ui.store.document.assets, "asset reopens")
 	check(FileAccess.get_sha256(package) == package_hash and FILES.read(source).bytes == replacement, "original package/source preserved")
 	check(ui.store.bridge.document_json() == bridge, "candidate validation preserves previously loaded bridge")

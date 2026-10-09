@@ -1,149 +1,75 @@
-# Incremental preview, Save As and package output
+# Memory preview and explicit output
 
-2026-10-03: explicit export now freezes the latest submitted track draft, dims and
-locks editing immediately, and waits for that revision's validation before packaging.
-Save/Save As use the same lock and worker-owned publication boundary. Automatic
-track validation/autosave stays editable. Cancellation waits for the actual publication
-outcome; failed work retains the draft and prior files. See the current
-[document contract](DOCUMENTS.md) and scoped evidence.
+Terrain, water, records and referenced resources form one detached MapKit working
+snapshot. Height queries, road cut/fill, display, validation and export read that
+snapshot, including unsaved height arrays. Editor owns commands and saved baselines;
+MapKit owns generation, polygon operations, PNG16 and the public v1 contracts.
 
+## Preview and validation
 
-E04 implementation, 2026-09-09. This public Editor unit uses the unchanged MapKit
-native generator, queries, estimates, file validator, compressor and shared renderer.
-No game installation, new recipe, package schema or native ABI is required.
+Terrain input immediately updates arrays and requests affected **32 m display
+cells** plus needed neighbors. One running worker and latest pending cells bound
+demand while preserving all brush input time/path. Nearby display is a 3×3 cell
+window. Unchanged nodes and common mesh/material/asset caches are retained.
+Request epoch/session checks prevent old documents from receiving results.
 
-## Preview
+Explicit **3D Preview** generates a chosen storage cell from memory. Committed
+record edits refresh it after 150 ms of inactivity. Generated content signatures
+retain unchanged cached roots, including a remote-object-only change. A hidden
+candidate replaces the old root only after successful frame-budgeted installation.
+The scene installation admission budget is **3 ms/frame**; one indivisible engine
+operation may exceed it. This is not an engine preemption or GPU/RSS guarantee.
 
-Choose a cell and **3D Preview**. Committed edits refresh the selected cell after
-150 ms of inactivity. Source changes during generation cancel the old request;
-changing cells, New/Open/Recover and **Cancel operation** cannot attach an old
-result to the new selection. Cancel stops automatic pending refresh until another
-edit or explicit request. Cancellation is observed between native calls; it does
-not preempt one native validation/compression/generation call.
+Preview and **Validate** never stage projects, encode terrain PNGs or write recovery
+files. Validation checks document/resources/seams using arrays. Optional full 3D
+validation generates cells in memory. A memory validation report gives cell/cost
+information; compressed package sizes are available only after explicit export.
 
-One worker owns a detached canonical document and immutable referenced-file
-snapshot. It validates files/seams through MapKit and builds an Editor object/cell
-invalidation index with native closed-cell queries. The index is rebuilt from each
-snapshot; it is not an incrementally persisted database or a new package index.
-Only selected cells whose dependency signature changed are generated/attached.
-Unchanged cached cells retain the same scene nodes. Each generated affected cell
-still uses the complete MapKit generator; Editor never generates partial physics.
+Limits remain 64 MiB unique source resources, 256 MiB preview work and four cached
+storage cells / 256 MiB. Native scratch, triangle/ID/object and decoded presentation
+costs are charged. Nearby display also caps resource and picking geometry demand.
+These are admission bounds, not measured process/GPU memory. Over-budget work
+retains the prior preview and reports a recoverable error.
 
-The index deliberately over-invalidates: a one-cell Editor halo plus authored
-proxy extents surrounds vector bounds. Local roads, zones and repetitions retain
-the global road/node/building/zone/placement/repetition dependency closure because
-junctions, sidewalks, tree spacing and ordered suppression can depend on other
-objects. Assets/materials and their bytes are shared dependencies; terrain depends
-on its cell's exact descriptor/bytes. Global map generation fields invalidate all
-cells. Provenance-only and 2D Show/Lock/opacity changes do not change geometry.
-This favors correctness over minimal regeneration; representative-map index and
-snapshot cost remains a performance gate.
+## Save and Save As
 
-A hidden candidate is attached with the same MapKit renderer in batches. The
-previous visible root is retained until successful completion; failure or cancel
-releases only the candidate. Batch admission targets **8 ms/frame**, uses observed
-batch cost to yield before another batch, and records maximum batch/frame times.
-An indivisible mesh/GLB operation may exceed that target; there is no hard engine
-preemption or claim that whole-frame p95/RSS has been accepted.
+Save finishes current terrain input in memory and waits for necessary water/track
+validation. The revision remains frozen while a worker encodes **only modified
+height tiles** as lossless PNG16. Original unchanged payloads are reused. The same
+source hash and external document conflict checks apply. Save As selects a directory
+without an existing document and carries current plus Undo/Redo-only referenced
+payloads. Existing original files and recovery snapshots are preserved.
 
-Editor admission limits: 64 MiB unique source payloads, 200,000 object/cell index
-references, 4 MiB overview JSON, 256 MiB source-derived preview-work charge and
-four cached cells with a combined 256 MiB charge. Cache eviction occurs on candidate
-publication; the old cache and one candidate may coexist. Work charge includes
-native scratch, conservative per-triangle/ID/object and presentation allowances.
-These are admission estimates, not measured allocator/GPU/RSS bounds. Package
-validation has its own native peak/retained estimates; the report keeps them
-separate. Over-budget work fails visibly without evicting the current preview.
+Payloads are flushed, checked and atomically installed before publishing
+`document.json` last through the existing pending/previous writer. A successful
+publication alone updates the path and saved baseline. History survives Save.
+Failure/cancellation retains the dirty memory state; unchanged repeat Save skips
+writes. The UI/camera remain responsive while editing is locked. See
+[DOCUMENTS.md](DOCUMENTS.md) for shortcuts and unsaved document transitions.
 
-## Save As
+## Export and test drive
 
-Choose a directory without an existing `document.json`. Save As preserves relative
-asset/heightmap paths and byte contents and copies **both current and Undo/Redo-only
-referenced files**. It validates the current candidate with MapKit, verifies binary
-mementos, rejects missing/changed/over-budget sources and conflicting target files,
-and refuses symlink destinations for payloads. Existing identical payloads may be
-reused. It never relocates or deletes originals, saved versions or recovery files.
+Export and test drive accept a **new unsaved map**. They create explicit independent
+outputs from the current working snapshot without saving the project or clearing
+dirty. Existing package filenames are refused. Test drive uses the installed
+Client through its existing argument-vector adapter.
 
-Each new payload is flushed to a unique pending file, hash-checked and renamed.
-All copied files are checked before `document.json` is published last through the
-existing document writer. The live path, savepoint and dirty state change only
-on success; history remains usable from the copied directory. Recovery snapshots
-written afterward refer to the new directory. Existing snapshots retain their
-old origin and original files remain available.
+Only explicit output preparation encodes changed PNGs and uses disposable staging
+for package validation/compression. Cancellation and request/session/revision checks
+prevent stale publication/launch. Completed/cancelled operation scratch is removed;
+original projects, packages and recovery files are not garbage-collected. Final
+package publication checks destination hashes and renames an owned pending file.
 
-A failed copy publishes no new document. It can leave new immutable payloads or
-pending files in the selected directory, retained for inspection/retry; no user
-cleanup is performed. Copying/validating Save As is synchronous and bounded by the
-64 MiB source limit, not a background or latency guarantee. Single-user conflict
-checks do not provide cross-process locks or power-loss durability beyond Godot
-flush/rename. See [DOCUMENTS.md](DOCUMENTS.md) and [AUTHORING.md](AUTHORING.md).
+The export report separates compressed ZIP/base/asset bytes, expanded resources,
+native memory estimates and optional full-generation results. Existing package,
+regional, course and format-v1 limits remain. Single-user conflict detection is not
+a filesystem lock or a power-loss guarantee beyond flush/rename.
 
-## Validate and Export
+## Verification
 
-**Validate** and **Export .memap** run on the same worker with an immutable source
-snapshot. Neither implicitly saves edits or changes the document/history/dirty
-state. Export's UI requires an existing project directory; the snapshot includes
-committed unsaved edits. A selected existing package filename is refused.
-
-The report shows file/seam/schema/inventory validation, native cell count, Editor
-index references, a shared MapKit 2D road/building overview, native memory estimates
-and elapsed operation time. The overview is read-only and ignores view layers;
-it is not a full 3D image or a new package resource.
-
-Capacity distinguishes total compressed ZIP bytes, compressed user-asset payloads,
-expanded base data and expanded user assets. The displayed base-package count is
-**total ZIP bytes minus compressed user-asset payloads**: ZIP headers, manifest and
-all metadata remain charged to the base. It is a conservative accounting partition,
-not the size of a hypothetical separately repacked asset-free map. The 50,000,000
-byte base goal produces a visible over-goal report, not a new format rejection.
-
-**Full 3D check on Validate / Export** is optional and off by default. It generates
-all map cells sequentially through MapKit with the same per-cell work admission,
-reports completed-cell progress and discards each result. It checks generation,
-not full-map renderer attachment, actual driving or target-device performance.
-Default validation still checks all package files and terrain seams.
-
-Export writes only inside its own scratch directory until successful validation
-and compression. Main-thread completion checks the document generation and cancel
-state, copies to a unique destination-side pending file, verifies its hash and
-renames to the absent destination. A cancelled/stale/invalid result never publishes
-a package; current preview and existing outputs stay available. The short final
-copy/hash/rename step is synchronous. Scratch belonging to completed/cancelled work
-is removed; interrupted process scratch and failed destination pending files are
-not garbage-collected. Native calls and final publication are single-user operations.
-
-## Checks and remaining acceptance
-
-```sh
-python3 scripts/check_documents.py --godot /path/to/godot --full --log-dir /new/path/checks
-python3 scripts/check_documents.py --godot /path/to/godot --script preview_export_validator --script workbench_validator --rendered --log-dir /new/path/rendered
-MAPEDITOR_CAPTURE_PATH=/new/path/report.png python3 scripts/check_documents.py --godot /path/to/godot --script capture_export_report --rendered --log-dir /new/path/report-check
-```
-
-The public runner isolates synthetic sources, process state and `user://`, records
-source/native hashes and fails engine diagnostics. E04 checks cover actual Preview
-button input, automatic refresh, same-root reuse, remote/local changes, LRU,
-selection/revision/cancel races, dense terrain frame yields and mid-attachment
-cancellation, source/work budgets, independent copies and history/recovery,
-file conflicts/corruption, optional full generation and compressed-byte accounting.
-The 1024x720 capture checks report bounds and native rendered overview.
-
-Mac focused native/headless/rendered checks and compiled Editor resource execution
-pass. Native Windows/Linux export attempts still fail for missing Godot 4.7.2 mono
-export templates; matching target bindings and OS runners are also needed. Run the
-same tests and exported Editor on both OSs, including native dialogs, copying,
-restart/recovery, cancel/retry and original-data preservation. E05's complete
-empty-map authoring → installed Client driving, representative-map p95/RSS/GPU,
-public anonymous clone and final integration remain separate acceptance gates.
-E04 implementation delivery is not final product/platform acceptance.
-
-
-## UX02 save-to-export guidance
-
-Export on an unsaved project now opens **Save project before export**, then
-**Export package — choose a new filename** after a successful save. Save failure
-stops this continuation and suggests Save As; cancelling either picker leaves the
-current document available. Existing package files are still never overwritten.
-Operation failures have a persistent summary above detailed status, and Cancel
-operation is disabled when idle. No generation, cache or file ownership contract
-changed. [Workbench guidance](WORKBENCH.md) covers import retry and tool hints.
+Affected isolated validators cover memory preview/export/reopen, cache reuse,
+resource budgets, file conflicts, cancellation, saved baselines and test-drive
+snapshot ownership. The short synthetic terrain benchmark on macOS arm64 / Godot
+4.7.2 measured **35.9 updates/s**, input-to-installed-mesh **p95 28.5 ms**, with a
+**3 ms** installation budget. Detailed input feel, long sessions, platform/device
+performance and Client driving remain user verification.

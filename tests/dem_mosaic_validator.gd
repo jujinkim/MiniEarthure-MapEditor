@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const DEM := preload("res://scripts/dem_import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 var ui: Control
@@ -106,10 +107,10 @@ func run() -> void:
 	check(layer.stage_dem(ui.canvas.author.terrain,result,reviewed,destination)=="","stage before generation change")
 	ui.store.redo();ui.store.undo();before=state()
 	check(layer.adopt(ui.canvas.author.terrain).contains("Stale") and state()==before,"undo/redo invalidates pending mosaic")
-	check(ui.store.save_project(project)=="" and ui.store.autosave()=="","persist mosaic and recovery")
+	check(ui.store.save_project(project)=="" and RECOVERY_FIXTURE.write(ui.store)=="","persist mosaic and recovery")
 	var reopened := STORE.new()
 	check(reopened.open_project(project)=="" and reopened.document==ui.store.document,"reopen all cells/provenance")
-	check(reopened.recover(ui.store.recovery_path())=="","recover mosaic")
+	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store))=="","recover mosaic")
 	panel.prepare()
 	var cancelled: RefCounted=ui.import_job
 	panel.fields["Cell columns"].value=1

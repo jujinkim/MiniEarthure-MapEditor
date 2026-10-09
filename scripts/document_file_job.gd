@@ -10,6 +10,9 @@ var package := PACKAGE.new()
 func start(store: RefCounted, request: Dictionary) -> Error:
 	var snapshot := {"document":store.document.duplicate(true), "project_path":store.project_path,
 		"disk_path":store._disk_path, "disk_digest":store._disk_digest,
+		"working":store.working_snapshot().fork(), "dirty":store.dirty,
+		"signature":store._saved_signature,"canonical":store._saved_canonical,
+		"terrain_state":store.terrain_state,"saved_terrain_state":store.saved_terrain_state,
 		"history":(store.undo_stack + store.redo_stack).duplicate(true), "request":request.duplicate(true), "files":store.files}
 	return thread.start(_run.bind(snapshot))
 
@@ -22,6 +25,12 @@ func _run(snapshot: Dictionary) -> Dictionary:
 		worker.project_path = snapshot.project_path
 		worker._disk_path = snapshot.disk_path
 		worker._disk_digest = snapshot.disk_digest
+		worker.working = snapshot.working
+		worker.dirty = snapshot.dirty
+		worker._saved_signature = snapshot.signature
+		worker._saved_canonical = snapshot.canonical
+		worker.terrain_state = snapshot.terrain_state
+		worker.saved_terrain_state = snapshot.saved_terrain_state
 		worker.files = snapshot.files
 		worker.save_token = token
 		worker.undo_stack.assign(snapshot.history)
@@ -29,12 +38,15 @@ func _run(snapshot: Dictionary) -> Dictionary:
 		# The atomic writer may already have renamed by the time Cancel arrives.
 		# Report the actual outcome; never manufacture a cancellation after success.
 		if token.is_cancelled(): return _cancelled()
+		token.enter()
 		var failure: String = worker.save_project(request.path)
+		token.leave()
 		return {"ok":failure == "", "error":failure, "published":failure == "",
 			"path":worker.project_path, "digest":worker._disk_digest, "signature":worker._saved_signature, "canonical":worker._saved_canonical}
 	var issues: Array = snapshot.document.get("assembled_track", {}).get("geometry_issues" if snapshot.document.get("free_roam",false) else "issues", [])
 	if not issues.is_empty(): return {"ok":false, "error":"Fix geometry or the selected race course before execution export: " + " / ".join(issues)}
 	package.regional_side_cells = int(request.options.get("regional_side_cells", 0))
+	package.working = snapshot.working
 	var result: Dictionary = package.run(snapshot.document, snapshot.project_path, "export", Vector2i.ZERO, {}, bool(request.options.get("full", false)))
 	if not result.ok: return {"ok":false, "error":str(result.error.code) + ": " + str(result.error.message)}
 	var failure := ""

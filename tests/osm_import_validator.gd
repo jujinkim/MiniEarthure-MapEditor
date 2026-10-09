@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 var failures: Array[String] = []
@@ -88,12 +89,12 @@ func run() -> void:
 	check(ui.store.document.buildings.size() == building_count, "one-shot adoption")
 	var base := ProjectSettings.globalize_path("user://" + test_name + "-project")
 	check(ui.store.save_project(base) == "", "save OSM project")
-	check(ui.store.autosave() == "", "OSM recovery snapshot")
+	check(RECOVERY_FIXTURE.write(ui.store) == "", "OSM recovery snapshot")
 	var reopened := STORE.new()
 	check(reopened.open_project(base) == "", "reopen OSM project")
 	check(reopened.document.attributions == ui.store.document.attributions, "provenance roundtrip")
 	check(reopened.document.zones == ui.store.document.zones and reopened.document.buildings == ui.store.document.buildings, "all polygon parts and exclusions roundtrip")
-	check(reopened.recover(ui.store.recovery_path()) == "", "recover OSM project")
+	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "", "recover OSM project")
 	var output := ProjectSettings.globalize_path("user://" + test_name + "-project.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,output)).ok, "package OSM document")
 	var before_package := FileAccess.get_sha256(output)

@@ -283,23 +283,8 @@ func _metadata_changed() -> void:
 
 func _ground(point: Vector2) -> Dictionary:
 	var store: RefCounted = panel.editor.store
-	var doc: Dictionary = store.document
-	var cell_size := int(doc.cell_size_cm)
-	var local := point-Vector2(doc.bounds.min[0],doc.bounds.min[1])
-	var cell := Vector2i(floori(local.x/cell_size),floori(local.y/cell_size))
-	var terrain := preload("./terrain_tools.gd").new()
-	terrain.store = store
-	var tile := terrain.descriptor(cell)
-	if tile.is_empty(): return {"height":int(doc.terrain_base_cm)}
-	var spacing := int(tile.spacing_cm)
-	var side := cell_size/spacing+1
-	var loaded := terrain._load(cell,side)
-	if loaded.has("error"): return loaded
-	var p := (local-Vector2(cell)*cell_size)/spacing
-	var x := clampi(floori(p.x),0,side-2)
-	var y := clampi(floori(p.y),0,side-2)
-	var values: PackedInt64Array = loaded.heights
-	return {"height":roundi(lerpf(lerpf(values[y*side+x],values[y*side+x+1],p.x-x),lerpf(values[(y+1)*side+x],values[(y+1)*side+x+1],p.x-x),p.y-y))}
+	var result: Dictionary = JSON.parse_string(store.working_snapshot().height(point))
+	return result.data if result.ok else {"error":store.reason(result)}
 
 func _allowed(candidate: Dictionary, replace: int) -> bool:
 	var result: Dictionary=JSON.parse_string(panel.editor.store.bridge.checkpoint_edit_allowed(JSON.stringify(draft),JSON.stringify(candidate),replace))

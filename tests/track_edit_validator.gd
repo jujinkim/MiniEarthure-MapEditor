@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 ## Deterministic input/worker ownership checks; no manual or OS acceptance claim.
 const EDITOR := preload("res://scripts/editor_main.gd")
 const STORE := preload("res://scripts/document_store.gd")
@@ -173,11 +174,11 @@ func run() -> void:
 			"popup": ui.commands.open(); ui.commands.hide()
 		check(p.moving_index == -1 and not p.commit_move() and state() == before, scenario + " cancels uncommitted drag")
 	var path := ProjectSettings.globalize_path("user://async-track-project")
-	check(ui.store.save_project(path) == "" and ui.store.autosave() == "", "worker-edited document saves and creates recovery")
+	check(ui.store.save_project(path) == "" and RECOVERY_FIXTURE.write(ui.store) == "", "worker-edited document saves and creates recovery")
 	var reopened := STORE.new()
 	var recovered := STORE.new()
 	check(reopened.open_project(path) == "" and reopened.document.assembled_track == ui.store.document.assembled_track and reopened.document.get("courses", []) == ui.store.document.get("courses", []), "save/reopen retains compiled shapes, supports and courses")
-	check(recovered.recover(ui.store.recovery_path()) == "" and recovered._signature(recovered.document) == ui.store._signature(ui.store.document), "worker-edited recovery round trip")
+	check(recovered.recover(RECOVERY_FIXTURE.path(ui.store)) == "" and recovered._signature(recovered.document) == ui.store._signature(ui.store.document), "worker-edited recovery round trip")
 	# Opening a different document invalidates the complete job identity.
 	check(ui.store.start_track_edit(bench.source) == "", "request before session replacement")
 	ui.store.new_track()

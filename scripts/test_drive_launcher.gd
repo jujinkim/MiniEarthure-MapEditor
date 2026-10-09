@@ -1,4 +1,13 @@
 extends RefCounted
+static func prepare_working(working: RefCounted, source: String, destination: String, x_cm: int, y_cm: int, surface: String) -> Dictionary:
+	var snapshot := preload("./project_snapshot.gd")
+	var captured: Dictionary = snapshot.capture_working(working, source)
+	if not captured.ok: return captured
+	var staged: Dictionary = snapshot.stage(captured.data)
+	if not staged.ok: return staged
+	var result := prepare(staged.data.path, destination, captured.data.canonical, x_cm, y_cm, surface)
+	preload("./authoring_files.gd").remove_scratch(staged.data.path)
+	return result
 ## Editor-owned export/launch adapter. No game repository or runtime dependency.
 var process_start: Callable = func(executable: String, arguments: PackedStringArray) -> int:
 	return OS.create_process(executable, arguments, false)

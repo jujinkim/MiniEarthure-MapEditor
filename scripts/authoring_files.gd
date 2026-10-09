@@ -74,33 +74,28 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 					if FileAccess.get_sha256(store.project_path.path_join(path)) != context.hashes[path]: return "Source changed during native candidate snapshot."
 				_progress(context, "snapshot", size, total)
 	if context.get("expected_payloads", "") != "" and JSON.stringify(context.hashes).sha256_text() != context.expected_payloads: return "Project payload changed since import review; import again."
-	var scratch: String = context.get("scratch", ProjectSettings.globalize_path("user://authoring-candidates/" + Crypto.new().generate_random_bytes(12).hex_encode()))
-	var failure := write_new(scratch.path_join("document.json"), str(result.data.canonical).to_utf8_buffer())
-	for path: String in payloads:
-		if failure != "": break
-		failure = write_new(scratch.path_join(path), payloads[path])
+	_progress(context, "open", 0, 1)
+	var native: RefCounted = store.working_snapshot().fork()
+	result = JSON.parse_string(native.set_document(JSON.stringify(document),store.project_path))
+	if not result.ok: return store.reason(result)
+	result = JSON.parse_string(native.provide_resources(payloads))
+	if not result.ok: return store.reason(result)
+	result = JSON.parse_string(native.validate_memory())
+	var failure: String = "" if result.ok else store.reason(result)
 	if failure == "":
-		_progress(context, "open", 0, 1)
-		var native: RefCounted = ClassDB.instantiate("MapKitBridge")
-		result = JSON.parse_string(native.open_project(scratch))
-		if not result.ok: failure = store.reason(result)
-		if failure == "":
-			_progress(context, "open", 1, 1)
-			_progress(context, "generate", 0, cells.size())
-			var completed := 0
-			for cell: Vector2i in cells:
-				result = JSON.parse_string(native.generate_chunk(cell.x, cell.y))
-				if not result.ok:
-					failure = "Cell %s: %s" % [cell, store.reason(result)]
-					break
-				completed += 1
-				_progress(context, "generate", completed, cells.size())
+		_progress(context, "open", 1, 1)
+		_progress(context, "generate", 0, cells.size())
+		var completed := 0
+		for cell: Vector2i in cells:
+			result = native.generate_packed(cell.x,cell.y,false)
+			if not result.ok:
+				failure = "Cell %s: %s" % [cell, store.reason(result)]
+				break
+			completed += 1
+			_progress(context, "generate", completed, cells.size())
 	if context.has("hashes"):
 		for path: String in context.hashes:
 			if FileAccess.get_sha256(store.project_path.path_join(path)) != context.hashes[path]: failure = "Source changed during native candidate validation."
-	# The supervising process owns this directory and retires it after confirmed
-	# child exit, including cancellation inside a native call.
-	if not context.has("scratch"): remove_scratch(scratch)
 	return failure
 
 static func remove_scratch(path: String) -> void:

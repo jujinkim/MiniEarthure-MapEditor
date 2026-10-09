@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const JOB := preload("res://scripts/import_native_job.gd")
@@ -134,10 +135,10 @@ func run() -> void:
 	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"one Redo restores graph and source metadata")
 	check(FileAccess.get_sha256(path) == source_hash,"review/adoption/history preserve original PBF")
 	check(ui.store.save_project(ProjectSettings.globalize_path("user://adopted")) == "","save loop graph")
-	check(ui.store.autosave() == "","autosave loop graph")
+	check(RECOVERY_FIXTURE.write(ui.store) == "","recovery fixture loop graph")
 	var reopened := STORE.new()
 	check(reopened.open_project(ui.store.project_path) == "" and reopened.document == ui.store.document,"reopen exact geometry/provenance")
-	check(reopened.recover(ui.store.recovery_path()) == "" and reopened.document == ui.store.document,"recover exact geometry/provenance")
+	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "" and reopened.document == ui.store.document,"recover exact geometry/provenance")
 	var derived := ProjectSettings.globalize_path("user://adopted.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(ui.store.project_path,derived)).ok,"export loop package")
 	check(JSON.parse_string(reopened.bridge.open_package(derived)).ok,"open loop package")

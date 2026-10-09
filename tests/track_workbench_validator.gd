@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const EDITOR := preload("res://scripts/editor_main.gd")
 var failures: Array[String]=[]
@@ -26,9 +27,9 @@ func run() -> void:
 	check(store.undo()=="" and store._signature(store.document)==before,"source and derived geometry undo")
 	check(store.redo()=="" and store._signature(store.document)==after,"source and derived geometry redo")
 	check(store.edit_track(source,store.command_epoch-1)!="" and store._signature(store.document)==after,"stale edit rejected without mutation")
-	check(store.autosave()=="","draft recovery")
+	check(RECOVERY_FIXTURE.write(store)=="","draft recovery")
 	var recovered:=STORE.new()
-	check(recovered.recover(store.recovery_path())=="" and recovered._signature(recovered.document)==after,"draft restored")
+	check(recovered.recover(RECOVERY_FIXTURE.path(store))=="" and recovered._signature(recovered.document)==after,"draft restored")
 	var path:=ProjectSettings.globalize_path("user://track-draft")
 	var save_error: String=store.save_project(path)
 	check(save_error=="","disconnected project saves: "+save_error)

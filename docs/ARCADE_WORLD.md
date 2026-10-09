@@ -164,8 +164,8 @@ geometry remain available for another export profile.
 
 General placement adds `yaw_offset_mdeg` to quarter-turn orientation. Inspector and
 placement controls expose it; MapKit uses the same transform for visual geometry,
-lights, collision and occupancy. Every own format remains v1. Water/Island tools
-and ordinary authoring/history remain available. No pedestrian/traffic simulation
+lights, collision and occupancy. Every own format remains v1. Slope-based Water and connected-surface removal are available; islands are made
+by raising terrain. Ordinary authoring/history remain available. No pedestrian/traffic simulation
 or whole-building interiors are generated.
 
 ## Authored default-world workflow

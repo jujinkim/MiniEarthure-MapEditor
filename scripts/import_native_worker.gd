@@ -64,9 +64,7 @@ func run() -> void:
 	if failure == "" and request is Dictionary and request.get("kind") == "environment":
 		finish(preload("./generation_native_worker.gd").validate(request, directory, identity, progress))
 		return
-	if failure == "" and request is Dictionary and request.get("kind") == "terrain":
-		finish(preload("./terrain_native_worker.gd").validate(request, directory, identity, progress))
-		return
+
 	if failure == "" and request is Dictionary and request.get("kind") == "asset":
 		finish(preload("./asset_native_worker.gd").validate(request, directory, identity, progress))
 		return

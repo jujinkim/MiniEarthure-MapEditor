@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const FILES := preload("res://scripts/document_files.gd")
 var failures: Array[String] = []
@@ -66,17 +67,17 @@ func run() -> void:
 	var native := store.bridge
 	before = state(store)
 	check(store.open_project(base + "-missing") != "" and state(store) == before and store.bridge == native, "failed open preserves native session and document")
-	check(edit(store, 55) == "" and store.autosave() == "", "checksummed autosave created")
-	var recovery := store.recovery_path()
+	check(edit(store, 55) == "" and RECOVERY_FIXTURE.write(store) == "", "retained checksummed recovery fixture")
+	var recovery := RECOVERY_FIXTURE.path(store)
 	var snapshot_digest := FileAccess.get_sha256(recovery)
-	check(store.autosave() == "" and FileAccess.get_sha256(recovery) == snapshot_digest and not FileAccess.file_exists(recovery + ".previous"), "unchanged autosave avoids rotating snapshots")
+	check(RECOVERY_FIXTURE.write(store) == "" and FileAccess.get_sha256(recovery) == snapshot_digest and not FileAccess.file_exists(recovery + ".previous"), "fixture does not rotate unchanged snapshots")
 	check(restored.recover(recovery) == "" and restored.document.seed == 55 and restored.history_bytes == 0 and restored.undo_stack.is_empty() and restored.dirty, "recovery restores validated document with fresh history")
 	check(restored.save_project(base) == "", "recovered edit saves when original base still matches")
 	check(store.recover(recovery) == "" and store.save_project(base) != "", "old recovery cannot overwrite newer saved document")
 	check(store.save_project(base + "-copy") == "", "Save As resolves stale recovery without replacing newer file")
-	var prior_recovery := store.recovery_path()
+	var prior_recovery := RECOVERY_FIXTURE.path(store)
 	store.new_document()
-	check(store.recovery_path() != prior_recovery and FileAccess.file_exists(recovery), "new session preserves old recovery and gets distinct path")
+	check(RECOVERY_FIXTURE.path(store) != prior_recovery and FileAccess.file_exists(recovery), "new session preserves old recovery and gets distinct path")
 	var bad_path := base.path_join("bad.json")
 	var valid: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(recovery))
 	before = state(store)
@@ -151,20 +152,13 @@ func ui_failure_cases(snapshot: String) -> void:
 	broken.phase = "write"
 	ui.store.files = broken
 	var original := state(ui.store)
-	ui._autosave()
-	while ui.store.recovery_thread.is_started():
-		ui.store.poll_autosave()
-		await process_frame
-	check(str(ui.status_label.text).contains("Injected") and state(ui.store) == original, "timer reports autosave failure")
-	ui._new()
-	ui.new_map_dialog.hide()
-	ui.new_map_dialog.confirmed.emit()
-	check(state(ui.store) == original, "New blocked when current dirty document cannot be retained")
-	ui.dialog_action = "recover"
-	ui._path_selected(snapshot)
-	check(state(ui.store) == original, "Recover blocked when current dirty document cannot be retained")
-	ui._notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
-	check(str(ui.status_label.text).contains("Cannot close safely") and state(ui.store) == original, "Close remains open after autosave failure")
+	check(not ui.has_method("_autosave") and not ui.store.has_method("autosave"), "automatic recovery writer removed")
+	for action in ["new", "recover", "close"]:
+		ui._request_document_action(action, snapshot if action == "recover" else "")
+		check(ui.unsaved_dialog.visible and state(ui.store)==original,"transition asks before discarding; no automatic write")
+		ui.unsaved_dialog.hide()
+		ui.unsaved_dialog.canceled.emit()
+		check(ui.pending_document_action.is_empty() and state(ui.store)==original,"Cancel preserves current document")
 	ui.store.dirty = false
 	ui.queue_free()
 	await process_frame

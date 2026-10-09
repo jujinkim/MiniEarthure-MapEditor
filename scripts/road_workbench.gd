@@ -20,6 +20,7 @@ var camera_cell := Vector2i(-1,-1)
 var requested := {}
 var triangles: Array = []
 var environment_epoch := -1
+var environment_terrain_revision := -1
 var environment_session := -1
 var ray_bounds := AABB()
 var guides: MeshInstance3D
@@ -27,8 +28,11 @@ var issue_marker: MeshInstance3D
 var rendered := {}
 var render_pending := {}
 var render_jobs: Array = []
+var changed_cells := {}
+var terrain_revision := -1
 
 func build(parent: Node) -> void:
+	bench.editor.store.terrain_preview_changed.connect(terrain_changed)
 	selection = ItemList.new()
 	selection.custom_minimum_size.y = 70
 	selection.tooltip_text = I18N.t("Ordinary roads · Select to edit curve, height and width")
@@ -62,7 +66,7 @@ func refresh() -> void:
 		if is_instance_valid(issue_marker):issue_marker.queue_free()
 	var d: Dictionary=store.document
 	var assembly: Dictionary=d.assembled_track if d.get("assembled_track") is Dictionary else {}
-	if not d.get("heightmaps",[]).is_empty() or not d.get("roads",[]).is_empty() or (assembly.get("authoring") is Dictionary and assembly.authoring.get("terrain_integration",false)):
+	if not bench.active or not d.get("heightmaps",[]).is_empty() or not d.get("roads",[]).is_empty() or (assembly.get("authoring") is Dictionary and assembly.authoring.get("terrain_integration",false)):
 		var point: Array = d.roads[0].points[0] if not d.get("roads",[]).is_empty() else [d.bounds.min[0],0,d.bounds.min[1]]
 		if not replaced and environment_cell.x>=0: request_cell(environment_cell)
 		else: focus_point(PREVIEW.point(point))
@@ -223,10 +227,21 @@ func focus_point(point: Vector3) -> void:
 	var d: Dictionary=bench.editor.store.document
 	request_cell(Vector2i(floori((point.x*100-d.bounds.min[0])/3200),floori((-point.z*100-d.bounds.min[1])/3200)))
 
+func terrain_changed(cells: Array) -> void:
+	if camera_cell.x < 0: camera_cell = Vector2i.ZERO
+	if cells.is_empty():
+		for y in range(-1,2):
+			for x in range(-1,2): changed_cells[camera_cell+Vector2i(x,y)] = true
+	else:
+		for cell: Vector2i in cells:
+			if absi(cell.x-camera_cell.x)<=1 and absi(cell.y-camera_cell.y)<=1: changed_cells[cell] = true
+	terrain_revision = bench.editor.store.terrain_revision
+
 func request_cell(cell: Vector2i) -> void:
 	var store: RefCounted=bench.editor.store
+	if camera_cell != cell: changed_cells.clear()
 	camera_cell=cell
-	requested={"cell":cell,"epoch":store.command_epoch,"session":store.session_id}
+	requested={"cell":cell,"epoch":store.command_epoch,"session":store.session_id,"terrain":store.terrain_revision}
 	if environment_job!=null:
 		if environment_job.request==requested:return
 		environment_job.cancel()
@@ -236,15 +251,20 @@ func request_cell(cell: Vector2i) -> void:
 func _launch_environment() -> void:
 	if requested.is_empty():return
 	environment_job=preload("./road_preview_job.gd").new()
+	if not changed_cells.is_empty():
+		requested.only = changed_cells.keys()
+		changed_cells.clear()
 	var failure: Error=environment_job.start(bench.editor.store,requested)
 	if failure!=OK:environment_job=null;bench.editor._status(error_string(failure))
 
 func poll() -> void:
-	if bench.active and (not paths.is_empty() or not bench.editor.store.document.get("heightmaps",[]).is_empty()):
+	if not bench.active or not paths.is_empty() or not bench.editor.store.document.get("heightmaps",[]).is_empty():
 		var d: Dictionary=bench.editor.store.document
 		var point: Vector3=bench.editor.preview_camera.target
 		var cell:=Vector2i(floori((point.x*100-d.bounds.min[0])/3200),floori((-point.z*100-d.bounds.min[1])/3200))
 		if cell!=camera_cell:request_cell(cell)
+	if environment_job == null and requested.is_empty() and not changed_cells.is_empty():
+		request_cell(camera_cell)
 	if not render_pending.is_empty():
 		if render_pending.request.epoch!=bench.editor.store.command_epoch or render_pending.request.session!=bench.editor.store.session_id:
 			clear_pending()
@@ -260,8 +280,10 @@ func poll() -> void:
 					if not render_pending.cells.has(cell) or rendered[cell]!=render_pending.cells[cell]:RENDER.cancel(rendered[cell].job)
 				rendered=render_pending.cells
 				for cell: Vector2i in rendered:rendered[cell].job.root.visible=true
-				triangles=render_pending.triangles
+				triangles=[]
+				for cell: Vector2i in rendered: triangles.append_array(rendered[cell].get("triangles",[]))
 				environment_epoch=render_pending.request.epoch;environment_session=render_pending.request.session;environment_cell=render_pending.request.cell
+				environment_terrain_revision=render_pending.request.terrain
 				render_pending={}
 	if environment_job==null or environment_job.is_alive():return
 	var job: RefCounted=environment_job
@@ -277,14 +299,14 @@ func poll() -> void:
 	if not is_instance_valid(environment):
 		environment=Node3D.new();environment.name="RoadTerrainPreview";bench.editor.preview_world.add_child(environment)
 	clear_pending()
-	render_pending={"cells":{},"triangles":result.triangles,"request":job.request}
+	render_pending={"cells":rendered.duplicate() if job.request.has("only") else {},"triangles":result.triangles,"request":job.request}
 	for cell: Dictionary in result.chunks:
 		if rendered.has(cell.cell) and rendered[cell.cell].hash==cell.hash:
 			render_pending.cells[cell.cell]=rendered[cell.cell];continue
-		var display: Dictionary=RENDER.begin(cell.chunk,environment)
+		var display: Dictionary=RENDER.begin(cell.chunk,environment,Callable(),0,bench.editor.preview_resources)
 		display.root.visible=false
 		render_jobs.append(display)
-		render_pending.cells[cell.cell]={"hash":cell.hash,"job":display}
+		render_pending.cells[cell.cell]={"hash":cell.hash,"job":display,"triangles":cell.triangles}
 
 func raycast(screen: Vector2, roads_only := false) -> Dictionary:
 	var camera: Camera3D=bench.editor.preview_camera.camera

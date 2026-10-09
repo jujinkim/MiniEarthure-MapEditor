@@ -52,23 +52,23 @@ preferences stay separate from map content. See [workbench controls and contract
 
 Ctrl/Cmd+Z and Ctrl/Cmd+Y undo/redo; Ctrl/Cmd+S saves. Commands group a complete
 polygon, road, property apply or drag. Save chooses a project directory. Export
-writes a new `.memap`; existing outputs are preserved. First export guides the
-project save and then package filename selection. Tool-specific instructions stay
+writes a new `.memap`; existing outputs are preserved. Export and test drive use current memory edits without saving the project. Tool-specific instructions stay
 under the map; failed imports expose Retry import with retained settings. Packages can be unpacked
 with the public MapKit CLI.
 
-Recovery snapshots live in Godot's user-data `recovery` directory, separate from
-map content. Autosave runs every 15 seconds and before New/Open/Recover/Close;
-failed retention keeps the current document open. Unsaved New/Open/Recover/Close
-asks whether to save, retain recovery and continue, or keep editing. Recover selects an autosave,
-`.previous` or complete `.pending-*` document. Save retains `.previous` and checks
-for external changes. Recovery validates the document and checksum with fresh undo
-history. Undo/Redo share 200 commands / 16 MiB of serialized mementos. Escape or
-focus/tool changes cancel a drag. Save As to a new directory resolves document
-conflicts and copies current/history-referenced assets and heightmaps while preserving
-originals. 3D Preview refreshes affected selected cells on a worker, reuses unchanged
-cached cells and attaches candidates across frames. Validate/Export show file/index/
-overview and compressed/expanded capacity reports; full 3D checks are optional.
+Terrain and water remain in memory through editing, Undo/Redo, previews and
+validation. Save (Ctrl+S/Cmd+S) is explicit and highlights unsaved changes. A new
+map needs no directory until its first Save. The timed 2D/3D brush defaults to
+16 m radius, 2 m/s and 50% steepness; Water fills connected low ground from a slope.
+Raise terrain for islands or use Remove water for the connected surface.
+
+There is no timer, transition or exit autosave. New/Open/Recover/Close offers Save,
+Continue without saving, or Cancel. Recover still reads existing recovery,
+`.previous` and complete `.pending-*` files without deleting them. Save detects
+external conflicts and preserves 200 commands / 16 MiB of Undo/Redo. Save As
+copies current/history assets into a new directory, preserving originals.
+Memory preview reuses unchanged cells with a 3 ms installation budget; compressed
+capacity reports belong to explicit package export.
 See [preview, Save As and export contracts](docs/PREVIEW_EXPORT.md).
 
 ## Test drive in installed Client

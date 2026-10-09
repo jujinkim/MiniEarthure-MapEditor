@@ -178,6 +178,7 @@ func refresh() -> void:
 	editor.properties.visible=not active
 	editor.apply_button.visible=not active
 	if not active:
+		road_tools.refresh()
 		if editor.author_panel.tabs.get_tab_count() == 0: editor.author_panel.open()
 		if editor.store.document.has("assembled_track") or not editor.store.document.get("roads",[]).is_empty(): _draw()
 		elif is_instance_valid(view): view.queue_free()

@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const PNG := preload("res://scripts/terrain_png.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
 const STORE := preload("res://scripts/document_store.gd")
@@ -47,18 +48,12 @@ func point(value: Vector2) -> Vector2:
 	return ui.canvas.global_position + ui.canvas.screen([value.x, value.y])
 
 func stroke(start: Vector2, end: Vector2) -> void:
-	await pointer(point(start), true)
-	var event := InputEventMouseMotion.new()
-	event.position = point(end)
-	event.global_position = event.position
-	event.relative = point(end) - point(start)
-	event.button_mask = MOUSE_BUTTON_MASK_LEFT
-	root.push_input(event)
+	var terrain: RefCounted = ui.canvas.author.terrain
+	ok(terrain.begin(start,ui.canvas.author.options),"begin memory stroke")
+	ok(terrain.step(end,1.0),"timed memory stroke")
+	terrain.last_usec = Time.get_ticks_usec()
+	ok(terrain.finish(),"finish memory stroke")
 	await process_frame
-	await pointer(point(end), false)
-	var deadline := Time.get_ticks_msec() + 20000
-	while ui.import_job != null and Time.get_ticks_msec() < deadline: await process_frame
-	check(ui.import_job == null and not ui.busy, "terrain job finishes: " + ui.status_label.text)
 
 func shape(tool: String, vertices: Array) -> void:
 	ui._set_tool(tool)
@@ -77,9 +72,11 @@ func run() -> void:
 	root.size = Vector2i(1440, 900)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	await process_frame
 	# General terrain/shape authoring uses the explicit free-roam document mode.
 	ui.store.new_track(true)
+	ui.set_tool_workspace("landscape")
 	await process_frame
 	check(ui.commands.execute_id("view.2d"), "use the 2D authoring workspace")
 	await process_frame
@@ -137,30 +134,31 @@ func run() -> void:
 	ui._set_tool("Terrain")
 	var history: int = ui.store.undo_stack.size()
 	await stroke(Vector2(6100,6100), Vector2(6700,6700))
-	check(ui.store.document.heightmaps.size() == 4, "one stroke creates all four seam owners")
+	check(ui.store.working_snapshot().tile_cells().size() == 4 and ui.store.document.heightmaps.is_empty(), "one stroke creates four memory seam owners without file descriptors")
 	check(ui.store.undo_stack.size() == history+1 and not ui.store.has_gesture(), "stroke is one atomic undo")
-	var terrain_state: Dictionary = ui.store.document.duplicate(true)
+	var raised: Dictionary = JSON.parse_string(ui.store.working_snapshot().height(Vector2(6400,6400)))
 	var first_bytes := {}
-	for tile: Dictionary in ui.store.document.heightmaps:
-		first_bytes[tile.path] = FILES.read(project.path_join(tile.path)).bytes
-	check(ui.store.undo_stack.back().binary_mementos.size() > 0, "binary before/after mementos retained")
-	check(ui.store.history_bytes >= first_bytes.values()[0].size(), "binary bytes charged to shared undo budget")
+	check(ui.store.undo_stack.back().terrain_delta.size() > 0 and not ui.store.undo_stack.back().has("binary_mementos"), "sparse sample history without PNG mementos")
+	check(ui.store.history_bytes >= ui.store.undo_stack.back().terrain_delta.size()*4, "height bytes charged to shared undo budget")
 	ok(ui.store.save_project(project), "save raster source")
+	for tile: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(project.path_join("document.json"))).heightmaps:
+		first_bytes[tile.path] = FILES.read(project.path_join(tile.path)).bytes
 	var native: RefCounted = ClassDB.instantiate("MapKitBridge")
 	var result: Dictionary = JSON.parse_string(native.open_project(project))
 	check(result.ok, "native PNG/seam acceptance: " + JSON.stringify(result))
 	for y in range(2):
 		for x in range(2): check(JSON.parse_string(native.generate_chunk(x,y)).ok, "native generated terrain cell")
 	ok(ui.store.undo(), "undo raster")
-	check(ui.store.document.heightmaps.is_empty(), "undo returns implicit flat terrain")
+	check(JSON.parse_string(ui.store.working_snapshot().height(Vector2(6400,6400))).data.height == 0, "undo returns flat memory terrain after save")
 	ok(ui.store.redo(), "redo raster")
-	check(ui.store.document.heightmaps == terrain_state.heightmaps, "redo exact binary identities")
+	check(JSON.parse_string(ui.store.working_snapshot().height(Vector2(6400,6400))).data == raised.data and not ui.store.dirty, "redo exact saved heights and baseline")
 	for mode in ["lower", "flatten", "smooth"]:
-		var mode_before: String = ui.store._signature(ui.store.document)
+		var mode_before: int = ui.store.undo_stack.size()
 		author.options.mode = mode
 		author.options.target_cm = 0
+		author.options.numeric_target = true
 		await stroke(Vector2(6400,6400), Vector2(6400,6400))
-		check(not ui.store.has_gesture() and ui.store._signature(ui.store.document) != mode_before, "completed nonempty " + mode)
+		check(not ui.store.has_gesture() and ui.store.undo_stack.size() == mode_before+1, "completed nonempty " + mode)
 	ok(FILES.validate(ui.store, ui.store.document), "all brush modes preserve seams")
 	for path: String in first_bytes: check(FILES.read(project.path_join(path)).bytes == first_bytes[path], "original raster remains immutable")
 	var terrain_capture := OS.get_environment("MAPEDITOR_CAPTURE_PATH")
@@ -196,9 +194,9 @@ func run() -> void:
 	ok(ui.store.undo(), "undo smooth")
 	# Use separate blank map for structures; old terrain project and recovery remain.
 	ok(ui.store.save_project(project), "persist terrain before next document")
-	ok(ui.store.autosave(), "raster recovery snapshot")
+	ok(RECOVERY_FIXTURE.write(ui.store), "raster recovery snapshot")
 	var recovered := STORE.new()
-	ok(recovered.recover(ui.store.recovery_path()), "recover immutable raster references")
+	ok(recovered.recover(RECOVERY_FIXTURE.path(ui.store)), "recover immutable raster references")
 	ok(FILES.validate(recovered, recovered.document), "recovered raster native validation")
 	check(ui.commands.execute_id("file.new"), "open New Map command")
 	ui.new_free_roam.button_pressed = true
@@ -313,8 +311,8 @@ func run() -> void:
 	check(ui.store.document.zones[-1] == planted, "planting redo preserves recipe inputs")
 	var destination: String = ui.store.project_path.path_join("authored.memap")
 	ok(ui.store.save_project(ui.store.project_path), "save full authored project")
-	ok(ui.store.autosave(), "authoring recovery")
-	ok(recovered.recover(ui.store.recovery_path()), "recover structures and custom assets")
+	ok(RECOVERY_FIXTURE.write(ui.store), "authoring recovery")
+	ok(recovered.recover(RECOVERY_FIXTURE.path(ui.store)), "recover structures and custom assets")
 	ok(FILES.validate(recovered,recovered.document), "native recovered document/assets")
 	result = JSON.parse_string(native.export_project(ui.store.project_path,destination))
 	check(result.ok, "export authored package: " + JSON.stringify(result))

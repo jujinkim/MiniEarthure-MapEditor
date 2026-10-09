@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const EDIT := preload("res://scripts/workbench_edit.gd")
@@ -64,10 +65,10 @@ func run() -> void:
 	empty.document.recipe_version = 1
 	check(layer.validate_for(empty) != "", "invalid candidate never adopts")
 	var project := ProjectSettings.globalize_path("user://courtyard-project")
-	check(ui.store.save_project(project) == "" and ui.store.autosave() == "", "save and recoverable history")
+	check(ui.store.save_project(project) == "" and RECOVERY_FIXTURE.write(ui.store) == "", "save and recoverable history")
 	var reopened := STORE.new()
 	check(reopened.open_project(project) == "" and reopened.document.buildings[0] == b, "project roundtrip")
-	check(reopened.recover(ui.store.recovery_path()) == "" and reopened.document.buildings[0] == b, "recovery roundtrip")
+	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "" and reopened.document.buildings[0] == b, "recovery roundtrip")
 	var package := ProjectSettings.globalize_path("user://courtyard.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,package)).ok, "package export")
 	var package_hash := FileAccess.get_sha256(package)

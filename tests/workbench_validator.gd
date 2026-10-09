@@ -1,4 +1,5 @@
 extends SceneTree
+const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const EDIT := preload("res://scripts/workbench_edit.gd")
 var failures: Array[String] = []
 var checks := 0
@@ -227,8 +228,8 @@ func run() -> void:
 	var directory := OS.get_user_data_dir().path_join("workbench-project")
 	check(ui.store.save_project(directory) == "", "workbench edits save")
 	var saved: Dictionary = ui.store.document.duplicate(true)
-	check(ui.store.autosave() == "", "workbench autosave")
-	var recovery: String = ui.store.recovery_path()
+	check(RECOVERY_FIXTURE.write(ui.store) == "", "workbench recovery fixture")
+	var recovery: String = RECOVERY_FIXTURE.path(ui.store)
 	check(ui.store.open_project(directory) == "" and ui.store.document == saved, "save/reopen preserves the document independently of view state")
 	check(ui.store.recover(recovery) == "", "workbench recovery opens")
 	await click_button("Validate")
