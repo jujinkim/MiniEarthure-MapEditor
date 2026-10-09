@@ -1,7 +1,9 @@
-# L02 area and density experiments
+# Scale and route fixtures
 
-Explicit road-route sidecars and their source/package/obstacle checks are
-documented in [SCALE_ROUTES](SCALE_ROUTES.md). They preserve these original maps.
+The scale sources and route sidecars below are preserved synthetic stress fixtures.
+Their original 16m cells and recorded runs are not the current default-world 32m
+profile or a current size/performance acceptance claim. Use matching current-v1
+tooling and fresh outputs; never convert the original artifacts automatically.
 
 `scripts/scale_maps.py` creates a **new**, original synthetic source directory.
 It uses only this public repository's versioned driving-school source and MIT
@@ -88,47 +90,38 @@ unsupported case. The native consumer audit includes metadata/overview allowance
 in addition to the CLI audit; report the two separately. Consumer scheduling,
 rendering, collision, input, network and lifetime tests belong to each consumer.
 
-## Initial measured boundary (macOS arm64, 2026-09-11)
+## Route sidecars
 
-| 2km condition | Storage side | Complete file B | Expanded records B | Native audit |
-| --- | ---: | ---: | ---: | --- |
-| Mixed | 128m | 29,066,928 | 379,277,989 | 512MiB refuses; 1GiB passes, 873,501,200B peak |
-| Mixed | 256m | 7,536,599 | 97,779,668 | 512MiB refuses; 1GiB passes, 874,568,272B peak |
-| Dense | 128m | 58,769,616 | 895,448,743 | 512MiB and 1GiB refuse; also exceeds 50,000,000B |
-| Dense | 256m | 15,257,626 | 231,146,207 | 512MiB and 1GiB refuse |
+`scripts/scale_routes.py` reads fixed source/package bytes and native-restored
+source, then writes a new `l02-road-routes-v1` test sidecar. Source/payload hashes,
+index digest and semantically equal restored records must agree. Collection order
+and omitted empty collections may normalize; road points and geometry stay exact.
+This is fixture tooling, not pathfinding or a substitute for full native admission.
 
-The main size amplification is regional source duplication, including global
-roads/rules, not the unique models (675,064B mixed; 511,620B dense). Larger storage
-reduces transfer duplication while retaining a large source validation workspace.
-It does not solve dense 2km admission. No limit, quality model, proxy or source
-validation was relaxed. The 288m controls pass native audit at both budgets for
-all three storage candidates, and five sampled generated hashes agree across
-storage sizes. These are scoped observations, not whole-map or platform support.
+| Profile | Coverage and required limits |
+| --- | --- |
+| `full` | Residential/rural/forest and transition corridors, plus separate bridge grades; 8m ground endpoint trims; source roads ≥4m and obstacle-free 2m corridor |
+| `shuttle-240` | Four connected 64m lots with 8m trims: 240m complete flat routes and 4m stopping room beyond each end; mixed or dense even grid ≥8 lots |
+| `turns` | Separate forward outbound/return routes through shared graph nodes; flat orthogonal asphalt ≥4m wide/16m long; ≤32 edges/128 support roads; 2m-radius targets, 1.10m sweep and 4m stopping room |
+| `forest-hill` | A new derivative source adds a 4m road and 6m vegetation exclusion through one retained 2m hill; preserve original terrain/assets and audit generated height/normal references |
+| `bridge-shuttle` | Separate 256m full or 160m east-ramp routes; 6m bridge, two 32m ramps with 3m relief, 12m stopping room and 1.10m sweep; native audit ≤64 cells/2,048 faces/4,096 probes |
 
-A 1,056m dense control (16 × 16 lots, 1,536 buildings) produces 5,950,536B at
-128m storage and 2,021,115B at 256m. Both refuse 512MiB audit and pass 1GiB native
-audit, requiring 707,927,022B and 710,724,654B respectively. This narrows the
-admission boundary without changing lot quality; it is not a maximum-size claim.
+Flat shuttle stopping support and obstacle envelopes are checked explicitly.
+Turns use exact shared-node connectivity and full swept-box road-union coverage,
+not coordinate overlap or corner samples. Forest-hill derivatives use
+`scripts/scale_hill_maps.py`, retain the original hill PNG and place the centreline
+0.40m from its apex. Bridge probes sample at ≤25cm with upward normal >0.9,
+height error ≤10cm and relief ≥285cm. These diagnostics do not prove driving.
 
-The frozen `tests/scale_maps.lock.json` owns authored identity/counts. External
-integration reports own consumer runs, actual frame/CPU/RSS/GPU and deferred
-device/human acceptance. Source sharding/global dependency and audit-cost work
-is a separate implementation decision; this experiment does not change MapKit's
-format, transport, validation limits or generation contracts.
+```sh
+rtk proxy /path/to/mapkit unpack-regions /existing/map.mkregions /new/restored 1073741824
+rtk proxy python3 scripts/scale_routes.py /existing/source /existing/map.mkregions /new/routes.json --restored /new/restored --profile turns
+```
 
-## L01-C same-source storage comparison (2026-09-12)
-
-The existing sources, lock, lot density, terrain and all asset hashes are unchanged.
-With MapKit index v2, mixed 2km packages are 1,481,432/781,915B at 128/256m storage;
-dense 2km packages are 2,293,070/1,375,142B. Expanded records are respectively
-13,025,027/8,022,910B and 23,790,760/16,775,740B, including all original payloads.
-Complete native audit passes 512MiB for mixed and 1GiB for dense. Dense still
-refuses 512MiB. The 288m controls and 1,056m dense control pass native 512MiB.
-Native admission does not include the game screen's existing memory reservations.
-
-The compiled Editor runs 387 scale checks plus export/reopen and preview/export
-regressions using the matching v2 native build. Across all 12 old/new artifact
-pairs, 126 sampled cells preserve generated geometry and occupied solids. The
-old v1 artifacts and original failures remain comparison evidence. This storage
-improvement does not authorize 5/10km expansion or complete L02 performance/device
-acceptance; use the same reproduction commands with fresh output directories.
+Hill/bridge profiles also take `--mapkit` and `--native-output`; all outputs must
+be new. Failed native stages cannot publish an accepted sidecar. Frozen historical
+index/size comparisons are available through Git and preserved artifacts, not a
+supported old-reader path. The owning unit tests are `test_scale_*.py`; no new
+execution is claimed by this documentation cleanup. Consumer traversal, timing,
+loading, collision and device acceptance are separate. Broad 5–10km expansion and
+source-residency changes remain outside the approved scope.

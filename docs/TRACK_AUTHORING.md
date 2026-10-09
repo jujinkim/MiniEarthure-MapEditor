@@ -1,6 +1,6 @@
-# Track piece workspace — 2026-09-30
+# Track piece workspace
 
-The 2026-09-30 [icon workbench replacement](ICON_WORKBENCH.md) supersedes immediate
+The 2026-09-30 [icon workbench replacement](WORKBENCH.md) supersedes immediate
 palette placement, fixed shortcut UI and the previous visual presentation below.
 
 
@@ -66,7 +66,7 @@ documents live move ghosts, sequential cancellable worker edits, exact scoped
 measurements (including the 49-piece seed latency miss) and user verification.
 
 
-## Grind Line palette — 2026-10-01
+## Grind Line palette
 
 `Grind Line` opens independent line authoring: straight/cubic control points in
 centimetres, up frame, capture width and named start/end connections. `Add air
@@ -84,7 +84,7 @@ interaction and game driving remain user verification.
 
 Reproducible manual-flight/static-structure example: [Practice track](../examples/practice-tight-corners/README.md).
 
-## Generation readiness progress — 2026-10-02
+## Generation readiness progress
 
 The generator displays a translated stage and shared circular percentage; unknown
 search/preparation stages stay indeterminate. The button is disabled while busy.
@@ -97,7 +97,7 @@ The generation worker/preview adoption unit and shared progress validator pass,
 including unknown search, measured stages, matching requests and prepared preview.
 Detailed dialog interaction is user verification; no video was recorded.
 
-## Panel surface placement (02, 2026-10-04)
+## Panel surface placement
 
 Attachment picking now intersects the actual shared preview road triangles,
 including quantized transverse strips and current draft transforms. Panel ghosts
@@ -107,7 +107,7 @@ Native/load and focused UI-state verification are grouped with the partial-width
 panel delivery. Detailed pointer interaction and device acceptance remain user
 verification.
 
-## Partial-width action editing (07, 2026-10-04)
+## Partial-width action editing
 
 New attached speed/jump/chain tools default to50% of the road width after the
 25cm side margins, centered. Placement controls offer25/50/75/100% and
@@ -120,7 +120,7 @@ unchanged; all own formats remain v1 without old-source conversion.
 Scoped validation passes; detailed pointer
 editing and device readability remain user verification.
 
-## Pipe material and dimensions (03/08, 2026-10-04)
+## Pipe material and dimensions
 
 MapKit `cb37b0d7e20874957b437358fdc5dcbac148451f` supplies the shared matte
 metal material and current pipe catalogue. New general pipes select the catalogue
@@ -145,7 +145,7 @@ Previous practice packages remain preserved. Current output and reproduction
 are described below. All own formats remain v1; detailed editing, material
 preference and game driving remain user verification.
 
-## Air ring defaults 09 — 2026-10-04
+## Air ring defaults 09
 
 Consumes MapKit 6c5e3a0. New automatic/manual rings and standalone preview now
 use a3m opening and100% strength. Existing explicit ring parts/radius/strength
@@ -157,7 +157,7 @@ options by metadata and initialize an ordinary document; its earlier translated
 label/assembled-document assumptions failed and timed out. Product editor code
 needed no change. Detailed interactive authoring is user verification.
 
-## Pipe minimum — 2026-10-05 replacement
+## Pipe minimum
 
 MapKit now owns a 1m minimum radius/2m minimum bore. Editor reads the native
 catalogue for standalone radius and assembled ports; manual choices are 2/3/4/6m.

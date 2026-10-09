@@ -29,7 +29,7 @@ Direct source launch (including the Client's **Map editor** button) also works
 before the first import: the entry scene loads the installed MapKit extension
 before constructing a document. A missing or incompatible binding shows a startup
 error with copyable diagnostics. This still requires a current native build;
-see [source-startup evidence](docs/ICON_WORKBENCH.md#source-launch-without-import-metadata--2026-10-01).
+see [source-startup evidence](docs/WORKBENCH.md).
 
 Use Godot **4.7.2**. Run the editor validator with:
 
@@ -199,7 +199,7 @@ heights to terrain. See [height references](docs/IMPORTS.md).
 
 Explicit OSM bridges/tunnels can continue through unique same-kind source
 endpoints with complete grounded ends. Full structural source closure, lost-join
-crop sections and bounded recipe-2 native generation protect atomic adoption.
+crop sections and bounded current-v1 native generation protect atomic adoption.
 See [connected structures and the native validation correction](docs/IMPORTS.md).
 
 
@@ -229,7 +229,7 @@ models and shared rendering. Runtime/Client seal game courses separately.
 Retired default-only source/distribution families and improvers were removed;
 practice, physics and shared authoring fixtures remain. Git retains history.
 
-- [Icon workbench, shortcuts and preview placement](docs/ICON_WORKBENCH.md)
+- [Icon workbench, shortcuts and preview placement](docs/WORKBENCH.md)
 - [Track piece workspace and draft authoring](docs/TRACK_AUTHORING.md)
 
 - [Track drag feedback, worker commits and timing evidence](docs/TRACK_EDIT_PERFORMANCE.md)

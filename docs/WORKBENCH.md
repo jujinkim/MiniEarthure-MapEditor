@@ -1,197 +1,138 @@
 # Editing workbench
 
-The 2026-09-30 [icon workbench replacement](ICON_WORKBENCH.md) supersedes immediate
-palette placement, fixed shortcut UI and the previous visual presentation below.
+The workspace edits one DocumentStore through the **Roads & Tracks** and
+**Terrain & Landscape** tools. These are editing views of the same document;
+`free_roam` is a separate game policy. [World authoring](ARCADE_WORLD.md),
+[track authoring](TRACK_AUTHORING.md) and [documents](DOCUMENTS.md) own geometry,
+commands, history and explicit saving.
 
+## Layout and appearance
 
-## Current workspace update — 2026-09-21
+The shared Luna-inspired theme uses ivory `#ECE9D8` panels, white inputs, blue
+`#245EDB` accents, shallow bevels and `#B8C2CF` section borders. Text is 14px,
+actions at least 40px and palette tiles 52px. The menu is 28px high with a 4px
+upper margin. Menus, fields and confirmation actions retain text; icon actions
+have accessible names and tooltips. Application text follows
+[localization](LOCALIZATION.md); user names and external diagnostics are preserved.
 
-File/Edit/View/Create/Validate menus and **Commands…** (Ctrl/Cmd+P) share one
-command registry. Search shows the available keyboard shortcuts. Text input keeps
-its own key handling. The central workspace switches between 2D, 3D and split
-views; this changes view state only. The document, selection and Undo owner remains
-DocumentStore. This update does **not** add 3D picking or transform gizmos.
+File, Edit, Create and Inspect groups share commands with toolbars, search and
+shortcuts. Palettes have search, alphabetical sorting, favorites and object lists.
+Track groups separate road pieces, gimmicks and actions. Inspector groups cover
+Transform, Connections, Routes & Checkpoints and Actions. Route order has
+append/remove/up/down controls. Activity and Problems use the bottom panel.
 
-Authoring settings now live in the right dock. Select a settings page from the
-dropdown; **Refresh** reloads controls from the current document after another
-edit. Stale controls still cannot overwrite a newer document. File selection and
-import review remain dialogs. Activity and Problems share the bottom panel.
-Panel sizes, visibility and central view mode are stored separately in workbench.cfg.
+The center supports 2D, 3D and split views. Right drag orbits, middle drag pans,
+and wheel zooms. Frame selection uses the current selection. The track auxiliary
+plan cannot edit derived roads. Preview ownership, camera-centred cell updates
+and limits are in [preview/export](PREVIEW_EXPORT.md) and
+[editing performance](TRACK_EDIT_PERFORMANCE.md); general 3D gizmos remain outside
+the implemented scope.
 
-In the 3D preview, right drag orbits, middle drag pans and the wheel zooms.
-**Frame selection** centers the current 2D/tree selection and schedules that cell.
-The bounded four-cell cache and incremental attachment remain; this is still a
-selected-cell preview, not camera-driven neighborhood streaming.
+Splitters, dock visibility, grid settings and per-map view layers persist in
+`user://workbench.cfg`, separate from map bytes and Undo. Preferences do not dirty
+a document. Shortcut/favorite writers reload the file before updating their own
+section. Reset panels restores the default visible docks and splitters.
 
-**File → Restore package** accepts `.memap` and `.mkregions`. It validates the
-package, restores a new adjacent `<package>.source` directory and invokes the
-normal unsaved-document guard. Existing projects and outputs are never replaced.
-Canceled/late completed restores remain on disk but cannot replace the active
-document. Invalid packages publish no restored project.
+## Commands and placement
 
-GeoJSON unclassified building use is mapped to the current residential rendering
-profile with an explicit estimate/warning before adoption. The original source
-and classifications are preserved. This applies equally to solid and courtyard
-buildings; Overture no longer needs a separate post-conversion substitution.
-
-Focused validation and remaining scope are in [AUTHORING_WORKSPACE_STATUS.md](AUTHORING.md).
-
-## Earlier workbench behavior
-
-E01, 2026-09-09. The central 2D map, object/layer tree, property inspector and
-shared MapKit cell preview use the same validated DocumentStore as E02.
-See [DOCUMENTS.md](DOCUMENTS.md) for atomic commands, history and recovery.
-
-## Selecting and editing
-
-- Click selects the topmost editable vector object. Shift-click toggles it;
-  clicking an already selected object preserves the group for dragging.
-  Drag empty space to select fully enclosed objects; Shift adds to the group.
-- Roads, graph nodes, buildings, zones, placements and repetition paths have
-  typed selection keys. Yellow outlines/vertex handles identify selection;
-  translucent fills leave overlapping context visible. Ring outlines show
-  building entrances and zone exclusions. Assets and raster heightmaps are not
-  independent movable vector objects; their authoring uses the separate [E03 tools](AUTHORING.md).
-- Drag changes only the temporary view. Release submits one validated command.
-  Escape, focus/tool/document replacement, layer changes and history actions
-  cancel pending gestures. Undo/Redo are still bounded by E02's shared limits.
-- Grid snapping is configurable from 0.01 to 100 metres. Turning it off still
-  writes integer centimetres. Shape drawing also snaps to nearby visible,
-  editable vertices; wheel zoom is anchored at the pointer. Middle drag pans;
-  **Fit map** resets the view.
-- Duplicate retains all source attributes, translates entrances/exclusions,
-  generates fresh bounded IDs and selects the copies. It tries at most four
-  positions beside the selection's extent (including road widths and rings),
-  above/right/below/left. Each candidate passes native validation before it can
-  change history. If none fits, the original selection/document is preserved;
-  select a smaller group or make space first. This is not an automatic packer.
-- Delete removes the selected records in one command. It does not delete source
-  asset files, project folders, attribution records or any user dataset.
-
-Road movement preserves explicit graph topology: a selected road translates its
-points and both endpoint nodes. Every incident unselected road updates only the
-moved endpoint. A node shared by several selected roads moves once. A node can
-also move on its own; its incident ends follow. A hidden/locked affected record
-rejects the whole command. Native geometry/road rules can reject a deformation;
-no endpoints are silently detached or snapped to another graph.
-
-Duplicated roads share fresh copies of their common endpoints and never attach to
-the original graph. Deleting roads prunes only their now-unreferenced endpoint
-nodes. Deleting a selected node that still has an unselected road is rejected.
-Unrelated orphan nodes and all original files remain untouched.
-
-## Layers, properties and panels
-
-The tree groups vector objects by document type. Additional import rows use the
-vector adapters' `import-<layer_id>-...` identity prefix and control the
-whole imported group across types. Show/Lock and opacity apply cumulatively to
-type and import groups. Selecting a layer selects its editable objects; the
-filter finds object IDs. Hidden/locked objects cannot be selected, transformed,
-deleted or drawn into through that layer. A locked incident road also blocks
-indirect graph changes. Unlock/show explicitly before editing it.
-
-These are **2D workbench view layers**: visibility never removes content from
-preview, packages or physics. The preview caption makes this distinction visible.
-MapDocument has no arbitrary layer metadata. Reimport/adoption and source-layer
-authoring remain the separate import work, with no package schema change here.
-
-The inspector provides group translation and changed-field-only batch properties.
-Buildings expose height/base; roads explicitly apply widths/surfaces to **all
-segments**; zones expose spacing/density/kind; placements expose quarter-turn
-rotation; repetitions expose spacing. Mixed-type groups expose translation only.
-Unchanged values retain each record's original value, even when the first selected
-record has a different one. One Apply is one command, including graph dependencies.
-Stale/invalid changes preserve document/history and report the native failure.
-Structural road, terrain and asset/proxy authoring use [AUTHORING.md](AUTHORING.md).
-
-Drag the two horizontal splitters or the properties/preview vertical splitter.
-The bottom controls toggle either dock and restore panel defaults. Properties
-scroll independently; the object tree scrolls and can collapse categories.
-Validation/preview state has its own label, separate from pointer coordinates.
-Affected-cell preview and frame-budgeted attachment use the same MapKit worker
-and renderer; see [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md).
-
-Panel widths/visibility, grid settings and per-map layer view settings live in
-`user://workbench.cfg`, separate from map content, provenance and Undo history.
-View changes do not dirty the document or alter exported bytes. Layer settings
-save when changed; panel/grid settings also save on editor exit. Reset panels
-restores visible docks and the default splitter positions.
-
-## Flow guidance (UX02)
-
-Tool buttons have usage tooltips; a persistent caption under the map explains
-minimum vertices, right-click completion, selection prerequisites and the relevant
-Authoring settings or Properties controls. Escape/zoom/pan remain visible while
-status messages change. The minimum window remains 1024×720; bottom actions wrap
-and operation feedback occupies a full-width row. Idle Cancel operation is disabled.
-
-Import failures/cancellation expose **Retry import…**, reopening the existing
-license, accuracy, coordinate and Python settings. **Import / retry last source**
-prepares that source with a new identity. Review explicitly says that adoption is
-pending; Discard confirms that the document is unchanged. Adoption remains one
-Undo command, and document changes/cancellation invalidate late results.
-
-For an unsaved project, **Export .memap** opens the save-directory picker and then
-the package filename picker. Cancelling either leaves the current document open.
-Existing package names report an error and require a new filename. Validation,
-preview and export errors retain their operation context next to the action row;
-detailed diagnostics remain below it. The prior preview and original files survive
-failed/cancelled generation. See [document transitions](DOCUMENTS.md).
-
-## Shortcuts
+`workspace_commands.gd` owns stable IDs, descriptions, icons, contexts, default
+keys and availability. Commands explain disabled states; Duplicate/Delete target
+the active selection. Ctrl/Cmd+P opens command search. Edit → Shortcuts supports
+search, physical-key capture, clear, conflicts, Save and defaults. Overlapping
+bindings cannot save, while separate tool contexts may share a key.
 
 | Input | Action |
 | --- | --- |
-| V / R / B / G / O | Select / Road / Building / Forest / Orchard |
-| Ctrl or Cmd + A / D | Select all editable objects / duplicate |
-| Delete or Backspace | Delete selection |
-| Ctrl or Cmd + Z / Shift+Z / Y | Undo / redo / redo |
-| Ctrl or Cmd + S | Save |
-| Escape | Cancel drag, box selection or drawing draft |
-| F | Fit map |
+| Ctrl/Cmd+A, D | Select editable objects, duplicate |
+| Delete/Backspace | Delete selection |
+| Ctrl/Cmd+Z, Shift+Z or Y | Undo, redo |
+| Ctrl/Cmd+S | Explicit project save |
+| V, Escape | Select, cancel gesture/draft |
+| S | Toggle active snap |
+| F | Frame track selection or fit the terrain map |
+| Q/E | Rotate road placement preview by 15° |
+| 1–9 | Assigned palette slots |
 
-Text fields retain their own shortcuts; typing a letter, selecting/deleting text
-or undoing text must not alter map objects. Existing file dialogs and Test Drive
-keep their own flow. No private game installation is needed for this workbench.
+Right-click tiles/favorites to assign persistent slot IDs. Search/sort never
+renumbers them; every item is separately bindable. Terrain V/R/B/G/O shortcuts
+remain available. Text/number focus, supported IME composition, open popups and
+key capture block editor shortcuts. Echoed keys never execute commands.
 
-## Verification and handoff
+A tile, slot or search result activates a preview without changing the document.
+A hidden 3D view opens split mode. Preview height starts at selection height or
+0m, width prefers 4m where supported, and numeric rotation accepts any angle.
+Port search keeps its 3m radius and uses MapKit snapping. Pointer placement
+commits once; Escape, mode/document changes and loss of gesture ownership cancel.
+Current road/terrain placement and shared attachments follow [authoring](AUTHORING.md).
 
-Run the public standalone checks after building the native binding:
+## Selection, layers and history
 
-```sh
-python3 scripts/check_documents.py --godot /path/to/godot --full --log-dir /new/path/checks
-python3 scripts/check_documents.py --godot /path/to/godot --script workbench_validator --rendered --log-dir /new/path/rendered
-```
+Click selects the topmost editable vector object; Shift toggles/adds. Dragging an
+already selected object preserves its group; empty-space dragging encloses a
+selection. Roads, nodes, buildings, zones, placements and repetition paths use
+typed IDs. Raster/asset editing uses its own authoring tools.
 
-`workbench_validator.gd` routes pointer/key events through the real viewport,
-exercises graph dependencies, native rejection and view isolation, then saves,
-recovers and generates a preview. Set `MAPEDITOR_CAPTURE_PATH` to an absolute PNG
-destination to retain its rendered result. The runner copies public sources and
-the existing binding into a disposable project and verifies isolated `user://`.
-Mac checks are scoped evidence, not Windows/Linux distribution acceptance.
+Grid spacing is 0.01–100m; disabling snap still stores integer centimetres.
+Drawing also snaps to nearby editable vertices. Duplicate preserves source
+attributes, generates new bounded IDs and tries at most four positions around
+the selection. Native rejection preserves the original; this is not a packer.
+Delete removes records in one command, never source files or attribution.
 
-Native Windows/Linux exports and interaction still need their 4.7.2 templates,
-matching target-native binding and actual OS runners. Run the same checks, export
-with the shipped presets, then verify selection, text input, resize, save/restart,
-layers, undo/recovery and preview on each native platform. Require no clipped
-controls, unintended edits, stale attachment or lost original data. Large-map
-selection/redraw/property costs remain a representative-map performance gate;
-the current vector queries scan document objects and are not a spatial index.
+Road movement preserves graph nodes and updates incident endpoints. A shared node
+moves once. Hidden/locked affected records reject the whole command. Duplicate
+creates separate endpoint nodes; deleting a road prunes only newly unused nodes.
+Deleting a node still used by an unselected road is rejected.
 
-E03 authoring is now implemented; see [AUTHORING.md](AUTHORING.md). E04 preview/export and file-copy Save As are implemented in
-[PREVIEW_EXPORT.md](PREVIEW_EXPORT.md). The vector planner and atomic record/payload
-boundaries are preserved. Complete platform-specific function/installed-Client
-acceptance remains separate work. Representative-map primary performance remains
-required where unmeasured; cross-platform repetition is unscheduled under root §44.159.
+View layers group object types and imported groups, with cumulative visibility,
+lock and opacity. Hidden/locked objects cannot be selected or changed indirectly.
+These are view settings: hiding a layer does not remove preview/export/physics
+content. The inspector applies only changed fields; mixed groups allow translation.
+Road width/surface changes apply to all selected road segments. One Apply is one
+validated command including dependencies; stale controls preserve current history.
 
-UX02 scoped Mac validation (2026-09-09): `editor_ux_validator` routes real
-pointer presses through the unsaved and import dialogs, tests save/export failure,
-picker cancellation/late callbacks, stale document actions and import adoption/Undo.
-Run with `--script editor_ux_validator`; add `--rendered --resource-pack` to verify
-compiled resources with loose product scripts hidden. `MAPEDITOR_UX_CAPTURE_DIR`
-retains workbench, unsaved, import review and retry screenshots. Mac source checks
-passed alongside document history/recovery, workbench graph safety, authoring
-safety, preview/export, import layer/process ownership and test-drive adapter checks.
-Compiled-resource rendered UX/workbench checks passed with no engine diagnostics.
-Native OS file-picker automation and Windows/Linux native distributions remain
-unverified; these checks use Godot's embedded picker and synthetic local files.
+Continuous draft coalescing, drag cancellation, bounded history and the current
+49-piece latency issue belong to [editing performance](TRACK_EDIT_PERFORMANCE.md).
+Saving, unsaved transitions, recovery and memory-only export follow
+[documents](DOCUMENTS.md), not an implicit save on each gesture.
+
+## Files, icons and startup
+
+File → Restore package validates `.memap`/`.mkregions` into a new adjacent
+`<package>.source` directory. It cannot replace an existing project. Late/cancelled
+results cannot replace the active document. Import review/retry preserves settings;
+adoption is one Undo command. Errors retain operation context and the current draft.
+
+The 48 action icons and 70 static road diagrams are Editor-owned MIT artwork.
+Road diagrams derive from public MapKit frames. The loader uses valid imported
+textures, rasterizes raw SVG when the cache is absent, and supports PCK remapping.
+A stable catalogue preserves icon IDs. Missing/empty artwork keeps its text and
+reports an error without caching a false success. Popup frames provide a 32px
+title bar and inset 24px close control; hover text retains dark `#1F2B3D` ink.
+
+`editor_entry.gd` initializes `mapkit_startup.gd` before loading the workbench or
+worker. It reuses or explicitly loads the installed extension and checks native
+classes, track methods and catalogue shape. A missing binding shows copyable
+project/engine/reason diagnostics before document initialization. Private workers
+exit nonzero without UI. It does not rewrite import caches or supply a fallback
+implementation.
+
+Regenerate artwork using `tests/palette_icon_source.gd` with
+`MAPEDITOR_ICON_SOURCE=/absolute/frames.json`, then
+`python scripts/build_palette_icons.py /absolute/frames.json`.
+
+## Essential validation and limits
+
+Scoped Godot 4.7.2/macOS checks passed command/context parity, selection/graph
+safety, placement/cancellation, preference conflict protection, document/history,
+import ownership and layout at 1024×720, 1440×900 and 1920×1080. All 118 icons
+were checked with absent/stale/valid imports and PCK-only resources; six button
+states retained visible artwork. Cold source startup, missing-library failure,
+worker startup and the independent initial screen were checked separately.
+
+Use the public `scripts/check_documents.py --script workbench_validator` or
+`--script icon_workbench_validator` for affected behavior. Source startup and icon
+resolution have `tests/test_source_startup.py` and `tests/test_workbench_icons.py`.
+Use isolated user state, especially when fixtures persist view preferences.
+Detailed editing, Windows source-launch behavior, IME/OS focus, DPI, devices and
+native distributions remain user verification. Historical execution logs are not
+required inputs or current platform acceptance.

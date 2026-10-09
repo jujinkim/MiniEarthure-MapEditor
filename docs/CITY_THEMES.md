@@ -8,7 +8,7 @@ The current models have not yet been refactored into that common library.
 
 `scripts/city_themes.py` expands the Q01 modelling vocabulary to the other 40
 city lots. The Hanbit lot remains byte-identical in layout, assets and collision.
-The map stays 576×192m, with 432 16m cells, Recipe 6 and package format 1.
+The map stays 576×192m, with 432 16m cells, current v1 recipe and package format.
 
 | Land-use variant | Lots | Shape and use |
 | --- | ---: | --- |

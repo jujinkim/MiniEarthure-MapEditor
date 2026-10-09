@@ -3,7 +3,7 @@
 Open **Authoring settings → Environment**. Choose a map concept, independent
 architecture/climate/settlement dimensions, latitude/longitude, time zone and
 sunrise/sunset defaults. Applying updates the current v1 document and supports Undo /
-Redo, including restoring the absence of a profile on old source documents.
+Redo, including restoring the absence of a optional profile on current source documents.
 
 Regional overrides are ordered centimetre polygons. The first matching region
 wins. The panel includes editable examples for region and light-binding arrays.
@@ -22,18 +22,14 @@ a separate .memap and a package lock. Old projects and packages remain available
 all seven new-destination-only upgrades. See MapKit's ENVIRONMENT contract.
 
 
-## Hourly selectors — 2026-10-03
+## Shared time selector
 
-Generation, environment start time and the 3D preview now use the same 24-entry
-00:00–23:00 picker. Fractional existing times round to the nearest displayed hour,
-wrapping midnight; source minute values and environment hour APIs are unchanged.
-Sunrise/sunset authoring remains minute-valued. The starting-time label is updated
-in English/Korean/Japanese. No session weather field is added to generated packages.
+Generation, environment start and 3D preview share the six localized presets
+09:00/12:00/17:00/18:00/21:00/06:00. Existing nonpreset times remain exact until
+explicit selection; opening a picker never rounds or emits a change. Numeric
+hour/minute APIs and sunrise/sunset authoring remain unchanged. Session weather
+is not inserted into generated package settings.
 
-`track_settings_validator` covers 24 values and rounding. `environment_validator`
-passes adoption, undo/redo and invalid-edit rejection in `environment-final/`
-under `validation/driving-map-2026-10-02/`. Its historical assumption that the
-initial document lacked an environment was replaced by exact restoration of the
-current document. An intermediate run had stale texture-import paths from shared
-source metadata; a fresh isolated import resolved it. These failures remain in
-`environment/` and `environment-fixed/`. Detailed Editor interaction is a user check.
+Scoped track-settings/environment checks passed preset selection, arbitrary-time
+preservation, adoption, Undo/Redo and invalid-edit rejection. Detailed Editor
+interaction and devices remain user verification.

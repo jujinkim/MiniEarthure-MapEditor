@@ -109,7 +109,7 @@ convex proxy. Multi-box centers/sizes and convex vertices/faces remain explicitl
 editable arrays. There is no inferred visual-mesh collider. MapKit rejects open,
 nonconvex, malformed, out-of-bounds or excessive proxy geometry.
 
-Recipe-4 material controls provide albedo RGBA, metallic/roughness per mille,
+Current material controls provide albedo RGBA, metallic/roughness per mille,
 double-sided and optional declared texture asset ID. Existing placements use the
 updated asset after validation. File decoder, bounds/clearance, texture references
 and provenance validation run before publication. A failed import/proxy/material
@@ -125,7 +125,7 @@ result. An unchanged source is required through preparation; no file is installe
 until the successful result passes the current document/selection guard.
 Metadata/proxy edits without a new source use the same path and retain the old
 file. Synchronous `AuthoringTools.asset()` remains available to script callers.
-See [asset execution and checks](ASSET_ASYNC_VALIDATION.md).
+See [asset execution and checks](AUTHORING.md).
 
 ## Environment composition
 
@@ -238,3 +238,51 @@ The 49-piece commit p95 remains 532.745 ms against a 500 ms target; see
 [editing performance](TRACK_EDIT_PERFORMANCE.md). Detailed authoring and devices
 remain user verification. Package restore/export tests cover original/unused asset
 preservation, corruption, cancellation, obsolete results and new destinations.
+
+## Asynchronous asset operations
+
+Assets → Apply starts one owned Godot child for static GLB/PNG/WebP and proxy or
+material edits. Original source and existing project payloads are inspected and
+hashed before native work. The child captures immutable candidate bytes, checks
+the detached document with MapKit, prepares the complete canonical attribution
+and binary/text command, serializes the transfer, and rechecks all inputs.
+Metadata-only edits use existing immutable bytes and the same native checks.
+Previously loaded bridges, source files, packages and live history stay intact.
+
+The parent binds the result to the exact store instance, command epoch, document,
+project and authoring selection/revision. Changing and restoring a field in one
+frame still cancels the pending result. Asset selection, layer changes, close,
+new gestures, save and document replacement also invalidate it. Progress and
+Cancel remain in the authoring window; the existing supervisor enforces a
+120-second deadline, parent EOF termination, strict IPC, child exit and reaping.
+Only after successful validation does the parent install an immutable file and
+publish one prepared command, consumed before `changed` callbacks. Undo/Redo
+retains the exact old and new bytes. Failed validation has no document command.
+
+An asset job accepts only asset/attribution prepared patches, one matching asset
+ID and at most one new content-addressed GLB/PNG/WebP payload. Existing vector
+command decoding keeps its previous field restrictions. The source is limited
+by the 16 MiB shared text+binary history budget; candidate/existing payload groups
+remain 64 MiB, request/transfer 24 MiB and history 200 commands. Static asset/native
+limits and MapKit versions are unchanged. Native document/file validation is used;
+this operation does not claim new generated-cell or rendering coverage.
+
+Before candidate writes, the child registers its dynamic output path in a small
+request-owned marker. Cleanup retires known paths only after confirmed exit.
+Existing directories, links, unknown files and malformed/wrong-owner markers
+remain protected. No user recovery directory is silently adopted or deleted.
+
+`AuthoringTools.asset()` retains its synchronous API for script callers. Request
+signatures, transfer decoding, immutable installation, history mutation, cleanup
+and UI signals still have synchronous costs. Native preparation is killable;
+this does not promise a fixed UI frame time, whole-process RSS cap or a filesystem
+transaction against arbitrary external writers. No engine/ABI/recipe changes.
+
+
+Scoped `asset_native_validator`, command/history, PNG/DEM, recovery and scratch
+checks passed on Godot 4.7.2/macOS with synthetic input and isolated user data.
+Coverage includes worker cancel/deadline/EOF, stale/duplicate publication, corrupt
+IPC, unknown scratch preservation, binary Undo/Redo and save/reopen. Run affected
+scripts with `scripts/check_documents.py --script <validator> --log-dir <new-path>`.
+Detailed material editing, picker behavior, device latency and native platform
+acceptance remain user verification.

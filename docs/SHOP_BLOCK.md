@@ -14,7 +14,7 @@ still separate. The historical measurements below describe Q01 at delivery.
 `driving-school-town-v5` replaces only the `korea-1-1` lot (X=238–272m,
 Y=48–80m) with six original shops: 한빛서점, 골목커피, 봄약국, 은하식당,
 온유공방 and 다온문구. The author is [shop_block.py](../scripts/shop_block.py).
-The package remains Recipe 6 / format 1, at 576×192m with 432 cells.
+The package remains current v1, at 576×192m with 432 cells.
 
 Widths, heights, setbacks and opposing frontages vary. Shop windows, doors,
 Hangul stroke signs, striped awnings, balcony rails, parapets, roof services,

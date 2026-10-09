@@ -3,7 +3,8 @@
 `g01-driving-v1`, revision 1, is an original MIT four-cell 1,024 m square
 project. It uses the current v1 source contract and contains no downloaded input. This is
 small reproducible gameplay geometry, not a representative performance workload.
-The P01 reference profile remains independently frozen.
+The reference profile remains independently frozen. Fixture map IDs and dimensions
+are data, not format versions or the current default-world cell size.
 
 The ready-to-open source is `examples/driving/`; the verified ready-to-use package
 is `examples/driving.memap`. Copy the source to a new directory before editing
@@ -55,3 +56,24 @@ heights and frozen hashes, and preserves the original source. `--resource-pack`
 checks compiled host resources; it is not a native Windows/Linux distribution.
 Human driving feel, complete circuit driving, target platforms and final gameplay
 acceptance remain separate from these deterministic checks.
+
+## Flat and hill physics fixture
+
+[physics-test.memap](../examples/physics-test.memap) is a synthetic MIT test map:
+one actual **128 × 128 m** cell, 33×33 PNG16 height samples, 4 m spacing and 2,048
+terrain triangles. Hills reach 2 m and 1 m. Custom authoring metres are game metres;
+there is no display multiplier. No objects or visual detail were removed.
+
+Start at X=64 m, Y=32 m, surface `terrain`; the hill approach is X=88 m, Y=64 m.
+The surface is grass. Vehicle forces and driving acceptance belong to the consumer.
+
+```sh
+rtk proxy python3 scripts/physics_test_map.py /new/physics-test
+rtk proxy /path/to/mapkit pack /new/physics-test /new/physics-test.memap
+rtk proxy python3 scripts/check_driving_school.py --mapkit /path/to/mapkit --project /new/physics-test --output /new/physics-check
+```
+
+The package is 1,519 bytes. `tests/physics_test.lock.json` locks its source and cell.
+[Old source](../examples/physics-test-v1/) and [package](../examples/physics-test-v1.memap)
+remain intact as reference artifacts. Their old scale measurements are not current
+application acceptance; all own format versions remain v1.
