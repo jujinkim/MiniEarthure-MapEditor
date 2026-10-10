@@ -192,6 +192,21 @@ Undo/Redo compares authored content independently of the intentional edit timest
 The Editor UX validator passes 61 assertions, including complete timeout text,
 read-only details and minimum-window layout; name lookup also passes independently.
 
+The scoped macOS real-data workflow verified browser acquisition, Korean Suwon and
+Yeongtong name/boundary selection, click/drag coordinates, wide button labels,
+native PBF selection, source preservation and reopening the saved empty project.
+It did not produce a completed regional map: the 2026-10-09 Korean national PBF
+exhausts the combined2GiB index allowance, and a separately downloaded2,434,654-byte
+BBBike regional PBF still exceeds20,000 selected source features for the full
+Yeongtong rectangle `[127.032369,37.231186,127.089872,37.320589]`. Both reject before
+candidate adoption. DEM/facility adoption, real-map export/reopen and Client loading
+of that map remain unperformed. A small diagnostic area is not whole-region success.
+Supporting that region under the same budgets needs bounded partitioning with
+source topology, duplicate control, whole-candidate validation and atomic history;
+merely enlarging limits was not used. Ground roads follow terrain, but building
+`base_cm` is absolute: applying DEM does not automatically align estimated building
+bases, and the combined real-data height check remains outstanding.
+
 For a change, choose its `tests/test_osm*.py`, `test_collections.py` or other adapter
 unit and the relevant Godot validator via the root isolated checker. Do not repeat
 all historical suites for documentation/pins. Installed OS file dialogs/permissions,
