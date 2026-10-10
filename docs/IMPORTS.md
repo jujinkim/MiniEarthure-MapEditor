@@ -152,6 +152,10 @@ The file mappings share that2GiB reservation; it is not a fixed resident-RAM cla
 No geometry is simplified. NumPy2.5.3 is an explicit importer dependency;
 install `requirements-import.txt` in Python3.12 or newer.
 Full failure text is available in **Activity → Operation details…**.
+The native PBF picker uses the single `*.pbf` extension filter, which also accepts
+`.osm.pbf`. On macOS, the former redundant multipart extension filter could list
+a PBF while keeping Open disabled. The same downloaded file opens with the corrected
+filter; standalone startup and this native file-selection path were verified.
 
 The immutable review candidate exposes summary and exact provenance details.
 Native validation, source recheck and final command preparation use owned workers;

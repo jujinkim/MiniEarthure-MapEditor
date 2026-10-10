@@ -718,7 +718,7 @@ func _choose(action: String) -> void:
 		dialog.filters = I18N.filters(["*.memap ; Map package", "*.mkregions ; Indexed regional map"] if action == "export" else ["*.json ; Recovery snapshot"])
 		if action == "import":
 			dialog.filters = I18N.filters(["*.geojson,*.json ; GeoJSON (explicit coordinates)"])
-			if import_source_format.selected == 1: dialog.filters = I18N.filters(["*.osm.pbf,*.pbf ; OSM PBF snapshot"])
+			if import_source_format.selected == 1: dialog.filters = I18N.filters(["*.pbf ; OSM PBF snapshot"])
 			if import_source_format.selected == 3: dialog.filters = I18N.filters(["*.overture.json ; Overture building snapshot"])
 			if import_source_format.selected == 5: dialog.filters = I18N.filters(["*.overture-land-cover.json ; Overture land cover snapshot"])
 			if import_source_format.selected == 4: dialog.filters = I18N.filters(["*.overture-roads.json ; Overture transportation snapshot"])
