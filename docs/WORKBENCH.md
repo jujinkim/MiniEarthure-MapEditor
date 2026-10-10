@@ -12,7 +12,10 @@ The shared Luna-inspired theme uses ivory `#ECE9D8` panels, white inputs, blue
 `#245EDB` accents, shallow bevels and `#B8C2CF` section borders. Text is 14px,
 actions at least 40px and palette tiles 52px. The menu is 28px high with a 4px
 upper margin. Menus, fields and confirmation actions retain text; icon actions
-have accessible names and tooltips. Application text follows
+have accessible names and tooltips. Non-tile buttons at least 160px wide show
+the action label beside the icon, including import choices and property-panel
+actions. Text clips with an ellipsis without enlarging compact toolbars; tooltips
+retain the full label. Application text follows
 [localization](LOCALIZATION.md); user names and external diagnostics are preserved.
 
 File, Edit, Create and Inspect groups share commands with toolbars, search and

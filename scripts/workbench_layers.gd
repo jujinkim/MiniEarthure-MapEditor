@@ -16,7 +16,7 @@ var pending_layer := ""
 func _ready() -> void:
 	preload("./workbench_style.gd").outline(self)
 	search = LineEdit.new()
-	search.placeholder_text = I18N.t("Filter object ID…")
+	search.placeholder_text = I18N.t("Filter name or object ID…")
 	search.text_changed.connect(func(_value): refresh())
 	add_child(search)
 	tree = Tree.new()
@@ -93,14 +93,14 @@ func refresh() -> void:
 	var imports := {}
 	_layer(root, "heightmaps", "Terrain", canvas.store.document.heightmaps.size())
 	for field: String in EDIT.FIELDS:
-		var parent := _layer(root, field, field.capitalize(), canvas.store.document.get(field, []).size())
+		var parent := _layer(root, field, "Facilities" if field == "pois" else field.capitalize(), canvas.store.document.get(field, []).size())
 		for entry in entries:
 			if entry.field != field: continue
 			for key in canvas.layer_keys(entry):
 				if key.begins_with("import/"): imports[key] = int(imports.get(key, 0)) + 1
-			if not search.text.is_empty() and not str(entry.record.id).to_lower().contains(search.text.to_lower()): continue
+			if not search.text.is_empty() and not (str(entry.record.id) + " " + str(entry.record.get("name", ""))).to_lower().contains(search.text.to_lower()): continue
 			var item := tree.create_item(parent)
-			item.set_text(0, str(entry.record.id))
+			item.set_text(0, str(entry.record.get("name", entry.record.id)))
 			item.set_tooltip_text(0, entry.key)
 			item.set_metadata(0, entry)
 			item.set_selectable(0, canvas.available(entry, true))

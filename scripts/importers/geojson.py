@@ -261,9 +261,11 @@ def main():
     parser.add_argument("--source-name")
     parser.add_argument("--layer-id", required=True)
     parser.add_argument("--watch-parent", action="store_true")
-    parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"], default="geojson")
+    parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover", "csv"], default="geojson")
+    parser.add_argument("--csv-request", type=Path)
     parser.add_argument("--osm-bbox", nargs=4, type=float)
     parser.add_argument("--osm-stream", action="store_true")
+    parser.add_argument("--osm-review-exclusions", action="store_true")
     parser.add_argument("--vertical-request", type=Path)
     parser.add_argument("--height-supplement", type=Path)
     args = parser.parse_args()
@@ -275,6 +277,13 @@ def main():
         raise ValueError("OSM bbox is only valid for OSM PBF/XML")
     if args.osm_stream and (args.input_format != "pbf" or args.osm_bbox is None):
         raise ValueError("PBF streaming requires PBF input and an explicit bbox")
+    if args.osm_review_exclusions and not args.osm_stream:
+        raise ValueError("Object exclusion review requires PBF streaming")
+    from osm_review import Review
+    review = Review(args.osm_review_exclusions)
+    if args.osm_bbox is not None:
+        from osm_area import projected_bounds
+        projected_bounds(args.osm_bbox, dict(mode=args.coordinates, origin=args.origin, local_origin_m=args.local_origin))
     if args.watch_parent:
         watch_parent_lifetime(900 if args.osm_stream else 120)
     sequence = 0
@@ -302,7 +311,9 @@ def main():
     osm_stream = None
     captured_source = None
     vertical = None
-    if args.input_format == "geojson":
+    if args.input_format == "csv":
+        value = None
+    elif args.input_format == "geojson":
         value = strict_json(raw)
     elif args.input_format == "overture-transportation":
         from overture_transportation import parse, LICENSE
@@ -327,7 +338,7 @@ def main():
             raise ValueError("OSM attribution must retain OpenStreetMap contributors and ODbL-1.0")
         if args.osm_stream:
             from osm_stream import extract
-            value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event,supplement)
+            value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event,supplement,review)
             captured_source = Source(args.source_name or args.source.name, osm_stream["source_sha256"], osm_stream["source_bytes"], args.license, args.accuracy)
         else:
             value, osm_counts = parse(raw, args.input_format, supplement)
@@ -345,7 +356,12 @@ def main():
         options.update(origin=args.origin, local_origin_m=args.local_origin)
     elif args.origin is not None or args.local_origin is not None:
         raise ValueError("local-metre mode must not specify geographic origins")
-    if args.input_format == "overture-transportation":
+    if args.input_format == "csv":
+        from facility_csv import convert as convert_csv
+        if args.csv_request is None or args.csv_request.stat().st_size > 65536: raise ValueError("CSV mapping is required and must be bounded")
+        result = convert_csv(raw, args.source_name or args.source.name, args.license, args.accuracy,
+            args.layer_id, options, strict_json(args.csv_request.read_bytes()), lambda c,t:event("convert",c,t,"features"))
+    elif args.input_format == "overture-transportation":
         from overture_transportation import convert as convert_transportation
         result = convert_transportation(value, args.source_name or args.source.name, raw,
             layer_id=args.layer_id, coordinates=options, accuracy=args.accuracy,
@@ -361,8 +377,11 @@ def main():
         result = finish(result, osm_counts)
         if osm_stream is not None:
             result.coordinates["osm_stream"] = osm_stream
-            result.warnings.insert(0,"PBF area streaming: complete candidate envelopes, relation members and connected structures with every incident highway precede crop. Closure transits structures only, within selection/index/work budgets; ground roads do not expand the graph. Other outside geometry is not normalized. Nested feature/area relations reject globally. Three disk-indexed passes; full captured source hash retained.")
+            result.warnings.insert(0,"PBF area streaming: complete candidate envelopes, relation members and connected structures precede crop. Source/index/work quotas stay enforced. Unselected metadata is not interpreted. Unsupported selected or unlocated feature relations require explicit exclusion review. Three disk-indexed passes; full captured source hash retained.")
             result.warning_count += 1
+        if review.enabled:
+            result.coordinates["osm_review"] = review.metadata()
+            result.warning(f"Explicit exclusion review: {len(review.excluded)} source objects are not imported. See every source ID and reason in exact details.")
         if osm_crop is not None:
             result.coordinates["osm_crop"] = osm_crop
             if osm_crop["vertical"]["section_endpoints"] > 0:

@@ -8,6 +8,7 @@ const FILES := preload("./document_files.gd")
 const PIPE_LIMIT := 1024 * 1024
 const LINE_LIMIT := 4096
 const READ_BUDGET := 16384
+const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_review.py", "osm_area.py", "osm_stream.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
 var pid := -1
 var identity := ""
 var directory := ""
@@ -40,7 +41,7 @@ var _attempted := false
 func start(source: String, license_name: String, accuracy: String, python: String, token: String, coordinates: Dictionary = {"mode":"local-metres"}, input_format: String = "geojson", source_label: String = "") -> String:
 	if _attempted or cancelled: return "ImportJob instances are single use."
 	_attempted = true
-	if input_format not in ["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"]: return "Unsupported source format."
+	if input_format not in ["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover", "csv"]: return "Unsupported source format."
 	if input_format != "geojson" and coordinates.get("mode") != "wgs84-utm": return "Geographic source requires explicit WGS84 origins."
 	identity = token
 	if not LAYER._hex(token, 32): return "Invalid import request token."
@@ -58,7 +59,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	var reservation := _reserve_directory(token)
 	if reservation != "": return reservation
 	var files := FILES.new()
-	for module in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_area.py", "osm_stream.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]:
+	for module in MODULES:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "Importer module is missing."
 		if error != "":
@@ -80,7 +81,16 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 			return "OSM crop requires four coordinates and an OSM source."
 		arguments.append("--osm-bbox")
 		for value in coordinates.osm_bbox: arguments.append(str(value))
+	if coordinates.has("csv"):
+		if input_format != "csv": cleanup(); return "CSV mapping requires CSV input."
+		var csv_path := directory.path_join("csv.json")
+		var csv_error: String = files.write(csv_path, JSON.stringify(coordinates.csv), "")
+		if csv_error != "": cleanup(); return csv_error
+		arguments.append_array(PackedStringArray(["--csv-request", csv_path]))
 	if streaming: arguments.append("--osm-stream")
+	if coordinates.get("osm_review_exclusions",false):
+		if not streaming: cleanup(); return "Object exclusion review requires PBF streaming."
+		arguments.append("--osm-review-exclusions")
 	if coordinates.has("vertical"):
 		var vertical_error: String = preload("./import_vertical.gd").options_error(coordinates.vertical)
 		if input_format not in ["osm", "pbf"] or vertical_error != "":
@@ -269,7 +279,7 @@ func cleanup() -> void:
 	if presence != null: presence.close()
 	presence = null
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in ["geojson.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "vertical.json", "height-supplement.json", "osm_extract.py", "osm_area.py", "osm_stream.py", "source.pbf.part", "source.pbf", "source-index.sqlite", "overture_area.py", "overture_transportation.py", "overture_land_cover.py", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
+	for name in MODULES + ["vertical.json", "csv.json", "height-supplement.json", "source.pbf.part", "source.pbf", "source-index.sqlite", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory.path_join(PRESENCE.PENDING))

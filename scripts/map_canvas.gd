@@ -203,6 +203,11 @@ func _draw() -> void:
 			draw_arc(points[0], 5.0 if entry.field == "nodes" else 8.0, 0, TAU, 20, color, 2.0, true)
 		if chosen:
 			for p in points: draw_rect(Rect2(p - Vector2(3, 3), Vector2(6, 6)), Color("c76035"))
+	var pois: Array = []
+	for poi: Dictionary in doc.get("pois", []):
+		if available({"field":"pois", "record":poi}): pois.append(transformed.get(EDIT.key("pois",poi.id), poi))
+	var poi_renderer := preload("res://addons/mapkit/godot/poi_renderer.gd")
+	poi_renderer.paint(self, poi_renderer.layout(pois, screen, Rect2(Vector2.ZERO,size), get_theme_default_font()), get_theme_default_font())
 	for target: Vector2i in density_cells:
 		var a := screen([bounds.min[0]+target.x*cell,bounds.min[1]+target.y*cell])
 		var b := screen([bounds.min[0]+(target.x+1)*cell,bounds.min[1]+(target.y+1)*cell])

@@ -168,8 +168,28 @@ class Streaming(unittest.TestCase):
         with osmium.SimpleWriter(history) as writer:
             writer.add_node(osmium.osm.mutable.Node(id=1,location=(9,55)))
         with self.assertRaisesRegex(ValueError,"history"): stream.extract(self.source,BOX,self.directory)
+        # A nonreferenced POI's metadata is outside the selected geometry.
+        self.extract(XML.replace('v="bench"','v="'+'x'*513+'"'))
         with self.assertRaisesRegex(ValueError,"tag"):
-            self.extract(XML.replace('v="bench"','v="'+'x'*513+'"'))
+            self.extract(XML.replace('v="residential"','v="'+'x'*513+'"'))
+
+    def test_explicit_review_excludes_objects_without_flattening_or_guessing(self):
+        from osm_review import Review
+        root=ET.fromstring(XML)
+        ET.SubElement(root.find("way[@id='2']"), "tag", k="bridge", v="yes")
+        # Many translated labels on an unreferenced source node are harmless.
+        node=root.find("node[@id='11']")
+        for index in range(140): ET.SubElement(node,"tag",k=f"name:lang{index}",v="label")
+        pbf(self.source,ET.tostring(root,encoding="unicode"))
+        with self.assertRaisesRegex(ValueError,"way/2.*ele on every"):
+            stream.extract(self.source,BOX,self.directory)
+        review=Review(True)
+        result,_,_=stream.extract(self.source,BOX,self.directory,review=review)
+        self.assertEqual([r["source_id"] for r in review.metadata()["excluded"]],["way/2"])
+        self.assertFalse(any(f["geometry"]["type"]=="LineString" for f in result["features"]))
+        self.assertEqual(len(result["features"]),2)
+        with self.assertRaisesRegex(ValueError,"budget"):
+            review.reject("way/3","aggregate reference budget exceeded")
 
     def test_index_growth_cap_and_parent_eof(self):
         root=ET.fromstring(XML)

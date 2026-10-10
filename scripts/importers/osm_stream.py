@@ -16,12 +16,13 @@ import zlib
 from collections import deque
 
 from import_layer import MAX_INPUT, MAX_POINTS
+from osm_review import Review
 from osm_area import bounds
 from osm_extract import dependency, category, build_features, MAX_ENTITIES, MAX_REFS, MAX_FEATURES
 
 MAX_SOURCE = 2 * 1024**3
 MAX_INDEX = 2 * 1024**3
-MAX_SCAN_ENTITIES = 20_000_000
+MAX_SCAN_ENTITIES = 100_000_000
 MAX_SCAN_REFS = 80_000_000
 MAX_ENTITY_REFS = 20_000
 MAX_BLOB = 32 * 1024**2
@@ -112,7 +113,7 @@ def _blocks(path, stage, event, size):
         if completed != size or stream.read(1): raise ValueError("PBF snapshot size changed")
 
 
-def _scan(path, stage, event, size, osmium, entity_bits, callback):
+def _scan(path, stage, event, size, osmium, entity_bits, callback, entity_filter=None):
     header, blocks = None, 0
     # One worker/one queued task: input size does not create a growing read queue.
     pool = osmium.io.ThreadPool(1, 1)
@@ -128,6 +129,7 @@ def _scan(path, stage, event, size, osmium, entity_bits, callback):
                 if header is None: raise ValueError("PBF data before header")
                 blocks += 1
                 processor = osmium.FileProcessor(osmium.io.FileBuffer(header + _frame(kind, payload), "pbf"), entities=entity_bits, thread_pool=pool)
+                if entity_filter is not None: processor.with_filter(entity_filter)
                 iterator = iter(processor)
                 try:
                     for entity in iterator: callback(entity)
@@ -223,7 +225,8 @@ def _structure_closure(db, event, size):
                 ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits, **(dict(loops=loops) if loops else {}))
 
 
-def extract(source, selected, directory, event=lambda *a: None, supplement=None):
+def extract(source, selected, directory, event=lambda *a: None, supplement=None, review=None):
+    review = review or Review()
     selected = bounds(selected)
     source, directory = Path(source), Path(directory)
     # Refuse before claiming ownership. Cleanup may only remove files created here.
@@ -258,11 +261,25 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None)
             totals[key] += 1
             if sum(totals[k] for k in ("nodes","ways","relations")) > MAX_SCAN_ENTITIES or entity.id <= 0 or not entity.visible:
                 raise ValueError("OSM scan entity budget/deleted or invalid ID")
-            if len(entity.tags) > 128: raise ValueError("OSM tag budget exceeded")
+            tag_count = len(entity.tags)
+            # Most geographic nodes have no tags. In pyosmium, exhausting a tag
+            # iterator crosses a C++ exception boundary even for an empty list.
+            # Do not pay that cost millions of times in a national snapshot.
+            if tag_count == 0: return {}
+            failure = "more than 128 source tags are unsupported" if tag_count > 128 else ""
             tags = {}
             for tag in entity.tags:
-                if tag.k in tags or len(tag.k) > 512 or len(tag.v) > 512: raise ValueError("OSM duplicate/oversized tag")
-                tags[tag.k] = tag.v
+                if tag.k in tags or len(tag.k) > 512 or len(tag.v) > 512:
+                    failure = "duplicate or oversized source tag"
+                if len(tags) < 128 and len(tag.k) <= 512 and len(tag.v) <= 512:
+                    tags[tag.k] = tag.v
+            if failure:
+                # Unselected labels (e.g. multilingual country nodes) do not
+                # consume the selected-object tag quota. Retain an error marker:
+                # any geometry referencing this object must reject or review it.
+                keys = {"type", "highway", "building", "building:part", "landuse", "natural", "leisure", "boundary", "bridge", "tunnel"}
+                tags = {t.k:t.v[:512] for t in entity.tags if t.k in keys}
+                tags["_source_error"] = f"{entity.type_str()}/{entity.id}: {failure}"
             return tags
         def references(count):
             totals["references"] += count
@@ -301,7 +318,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None)
         def relation(entity):
             tags = scalar(entity)
             references(len(entity.members))
-            members, box = [], None
+            members, box, unsupported = [], None, ""
             area = tags.get("type") in ("multipolygon", "boundary")
             potential = _potential(tags)
             if potential and not len(entity.members): raise ValueError("OSM feature relation has no referenced geometry")
@@ -309,7 +326,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None)
                 if len(m.role) > 512 or m.ref <= 0: raise ValueError("OSM invalid relation reference/role")
                 members.append((m.type,m.ref,m.role))
                 if m.type == "r":
-                    if area or potential: raise ValueError("OSM nested area/feature relation is unsupported by streaming selection")
+                    if potential: unsupported = "nested feature relation has unlocated geometry and is unsupported"
                     continue  # Non-area/non-feature relation semantics are disclosed omissions.
                 if m.type == "w":
                     row = db.execute("SELECT west,south,east,north FROM ways WHERE id=?", (m.ref,)).fetchone()
@@ -317,11 +334,22 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None)
                     xy = db.execute("SELECT x,y FROM nodes WHERE id=?", (m.ref,)).fetchone()
                     row = None if xy is None else (*xy,*xy)
                 else: raise ValueError("OSM unsupported relation member type")
-                if row is None: raise ValueError("OSM relation missing member; use a complete snapshot")
+                if row is None:
+                    if potential: unsupported = "relation missing member; use a complete snapshot"
+                    continue
                 if row[0] is not None: box = envelope(box,*row)
             candidate = potential and intersects(box)
-            if candidate and ((tags.get("type") != "multipolygon" and not (category(tags)=="region" and tags.get("type")=="boundary")) or category(tags) == "road"):
-                raise ValueError("OSM selected relation requires supported multipolygon semantics")
+            if potential and unsupported:
+                review.reject("relation/" + str(entity.id), unsupported)
+                candidate = False
+            if candidate:
+                try:
+                    kind = category(tags)
+                    if (tags.get("type") != "multipolygon" and not (kind=="region" and tags.get("type")=="boundary")) or kind == "road":
+                        raise ValueError("selected relation requires supported multipolygon semantics")
+                except ValueError as exc:
+                    review.reject("relation/" + str(entity.id), exc)
+                    candidate = False
             db.execute("INSERT INTO relations VALUES(?,?,?)", (entity.id,json.dumps([members,tags]) if candidate else None,int(candidate)))
             for kind,ref,role in members:
                 if area and kind == "w":
@@ -354,7 +382,11 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None)
             refs,tags = json.loads(raw)
             admit("",len(refs))
             all_ways[identity] = (refs,tags)
-            kind = category(tags)
+            try:
+                kind = category(tags)
+            except ValueError as exc:
+                review.reject("way/" + str(identity), exc)
+                kind = None
             if kind: ways.append((identity,kind,refs,tags))
             else: counts["ignored_ways"] += 1
             if len(ways) > MAX_FEATURES: raise ValueError("OSM selected feature budget exceeded")
@@ -382,7 +414,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None)
         admit("")
         counts.update(nodes=len(nodes),ways=len(all_ways),relations=len(relations),tagged_nodes=len(node_tags))
         event("parse",0,selection_bytes)
-        value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts,supplement,digest)
+        value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts,supplement,digest,review)
         meta = dict(profile=PROFILE,passes=3,source_bytes=size,source_sha256=digest,
                     scan=totals,structure_closure=closure,selected=dict(nodes=len(nodes),ways=len(all_ways),relations=len(relations),references=selected_refs,bytes=selection_bytes))
         return value, counts, meta

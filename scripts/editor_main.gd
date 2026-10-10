@@ -1,4 +1,5 @@
 extends Control
+const PBF_PLACES_JOB := preload("./pbf_places_job.gd")
 const I18N := preload("./locale_text.gd")
 const PACKAGE_WORK := preload("./package_work.gd")
 const PAYLOAD_FILES := preload("./authoring_files.gd")
@@ -140,6 +141,8 @@ var last_import_source := ""
 var import_progress: ProgressBar
 var import_coordinate_mode: OptionButton
 var import_source_format: OptionButton
+var csv_panel: RefCounted
+var import_exclusions: CheckBox
 var import_origin_lon: SpinBox
 var import_origin_lat: SpinBox
 var import_origin_x: SpinBox
@@ -514,8 +517,11 @@ func _build_ui() -> void:
 	_label(import_fields, "Local sources up to 32 MiB; PBF streaming in OSM crop supports up to 2 GiB.\nWGS84 needs pyproj 3.7.2; OSM also needs osmium 4.3.1 in the selected Python.")
 	import_fields.get_child(0).custom_minimum_size.x = 700
 	import_source_format = OptionButton.new()
-	for format_title in [I18N.t("GeoJSON"), I18N.t("OSM PBF extract (.osm.pbf)"), I18N.t("OSM XML extract (.osm)"), I18N.t("Overture building area snapshot (.overture.json)"), I18N.t("Overture transportation snapshot (.overture-roads.json)"), I18N.t("Overture land cover snapshot (.overture-land-cover.json)")]: import_source_format.add_item(format_title)
+	for format_title in [I18N.t("GeoJSON"), I18N.t("OSM PBF extract (.osm.pbf)"), I18N.t("OSM XML extract (.osm)"), I18N.t("Overture building area snapshot (.overture.json)"), I18N.t("Overture transportation snapshot (.overture-roads.json)"), I18N.t("Overture land cover snapshot (.overture-land-cover.json)"), "Facility CSV (.csv)"]: import_source_format.add_item(format_title)
 	import_fields.add_child(import_source_format)
+	csv_panel = preload("./facility_csv_panel.gd").new()
+	csv_panel.setup(self)
+	_button(import_fields, "Facility CSV columns…", func(): csv_panel.open())
 	osm_crop_button = _button(import_fields, "OSM crop area…", func(): osm_panel.open())
 	vertical_panel = preload("./vertical_panel.gd").new()
 	vertical_panel.setup(self)
@@ -545,10 +551,10 @@ func _build_ui() -> void:
 	geographic.visible = false
 	import_coordinate_mode.item_selected.connect(func(index): geographic.visible = index == 1)
 	import_source_format.item_selected.connect(func(index):
-		import_license.editable = index == 0
+		import_license.editable = index in [0, 6]
 		import_coordinate_mode.disabled = index != 0
 		if index != 0:
-			import_license.text = IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if index == 5 else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if index == 4 else IMPORT_LAYER.OVERTURE_LICENSE if index == 3 else IMPORT_LAYER.OSM_LICENSE
+			import_license.text = "" if index == 6 else IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if index == 5 else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if index == 4 else IMPORT_LAYER.OVERTURE_LICENSE if index == 3 else IMPORT_LAYER.OSM_LICENSE
 			import_coordinate_mode.select(1)
 			geographic.visible = true
 		elif import_license.text in [IMPORT_LAYER.OSM_LICENSE, IMPORT_LAYER.OVERTURE_LICENSE, IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE, IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE]:
@@ -578,6 +584,10 @@ func _build_ui() -> void:
 	import_summary.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	review_fields.add_child(import_summary)
 	_button(review_fields, "Browse exact details", _open_import_details)
+	import_exclusions = CheckBox.new()
+	import_exclusions.text = "I reviewed and exclude every listed invalid row / unsupported source object"
+	import_exclusions.toggled.connect(func(checked): import_review.get_ok_button().disabled = import_exclusions.visible and not checked)
+	review_fields.add_child(import_exclusions)
 	import_review.confirmed.connect(_adopt_import)
 	import_review.canceled.connect(func():
 		_discard_import()
@@ -711,6 +721,7 @@ func _choose(action: String) -> void:
 			if import_source_format.selected == 3: dialog.filters = I18N.filters(["*.overture.json ; Overture building snapshot"])
 			if import_source_format.selected == 5: dialog.filters = I18N.filters(["*.overture-land-cover.json ; Overture land cover snapshot"])
 			if import_source_format.selected == 4: dialog.filters = I18N.filters(["*.overture-roads.json ; Overture transportation snapshot"])
+			if import_source_format.selected == 6: dialog.filters = I18N.filters(["*.csv ; Facility CSV"])
 			if import_source_format.selected == 2: dialog.filters = I18N.filters(["*.osm ; OSM XML snapshot"])
 		if action == "reopen_package":
 			dialog.title = I18N.t("Restore package into a new adjacent .source directory")
@@ -846,6 +857,11 @@ func _selection(ids: Array) -> void:
 	if property_records.size() > 1:
 		_label(properties, "Only changed fields apply to all selected objects.")
 	match selected_field:
+		"pois":
+			_label(properties, str(selected_record.name))
+			_label(properties, str(selected_record.category))
+			_label(properties, str(selected_record.source.source))
+			_label(properties, str(selected_record.source.license))
 		"buildings":
 			_number_property("Height (m)", float(selected_record.height_cm) / 100.0, 0.1, 1000.0, func(v): property_changes.height_cm = int(round(v * 100)))
 			_choice_property("Use", ["residential", "commercial", "industrial", "public"], str(selected_record.usage), func(v): property_changes.usage = v)
@@ -1429,7 +1445,7 @@ func _start_import(source: String, license_name: String) -> void:
 	var job := IMPORT_JOB.new()
 	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
 	import_coordinates_request = {"mode":"local-metres"} if import_coordinate_mode.selected == 0 else {"mode":"wgs84-utm", "origin":[import_origin_lon.value,import_origin_lat.value], "local_origin_m":[import_origin_x.value,import_origin_y.value]}
-	var input_format: String = ["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover"][import_source_format.selected]
+	var input_format: String = ["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover", "csv"][import_source_format.selected]
 	osm_import_revision = osm_panel.revision
 	vertical_import_revision = vertical_panel.revision
 	if input_format in ["osm", "pbf"]:
@@ -1443,7 +1459,7 @@ func _start_import(source: String, license_name: String) -> void:
 			_status(I18N.t("E_IMPORT: ") + I18N.diagnostic(supplement.error))
 			return
 		import_coordinates_request.merge(supplement)
-	if osm_panel.streaming.button_pressed:
+	if input_format in ["osm", "pbf"] and osm_panel.streaming.button_pressed:
 		if input_format != "pbf" or osm_panel.error() != "":
 			_status(I18N.t("PBF streaming requires PBF input and an enabled valid crop area."))
 			return
@@ -1453,8 +1469,10 @@ func _start_import(source: String, license_name: String) -> void:
 			_status(I18N.diagnostic(osm_panel.error()))
 			return
 		import_coordinates_request.osm_bbox = osm_panel.bbox()
-	import_coordinates_request.adapter = "overture-land-cover-v1" if input_format == "overture-land-cover" else "overture-transportation-v1" if input_format == "overture-transportation" else "overture-buildings-v1" if input_format == "overture" else ("geojson-v1" if input_format == "geojson" else "osm-extract-v1")
-	if input_format != "geojson": license_name = IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if input_format == "overture-land-cover" else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if input_format == "overture-transportation" else IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
+		if osm_panel.exclusions.button_pressed: import_coordinates_request.osm_review_exclusions = true
+	if input_format == "csv": import_coordinates_request.csv = csv_panel.capture()
+	import_coordinates_request.adapter = "facility-csv-v1" if input_format == "csv" else "overture-land-cover-v1" if input_format == "overture-land-cover" else "overture-transportation-v1" if input_format == "overture-transportation" else "overture-buildings-v1" if input_format == "overture" else ("geojson-v1" if input_format == "geojson" else "osm-extract-v1")
+	if input_format not in ["geojson", "csv"]: license_name = IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if input_format == "overture-land-cover" else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if input_format == "overture-transportation" else IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
 	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, "")
 	if failure != "":
 		_operation_status(I18N.t("Import failed · Use Retry import to adjust settings"), I18N.t("E_IMPORT: ") + I18N.diagnostic(failure))
@@ -1529,7 +1547,8 @@ func _process(_delta: float) -> void:
 			import_job = null
 			busy = false
 			import_progress.visible = false
-			if completed is ASSET_NATIVE_JOB: author_panel.finish_asset(completed, result)
+			if completed is PBF_PLACES_JOB: osm_panel.finish_search(completed, result)
+			elif completed is ASSET_NATIVE_JOB: author_panel.finish_asset(completed, result)
 			elif completed is HEIGHTMAP_NATIVE_JOB: author_panel.finish_heightmap(completed, result)
 			elif completed is DEM_NATIVE_JOB: dem_panel.finish_native(completed, result)
 			elif completed is IMPORT_NATIVE_JOB: _finish_native_import(completed, result)
@@ -1658,6 +1677,9 @@ func _review_import(layer: RefCounted) -> void:
 	import_review_generation = generation
 	import_review_controls = _review_controls()
 	validation_label.text = I18N.t("Import ready for review · document unchanged until Adopt")
+	import_exclusions.set_pressed_no_signal(false)
+	import_exclusions.visible = not layer.value.coordinates.get("csv", {}).get("rejected", []).is_empty() or not layer.value.coordinates.get("osm_review", {}).get("excluded", []).is_empty()
+	import_review.get_ok_button().disabled = import_exclusions.visible
 	import_summary.text = layer.summary()
 	import_review.popup_centered(Vector2i(760, 460))
 	_status(I18N.t("Import prepared. Review and adopt the new layer, or discard it."))
@@ -1688,6 +1710,7 @@ func _discard_import() -> void:
 	if import_review != null: import_review.hide()
 
 func _adopt_import() -> void:
+	if import_exclusions.visible and not import_exclusions.button_pressed: return
 	if pending_import == null or generation != import_review_generation or import_selection_signature != _import_selection_signature():
 		_discard_import()
 		_status(I18N.t("E_IMPORT_STALE: Document changed; import again."))

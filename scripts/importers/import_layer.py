@@ -8,7 +8,7 @@ MAX_INPUT = 32 * 1024 * 1024
 MAX_OUTPUT = 12 * 1024 * 1024
 MAX_RECORDS = 60_000
 MAX_POINTS = 200_000
-FIELDS = ("nodes", "roads", "buildings", "zones")
+FIELDS = ("nodes", "roads", "buildings", "zones", "pois")
 
 
 def number(value, name, minimum=-100_000, maximum=100_000):

@@ -22,7 +22,7 @@ func run() -> void:
 	ui.osm_panel.area.toggle_fit()
 	check(ui.osm_panel.error() == "","bounded local crop")
 	ui.osm_panel.fields[2].value = 9.1
-	check(ui.osm_panel.error() != "","oversize blocked before worker")
+	check(ui.osm_panel.error() == "","city bbox uses projection/object budgets rather than a degree-size cap")
 	ui.osm_panel.fields[2].value = 8.0
 	check(ui.osm_panel.error().contains("west"),"reversed or crossing box rejected")
 	ui.osm_panel.fields[2].value = 9.001
@@ -48,7 +48,8 @@ func run() -> void:
 	ui.osm_panel.dialog.canceled.emit()
 	check(ui.import_dialog.visible and not ui.busy, "cancel returns to import without starting a worker")
 	check(ui.store.document == before and ui.pending_import == null,"selection and cancellation preserve document")
-	check(ui.import_origin_lon.value == 0 and ui.import_origin_lat.value == 0,"selection never silently changes origins")
+	check(absf(ui.import_origin_lon.value-(selected[0]+selected[2])*0.5)<0.000002,"drag centres the declared projection origin")
+	check(ui.import_origin_x.value == (before.bounds.min[0]+before.bounds.max[0])*0.005*8,"map-centre placement respects OSM 1:8 adoption")
 	if DisplayServer.get_name() != "headless":
 		await process_frame
 		check(ui.osm_panel.dialog.size.x <= 1024 and ui.osm_panel.dialog.size.y <= 720,"wizard fits 1024x720")

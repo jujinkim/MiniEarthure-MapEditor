@@ -76,9 +76,19 @@ def bounds(value):
     if not isinstance(value, list) or len(value) != 4:
         raise ValueError("OSM bbox requires west/south/east/north")
     w, s, e, n = [number(v, "OSM bbox", -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84) for i, v in enumerate(value)]
-    if not 0 < e-w <= 0.02 or not 0 < n-s <= 0.02:
-        raise ValueError("OSM bbox needs west < east, south < north and at most 0.02 degrees per side")
+    if not w < e or not s < n:
+        raise ValueError("OSM bbox needs west < east and south < north")
     return [w, s, e, n]
+
+
+def projected_bounds(value, coordinates):
+    """Validate admission before scanning a large source, using the existing CRS/radius."""
+    from projection import Coordinates
+    w, s, e, n = bounds(value)
+    projection = Coordinates(coordinates)
+    if projection.mode != "wgs84-utm": raise ValueError("OSM crop requires WGS84 projection")
+    for point in ([w,s], [w,n], [e,s], [e,n]): projection.point(point)
+    return [w,s,e,n]
 
 
 def crop(collection, selected):

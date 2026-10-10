@@ -2,7 +2,7 @@ import sys, json, unittest, tempfile, subprocess
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/"scripts/importers"))
-from osm_area import crop, bounds
+from osm_area import crop, bounds, projected_bounds
 from osm_extract import parse, LICENSE
 from osm_fixture import XML, pbf
 from shapely.geometry import shape
@@ -32,7 +32,7 @@ class CropTests(unittest.TestCase):
     def test_empty_tangent_invalid_and_caps(self):
         with self.assertRaisesRegex(ValueError,"no supported"): run([feature("LineString",[[-.001,0],[0,0]])])
         with self.assertRaisesRegex(ValueError,"Invalid OSM"): run([feature("Polygon",[[[1,1],[2,2],[1,2],[2,1],[1,1]]])])
-        for b in [[0,0,0,1],[0,0,.021,.01],[179,0,-179,1],[False,0,.01,.01],[0,0,float("nan"),.01]]:
+        for b in [[0,0,0,1],[179,0,-179,1],[False,0,.01,.01],[0,0,float("nan"),.01]]:
             with self.subTest(b=b), self.assertRaises(ValueError): bounds(b)
         with patch("osm_area.MAX_POINTS",1), self.assertRaisesRegex(ValueError,"budget"): run([feature("LineString",[[0,0],[.01,.01]])])
         with patch("osm_area.version",return_value="0"), self.assertRaisesRegex(ValueError,"requirements-import"): run([])
@@ -55,5 +55,11 @@ class CropTests(unittest.TestCase):
     def test_unsupported_outside_not_hidden(self):
         raw=XML.replace('k="width"','k="bridge"').encode()
         with self.assertRaises(ValueError): crop(parse(raw,"osm")[0],[9,55,9.00001,55.00001])
+
+    def test_city_extent_uses_projection_radius_and_strip(self):
+        coordinates = dict(mode="wgs84-utm", origin=[9,55], local_origin_m=[0,0])
+        self.assertEqual(projected_bounds([8.9,54.9,9.1,55.1],coordinates),[8.9,54.9,9.1,55.1])
+        with self.assertRaisesRegex(ValueError,"20 km"): projected_bounds([8.9,54.7,9.1,55.3],coordinates)
+        with self.assertRaisesRegex(ValueError,"strip"): projected_bounds([5.9,54.9,9.1,55.1],coordinates)
 
 if __name__=="__main__": unittest.main()

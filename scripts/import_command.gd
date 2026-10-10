@@ -36,7 +36,7 @@ static func decode(value: Variant, allow_assets: bool = false, allow_generation:
 		if candidate.get(field) is not Array: return {"error":"Missing prepared document records."}
 		for record: Variant in candidate[field]:
 			if record is not Dictionary: return {"error":"Invalid prepared document record."}
-	var fields: Array = ["nodes","roads","buildings","zones","heightmaps","attributions","placements","surface_areas","water_bodies","gimmicks","assets"] if allow_generation else ["assets", "attributions"] if allow_assets else ["nodes", "roads", "buildings", "zones", "heightmaps", "attributions"]
+	var fields: Array = ["pois","nodes","roads","buildings","zones","heightmaps","attributions","placements","surface_areas","water_bodies","gimmicks","assets"] if allow_generation else ["assets", "attributions"] if allow_assets else ["pois", "nodes", "roads", "buildings", "zones", "heightmaps", "attributions"]
 	for patch: Variant in command.patches:
 		if not allow_assets and patch is Dictionary and patch.get("field") == "free_roam":
 			if patch.get("id") != "" or patch.get("before") is not bool or patch.get("after") != true or candidate.get("free_roam") != true:

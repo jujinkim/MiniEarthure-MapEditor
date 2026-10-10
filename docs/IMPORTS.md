@@ -9,7 +9,7 @@ receipts, projects and packages are never overwritten by importing.
 
 [CURRENT_V1](CURRENT_V1.md) defines one current shape per adapter. There is no
 recipe selector, feature promotion, old reader or automatic converter. ImportLayer
-contains additive nodes, roads, buildings and zones with source provenance. A new
+contains additive nodes, roads, buildings, zones and facility POIs with source provenance. A new
 128-bit layer namespace is allocated even when reimporting the same source bytes.
 Existing object references, arbitrary map-value mutation and deletions are rejected.
 
@@ -29,12 +29,63 @@ coordinates and never apply the factor again.
 | Local Overture | Building multipart/courtyard/vertical parts, ground transportation with exact physical spans/connector positions, land-cover forests | Structural transportation lacking metric height/datum/clearance, unsupported flags/classes, larger unbounded selections |
 | Local PNG heightmap | Staged16-bit full-cell PNG with explicit extent, offset/step and shared-edge validation | Undeclared units, partial/bad cell edges, arbitrary CRS/resampling |
 | Copernicus COG `copernicus-dem-v1` | One bounded array of local COGs, including single file and atomic mosaic | Remote acquisition, arbitrary raster/nodata/warp profiles, unbounded partitioning |
+| Facility CSV `facility-csv-v1` | Explicit UTF-8/CP949/EUC-KR, header mapping, WGS84 names/positions/category/source; geographic and map-bounds filtering | Missing/invalid coordinates are review rows, never guessed or geocoded; malformed headers/encoding fail the import |
 
 Every whole candidate is validated before adoption. Repeated/invalid JSON keys,
 missing coordinates, zero/invalid rings, conflicting identities and unsupported
 members reject rather than silently flattening or partially importing. Source SHA,
 bytes, license, accuracy, extent, feature/point counts, estimates and bounded warning
 samples are retained. Precision is not treated as source accuracy.
+
+## Choosing a geographic area
+
+Open **Import vector source → OSM crop**. Choose the downloaded PBF, enter an
+administrative area name (local or English), and press **Find area by name**.
+The local lookup reads administrative relations and their complete direct outer
+ways/nodes. It shows matching names, relation IDs, exact boundary extents and
+simplified outlines with OpenStreetMap attribution. Missing/nested outer geometry
+has an explicit unavailable reason; no guessed extent is returned. Search is
+bounded to32 matches,200,000 references and20,000 display points, with the same
+exclusive capture, source hash, cancellation and15-minute worker lifetime.
+
+Selecting a result fills outward-rounded west/south/east/north fields and centres
+the WGS84 origin. Click the boundary diagram to move that origin, or drag to set
+a rectangular crop and its centre. The origin maps to the current map centre
+after1:8 adoption. Approximate scaled dimensions help compare against map bounds;
+the actual import still uses the exact UTM conversion and20km corner radius.
+The rectangle includes surrounding territory outside the named boundary. This is
+an offline boundary diagram, not street imagery or cadastral coverage. Manual
+coordinates remain available for unnamed areas. No city coordinates are embedded
+in the adapter. Wide action buttons display both their icon and action text.
+
+The former0.02-degree OSM side limit is replaced by the existing projection,
+selected-object, position, result, native and Undo budgets. Overture's separate
+selection limits remain unchanged. National PBF metadata is validated when a
+selected object uses it; unrelated multilingual country/place tags do not consume
+the selected-object tag allowance. Scan/index/reference quotas still apply.
+
+**Review and exclude unsupported source objects** is an explicit PBF streaming
+option. Default imports still reject unsupported selected objects. With review
+enabled, exact source IDs and reasons are retained and the adoption checkbox must
+be checked after inspection. Rejected area members cannot reappear as flattened
+standalone polygons. Aggregate budgets and whole-candidate native validation stay
+mandatory; no bridge/tunnel height is invented from `layer` or DSM values.
+
+## Facilities
+
+Select **Facility CSV**, set its license and source reference, choose the file's
+encoding, and map the exact name/latitude/longitude headers in **Facility CSV
+columns**. Supply the category explicitly. Coordinates share the declared import
+origin and the adopted map's1:1 or1:8 scale. The selected OSM crop can filter the
+rows in addition to map bounds. Review includes every invalid line/name/reason
+and every outside line; invalid rows require explicit exclusion before adoption.
+Files stay unchanged. Up to20,000 rows and32MiB source bytes are accepted.
+
+Facilities appear in the Editor's Facilities list and the shared map pin/label
+renderer. Current-v1 `pois` preserves names, classifications, local coordinates
+and source/license/row provenance through one-command Undo/Redo, project save,
+package export and reopen. Pins have no height or collision semantics. Geographic
+source values and the input hash remain in each facility's source notice.
 
 ## Topology and source mapping
 
@@ -80,6 +131,11 @@ Snapshot input≤32MiB, result≤12MiB,20,000 features,200,000 positions,60,000 
 50 warning samples and shared16MiB Undo budget remain admission bounds. Selected
 large-PBF scanning has its own bounded2GiB disk index; this does not relax selected
 payload, native geometry or history limits. Logical reservations are not RSS limits.
+The national-source scan permits100million raw entities and80million references,
+bounded independently by2GiB source/index and the15-minute deadline. This replaces
+the20million raw-entity scan cap that rejected the Korean source before spatial
+selection; the250,000 selected-entity and20,000 feature caps are unchanged. Name
+lookup filters boundary member IDs in libosmium before materialising Python objects.
 
 The immutable review candidate exposes summary and exact provenance details.
 Native validation, source recheck and final command preparation use owned workers;
@@ -99,6 +155,12 @@ atomic adoption/Undo/save/recovery/package. The last broad importer consolidatio
 passed165 Python tests and focused OSM loops251/structures196/continuations85/
 junctions242/supplements68/native117/collections104 checks. Current v1 source and
 adoption regressions also passed at the v1 transition; no old-shape support remains.
+Focused place/CSV tests cover Korean encodings and names, English aliases,
+incomplete boundaries, geographic filtering, invalid coordinates, exact receipt
+and review accounting, worker cancellation, source preservation, map-centre1:8
+placement, atomic facility Undo/Redo and project/package reopening. Boundary
+selection and name-search Godot validators pass. OSM extraction/structure/loop
+regressions retain exact multipolygon membership counts after exclusion review.
 
 For a change, choose its `tests/test_osm*.py`, `test_collections.py` or other adapter
 unit and the relevant Godot validator via the root isolated checker. Do not repeat

@@ -1,6 +1,6 @@
 extends RefCounted
 ## Vector edit planning only. MapKit validation and DocumentStore publish atomically.
-const FIELDS := ["water_bodies", "surface_areas", "zones", "buildings", "roads", "repetitions", "placements", "gimmicks", "nodes"]
+const FIELDS := ["pois", "water_bodies", "surface_areas", "zones", "buildings", "roads", "repetitions", "placements", "gimmicks", "nodes"]
 
 static func key(field: String, id: String) -> String:
 	return field + "/" + id
@@ -14,7 +14,9 @@ static func entries(document: Dictionary) -> Array[Dictionary]:
 
 static func points(field: String, record: Dictionary) -> Array[Vector2]:
 	var result: Array[Vector2] = []
-	if field in ["buildings", "zones", "surface_areas", "water_bodies"]:
+	if field == "pois":
+		result.append(Vector2(record.position[0], record.position[1]))
+	elif field in ["buildings", "zones", "surface_areas", "water_bodies"]:
 		for p: Array in record.get("footprint", record.get("polygon", [])):
 			result.append(Vector2(p[0], p[1]))
 	elif field in ["roads", "repetitions"]:
@@ -26,7 +28,10 @@ static func points(field: String, record: Dictionary) -> Array[Vector2]:
 
 static func translated(field: String, record: Dictionary, delta: Vector2) -> Dictionary:
 	var after := record.duplicate(true)
-	if field in ["buildings", "zones", "surface_areas", "water_bodies"]:
+	if field == "pois":
+		after.position[0] += int(delta.x)
+		after.position[1] += int(delta.y)
+	elif field in ["buildings", "zones", "surface_areas", "water_bodies"]:
 		var polygons: Array = [after.get("footprint", after.get("polygon", []))]
 		polygons.append_array(after.get("entrances", after.get("exclusions", [])))
 		polygons.append_array(after.get("holes", []))

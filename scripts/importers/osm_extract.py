@@ -6,6 +6,7 @@ from collections import Counter
 
 from import_layer import MAX_INPUT, MAX_POINTS
 from polygon_geometry import Budget, group_rings
+from osm_review import Review, source_error
 
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 MAX_ENTITIES = 250_000
@@ -287,7 +288,7 @@ def relation_features(relations, all_ways, nodes, blocked_members, counts, budge
         counts["assembled_relations"] += 1
         counts["outer_rings"] += len(outers)
         counts["inner_rings"] += len(inners)
-    counts["member_ways"] = len(consumed)
+    counts["member_ways"] += len(consumed)
     return features, consumed
 
 
@@ -370,53 +371,82 @@ def parse(raw, input_format, supplement=None):
                           supplement, hashlib.sha256(raw).hexdigest() if supplement is not None else None)
 
 
-def build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts, supplement=None, source_sha256=None):
+def way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology):
+    if identity in area_members:
+        raise ValueError("selected OSM way belongs to an area relation; no silent holes/flattening")
+    if any(ref not in nodes for ref in references):
+        raise ValueError(f"OSM way {identity}: missing referenced node; use a complete extract")
+    source_error(tags)
+    for ref in references: source_error(node_tags.get(ref, {}))
+    if kind != "road": vertical(tags)
+    points = [nodes[ref] for ref in references]
+    properties = {}
+    if kind == "road":
+        if tags["highway"] not in ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service", "road", "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link", "track", "path", "footway", "cycleway", "pedestrian") or tags.get("area", "no") != "no":
+            raise ValueError(f"OSM way {identity}: unsupported highway/area profile")
+        if len(references) < 2:
+            raise ValueError(f"OSM way {identity}: short road")
+        if any(nodes[a] == nodes[b] for a,b in zip(references, references[1:])):
+            raise ValueError("road has a zero-length source segment")
+        properties.update(road_vertical(tags, references, node_tags))
+        if references[0] == references[-1]:
+            if len(references) < 4 or len(set(references[:-1])) != len(references)-1:
+                raise ValueError(f"OSM way {identity}: closed road requires at least three distinct nodes without repeated interiors")
+            group_rings([points], [], topology)  # Simple ring; never repair a crossing or backtrack.
+            properties["osm_closed_ground" if properties.get("road_kind", "ground") == "ground" else "osm_closed_structure"] = True
+        if "osm_node_refs" in properties: properties["osm_way_id"] = identity
+        if "width" in tags: properties["width_m"] = metres(tags, "width")
+        if "surface" in tags: properties["surface"] = tags["surface"]
+        geometry = dict(type="LineString", coordinates=points)
+    else:
+        if len(references) < 4 or references[0] != references[-1]:
+            raise ValueError(f"OSM way {identity}: polygon must be a closed way")
+        if kind == "building":
+            if "height" in tags: properties["height_m"] = metres(tags, "height")
+            if tags["building"] != "yes": properties["usage"] = tags["building"]
+        else:
+            properties.update(region_properties(tags))
+        geometry = dict(type="Polygon", coordinates=[points])
+    # Temporary source identity for selecting loop incidence, removed from
+    # ordinary unconnected ground roads below to preserve their old contract.
+    if kind == "road": properties["osm_source_way"] = identity
+    properties["osm_source_id"] = "way/" + str(identity)
+    return dict(type="Feature", properties=properties, geometry=geometry)
+
+
+def build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts, supplement=None, source_sha256=None, review=None):
     """Normalize a complete bounded selection from either snapshot reader."""
     if supplement is not None:
         node_tags = supplement.apply(nodes, node_tags, ways, source_sha256)
+    review = review or Review()
     topology = Budget()
-    assembled, consumed = relation_features(relations, all_ways, nodes, area_members, counts, topology)
-    counts["ignored_ways"] -= sum(category(all_ways[ref][1]) is None for ref in consumed)
+    assembled, consumed = [], set()
+    for relation in sorted(relations):
+        try:
+            source_error(relation[3])
+            for member_type, ref, _role in relation[2]:
+                if member_type == "w" and ref in all_ways:
+                    source_error(all_ways[ref][1])
+            parts, members = relation_features([relation], all_ways, nodes, area_members | consumed, counts, topology)
+            assembled.extend(parts)
+            consumed.update(members)
+        except ValueError as exc:
+            review.reject("relation/" + str(relation[0]), exc)
+            # Failed area members never escape as flattened standalone polygons.
+            for member_type, ref, _role in relation[2]:
+                if member_type == "w":
+                    consumed.add(ref)
+                    review.reject("way/" + str(ref), "Member of excluded relation/" + str(relation[0]))
+    supported_ids = {way[0] for way in ways}
+    counts["ignored_ways"] -= sum(ref not in supported_ids for ref in consumed if ref in all_ways)
     features = []
     for identity, kind, references, tags in sorted(ways):
         if identity in consumed:
             continue
-        if identity in area_members:
-            raise ValueError("selected OSM way belongs to an area relation; no silent holes/flattening")
-        if any(ref not in nodes for ref in references):
-            raise ValueError(f"OSM way {identity}: missing referenced node; use a complete extract")
-        if kind != "road": vertical(tags)
-        points = [nodes[ref] for ref in references]
-        properties = {}
-        if kind == "road":
-            if tags["highway"] not in ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service", "road", "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link", "track", "path", "footway", "cycleway", "pedestrian") or tags.get("area", "no") != "no":
-                raise ValueError(f"OSM way {identity}: unsupported highway/area profile")
-            if len(references) < 2:
-                raise ValueError(f"OSM way {identity}: short road")
-            properties.update(road_vertical(tags, references, node_tags))
-            if references[0] == references[-1]:
-                if len(references) < 4 or len(set(references[:-1])) != len(references)-1:
-                    raise ValueError(f"OSM way {identity}: closed road requires at least three distinct nodes without repeated interiors")
-                group_rings([points], [], topology)  # Simple ring; never repair a crossing or backtrack.
-                properties["osm_closed_ground" if properties.get("road_kind", "ground") == "ground" else "osm_closed_structure"] = True
-            if "osm_node_refs" in properties: properties["osm_way_id"] = identity
-            if "width" in tags: properties["width_m"] = metres(tags, "width")
-            if "surface" in tags: properties["surface"] = tags["surface"]
-            geometry = dict(type="LineString", coordinates=points)
-        else:
-            if len(references) < 4 or references[0] != references[-1]:
-                raise ValueError(f"OSM way {identity}: polygon must be a closed way")
-            if kind == "building":
-                if "height" in tags: properties["height_m"] = metres(tags, "height")
-                if tags["building"] != "yes": properties["usage"] = tags["building"]
-            else:
-                properties.update(region_properties(tags))
-            geometry = dict(type="Polygon", coordinates=[points])
-        # Temporary source identity for selecting loop incidence, removed from
-        # ordinary unconnected ground roads below to preserve their old contract.
-        if kind == "road": properties["osm_source_way"] = identity
-        properties["osm_source_id"] = "way/" + str(identity)
-        features.append(dict(type="Feature", properties=properties, geometry=geometry))
+        try:
+            features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology))
+        except ValueError as exc:
+            review.reject("way/" + str(identity), exc)
     loop_refs = {ref for f in features if closed_road(f["properties"])
                  for ref in all_ways[f["properties"]["osm_source_way"]][0]}
     loop_sources = []

@@ -2,7 +2,7 @@ extends RefCounted
 const I18N := preload("./locale_text.gd")
 ## Untrusted adapter output can only add a fresh, explicitly adopted vector layer.
 const MAX_BYTES := 12 * 1024 * 1024
-const FIELDS := ["nodes", "roads", "buildings", "zones"]
+const FIELDS := ["nodes", "roads", "buildings", "zones", "pois"]
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 const OVERTURE_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
 const OVERTURE_TRANSPORTATION_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation"
@@ -29,6 +29,21 @@ static func _count(value: Variant, maximum: int) -> bool:
 static func _finite(value: Variant, minimum: float, maximum: float) -> bool:
 	return (value is int or value is float) and is_finite(float(value)) and value >= minimum and value <= maximum
 
+static func _exclusion_review(raw: Dictionary, requested: Dictionary) -> String:
+	var review: Variant = raw.coordinates.get("osm_review")
+	if review == null: return "Missing requested OSM exclusion review." if requested.get("osm_review_exclusions", false) else ""
+	if raw.adapter != "osm-extract-v1" or not raw.coordinates.has("osm_stream") or review is not Dictionary or review.get("profile") != "explicit-source-exclusions-v1" or review.get("excluded") is not Array or review.excluded.size() > 20000: return "Invalid OSM exclusion review."
+	if not requested.is_empty() and requested.get("osm_review_exclusions") != true: return "Unrequested OSM source exclusions."
+	var ids := {}
+	var pattern := RegEx.new()
+	pattern.compile("^(way|relation)/[1-9][0-9]{0,19}$")
+	for entry in review.excluded:
+		if entry is not Dictionary or not _text(entry.get("source_id")) or pattern.search(entry.source_id) == null or ids.has(entry.source_id) or not _text(entry.get("reason")): return "Invalid/duplicate excluded source object."
+		ids[entry.source_id] = true
+	for source in raw.coordinates.get("source_objects", []):
+		if source is not Dictionary or ids.has(source.get("source_id")): return "Excluded OSM object still has imported records."
+	return ""
+
 static func _coordinates(c: Variant, requested: Dictionary) -> String:
 	if c is not Dictionary or c.get("quantization_cm") != 1: return "Unsupported import coordinates."
 	if not requested.is_empty() and c.get("mode") != requested.get("mode"): return "Import coordinate selection changed."
@@ -52,13 +67,15 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	native_payload_digest = ""
 	_review_prefix = ""
 	if raw is not Dictionary or JSON.stringify(raw).to_utf8_buffer().size() > MAX_BYTES: return "Invalid or oversized ImportLayer."
-	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-v1", "osm-extract-v1", "overture-buildings-v1", "overture-transportation-v1", "overture-land-cover-v1"]: return "Unsupported ImportLayer version/adapter."
+	if raw.get("import_version") != 1 or raw.get("adapter") not in ["geojson-v1", "osm-extract-v1", "overture-buildings-v1", "overture-transportation-v1", "overture-land-cover-v1", "facility-csv-v1"]: return "Unsupported ImportLayer version/adapter."
 	if requested.has("adapter") and raw.adapter != requested.adapter: return "Import adapter does not match request."
 	if not _hex(raw.get("layer_id"), 32) or raw.layer_id != expected_id: return "Stale or invalid import identity."
 	var source: Variant = raw.get("source")
 	if source is not Dictionary or not _text(source.get("name")) or not _text(source.get("license")) or not _text(source.get("accuracy")) or not _hex(source.get("sha256"), 64) or not _count(source.get("bytes"), 2 * 1024 * 1024 * 1024): return "Invalid import source metadata."
 	var coordinate_error := _coordinates(raw.get("coordinates"), requested)
 	if coordinate_error != "": return coordinate_error
+	var exclusion_error := _exclusion_review(raw, requested)
+	if exclusion_error != "": return exclusion_error
 	var vertical_error: String = preload("./import_vertical.gd").validate(raw, requested)
 	if vertical_error != "": return vertical_error
 	var height_error: String = preload("./import_height_supplement.gd").validate(raw, requested)
@@ -71,15 +88,15 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if source.bytes <= 0 or streaming.get("source_bytes") != source.bytes or streaming.get("source_sha256") != source.sha256: return "PBF captured source mismatch."
 		if streaming.get("scan") is not Dictionary or streaming.get("selected") is not Dictionary: return "Invalid PBF streaming counts."
 		for key in ["nodes", "ways", "relations", "references"]:
-			if not _count(streaming.scan.get(key), 80000000 if key == "references" else 20000000) or not _count(streaming.selected.get(key), 200000 if key in ["nodes", "references"] else 250000): return "PBF streaming count budget exceeded."
+			if not _count(streaming.scan.get(key), 80000000 if key == "references" else 100000000) or not _count(streaming.selected.get(key), 200000 if key in ["nodes", "references"] else 250000): return "PBF streaming count budget exceeded."
 			if streaming.selected[key] > streaming.scan[key]: return "PBF selected counts exceed scanned source."
-		if streaming.scan.nodes + streaming.scan.ways + streaming.scan.relations > 20000000 or streaming.selected.nodes + streaming.selected.ways + streaming.selected.relations > 250000 or not _count(streaming.selected.get("bytes"), 32 * 1024 * 1024): return "PBF streaming selection budget exceeded."
+		if streaming.scan.nodes + streaming.scan.ways + streaming.scan.relations > 100000000 or streaming.selected.nodes + streaming.selected.ways + streaming.selected.relations > 250000 or not _count(streaming.selected.get("bytes"), 32 * 1024 * 1024): return "PBF streaming selection budget exceeded."
 		if streaming.has("structure_closure"):
 			var closure: Variant = streaming.structure_closure
 			if closure is not Dictionary or closure.get("profile") not in ["structural-incidence-v1", "loop-structural-incidence-v1"]: return "Invalid structural closure profile."
 			for key in ["ways", "structures", "nodes", "visits"]:
 				if not _count(closure.get(key), 20000 if key in ["ways", "structures"] else 200000): return "Invalid structural closure budget."
-			if closure.profile == "loop-structural-incidence-v1" and (not _count(closure.get("loops"), 20000) or closure.loops < 1 or closure.loops + closure.structures > closure.ways or not raw.coordinates.has("osm_ground_loops")): return "Invalid OSM loop closure counts."
+			if closure.profile == "loop-structural-incidence-v1" and (not _count(closure.get("loops"), 20000) or closure.loops < 1 or closure.loops + closure.structures > closure.ways or (not raw.coordinates.has("osm_ground_loops") and not raw.coordinates.has("osm_review"))): return "Invalid OSM loop closure counts."
 			if closure.structures > closure.ways or closure.ways > streaming.selected.ways or closure.nodes > streaming.selected.nodes or closure.visits < closure.nodes: return "Invalid structural closure counts."
 	elif source.bytes > 32 * 1024 * 1024:
 		return "Non-streaming import source exceeds 32 MiB."
@@ -90,7 +107,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if bbox is not Array or bbox.size() != 4: return "Invalid OSM crop area."
 		for i in range(4):
 			if not _finite(bbox[i], -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84): return "Invalid OSM crop coordinate."
-		if bbox[0] >= bbox[2] or bbox[1] >= bbox[3] or bbox[2]-bbox[0] > 0.02 or bbox[3]-bbox[1] > 0.02: return "Invalid OSM crop size."
+		if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]: return "Invalid OSM crop size."
 		if not requested.is_empty() and JSON.stringify(bbox) != JSON.stringify(requested.get("osm_bbox")): return "OSM crop selection changed."
 		if crop.get("counts") is not Dictionary: return "Invalid OSM crop counts."
 		for key in ["input_features", "outside_features", "changed_features", "output_features", "boundary_contacts"]:
@@ -170,6 +187,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]): return "Invalid import patch."
 		if raw.adapter == "overture-buildings-v1" and patch.field != "buildings": return "Overture profile may only add buildings."
 		if patch.field not in FIELDS or patch.before != null or patch.after is not Dictionary: return "Import may only add supported records."
+		if patch.field == "pois" and raw.adapter != "facility-csv-v1": return "Facility records require the CSV adapter."
 		if patch.id is not String or not patch.id.begins_with(prefix) or patch.id.length() > 128 or patch.after.get("id") != patch.id or ids.has(patch.id): return "Invalid/duplicate import record identity."
 		if raw.adapter == "overture-buildings-v1" and not overture_building_ids.has(patch.id): return "Unmapped Overture building."
 		if overture_vertical:
@@ -199,6 +217,8 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if raw.adapter == "overture-land-cover-v1":
 		var land_error: String = preload("./import_land_cover.gd").validate(raw, get_script())
 		if land_error != "": return land_error
+	var csv_error: String = preload("./import_csv.gd").validate(raw, requested, get_script())
+	if csv_error != "": return csv_error
 	value = raw.duplicate(true)
 	# These already validated, <=256 KiB source documents are parsed once here;
 	# reopening the review does not parse raw JSON or traverse large mappings.
@@ -392,6 +412,9 @@ func requires_generation() -> bool:
 
 func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 	if value.is_empty(): return "No import candidate."
+	if value.adapter == "facility-csv-v1":
+		var b: Dictionary = store.document.bounds
+		if value.coordinates.csv.options.bounds_cm != [b.min[0],b.min[1],b.max[0],b.max[1]] or value.coordinates.csv.options.source_denominator != preload("./import_units.gd").dem_denominator(store.document): return "CSV map extent/scale changed; import again."
 	if value.adapter == "osm-extract-v1":
 		var explicit := false
 		for patch: Dictionary in value.patches:
@@ -454,7 +477,7 @@ func summary() -> String:
 	if value.is_empty(): return I18N.t("No import candidate.")
 	var text := preload("./import_review_text.gd")
 	var coordinates := {}
-	for key in ["mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
+	for key in ["osm_review", "csv", "mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
 		if value.coordinates.has(key): coordinates[key] = value.coordinates[key]
 	var estimates := ""
 	var count := 0

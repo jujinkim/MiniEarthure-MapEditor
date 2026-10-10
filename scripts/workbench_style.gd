@@ -220,10 +220,21 @@ static func icon(id: String) -> Texture2D:
 		textures[name] = texture
 	return texture
 
+static func refresh_label(button: Button) -> void:
+	# Clipping keeps text from enlarging compact toolbar containers. Stretched
+	# actions in dialogs and property panels use the space they already have.
+	var show_text: bool = button.icon == null or (not button.get_meta("action_tile", false) and button.size.x >= 160)
+	button.text = I18N.t(str(button.get_meta("action_label", ""))) if show_text else ""
+
 static func decorate(button: Button, label: String, description := "", icon_id := "", tile := false) -> void:
 	button.set_meta("action_label", label)
+	button.set_meta("action_tile", tile)
 	button.icon = icon(icon_id if icon_id != "" else label)
-	button.text = I18N.t(label) if button.icon == null else ""
+	button.clip_text = true
+	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	var refresh := refresh_label.bind(button)
+	if not button.resized.is_connected(refresh): button.resized.connect(refresh)
+	refresh_label(button)
 	button.expand_icon = true
 	button.add_theme_constant_override("icon_max_width", 30 if tile else 24)
 	button.custom_minimum_size = Vector2(52, 52) if tile else Vector2(40, 40)
