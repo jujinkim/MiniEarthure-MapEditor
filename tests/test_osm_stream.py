@@ -59,6 +59,17 @@ class Streaming(unittest.TestCase):
             self.assertEqual(actual,crop(parse(self.source.read_bytes(),"pbf")[0],box)[0])
             self.assertLess(meta["selected"]["nodes"],meta["scan"]["nodes"])
 
+    def test_source_coordinate_precision_in_both_hemispheres(self):
+        for dx,dy in [(117.1234567,-18.7654321),(-80.1234567,-88.7654321)]:
+            root=ET.fromstring(XML)
+            for node in root.findall("node"):
+                node.set("lon",f"{float(node.get('lon'))+dx:.7f}")
+                node.set("lat",f"{float(node.get('lat'))+dy:.7f}")
+            selected=[BOX[0]+dx,BOX[1]+dy,BOX[2]+dx,BOX[3]+dy]
+            value,_,_=self.extract(ET.tostring(root,encoding="unicode"),selected)
+            original=parse(self.source.read_bytes(),"pbf")[0]
+            self.assertEqual(crop(value,selected)[0],crop(original,selected)[0])
+
     def test_selected_outside_semantics_and_complete_references(self):
         # Unsupported geometry outside candidate envelopes is a disclosed omission.
         root=ET.fromstring(XML)

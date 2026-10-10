@@ -245,7 +245,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             PRAGMA mmap_size=0;
             PRAGMA journal_mode=OFF;
             PRAGMA synchronous=OFF;
-            CREATE TABLE nodes(id INTEGER PRIMARY KEY, x REAL, y REAL, tags TEXT);
+            CREATE TABLE nodes(id INTEGER PRIMARY KEY, x INTEGER, y INTEGER, tags TEXT);
             CREATE TABLE ways(id INTEGER PRIMARY KEY, west REAL, south REAL, east REAL, north REAL, data TEXT, feature INTEGER);
             CREATE TABLE relations(id INTEGER PRIMARY KEY, data TEXT, candidate INTEGER);
             CREATE TABLE owners(way INTEGER, relation INTEGER, blocked INTEGER, PRIMARY KEY(way,relation));
@@ -256,10 +256,12 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
 
         """)
         totals = dict(nodes=0, ways=0, relations=0, references=0)
-        def scalar(entity):
-            key = {"n":"nodes", "w":"ways", "r":"relations"}[entity.type_str()]
+        scanned = 0
+        def scalar(entity, key):
+            nonlocal scanned
+            scanned += 1
             totals[key] += 1
-            if sum(totals[k] for k in ("nodes","ways","relations")) > MAX_SCAN_ENTITIES or entity.id <= 0 or not entity.visible:
+            if scanned > MAX_SCAN_ENTITIES or entity.id <= 0 or not entity.visible:
                 raise ValueError("OSM scan entity budget/deleted or invalid ID")
             tag_count = len(entity.tags)
             # Most geographic nodes have no tags. In pyosmium, exhausting a tag
@@ -290,21 +292,37 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         def envelope(box, x, y, east=None, north=None):
             other = [x,y,x if east is None else east,y if north is None else north]
             return other if box is None else [min(box[0],other[0]),min(box[1],other[1]),max(box[2],other[2]),max(box[3],other[3])]
+        node_insert, node_lookup = db.cursor(), db.cursor()
         def node(entity):
-            tags = scalar(entity)
-            if not entity.location.valid() or not -180 <= entity.lon <= 180 or not -90 <= entity.lat <= 90: raise ValueError("OSM invalid node location")
-            db.execute("INSERT INTO nodes VALUES(?,?,?,?)", (entity.id,entity.lon,entity.lat,json.dumps(tags)))
+            tags = scalar(entity, "nodes")
+            location = entity.location
+            if not location.valid(): raise ValueError("OSM invalid node location")
+            x, y = location.x, location.y
+            if not -1800000000 <= x <= 1800000000 or not -900000000 <= y <= 900000000: raise ValueError("OSM invalid node location")
+            # The national scan is dominated by untagged shape nodes. Reuse the
+            # cursor and constant JSON; copy each location through the binding
+            # once. Store libosmium's exact 1e-7 degree integer coordinates, not
+            # two larger SQLite doubles. All IDs, visibility and index quotas pass
+            # the same checks, including duplicate-ID rejection by SQLite.
+            node_insert.execute("INSERT INTO nodes VALUES(?,?,?,?)", (entity.id,x,y,json.dumps(tags) if tags else "{}"))
         def way(entity):
-            tags = scalar(entity)
+            tags = scalar(entity, "ways")
             references(len(entity.nodes))
             refs, box = [], None
-            if _potential(tags) and not len(entity.nodes): raise ValueError("OSM feature way has no referenced geometry")
+            potential = _potential(tags)
+            if potential and not len(entity.nodes): raise ValueError("OSM feature way has no referenced geometry")
             for n in entity.nodes:
-                row = db.execute("SELECT x,y FROM nodes WHERE id=?", (n.ref,)).fetchone()
+                row = node_lookup.execute("SELECT x,y FROM nodes WHERE id=?", (n.ref,)).fetchone()
                 if row is None: raise ValueError("OSM way missing referenced node; use a complete snapshot")
-                box = envelope(box,*row)
+                x, y = row[0] / 10000000.0, row[1] / 10000000.0
+                if box is None: box = [x,y,x,y]
+                else:
+                    if x < box[0]: box[0] = x
+                    if y < box[1]: box[1] = y
+                    if x > box[2]: box[2] = x
+                    if y > box[3]: box[3] = y
                 refs.append(n.ref)
-            db.execute("INSERT INTO ways VALUES(?,?,?,?,?,?,?)", (entity.id,*(box or [None]*4),json.dumps([refs,tags]),int(_potential(tags))))
+            db.execute("INSERT INTO ways VALUES(?,?,?,?,?,?,?)", (entity.id,*(box or [None]*4),json.dumps([refs,tags]),int(potential)))
             if "highway" in tags:
                 # Only source graph evidence, never an inferred positional join.
                 # Disk/index/deadline/reference caps also cover this adjacency.
@@ -313,10 +331,10 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                     db.execute("INSERT INTO structural_ways VALUES(?)", (entity.id,))
                 elif len(refs) > 1 and refs[0] == refs[-1]:
                     db.execute("INSERT INTO loop_ways VALUES(?)", (entity.id,))
-            if _potential(tags) and intersects(box):
+            if potential and intersects(box):
                 db.execute("INSERT INTO chosen VALUES(?)", (entity.id,))
         def relation(entity):
-            tags = scalar(entity)
+            tags = scalar(entity, "relations")
             references(len(entity.members))
             members, box, unsupported = [], None, ""
             area = tags.get("type") in ("multipolygon", "boundary")
@@ -332,6 +350,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                     row = db.execute("SELECT west,south,east,north FROM ways WHERE id=?", (m.ref,)).fetchone()
                 elif m.type == "n":
                     xy = db.execute("SELECT x,y FROM nodes WHERE id=?", (m.ref,)).fetchone()
+                    if xy is not None: xy = (xy[0] / 10000000.0, xy[1] / 10000000.0)
                     row = None if xy is None else (*xy,*xy)
                 else: raise ValueError("OSM unsupported relation member type")
                 if row is None:
@@ -394,6 +413,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                 if ref in nodes: continue
                 if len(nodes) >= MAX_POINTS: raise ValueError("OSM selected node budget exceeded")
                 x,y,raw_tags = db.execute("SELECT x,y,tags FROM nodes WHERE id=?", (ref,)).fetchone()
+                x, y = x / 10000000.0, y / 10000000.0
                 tags_at_node = json.loads(raw_tags)
                 admit(json.dumps([ref,x,y,tags_at_node]))
                 nodes[ref] = [x,y]

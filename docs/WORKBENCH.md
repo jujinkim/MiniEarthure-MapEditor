@@ -23,6 +23,9 @@ shortcuts. Palettes have search, alphabetical sorting, favorites and object list
 Track groups separate road pieces, gimmicks and actions. Inspector groups cover
 Transform, Connections, Routes & Checkpoints and Actions. Route order has
 append/remove/up/down controls. Activity and Problems use the bottom panel.
+**Activity → Operation details…** opens the full, selectable latest message in a
+read-only scrollable window. Multiline import/deadline diagnostics remain readable
+when the compact status bar shows only its first line.
 
 The center supports 2D, 3D and split views. Right drag orbits, middle drag pans,
 and wheel zooms. Frame selection uses the current selection. The track auxiliary

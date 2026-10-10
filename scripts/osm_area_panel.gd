@@ -34,7 +34,7 @@ func setup(owner_ui: Control) -> void:
 	var search := HBoxContainer.new()
 	layout.add_child(search)
 	place_query = LineEdit.new()
-	place_query.placeholder_text = "Area name, e.g. 수원시 / Yeongtong-gu"
+	place_query.placeholder_text = "Area name in this PBF (local name or recorded alias)"
 	place_query.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	search.add_child(place_query)
 	ui._button(search,"Find area by name",start_search).custom_minimum_size.x = 180
@@ -164,7 +164,7 @@ func finish_search(_job: RefCounted, result: Dictionary) -> void:
 		for place: Dictionary in places:
 			place_choices.add_item("%s · admin %s · %s%s" % [place.name,place.admin_level,place.source_id," · unavailable" if place.issue != "" else ""])
 		area.set_places(places)
-		place_status.text = "%d matching areas in %s. Select a name to inspect its boundary." % [places.size(),result.data.source_name] if not places.is_empty() else "No matching administrative area in this PBF. Try a local/English name or enter coordinates manually."
+		place_status.text = "%d matching areas in %s. Select a name to inspect its boundary." % [places.size(),result.data.source_name] if not places.is_empty() else "No matching administrative area. Try its local name; English search needs an alias recorded in this PBF."
 		if not places.is_empty(): select_place(0)
 	else: place_status.text = str(result.get("error",{}).get("message","PBF lookup failed."))
 	ui._status(place_status.text)

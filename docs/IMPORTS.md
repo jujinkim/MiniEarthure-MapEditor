@@ -40,7 +40,9 @@ samples are retained. Precision is not treated as source accuracy.
 ## Choosing a geographic area
 
 Open **Import vector source → OSM crop**. Choose the downloaded PBF, enter an
-administrative area name (local or English), and press **Find area by name**.
+administrative area name (local name or an alias recorded in the source), and press
+**Find area by name**. If English search has no match, try the area's local name;
+the lookup does not invent translations absent from the PBF.
 The local lookup reads administrative relations and their complete direct outer
 ways/nodes. It shows matching names, relation IDs, exact boundary extents and
 simplified outlines with OpenStreetMap attribution. Missing/nested outer geometry
@@ -136,6 +138,10 @@ bounded independently by2GiB source/index and the15-minute deadline. This replac
 the20million raw-entity scan cap that rejected the Korean source before spatial
 selection; the250,000 selected-entity and20,000 feature caps are unchanged. Name
 lookup filters boundary member IDs in libosmium before materialising Python objects.
+The disposable node index stores libosmium's exact1e-7-degree integer coordinates
+and avoids repeated empty-tag serialization and coordinate binding calls. Whole
+source validation and the same SQLite quota still apply; no geometry is simplified.
+Full failure text is available in **Activity → Operation details…**.
 
 The immutable review candidate exposes summary and exact provenance details.
 Native validation, source recheck and final command preparation use owned workers;
@@ -161,6 +167,10 @@ and review accounting, worker cancellation, source preservation, map-centre1:8
 placement, atomic facility Undo/Redo and project/package reopening. Boundary
 selection and name-search Godot validators pass. OSM extraction/structure/loop
 regressions retain exact multipolygon membership counts after exclusion review.
+The focused stream/import/place Python checks pass 24 tests, including exact
+seven-decimal source positions in northern/eastern and southern/western fixtures.
+The Editor UX validator passes 61 assertions, including complete timeout text,
+read-only details and minimum-window layout; name lookup also passes independently.
 
 For a change, choose its `tests/test_osm*.py`, `test_collections.py` or other adapter
 unit and the relevant Godot validator via the root isolated checker. Do not repeat

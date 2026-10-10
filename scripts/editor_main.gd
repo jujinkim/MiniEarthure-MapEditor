@@ -457,6 +457,7 @@ func _build_ui() -> void:
 	cancel_button.disabled = true
 	retry_import_button = _button(view_bar, "Retry import…", _import_geojson)
 	retry_import_button.hide()
+	_button(view_bar, "Operation details…", _show_status_details).custom_minimum_size.x = 180
 	_button(view_bar, "Tools / layers", func(): left_dock.visible = not left_dock.visible)
 	_button(view_bar, "Properties / 3D", func(): right_dock.visible = not right_dock.visible)
 	_button(view_bar, "Frame selection", _frame_current)
@@ -1731,6 +1732,23 @@ func _history(forward: bool) -> void:
 func _operation_status(summary: String, details: String) -> void:
 	_status(details)
 	validation_label.text = summary
+
+func _show_status_details() -> void:
+	var details := AcceptDialog.new()
+	details.name = "StatusDetails"
+	details.title = I18N.t("Latest operation details")
+	details.ok_button_text = I18N.t("Close")
+	var text := TextEdit.new()
+	text.name = "Text"
+	text.editable = false
+	text.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	text.custom_minimum_size = Vector2(700, 280)
+	text.text = status_label.text
+	details.add_child(text)
+	add_child(details)
+	details.confirmed.connect(details.queue_free)
+	details.close_requested.connect(details.queue_free)
+	details.popup_centered(Vector2i(760, 380))
 
 func _status(text: String) -> void:
 	if busy and text.begins_with("x "): return
