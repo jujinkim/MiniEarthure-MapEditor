@@ -39,6 +39,7 @@ func run() -> void:
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	check(not ui.busy and ui.pending_import==null,"large source requires explicit streaming selection")
 	ui.osm_panel.streaming.button_pressed=true
+	ui.osm_panel.city.button_pressed=false  # This suite verifies the exact source path.
 	check(ui.osm_panel.error()!="","streaming requires crop")
 	ui.osm_panel.enabled.button_pressed=true
 	var bbox := [8.9999,54.9999,9.006,55.006]

@@ -66,11 +66,23 @@ Each retained record Command/Memento contains only the touched records' first-be
 and final-after values, captured after native normalization. Unchanged objects,
 whole documents and rendered meshes are not history entries. E03 file commands
 add only their affected immutable binary payloads to the same retention budget.
-Undo and redo share **200 commands / 16 MiB of UTF-8 patches and sparse binary height deltas**. Moving
+Undo and redo share **200 commands / 16 MiB of retained patches and sparse binary height deltas**. Moving
 between stacks retains the charge; a new branch releases redo, then evicts oldest
 undo entries as needed. One oversized command is rejected before publication.
 This is a serialized retention budget, not a claim about allocator overhead/RSS.
 Candidate validation and JSON encoding still require transient document copies.
+
+Commands with at least 1 MiB of text use a private lossless Zstandard envelope when
+it is smaller. Expanded text is bounded to 48 MiB; length, SHA-256 and command shape
+are checked before history travel. Binary mementos remain separately charged.
+Save/Save As inspect the same bounded envelope to preserve Undo-only payloads.
+This changes in-memory retention, not the public project/package format. Detached
+import transfer is separately limited to 24 MiB compressed / 96 MiB expanded and the
+native canonical document remains at 32 MiB.
+
+Batch application and memento capture index records once per touched field.
+Remove/reinsert order, stale-before checks, duplicate rejection and whole-track
+replacement semantics are preserved. Large city imports remain one atomic command.
 
 `begin_gesture(label)` → `stage_patches(batch)` → `commit_gesture()` coalesces
 repeated edits to a record into one command. Each staged sample's `before` must
@@ -169,6 +181,8 @@ held-worker/clock, lock, publication-race and draft recovery checks.
 
 `document_history_validator.gd` covers grouped edits, exact save/reopen, no-ops,
 stale/partial failure, metadata identity, both budget caps and canvas cancellation.
+`city_history_validator.gd` covers 6,000 mixed records, compressed atomic Undo/Redo,
+save/reopen, corruption, expanded-size limits and duplicate/stale failures.
 `document_recovery_validator.gd` covers write/backup/publish failures, origin/hash/
 size validation, conflicts and the three-way unsaved guard. It starts disposable Godot
 children that kill **themselves** before backup, before primary replacement and

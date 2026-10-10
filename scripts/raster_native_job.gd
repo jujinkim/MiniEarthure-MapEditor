@@ -23,7 +23,10 @@ func _decode_command(output: Dictionary) -> void:
 		_prepared = COMMAND.decode(decoded.get("prepared"))
 		failure = str(_prepared.get("error", ""))
 	if failure == "":
-		decoded.patches = _prepared.command.patches
+		var unpacked := COMMAND.HISTORY.unpack(_prepared.command)
+		failure = str(unpacked.get("error", ""))
+		decoded.patches = unpacked.get("patches", [])
+	if failure == "":
 		decoded.retained = _prepared.command.get("binary_mementos", {})
 		for path: Variant in decoded.blob_paths:
 			if path is not String or not decoded.retained.has(path) or path != "editor/" + PAYLOADS.digest(decoded.retained[path]) + ".png":
@@ -31,6 +34,8 @@ func _decode_command(output: Dictionary) -> void:
 				break
 	if failure == "":
 		for patch: Variant in decoded.patches:
+			# COMMAND.decode already checks the exact imported free-roam policy.
+			if patch.get("field") == "free_roam": continue
 			if patch.get("field") not in ["heightmaps", "attributions"] or patch.get("after") is not Dictionary or (patch.get("before") != null and patch.before is not Dictionary):
 				failure = "Invalid raster command transfer."
 				break

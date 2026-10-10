@@ -183,7 +183,10 @@ func _draw() -> void:
 		if not available(entry, true): color = Color(0.5, 0.52, 0.55, color.a)
 		if entry.field in ["water_bodies", "surface_areas", "zones", "buildings"]:
 			if points.size() < 3: continue
-			if record.get("holes", record.get("islands", [])).is_empty():
+			# At city zoom, valid cm-scale outlines can collapse to a subpixel
+			# sliver in the canvas' float coordinates. Keep their outline, and
+			# fill only a screen polygon the renderer can actually triangulate.
+			if record.get("holes", record.get("islands", [])).is_empty() and not Geometry2D.triangulate_polygon(points).is_empty():
 				draw_colored_polygon(points, Color(color, color.a * (0.28 if chosen else 0.12)))
 			points.append(points[0])
 			draw_polyline(points, color, 2.5 if chosen else 1.5, true)

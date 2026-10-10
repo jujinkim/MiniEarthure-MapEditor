@@ -12,6 +12,7 @@ const TRACK_JOB := preload("./track_edit_job.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const FILES := preload("./document_files.gd")
+const HISTORY := preload("./history_codec.gd")
 const HISTORY_BYTES := 16 * 1024 * 1024
 const HISTORY_COMMANDS := 200
 const RECORD_FIELDS := ["pois", "nodes", "roads", "buildings", "water_bodies", "surface_areas", "zones", "assets", "placements", "gimmicks", "repetitions", "heightmaps", "attributions", "courses", "grind_lines", "surface_attachments"]
@@ -20,7 +21,7 @@ var document: Dictionary = {}
 var project_path := ""
 var undo_stack: Array[Dictionary] = []
 var redo_stack: Array[Dictionary] = []
-# Serialized UTF-8 memento budget, shared by BOTH stacks (not process RSS).
+# Retained text/compressed memento budget shared by BOTH stacks (not process RSS).
 var history_bytes := 0
 var dirty := false
 var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
@@ -508,19 +509,48 @@ func _patch_error(patch: Variant) -> String:
 			return "Command ID must match both record mementos."
 	return ""
 
+func _flush_record_batches(target: Dictionary, batches: Dictionary) -> void:
+	for field: String in batches:
+		var records: Array = []
+		for record: Variant in batches[field].records:
+			if record != null: records.append(record)
+		target[field] = records
+	batches.clear()
+
+func _record_batch(target: Dictionary, field: String, batches: Dictionary) -> Dictionary:
+	if not batches.has(field):
+		var records: Array = target.get(field, []).duplicate()
+		var indices := {}
+		var counts := {}
+		for i in range(records.size()):
+			var id := record_id(field, records[i])
+			if not indices.has(id): indices[id] = i
+			counts[id] = int(counts.get(id,0))+1
+		batches[field] = {"records":records,"indices":indices,"counts":counts}
+	return batches[field]
+
+func _indexed_value(target: Dictionary, field: String, id: String, batches: Dictionary) -> Variant:
+	if field not in RECORD_FIELDS: return _get_value(target,field,id)
+	var batch := _record_batch(target,field,batches)
+	return batch.records[int(batch.indices[id])] if batch.indices.has(id) else null
+
 func _apply(target: Dictionary, patches: Array, reverse: bool) -> String:
 	var ordered := patches.duplicate()
+	var batches := {}
 	if reverse:
 		ordered.reverse()
 	for patch in ordered:
 		var failure := _patch_error(patch)
 		if failure != "":
+			_flush_record_batches(target,batches)
 			return failure
 		var field := str(patch.field)
 		var id := str(patch.get("id", ""))
 		var before: Variant = patch.after if reverse else patch.before
 		var after: Variant = patch.before if reverse else patch.after
-		if (_signature(target) != _signature(before)) if field == "track_document" else (_json_copy(_get_value(target, field, id)) != _json_copy(before)):
+		if field == "track_document": _flush_record_batches(target,batches)
+		if (_signature(target) != _signature(before)) if field == "track_document" else (_json_copy(_indexed_value(target, field, id,batches)) != _json_copy(before)):
+			_flush_record_batches(target,batches)
 			return "Document changed since command creation."
 		if field == "track_document":
 			target.clear()
@@ -530,20 +560,19 @@ func _apply(target: Dictionary, patches: Array, reverse: bool) -> String:
 			if field in ["environment", "assembled_track"] and after == null: target.erase(field)
 			else: target[field] = _json_copy(after)
 			continue
-		var records: Array = target.get(field, [])
-		var matches := 0
-		for record: Dictionary in records:
-			if record_id(field, record) == id:
-				matches += 1
-		if matches > 1:
+		var batch := _record_batch(target,field,batches)
+		if int(batch.counts.get(id,0)) > 1:
+			_flush_record_batches(target,batches)
 			return "Ambiguous duplicate record identity; no document changes were applied."
-		target[field] = records
-		for i in range(records.size()):
-			if record_id(field, records[i]) == id:
-				records.remove_at(i)
-				break
+		if batch.indices.has(id):
+			batch.records[int(batch.indices[id])] = null
+			batch.indices.erase(id)
+		batch.counts.erase(id)
 		if after != null:
-			records.append(_json_copy(after))
+			batch.indices[id] = batch.records.size()
+			batch.counts[id] = 1
+			batch.records.append(_json_copy(after))
+	_flush_record_batches(target,batches)
 	return ""
 
 func apply_command(label: String, patches: Array) -> String:
@@ -576,6 +605,8 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 	# normalization adds defaults and sorts records; undo must match that result.
 	var mementos: Array = []
 	var seen := {}
+	var before_index := {}
+	var after_index := {}
 	for patch: Dictionary in patches:
 		var field := str(patch.field)
 		var id := str(patch.get("id", ""))
@@ -583,20 +614,16 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 		if seen.has(key):
 			continue
 		seen[key] = true
-		var before: Variant = _get_value(document, field, id)
-		var after: Variant = _get_value(candidate, field, id)
+		var before: Variant = _indexed_value(document,field,id,before_index)
+		var after: Variant = _indexed_value(candidate,field,id,after_index)
 		if before != after:
 			mementos.append({"field": field, "id": id, "before": before, "after": after})
 	if mementos.is_empty():
 		return {"noop": true}
 	var command: Dictionary = {"label": label, "patches": mementos.duplicate(true)}
 	var command_json := JSON.stringify(command)
-	var bytes := command_json.to_utf8_buffer().size()
-	for blob: PackedByteArray in binary_mementos.values(): bytes += blob.size()
-	if bytes > HISTORY_BYTES:
-		return {"error": "Command exceeds the 16 MiB undo budget; split this operation."}
-	command.bytes = bytes
-	if not binary_mementos.is_empty(): command.binary_mementos = binary_mementos.duplicate()
+	command = HISTORY.retain(command,command_json,binary_mementos)
+	if command.has("error"): return command
 	return {"candidate": candidate, "command": command, "canonical": str(validation.data.canonical),
 		"command_json": command_json, "signature": _signature(candidate)}
 
@@ -638,8 +665,10 @@ func _travel_history(reverse: bool) -> String:
 	return ""
 
 func _prepare_history(command: Dictionary, reverse: bool) -> Dictionary:
+	var unpacked := HISTORY.unpack(command)
+	if unpacked.has("error"): return unpacked
 	var candidate := document.duplicate(true)
-	var failure := _apply(candidate, command.patches, reverse)
+	var failure := _apply(candidate, unpacked.patches, reverse)
 	if failure != "":
 		return {"error":failure}
 	var validation := _validate(candidate)

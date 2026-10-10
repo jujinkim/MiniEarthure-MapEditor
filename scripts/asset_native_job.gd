@@ -51,8 +51,12 @@ func _decode_command(output: Dictionary) -> void:
 				failure = "Invalid immutable asset transfer."
 				break
 	if failure == "":
+		var unpacked := COMMAND.HISTORY.unpack(_prepared.command)
+		failure = str(unpacked.get("error", ""))
+		decoded.patches = unpacked.get("patches", [])
+	if failure == "":
 		var asset_count := 0
-		for patch: Dictionary in _prepared.command.patches:
+		for patch: Dictionary in decoded.patches:
 			if patch.field != "assets": continue
 			asset_count += 1
 			if patch.id != request.record.id or patch.after.get("id") != patch.id or not decoded.retained.has(patch.after.get("path")) or (patch.before != null and not decoded.retained.has(patch.before.get("path"))): failure = "Missing asset binary memento."

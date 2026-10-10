@@ -3,7 +3,7 @@ from collections import Counter
 from importlib.metadata import version
 import json
 from import_layer import number, MAX_POINTS
-from polygon_geometry import Budget, group_rings
+from polygon_geometry import Budget, SpatialBudget, group_rings
 
 VERTICAL_PROFILE = "explicit-ground-crop-v1"
 
@@ -91,14 +91,15 @@ def projected_bounds(value, coordinates):
     return [w,s,e,n]
 
 
-def crop(collection, selected):
+def crop(collection, selected, *, feature_limit=20_000, point_limit=None):
     selected = bounds(selected)
+    point_limit = MAX_POINTS if point_limit is None else point_limit
     if version("shapely") != "2.1.2":
         raise ValueError("OSM crop requires shapely 2.1.2; install requirements-import.txt")
     import shapely
     from shapely.geometry import shape, mapping
     window = shapely.box(*selected)
-    output, budget = [], Budget()
+    output, budget = [], SpatialBudget() if feature_limit > 20000 else Budget()
     counts = dict(input_features=len(collection["features"]), outside_features=0, changed_features=0, output_features=0, boundary_contacts=0)
     points = 0
     has_explicit = any("elevations_m" in f["properties"] for f in collection["features"])
@@ -118,7 +119,7 @@ def crop(collection, selected):
             if isinstance(value[0], (int, float)): return 1
             return sum(count(v) for v in value)
         points += count(feature["geometry"]["coordinates"])
-        if points > MAX_POINTS or len(output) >= 20_000:
+        if points > point_limit or len(output) >= feature_limit:
             raise ValueError("OSM crop output budget exceeded")
         output.append(feature)
 
@@ -180,7 +181,12 @@ def crop(collection, selected):
         else:
             geometries_json = [json.loads(json.dumps(mapping(g))) for g in geometries]
         for geometry in geometries_json:
-            append(dict(type="Feature", properties=feature["properties"], geometry=geometry))
+            properties = feature["properties"]
+            if not source.equals(clipped) and "_city_refs" in properties:
+                # Cut vertices do not acquire a source-node identity. Such
+                # boundary pieces are protected from cross-way chain merging.
+                properties = {k:v for k,v in properties.items() if k != "_city_refs"}
+            append(dict(type="Feature", properties=properties, geometry=geometry))
     # A boundary-only contact is not a drivable approach. Check the retained graph,
     # not the complete source's earlier connectivity proof.
     ground_ends = {ref for f in output if f["properties"].get("road_kind") == "ground"

@@ -15,6 +15,7 @@ func wait_import(ui: Control) -> void:
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.store.new_document()
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	if ui.import_python.text == "": ui.import_python.text = "python3"
@@ -48,6 +49,30 @@ func run() -> void:
 	file.store_string(JSON.stringify(geo))
 	file.close()
 	var original := FileAccess.get_sha256(path)
+	# SpinBox step arithmetic is not generally the decimal displayed to users.
+	# CLI arguments must round-trip that exact float, not str()'s shorter text.
+	var precise_file := ProjectSettings.globalize_path("user://precise-origin.geojson")
+	var lon := SpinBox.new(); lon.min_value=-180; lon.max_value=180; lon.step=0.000001; lon.value=123.456789
+	var lat := SpinBox.new(); lat.min_value=-80; lat.max_value=84; lat.step=0.000001; lat.value=45.678901
+	var coords := {"mode":"wgs84-utm","origin":[lon.value,lat.value],"local_origin_m":[512.01,512.07]}
+	lon.free(); lat.free()
+	var x: float=coords.origin[0]; var y: float=coords.origin[1]
+	var precise_geo := {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"height_m":12},"geometry":{"type":"Polygon","coordinates":[[[x,y],[x+0.0002,y],[x+0.0002,y+0.0002],[x,y+0.0002],[x,y]]]}}]}
+	var precise_out := FileAccess.open(precise_file,FileAccess.WRITE)
+	precise_out.store_string(JSON.stringify(precise_geo,"",false,true)); precise_out.close()
+	var job := preload("res://scripts/import_job.gd").new()
+	var token := Crypto.new().generate_random_bytes(16).hex_encode()
+	check(job.start(precise_file,"MIT","synthetic",ui.import_python.text,token,coords)=="","precise projection starts")
+	var deadline := Time.get_ticks_msec()+15000
+	while not job.done and Time.get_ticks_msec()<deadline: job.poll(); await process_frame
+	check(job.done and job.result.get("ok",false),"precise projection worker: "+str(job.result.get("error",{})))
+	if job.result.get("ok",false):
+		var precision_error := LAYER.new().load_value(job.result.data,token,coords)
+		check(precision_error=="","fractional UI origin round-trips exactly: "+precision_error+" requested="+JSON.stringify(coords,"",false,true)+" actual="+JSON.stringify(job.result.data.coordinates,"",false,true))
+		var changed: Dictionary=job.result.data.duplicate(true)
+		changed.coordinates.origin[0]+=0.000001
+		check(LAYER.new().load_value(changed,token,coords)!="","changed origin remains rejected")
+	job.cleanup()
 	ui._start_import(path,"MIT")
 	await wait_import(ui)
 	check(ui.pending_import != null, "projection candidate: " + ui.status_label.text)
@@ -85,12 +110,15 @@ func run() -> void:
 	check(chunk.ok, "shared native generation for projected geometry")
 	# Updating original data has no automatic effect; new candidate is separate.
 	geo.features[0].properties.height_m = 23
+	# The current native contract rejects overlapping building volumes.
+	# A changed source adds a separate, valid footprint; it never replaces the old one.
+	for point: Array in geo.features[0].geometry.coordinates[0]: point[0]+=0.001
 	file = FileAccess.open(path,FileAccess.WRITE)
 	file.store_string(JSON.stringify(geo))
 	file.close()
 	ui._start_import(path,"MIT")
 	await wait_import(ui)
-	check(ui.pending_import != null and ui.pending_import.value.source.sha256 != original, "updated source produces new candidate")
+	check(ui.pending_import != null and ui.pending_import.value.source.sha256 != original, "updated source produces new candidate: "+ui.status_label.text)
 	ui._adopt_import()
 	await wait_import(ui)
 	check(ui.store.document.buildings.size() == 2, "updated source adds separate layer")

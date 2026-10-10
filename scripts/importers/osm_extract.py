@@ -5,7 +5,7 @@ import re
 from collections import Counter
 
 from import_layer import MAX_INPUT, MAX_POINTS
-from polygon_geometry import Budget, group_rings
+from polygon_geometry import Budget, SpatialBudget, group_rings
 from osm_review import Review, source_error
 
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
@@ -176,15 +176,22 @@ def structure_connections(roads, source_uses):
     return joins
 
 
-def split_vertical_roads(features, source_uses=None, connections=None):
+def split_vertical_roads(features, source_uses=None, connections=None, feature_limit=None, review=None):
     """Join only shared source node IDs; split explicit roads at graph junctions."""
+    feature_limit = MAX_FEATURES if feature_limit is None else feature_limit
     roads = [f for f in features if "osm_node_refs" in f["properties"]]
-    uses = Counter(ref for f in roads for ref in set(f["properties"]["osm_node_refs"]))
+    rejected = set()
     for f in roads:
         refs = f["properties"]["osm_node_refs"]
         unique = refs[:-1] if closed_road(f["properties"]) else refs
         if len(set(unique)) != len(unique):
-            raise ValueError("OSM explicit road repeats nodes; prepare unambiguous segments")
+            message = "OSM explicit road repeats nodes; prepare unambiguous segments"
+            if review is None: raise ValueError(message)
+            review.reject(f["properties"]["osm_source_id"], message)
+            rejected.add(f["properties"]["osm_source_id"])
+    features = [f for f in features if f["properties"].get("osm_source_id") not in rejected]
+    roads = [f for f in features if "osm_node_refs" in f["properties"]]
+    uses = Counter(ref for f in roads for ref in set(f["properties"]["osm_node_refs"]))
     joins = structure_connections(roads, uses if source_uses is None else source_uses)
     if connections is not None: connections.extend(joins)
     arms = Counter()
@@ -203,7 +210,7 @@ def split_vertical_roads(features, source_uses=None, connections=None):
         refs = p["osm_node_refs"]
         cuts = [0] + [i for i in range(1, len(refs)-1) if closed_road(p) or uses[refs[i]] > 1] + [len(refs)-1]
         for a,b in zip(cuts,cuts[1:]):
-            if len(output) >= MAX_FEATURES:
+            if len(output) >= feature_limit:
                 raise ValueError("OSM split feature budget exceeded")
             properties = dict(p, osm_node_refs=refs[a:b+1])
             if "elevations_m" in p: properties["elevations_m"] = p["elevations_m"][a:b+1]
@@ -414,12 +421,13 @@ def way_feature(identity, kind, references, tags, nodes, node_tags, area_members
     return dict(type="Feature", properties=properties, geometry=geometry)
 
 
-def build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts, supplement=None, source_sha256=None, review=None):
+def build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts, supplement=None, source_sha256=None, review=None, *, feature_limit=None, city=False):
     """Normalize a complete bounded selection from either snapshot reader."""
     if supplement is not None:
         node_tags = supplement.apply(nodes, node_tags, ways, source_sha256)
     review = review or Review()
-    topology = Budget()
+    feature_limit = MAX_FEATURES if feature_limit is None else feature_limit
+    topology = SpatialBudget() if city else Budget()
     assembled, consumed = [], set()
     for relation in sorted(relations):
         try:
@@ -463,17 +471,32 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             kind=p["road_kind"], clearance_cm=round(p["clearance_m"]*100) if p["road_kind"] == "tunnel" else None))
     connections = []
     features = split_vertical_roads(features,
-        Counter(ref for _, kind, refs, _ in ways if kind == "road" for ref in set(refs)), connections)
+        Counter(ref for _, kind, refs, _ in ways if kind == "road" for ref in set(refs)), connections, feature_limit, review)
+    retained_ways = {f["properties"].get("osm_way_id") for f in features}
+    loop_sources = [s for s in loop_sources if int(s["way"]) in retained_ways]
     counts["explicit_height_roads"] = sum("elevations_m" in f["properties"] for f in features)
     counts["bridge_segments"] = sum(f["properties"].get("road_kind") == "bridge" for f in features)
     counts["tunnel_segments"] = sum(f["properties"].get("road_kind") == "tunnel" for f in features)
     features.extend(assembled)
-    if len(features) > MAX_FEATURES:
+    if len(features) > feature_limit:
         raise ValueError("OSM selected feature budget exceeded")
     if not features:
         raise ValueError("OSM extract contains no supported road/building/forest/orchard features")
     counts["structure_continuations"] = len(connections)
     collection = dict(type="FeatureCollection", features=features)
+    if city:
+        relation_tags = {identity: tags for identity, kind, members, tags in relations}
+        for feature in features:
+            p = feature["properties"]
+            kind, identity = p["osm_source_id"].split("/")
+            refs, tags = all_ways[int(identity)] if kind == "way" else ([], relation_tags[int(identity)])
+            p["_city_name"] = tags.get("name", "")
+            p["_city_landmark"] = any(key in tags for key in ("historic", "tourism", "amenity"))
+            if feature["geometry"]["type"] == "LineString" and "osm_node_refs" not in p:
+                p["_city_refs"] = refs
+                # Do not merge roads across semantic changes omitted by the
+                # legacy display adapter (oneway, access, name, classification).
+                p["_city_road_tags"] = {key: tags[key] for key in ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction") if key in tags}
     if connections: collection["osm_connections"] = connections
     if loop_sources:
         structural = any(s["kind"] != "ground" for s in loop_sources)

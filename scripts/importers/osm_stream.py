@@ -35,6 +35,25 @@ OWNED_FILES = ("source.pbf.part", "source.pbf", "source-index.sqlite", *NODE_FIL
 WAY_BATCH_ROWS = 128
 WAY_BATCH_BYTES = 4 * 1024**2
 
+# Only the explicit city-generalization path can stage more original geometry.
+# Final ImportLayer/Undo/native limits are unchanged. These are source-work caps,
+# never output admission limits or permission to discard source objects.
+CITY_INPUT = 256 * 1024**2
+CITY_POINTS = 2_000_000
+CITY_REFS = 4_000_000
+CITY_ENTITIES = 2_000_000
+CITY_FEATURES = 250_000
+
+
+def _payload(raw):
+    """Private scratch compression, bounded to the existing per-way allowance."""
+    if not isinstance(raw, bytes): return raw
+    inflater = zlib.decompressobj()
+    decoded = inflater.decompress(raw, WAY_BATCH_BYTES + 1)
+    if len(decoded) > WAY_BATCH_BYTES or not inflater.eof or inflater.unused_data or inflater.unconsumed_tail:
+        raise ValueError("OSM index payload budget exceeded")
+    return decoded.decode("utf-8")
+
 
 def _varint(value):
     out = bytearray()
@@ -81,48 +100,55 @@ def _frame(kind, payload):
     return struct.pack(">I", len(header)) + header + blob
 
 
-def _blocks(path, stage, event, size):
+def _read_block(stream):
+    prefix = stream.read(4)
+    if len(prefix) != 4: raise ValueError("truncated PBF frame")
+    length = struct.unpack(">I", prefix)[0]
+    if not 0 < length <= MAX_HEADER: raise ValueError("PBF header budget exceeded")
+    header_raw = stream.read(length)
+    if len(header_raw) != length: raise ValueError("truncated PBF header")
+    header = _fields(header_raw)
+    kind, amount = header.get(1), header.get(3)
+    if kind not in (b"OSMHeader", b"OSMData") or type(amount) is not int or not 0 < amount <= MAX_BLOB:
+        raise ValueError("unsupported PBF block or blob budget exceeded")
+    raw = stream.read(amount)
+    if len(raw) != amount: raise ValueError("truncated PBF blob")
+    blob = _fields(raw)
+    if set(blob) == {1} and isinstance(blob[1], bytes):
+        payload = blob[1]
+    elif set(blob) == {2, 3} and type(blob[2]) is int and isinstance(blob[3], bytes) and 0 < blob[2] <= MAX_BLOB:
+        inflater = zlib.decompressobj()
+        payload = inflater.decompress(blob[3], MAX_BLOB+1)
+        if len(payload) != blob[2] or not inflater.eof or inflater.unused_data or inflater.unconsumed_tail:
+            raise ValueError("PBF decompressed size/budget mismatch")
+    else:
+        raise ValueError("PBF stream requires raw or zlib blobs with bounded raw_size")
+    if not 0 < len(payload) <= MAX_BLOB: raise ValueError("PBF expanded blob budget exceeded")
+    return kind, payload
+
+
+def _blocks(path, stage, event, size, *, offsets=False):
     event(stage, 0, size)
     completed, last_report = 0, 0
     with path.open("rb") as stream:
         while completed < size:
-            prefix = stream.read(4)
-            if len(prefix) != 4: raise ValueError("truncated PBF frame")
-            length = struct.unpack(">I", prefix)[0]
-            if not 0 < length <= MAX_HEADER: raise ValueError("PBF header budget exceeded")
-            header_raw = stream.read(length)
-            if len(header_raw) != length: raise ValueError("truncated PBF header")
-            header = _fields(header_raw)
-            kind, amount = header.get(1), header.get(3)
-            if kind not in (b"OSMHeader", b"OSMData") or type(amount) is not int or not 0 < amount <= MAX_BLOB:
-                raise ValueError("unsupported PBF block or blob budget exceeded")
-            raw = stream.read(amount)
-            if len(raw) != amount: raise ValueError("truncated PBF blob")
-            blob = _fields(raw)
-            if set(blob) == {1} and isinstance(blob[1], bytes):
-                payload = blob[1]
-            elif set(blob) == {2, 3} and type(blob[2]) is int and isinstance(blob[3], bytes) and 0 < blob[2] <= MAX_BLOB:
-                inflater = zlib.decompressobj()
-                payload = inflater.decompress(blob[3], MAX_BLOB+1)
-                if len(payload) != blob[2] or not inflater.eof or inflater.unused_data or inflater.unconsumed_tail:
-                    raise ValueError("PBF decompressed size/budget mismatch")
-            else:
-                raise ValueError("PBF stream requires raw or zlib blobs with bounded raw_size")
-            if not 0 < len(payload) <= MAX_BLOB: raise ValueError("PBF expanded blob budget exceeded")
-            completed += 4 + length + amount
-            yield kind, payload
+            offset = stream.tell()
+            kind, payload = _read_block(stream)
+            completed = stream.tell()
+            yield (kind, payload, offset) if offsets else (kind, payload)
             if completed-last_report >= 8*COPY_BLOCK or completed == size:
                 event(stage, completed, size)
                 last_report = completed
         if completed != size or stream.read(1): raise ValueError("PBF snapshot size changed")
 
 
-def _scan(path, stage, event, size, osmium, entity_bits, callback, entity_filter=None):
+def _scan(path, stage, event, size, osmium, entity_bits, callback, entity_filter=None, block_callback=None):
     header, blocks = None, 0
     # One worker/one queued task: input size does not create a growing read queue.
     pool = osmium.io.ThreadPool(1, 1)
     try:
-        for kind, payload in _blocks(path, stage, event, size):
+        for kind, payload, offset in _blocks(path, stage, event, size, offsets=True):
+            if block_callback is not None: block_callback(offset)
             if kind == b"OSMHeader":
                 if header is not None or blocks: raise ValueError("duplicate/misplaced PBF header")
                 header = _frame(kind, payload)
@@ -182,7 +208,7 @@ def _potential(tags):
     return bool(tags.get("highway") or tags.get("building", "no") != "no" or "building:part" in tags or tags.get("landuse") or tags.get("natural") in ("wood","water","wetland","bare_rock","scrub","grassland") or tags.get("leisure") in ("park","nature_reserve") or tags.get("boundary")=="protected_area")
 
 
-def _structure_closure(db, event, size):
+def _structure_closure(db, event, size, read_way=None):
     """Visit all incident highways at structural/loop nodes; transit both kinds.
 
     Open ground approaches are included whole but are not traversal edges. A separate
@@ -201,7 +227,7 @@ def _structure_closure(db, event, size):
     event("index_relations", size, size)
     while pending:
         way = pending.popleft()
-        raw = db.execute("SELECT data FROM ways WHERE id=?", (way,)).fetchone()[0]
+        raw = read_way(way) if read_way is not None else _payload(db.execute("SELECT data FROM ways WHERE id=?", (way,)).fetchone()[0])
         payload_bytes += len(raw.encode("utf-8"))
         if payload_bytes > MAX_INPUT: raise ValueError("OSM structure closure payload budget exceeded")
         refs, _ = json.loads(raw)
@@ -229,14 +255,17 @@ def _structure_closure(db, event, size):
                 ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits, **(dict(loops=loops) if loops else {}))
 
 
-def extract(source, selected, directory, event=lambda *a: None, supplement=None, review=None):
+def extract(source, selected, directory, event=lambda *a: None, supplement=None, review=None, *, city=False):
     review = review or Review()
     selected = bounds(selected)
     source, directory = Path(source), Path(directory)
+    input_limit, point_limit, ref_limit, entity_limit, feature_limit = (
+        (CITY_INPUT, CITY_POINTS, CITY_REFS, CITY_ENTITIES, CITY_FEATURES) if city else
+        (MAX_INPUT, MAX_POINTS, MAX_REFS, MAX_ENTITIES, MAX_FEATURES))
     # Refuse before claiming ownership. Cleanup may only remove files created here.
     if any((directory / name).exists() for name in OWNED_FILES):
         raise ValueError("PBF stream workspace already contains owned filenames")
-    db, locations = None, None
+    db, locations, lazy_pool = None, None, None
     try:
         size, digest = _capture(source, directory, event)
         path = directory / "source.pbf"
@@ -263,10 +292,11 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         locations = DiskNodes(directory, db, MAX_INDEX)
         totals = dict(nodes=0, ways=0, relations=0, references=0)
         scanned = 0
-        def scalar(entity, key):
+        def scalar(entity, key, *, counted=True):
             nonlocal scanned
-            scanned += 1
-            totals[key] += 1
+            if counted:
+                scanned += 1
+                totals[key] += 1
             if scanned > MAX_SCAN_ENTITIES or entity.id <= 0 or not entity.visible:
                 raise ValueError("OSM scan entity budget/deleted or invalid ID")
             tag_count = len(entity.tags)
@@ -308,19 +338,24 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             locations.add(entity.id,x,y)
             if tags: tag_insert.execute("INSERT INTO node_tags VALUES(?,?)", (entity.id,json.dumps(tags)))
         pending_ways, pending_refs, pending_bytes = [], 0, 0
+        block_offset = 0
+        def block_start(offset):
+            nonlocal block_offset
+            block_offset = offset
         def flush_ways():
             nonlocal pending_refs, pending_bytes
             if not pending_ways: return
             boxes = locations.bounds_many([row[1] for row in pending_ways])
             db.executemany("INSERT INTO ways VALUES(?,?,?,?,?,?,?)",
-                ((identity,*(box or [None]*4),raw,int(potential))
-                 for (identity,refs,tags,raw,potential),box in zip(pending_ways,boxes)))
+                ((identity,*(box or [None]*4),
+                  (zlib.compress(raw.encode("utf-8"), 1) if potential and intersects(box) else b"L"+struct.pack(">Q",offset)) if city else raw,int(potential))
+                 for (identity,refs,tags,raw,potential,offset),box in zip(pending_ways,boxes)))
             # Only source graph evidence, never an inferred positional join.
             # Batches obey the same aggregate reference/disk/deadline caps.
             db.executemany("INSERT OR IGNORE INTO road_nodes VALUES(?,?)",
-                ((ref,identity) for identity,refs,tags,raw,potential in pending_ways
+                ((ref,identity) for identity,refs,tags,raw,potential,offset in pending_ways
                  if "highway" in tags for ref in refs))
-            for (identity,refs,tags,raw,potential),box in zip(pending_ways,boxes):
+            for (identity,refs,tags,raw,potential,offset),box in zip(pending_ways,boxes):
                 if "highway" in tags:
                     if any(tags.get(k, "no") not in ("no", "0") for k in ("bridge", "tunnel")):
                         db.execute("INSERT INTO structural_ways VALUES(?)", (identity,))
@@ -340,18 +375,24 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             if size > WAY_BATCH_BYTES: raise ValueError("OSM way buffer byte budget exceeded")
             if len(pending_ways) >= WAY_BATCH_ROWS or pending_refs + len(refs) > MAX_LOOKUP or pending_bytes + size > WAY_BATCH_BYTES:
                 flush_ways()
-            pending_ways.append((entity.id,refs,tags,raw,potential))
+            pending_ways.append((entity.id,refs,tags,raw,potential,block_offset))
             pending_refs += len(refs); pending_bytes += size
         def relation(entity):
             tags = scalar(entity, "relations")
             references(len(entity.members))
             members, box, unsupported = [], None, ""
+            member_ways = set()
             area = tags.get("type") in ("multipolygon", "boundary")
             potential = _potential(tags)
             if potential and not len(entity.members): raise ValueError("OSM feature relation has no referenced geometry")
             for m in entity.members:
                 if len(m.role) > 512 or m.ref <= 0: raise ValueError("OSM invalid relation reference/role")
                 members.append((m.type,m.ref,m.role))
+                if area and m.type == "w":
+                    if m.ref in member_ways:
+                        unsupported = "area relation repeats a way member; original topology is not repaired"
+                        review.reject("relation/" + str(entity.id), unsupported)
+                    member_ways.add(m.ref)
                 if m.type == "r":
                     if potential: unsupported = "nested feature relation has unlocated geometry and is unsupported"
                     continue  # Non-area/non-feature relation semantics are disclosed omissions.
@@ -379,35 +420,72 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                     review.reject("relation/" + str(entity.id), exc)
                     candidate = False
             db.execute("INSERT INTO relations VALUES(?,?,?)", (entity.id,json.dumps([members,tags]) if candidate else None,int(candidate)))
+            owned_members = set()
             for kind,ref,role in members:
                 if area and kind == "w":
-                    # Duplicate membership must not disappear in INSERT OR IGNORE.
-                    db.execute("INSERT INTO owners VALUES(?,?,?)", (ref,entity.id,int(not candidate)))
+                    # Repeated source members have already rejected/excluded
+                    # their whole relation above. Keep blocked ownership once;
+                    # never adopt a silently deduplicated area boundary.
+                    if ref not in owned_members:
+                        db.execute("INSERT INTO owners VALUES(?,?,?)", (ref,entity.id,int(not candidate)))
+                        owned_members.add(ref)
                 if candidate and kind == "w": db.execute("INSERT OR IGNORE INTO chosen VALUES(?)", (ref,))
         for stage, bits, callback in [("index_nodes",osmium.osm.NODE,node),("index_ways",osmium.osm.WAY,way),("index_relations",osmium.osm.RELATION,relation)]:
-            _scan(path, stage, event, size, osmium, bits, callback)
+            _scan(path, stage, event, size, osmium, bits, callback, block_callback=block_start)
             if stage == "index_nodes": locations.seal()
             if stage == "index_ways": flush_ways()
             db.commit()
-        closure = _structure_closure(db, event, size)
+        lazy_header, resolved_blocks = None, 0
+        def read_way(identity):
+            nonlocal lazy_header, lazy_pool, resolved_blocks
+            raw = db.execute("SELECT data FROM ways WHERE id=?", (identity,)).fetchone()[0]
+            if not (isinstance(raw,bytes) and raw[:1] == b"L"):
+                return _payload(raw)
+            if len(raw) != 9: raise ValueError("Invalid indexed PBF block pointer")
+            offset = struct.unpack(">Q",raw[1:])[0]
+            if not 0 < offset < size: raise ValueError("Invalid indexed PBF block offset")
+            if lazy_pool is None: lazy_pool = osmium.io.ThreadPool(1,1)
+            with path.open("rb") as handle:
+                if lazy_header is None:
+                    kind,payload = _read_block(handle)
+                    if kind != b"OSMHeader": raise ValueError("Missing captured PBF header")
+                    lazy_header = _frame(kind,payload)
+                handle.seek(offset)
+                kind,payload = _read_block(handle)
+                if kind != b"OSMData": raise ValueError("Indexed way is not in a PBF data block")
+            processor = osmium.FileProcessor(osmium.io.FileBuffer(lazy_header+_frame(kind,payload),"pbf"), entities=osmium.osm.WAY, thread_pool=lazy_pool)
+            processor.with_filter(osmium.filter.IdFilter([identity]))
+            iterator, found = iter(processor), None
+            try:
+                for entity in iterator:
+                    if found is not None: raise ValueError("Duplicate indexed way")
+                    found = json.dumps([[n.ref for n in entity.nodes],scalar(entity,"ways",counted=False)])
+                    if len(found.encode("utf-8")) > WAY_BATCH_BYTES: raise ValueError("OSM indexed way payload budget exceeded")
+            finally:
+                iterator.close()
+            if found is None: raise ValueError("Indexed source way is missing")
+            db.execute("UPDATE ways SET data=? WHERE id=?",(zlib.compress(found.encode("utf-8"),1),identity))
+            resolved_blocks += 1
+            return found
+        closure = _structure_closure(db, event, size, read_way)
         event("index_relations", size, size)
         nodes, node_tags, all_ways, ways, relations, blocked = {}, {}, {}, [], [], set()
         counts = dict(nodes=0,ways=0,relations=0,ignored_ways=0,ignored_relations=0,tagged_nodes=0,assembled_relations=0,outer_rings=0,inner_rings=0,member_ways=0)
         selection_bytes, selected_refs = 0, 0
         total = db.execute("SELECT count(*) FROM chosen").fetchone()[0] + db.execute("SELECT count(*) FROM relations WHERE candidate=1").fetchone()[0]
-        if total > MAX_ENTITIES: raise ValueError("OSM selected entity budget exceeded")
+        if total > entity_limit: raise ValueError("OSM selected entity budget exceeded")
         event("select", 0, total, "entities")
         def admit(raw, refs=0):
             nonlocal selection_bytes, selected_refs
             selection_bytes += len(raw.encode("utf-8"))
             selected_refs += refs
-            if selection_bytes > MAX_INPUT or selected_refs > MAX_REFS or len(nodes)+len(all_ways)+len(relations) > MAX_ENTITIES:
+            if selection_bytes > input_limit or selected_refs > ref_limit or len(nodes)+len(all_ways)+len(relations) > entity_limit:
                 raise ValueError("OSM selected payload/reference/entity budget exceeded")
         completed = 0
         # Iterate the integer primary key, then lookup one payload. Avoid a SQL
         # join/sorter that could materialize all payloads before byte admission.
         for (identity,) in db.execute("SELECT id FROM chosen ORDER BY id"):
-            raw = db.execute("SELECT data FROM ways WHERE id=?", (identity,)).fetchone()[0]
+            raw = read_way(identity)
             admit(raw)
             refs,tags = json.loads(raw)
             admit("",len(refs))
@@ -419,10 +497,10 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                 kind = None
             if kind: ways.append((identity,kind,refs,tags))
             else: counts["ignored_ways"] += 1
-            if len(ways) > MAX_FEATURES: raise ValueError("OSM selected feature budget exceeded")
+            if len(ways) > feature_limit: raise ValueError("OSM selected feature budget exceeded")
             for ref in refs:
                 if ref in nodes: continue
-                if len(nodes) >= MAX_POINTS: raise ValueError("OSM selected node budget exceeded")
+                if len(nodes) >= point_limit: raise ValueError("OSM selected node budget exceeded")
                 x,y = locations.point(ref)
                 tagged = db.execute("SELECT tags FROM node_tags WHERE id=?", (ref,)).fetchone()
                 tags_at_node = json.loads(tagged[0]) if tagged else {}
@@ -437,7 +515,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             members,tags = json.loads(raw)
             admit("",len(members))
             relations.append((identity,category(tags),members,tags))
-            if len(ways)+len(relations) > MAX_FEATURES: raise ValueError("OSM selected feature budget exceeded")
+            if len(ways)+len(relations) > feature_limit: raise ValueError("OSM selected feature budget exceeded")
             completed += 1
             if completed % 100 == 0: event("select",completed,total,"entities")
         event("select",completed,total,"entities")
@@ -445,13 +523,15 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         admit("")
         counts.update(nodes=len(nodes),ways=len(all_ways),relations=len(relations),tagged_nodes=len(node_tags))
         event("parse",0,selection_bytes)
-        value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts,supplement,digest,review)
+        value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts,supplement,digest,review,feature_limit=feature_limit,city=city)
         meta = dict(profile=PROFILE,passes=3,source_bytes=size,source_sha256=digest,
                     scan=totals,structure_closure=closure,selected=dict(nodes=len(nodes),ways=len(all_ways),relations=len(relations),references=selected_refs,bytes=selection_bytes))
+        if city: meta.update(index_policy="source-block-pointers-v1", resolved_way_blocks=resolved_blocks)
         return value, counts, meta
     except (sqlite3.Error, RuntimeError, zlib.error) as exc:
         raise ValueError("invalid/budget-exceeding PBF stream: " + str(exc)[:300]) from exc
     finally:
+        if lazy_pool is not None: del lazy_pool
         if locations is not None: locations.close()
         if db is not None: db.close()
         for name in OWNED_FILES:

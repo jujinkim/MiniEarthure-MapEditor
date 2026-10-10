@@ -63,6 +63,7 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	ui.store.new_document()
 	var project := ProjectSettings.globalize_path("user://png-native-project")
 	check(ui.store.save_project(project) == "", "save synthetic PNG project")
 	var heights := PackedInt64Array(); heights.resize(17 * 17); heights.fill(0); heights[8 * 17 + 8] = 100
@@ -80,7 +81,7 @@ func run() -> void:
 	check(accepted(review) and review.generated_all and review.expected_cells == 0 and review.command_prepared, "PNG native and command preparation succeeds: " + str(review.result))
 	if not accepted(review): finish(); return
 	var previous := reviewed(review)
-	check(review.bundle.blob_paths.size() == 1 and review.bundle.patches.size() == 2, "one tile plus source notice")
+	check(review.bundle.blob_paths.size() == 1 and review.bundle.patches.size() == 3, "one tile plus source notice and imported free-roam policy")
 	check(not DirAccess.dir_exists_absolute(review.directory), "dynamic PNG candidate retired after success")
 	check(review.commit(ui.store) != "" and state() == before, "review cannot publish")
 	check(not FileAccess.file_exists(project.path_join(review.bundle.value.heightmap.path)), "review installs no project file")
@@ -186,7 +187,9 @@ func run() -> void:
 			"document": ui.store.document.theme += " changed"
 			"project": ui.store.project_path += "-changed"
 			"candidate": ui.author_panel.heightmap_candidate.value.layer_id = token()
-			"gesture": check(ui.store.begin_gesture("temporary") == "", "begin gesture"); ui.store.cancel_gesture()
+			"gesture":
+				check(ui.store.begin_gesture("temporary") == ui.store.EDIT_BUSY and not ui.store.has_gesture(), "owned import prevents a concurrent gesture")
+				pending.cancel()
 			"close": ui.author_panel.hide()
 			"cancel": ui.author_panel.heightmap_cancel.pressed.emit()
 		await wait_png()

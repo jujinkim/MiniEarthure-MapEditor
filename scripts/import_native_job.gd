@@ -3,7 +3,7 @@ extends "./import_job.gd"
 const COMMAND := preload("./import_command.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
-const REQUEST_LIMIT := 24 * 1024 * 1024
+const REQUEST_LIMIT := 64 * 1024 * 1024
 const RESULT_LIMIT := 4096
 var layer: RefCounted
 var adopting := false
@@ -17,6 +17,7 @@ var startup_seen := false
 var generated_all := false
 var source_rechecked := false
 var structural := false
+var generation_limit := 16
 var command_prepared := false
 var document_epoch := -1
 var _store_id := 0
@@ -31,6 +32,7 @@ func start_validation(store: RefCounted, candidate: RefCounted, adopt: bool, sel
 	# Includes source-connected ground loops; zero generated cells cannot certify
 	# their native junction geometry either. Raster subclasses set this explicitly.
 	structural = candidate.requires_generation()
+	generation_limit = candidate.generation_cell_limit()
 	identity = token
 	import_kind = "native"
 	layer = candidate
@@ -48,7 +50,7 @@ func start_validation(store: RefCounted, candidate: RefCounted, adopt: bool, sel
 			if path not in owned_payloads: owned_payloads.append(path)
 	var bytes := JSON.stringify({"request":token, "document":store.document, "layer":candidate.value,
 		"project":project_source, "source":source, "expected_payloads":candidate.native_payload_digest if adopt else ""}).to_utf8_buffer()
-	if bytes.size() > REQUEST_LIMIT: return "Native import request exceeds 24 MiB."
+	if bytes.size() > REQUEST_LIMIT: return "Native import request exceeds 64 MiB."
 	return _start_request(bytes)
 
 func _start_request(bytes: PackedByteArray) -> String:
@@ -102,7 +104,7 @@ func _event(line: PackedByteArray) -> void:
 		return
 	var index := stages.find(raw.get("stage"))
 	var terminal_event := index == stages.size() - 1
-	var limit := RESULT_LIMIT if terminal_event else (16 if structural else 0) if raw.get("stage") == "generate" else PAYLOADS.MAX_PAYLOAD_BYTES if raw.get("stage") == "snapshot" else 2 * 1024 * 1024 * 1024 if raw.get("stage") in ["source", "recheck"] else 1
+	var limit := RESULT_LIMIT if terminal_event else (generation_limit if structural else 0) if raw.get("stage") == "generate" else PAYLOADS.MAX_PAYLOAD_BYTES if raw.get("stage") == "snapshot" else 2 * 1024 * 1024 * 1024 if raw.get("stage") in ["source", "recheck"] else 1
 	var unit := "cells" if raw.get("stage") == "generate" else "bytes" if raw.get("stage") in ["source", "snapshot", "recheck", "complete"] else "steps"
 	if index < 0 or index < phase or (not terminal_event and index > phase + 1) or raw.get("unit") != unit or not LAYER._count(raw.get("completed"), limit) or not LAYER._count(raw.get("total"), limit) or raw.completed > raw.total:
 		_fail("Invalid native validation progress budget/stage.")

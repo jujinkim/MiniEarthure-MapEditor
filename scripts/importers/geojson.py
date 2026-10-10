@@ -11,7 +11,7 @@ import threading
 import time
 from import_layer import ImportLayer, Source, MAX_INPUT, MAX_RECORDS, number, text, strict_json
 from projection import Coordinates
-from polygon_geometry import Budget, group_rings
+from polygon_geometry import Budget, SpatialBudget, group_rings
 
 
 MAX_COLLECTION_DEPTH = 16
@@ -59,7 +59,7 @@ def collection_features(features):
     return output, dict(profile="feature-leaves-v1", sources=sources, leaves=leaves)
 
 
-def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False, captured_source=None):
+def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False, captured_source=None, city=False):
     if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or "crs" in value:
         raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
     raw = b"" if captured_source is not None else source_bytes if source_bytes is not None else json.dumps(value, sort_keys=True, allow_nan=False).encode()
@@ -67,8 +67,10 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     topology_budget = Budget()
     layer = ImportLayer(layer_id or uuid.uuid4().hex, captured_source or Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v1")
     features = value.get("features")
-    if not isinstance(features, list) or not 1 <= len(features) <= 20_000:
-        raise ValueError("expected 1..20000 features")
+    from import_layer import CITY_FEATURES
+    limit = CITY_FEATURES if city else 20_000
+    if not isinstance(features, list) or not 1 <= len(features) <= limit:
+        raise ValueError(f"expected 1..{limit} features")
     collections = any(isinstance(f, dict) and isinstance(f.get("geometry"), dict) and
                       f["geometry"].get("type") == "GeometryCollection" for f in features)
     if collections:
@@ -76,6 +78,11 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
         features, metadata = collection_features(features)
         layer.coordinates["geojson_collections"] = metadata
     layer.feature_count = len(features)
+    city_sources = sorted({identity for feature in features for identity in feature.get("properties", {}).get("_city_sources", [])})
+    city_indices = {identity:index for index,identity in enumerate(city_sources)}
+    if city_sources:
+        layer.coordinates["city_source_ids"] = city_sources
+        topology_budget = SpatialBudget()
 
     def point(raw):
         p = transform.point(raw)
@@ -167,7 +174,10 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     output.append(points + [points[0]])
                 projected.append(output)
             if kind == "MultiPolygon" or any(len(rings) > 1 for rings in projected):
-                regrouped = group_rings([rings[0] for rings in projected], [hole for rings in projected for hole in rings[1:]], topology_budget)
+                try:
+                    regrouped = group_rings([rings[0] for rings in projected], [hole for rings in projected for hole in rings[1:]], topology_budget)
+                except ValueError as exc:
+                    raise ValueError(f"{properties.get('osm_source_id', index)}: {exc}") from exc
                 if regrouped != projected:
                     raise ValueError("polygon holes must belong to their declared outer after projection")
             zone = properties.get("landuse") in ("forest", "orchard")
@@ -181,7 +191,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                         protected=properties.get("protected", False), tags=properties.get("region_tags", {})))
                     if not zone: continue
                 if zone:
-                    layer.add("zones", {"id": part_id, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]})
+                    layer.add("zones", {"id": part_id, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 3200 if city else 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]})
                     layer.estimate("vegetation_spacing_density")
                 else:
                     usage = text(properties.get("usage", "unknown"), "usage", 64)
@@ -200,9 +210,20 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     layer.estimate("material_roof")
         else:
             raise ValueError(f"unsupported geometry {kind}; no features imported")
-        if osm_graph and properties.get("osm_source_id"):
+        if osm_graph and properties.get("osm_source_id") and not properties.get("_city_sources"):
             layer.coordinates.setdefault("source_objects", []).append(dict(source_id=properties["osm_source_id"],
                 record_ids=[p["id"] for p in layer.patches[first_record:]]))
+        if osm_graph and properties.get("_city_sources"):
+            # Patches for one feature are a contiguous range. Reference that
+            # range and one shared source-ID table instead of repeating long
+            # layer-qualified record IDs thousands of times in provenance.
+            mapping = dict(sources=[city_indices[s] for s in properties["_city_sources"]], records=[first_record,len(layer.patches)-first_record])
+            if properties.get("_city_name"): mapping["name"] = properties["_city_name"]
+            if properties.get("_city_estimated_height"): mapping["estimated_height"] = True
+            if properties.get("_city_names"): mapping["names"] = properties["_city_names"]
+            layer.coordinates.setdefault("city_mappings", []).append(mapping)
+            if properties.get("_city_estimated_height"):
+                layer.estimate("aggregated_building_height")
         if collections:
             metadata["leaves"][index].update(record_ids=[p["id"] for p in layer.patches[first_record:]],
                                               point_count=layer.point_count-first_point)
@@ -217,6 +238,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             if "osm_loop_range" not in p: continue
             retained.append(dict(road_id=f"import-{layer.layer_id}-{index}-loop", source_way=str(p["osm_way_id"]),
                 source_range=p["osm_loop_range"], refs=list(map(str,p["osm_node_refs"])), explicit_height="elevations_m" in p))
+            if "_city_loop_positions" in p: retained[-1]["source_positions"] = p["_city_loop_positions"]
         layer.coordinates["osm_ground_loops"] = dict(value["osm_ground_loops"], retained=retained)
     if osm_graph and value.get("osm_connections"):
         # Keep original source joins even when neither arm survives the crop.
@@ -265,6 +287,7 @@ def main():
     parser.add_argument("--csv-request", type=Path)
     parser.add_argument("--osm-bbox", nargs=4, type=float)
     parser.add_argument("--osm-stream", action="store_true")
+    parser.add_argument("--osm-city", action="store_true")
     parser.add_argument("--osm-review-exclusions", action="store_true")
     parser.add_argument("--vertical-request", type=Path)
     parser.add_argument("--height-supplement", type=Path)
@@ -279,6 +302,8 @@ def main():
         raise ValueError("PBF streaming requires PBF input and an explicit bbox")
     if args.osm_review_exclusions and not args.osm_stream:
         raise ValueError("Object exclusion review requires PBF streaming")
+    if args.osm_city and not args.osm_stream:
+        raise ValueError("Automatic city optimization requires PBF streaming")
     from osm_review import Review
     review = Review(args.osm_review_exclusions)
     if args.osm_bbox is not None:
@@ -338,7 +363,7 @@ def main():
             raise ValueError("OSM attribution must retain OpenStreetMap contributors and ODbL-1.0")
         if args.osm_stream:
             from osm_stream import extract
-            value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event,supplement,review)
+            value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event,supplement,review,city=args.osm_city)
             captured_source = Source(args.source_name or args.source.name, osm_stream["source_sha256"], osm_stream["source_bytes"], args.license, args.accuracy)
         else:
             value, osm_counts = parse(raw, args.input_format, supplement)
@@ -348,7 +373,11 @@ def main():
         value = vertical.apply(value)
         if args.osm_bbox is not None:
             from osm_area import crop
-            value, osm_crop = crop(value, args.osm_bbox)
+            if args.osm_city:
+                from osm_stream import CITY_FEATURES, CITY_POINTS
+                value, osm_crop = crop(value, args.osm_bbox, feature_limit=CITY_FEATURES, point_limit=CITY_POINTS)
+            else:
+                value, osm_crop = crop(value, args.osm_bbox)
     parse_bytes = osm_stream["selected"]["bytes"] if osm_stream else size
     event("parse", parse_bytes, parse_bytes)
     options = {"mode": args.coordinates}
@@ -356,7 +385,67 @@ def main():
         options.update(origin=args.origin, local_origin_m=args.local_origin)
     elif args.origin is not None or args.local_origin is not None:
         raise ValueError("local-metre mode must not specify geographic origins")
-    if args.input_format == "csv":
+    city_meta = None
+    if args.osm_city:
+        from copy import deepcopy
+        from osm_generalize import candidates, LEVELS
+        from import_layer import CITY_FEATURES as OUTPUT_FEATURES, CITY_POINTS as OUTPUT_POINTS, CITY_OUTPUT
+        from osm_extract import finish
+        for index, feature in enumerate(value["features"]):
+            feature["properties"]["_city_crop_feature"] = index
+        error = "City geometry cannot fit the current output budget while preserving protected objects"
+        event("optimize", 0, len(LEVELS), "steps")
+        result = None
+        for attempt, (candidate, metadata) in enumerate(candidates(value, options, review)):
+            event("optimize", attempt+1, len(LEVELS), "steps", features=metadata["after"]["features"], positions=metadata["after"]["positions"], gap_m=metadata["gap_m"], categories=metadata["after"])
+            if metadata["after"]["features"] > OUTPUT_FEATURES or metadata["after"]["positions"] > OUTPUT_POINTS:
+                continue
+            try:
+                trial = convert(candidate, args.source_name or args.source.name, args.license, layer_id=args.layer_id,
+                    accuracy=args.accuracy, coordinates=options, osm_graph=True, captured_source=captured_source, city=True)
+                metadata["groups"] = trial.coordinates.pop("city_mappings")
+                if metadata["source_ids"] != trial.coordinates.pop("city_source_ids"):
+                    raise ValueError("City source table changed during conversion")
+                trial.coordinates["osm_city"] = metadata
+                trial.coordinates["vertical"] = vertical.metadata
+                trial.coordinates["osm_stream"] = osm_stream
+                if supplement is not None: trial.coordinates["osm_height_supplement"] = supplement.metadata
+                if review.enabled: trial.coordinates["osm_review"] = review.metadata()
+                trial_crop = deepcopy(osm_crop)
+                remap = {f["properties"].get("_city_crop_feature"): i for i,f in enumerate(candidate["features"]) if "osm_node_refs" in f["properties"]}
+                for structure in trial_crop["vertical"]["structures"]:
+                    structure["feature"] = remap[structure["feature"]]
+                trial_crop["counts"]["pre_optimization_output_features"] = trial_crop["counts"]["output_features"]
+                trial_crop["counts"]["output_features"] = trial.feature_count
+                trial.coordinates["osm_crop"] = trial_crop
+                trial = finish(trial, osm_counts)
+                trial.warning(f"Automatic city optimization at 1:8: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Gap filling up to {metadata['gap_m']} source metres; inspect approximated blocks and heights.")
+                trial.warning("City source-block indexing retains complete selected ways, relation members and source graph closure. Original PBF hash, every retained source ID and output mapping are preserved; unsupported exclusions are separate. Crop ends are artificial; no bridge/tunnel heights are inferred.")
+                encoded_trial = trial.encode()
+                # Godot's JSON representation includes separator spaces. Its
+                # boundary budget applies to that representation as well as
+                # the compact wire file, so measure both before selecting.
+                from dataclasses import asdict
+                editor_bytes = len(json.dumps(asdict(trial), sort_keys=True, ensure_ascii=False, allow_nan=False).encode())
+                if editor_bytes > CITY_OUTPUT - 65536:
+                    raise ValueError(f"City Editor representation budget exceeded ({editor_bytes} bytes)")
+            except ValueError as exc:
+                if not any(reason in str(exc).lower() for reason in ("budget", "multipolygon", "polygon ring", "boundaries intersect", "ring is")):
+                    raise
+                error = str(exc)
+                continue
+            result, city_meta = trial, metadata
+            # Leave room for bounded source provenance and the atomic command.
+            # Object merging alone can retain nearly every bend/vertex and
+            # still overload native city cells. Prefer a candidate which also
+            # reduces geometric detail, within the disclosed fixed tolerances.
+            if len(encoded_trial) <= 24 * 1024**2 and metadata["after"]["features"] <= metadata["before"]["features"] * 0.8 and metadata["after"]["positions"] <= metadata["before"]["positions"] * 0.7:
+                break
+        if result is None:
+            raise ValueError(error + "; no supported object was silently dropped")
+        event("optimize", len(LEVELS), len(LEVELS), "steps")
+        event("convert", result.feature_count, result.feature_count, "features")
+    elif args.input_format == "csv":
         from facility_csv import convert as convert_csv
         if args.csv_request is None or args.csv_request.stat().st_size > 65536: raise ValueError("CSV mapping is required and must be bounded")
         result = convert_csv(raw, args.source_name or args.source.name, args.license, args.accuracy,
@@ -369,7 +458,7 @@ def main():
     else:
         result = convert(value, args.source_name or args.source.name, args.license, layer_id=args.layer_id, source_bytes=raw, accuracy=args.accuracy,
             progress=lambda completed, total: event("convert", completed, total, "features"), coordinates=options, osm_graph=osm_counts is not None, captured_source=captured_source)
-    if osm_counts is not None:
+    if osm_counts is not None and not args.osm_city:
         from osm_extract import finish
         result.coordinates["vertical"] = vertical.metadata
         if supplement is not None:

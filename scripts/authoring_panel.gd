@@ -363,11 +363,14 @@ func _setup() -> void:
 	for key in ["min", "max"]:
 		for axis in range(2): coordinates.append(number(box, I18N.t("Minimum %s (m)" if key == "min" else "Maximum %s (m)") % ["X", "Y"][axis], float(bounds[key][axis]) / 100, -100000, 100000, 0.01))
 	var base := number(box, "Implicit terrain base (m)", float(editor.store.document.terrain_base_cm) / 100, -10000, 10000, 0.01)
-	button(box, "Apply bounds and terrain base", func():
+	var cell_size := number(box, "Generation cell size (m)", float(editor.store.document.cell_size_cm) / 100, 2, 1024, 2)
+	fields.cell_size = cell_size
+	hint(box, "Smaller cells reduce generation work per cell without shrinking the map. For dense city imports, start with 128 m. Set this before importing terrain or assembling a track.")
+	button(box, "Apply map settings", func():
 		if not fresh(): return
 		var next_bounds := {"min":[roundi(coordinates[0].value*100),roundi(coordinates[1].value*100)],"max":[roundi(coordinates[2].value*100),roundi(coordinates[3].value*100)]}
-		var patches: Array = [{"field":"bounds","before":editor.store.document.bounds,"after":next_bounds},{"field":"terrain_base_cm","before":editor.store.document.terrain_base_cm,"after":roundi(base.value*100)}]
-		report(author.apply("Edit map bounds and terrain base", patches, true))
+		var patches: Array = [{"field":"bounds","before":editor.store.document.bounds,"after":next_bounds},{"field":"terrain_base_cm","before":editor.store.document.terrain_base_cm,"after":roundi(base.value*100)},{"field":"cell_size_cm","before":editor.store.document.cell_size_cm,"after":roundi(cell_size.value*100)}]
+		report(author.apply("Edit map settings", patches, true))
 	)
 	hint(box, "Save to a project directory before importing assets. Terrain and water can be edited before saving. Use 3D Preview to inspect the common renderer after editing. Terrain seams and road junction failures appear here immediately.")
 

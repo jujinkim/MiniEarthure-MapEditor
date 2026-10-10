@@ -35,5 +35,15 @@ func run() -> void:
 	check(layer.adopt(store) == "" and store.document.buildings[0].height_cm == 800, "custom GeoJSON retains 1:1 dimensions")
 	check(preload("res://scripts/import_units.gd").dem_denominator(authored) == 8, "DEM aligns with adopted OSM scale")
 	check(preload("res://scripts/import_units.gd").dem_denominator(store.document) == 1, "custom DEM is unscaled")
+	var units := preload("res://scripts/import_units.gd")
+	var road := {"id":"road","kind":"ground","from":"a","to":"b","points":[[80,0,80],[81,0,81],[160,0,160],[161,0,161]],"widths_cm":[160,160,160],"surfaces":["asphalt","asphalt","asphalt"]}
+	var source := [{"field":"roads","after":road}]
+	var scaled: Dictionary = units.osm_patches(source,true)[0].after
+	check(scaled.points==[[10,0,10],[20,0,20]] and scaled.widths_cm==[20] and scaled.from=="a" and scaled.to=="b","city removes only consecutive quantized duplicates, preserving endpoints and material")
+	check(road.points.size()==4 and units.osm_patches(source)[0].after.points.size()==4,"city cleanup never changes raw source or exact mode")
+	road.surfaces[1]="concrete"
+	check(units.osm_patches(source,true)[0].after.points.size()==4,"material boundary cannot be silently removed")
+	check(units._ring_duplicates([[0,0],[0,0],[1,0],[1,1],[0,1]])==[[0,0],[1,0],[1,1],[0,1]],"adjacent polygon duplicates retain the same mathematical footprint")
+	check(units._ring_duplicates([[0,0],[0,0],[1,0]]).size()==3,"collapsed courtyard stays invalid rather than silently filling")
 	print("import_units_validator: PASS (",checks,")")
 	quit(0)

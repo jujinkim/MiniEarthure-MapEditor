@@ -59,6 +59,8 @@ The rectangle includes surrounding territory outside the named boundary. This is
 an offline boundary diagram, not street imagery or cadastral coverage. Manual
 coordinates remain available for unnamed areas. No city coordinates are embedded
 in the adapter. Wide action buttons display both their icon and action text.
+On macOS, project/vector/PBF source selection uses the in-app file chooser:
+the system Open panel can leave confirmation disabled for a selected source.
 
 The former0.02-degree OSM side limit is replaced by the existing projection,
 selected-object, position, result, native and Undo budgets. Overture's separate
@@ -73,6 +75,66 @@ be checked after inspection. Rejected area members cannot reappear as flattened
 standalone polygons. Aggregate budgets and whole-candidate native validation stay
 mandatory; no bridge/tunnel height is invented from `layer` or DSM values.
 
+## Automatic city optimization
+
+PBF streaming enables **Automatic city optimization (1:8)** by default; turn it
+off for the exact bounded profile. This is an Editor-owned derived approximation,
+with no city-specific coordinates and no change to the original PBF. A 1:8 length
+scale alone does not reduce source objects or vertices. The city profile separates
+larger bounded source work from the smaller output accepted by MapKit.
+
+Compatible ordinary ground chains join at source degree-two nodes. Simplification
+preserves source junction positions, semantic boundaries and existing crossings;
+coincident independent source IDs are not welded. Closed ground-loop pieces can
+join across nonjunction source vertices. Degree-two ground bends may simplify
+within the same disclosed tolerance, with ordered original source positions and
+complete traversal ranges retained. Junctions cannot be hidden by that mapping.
+Structures and explicit heights keep their existing rules.
+Exactly equal adjacent centimetre vertices are removed after the single 1:8
+quantization; nonempty holes are never discarded by that cleanup.
+
+Compatible ordinary buildings are grouped within 256 m source tiles, at most 128
+sources per group. Deterministic candidates fill gaps from 0 to 64 source metres,
+simplify lines by at most 4 m and polygons by at most 8 m, then snap to a 0.08 m source
+grid (one map centimetre). Named/public/landmark and tall buildings remain protected
+from ordinary aggregation. Road corridors, protected land areas and courtyards
+block added filler. Compatible vegetation polygons are unioned as well.
+Forest/orchard geometry retains its areas and exclusions; illustrative trees use
+a disclosed32 m source lattice (4 m on the1:8 map) at750 per mille density. These
+are procedural estimates, not measured individual trees. The exact profile keeps
+its previous8 m source lattice.
+
+Road widths without source values use disclosed highway-class estimates, at least
+1.6 source metres (20 map centimetres), and source surfaces map to game materials.
+Buildings are cut around road space with a 0.8 m source clearance. Overlapping
+building volumes are partitioned with a 0.16 m clearance, prioritizing taller/named
+geometry. An enclosed source retains all original IDs/names in its containing
+volume and records its height as estimated. Complex polygons are split into
+bounded native pieces with a 0.32 m source separation; this is also an approximation,
+not a survey boundary. Numeric failures keep the original group for validation.
+
+Review reports before/after objects and positions, selected gap/tolerances, width
+and material estimates, road cuts and overlap changes. A compact source table maps
+every supported source to contiguous output records; validation rejects missing,
+duplicate or excluded source claims. No supported source object is silently dropped
+to meet a limit. If a building lies entirely inside derived road space, the
+default mode fails with its source ID. Explicit exclusion review may instead
+exclude that whole source, including all multipart pieces, with a warning that
+road widths may be estimates. Adoption requires the same inspected-exclusions
+checkbox; the building is never silently moved into a nearby block.
+
+City candidates generate every map cell sequentially before review and adoption,
+up to256 cells, with the existing120-second child timeout and native cell budgets.
+Batches of16 reuse immutable native preparation and discard generated chunks
+without building unused presentation buffers; every cell still generates.
+The Map authoring page exposes cell size in metres: smaller cells reduce local
+generation work without changing map extent or1:8 scale. Terrain tiles and
+assembled tracks prevent resizing because their grid references must not be
+reinterpreted. Changing cell size is one Undo command. The exact import profile
+keeps its16-cell structural check.
+If protected geometry or output/native budgets still do not fit,
+the entire candidate fails. This is not unlimited or proven coverage of every city.
+
 ## Facilities
 
 Select **Facility CSV**, set its license and source reference, choose the file's
@@ -81,7 +143,7 @@ columns**. Supply the category explicitly. Coordinates share the declared import
 origin and the adopted map's1:1 or1:8 scale. The selected OSM crop can filter the
 rows in addition to map bounds. Review includes every invalid line/name/reason
 and every outside line; invalid rows require explicit exclusion before adoption.
-Files stay unchanged. Up to20,000 rows and32MiB source bytes are accepted.
+Files stay unchanged. Up to20,000 rows and 32 MiB source bytes are accepted.
 
 Facilities appear in the Editor's Facilities list and the shared map pin/label
 renderer. Current-v1 `pois` preserves names, classifications, local coordinates
@@ -112,7 +174,8 @@ cannot silently override source heights. Ground connections, junction arms,
 continuations and partial bridge/tunnel crop use one current v1 provenance shape.
 Native generation verifies every affected corridor, at most16 cells, both at review
 and adoption. Tight/overlapping mouths, unsafe grades and conflicting clearances
-reject; no automatic simplification or geometry repair hides them.
+reject; city approximation never supplies missing structural heights or repairs
+invalid original topology.
 
 WGS84 projection and height conversion require explicit source/reference metadata.
 The bounded EGM96→EGM2008 delta-grid input must cover every original vertex.
@@ -129,27 +192,38 @@ retained stderr≤4KiB. Cancellation invalidates generation, terminates/reaps th
 child and removes only its scratch. Interrupted owned work is discovered without
 touching source files or another request's directory.
 
-Snapshot input≤32MiB, result≤12MiB,20,000 features,200,000 positions,60,000 records,
-50 warning samples and shared16MiB Undo budget remain admission bounds. Selected
+Exact snapshot input≤32MiB, result≤12MiB,20,000 features,200,000 positions and60,000
+records remain admission bounds. City source work permits 250,000 features,
+2 million positions/selected entities,4 million references and 256 MiB selected JSON;
+derived city output is bounded to 100,000 features,800,000 positions,180,000 records
+and 32 MiB in both wire and Editor JSON representations. Both retain 50 warning
+samples, whole-candidate native validation and shared 16 MiB retained Undo. City
+output is still subject to MapKit's 32 MiB document,200,000 objects and 1 million
+vertices; any smaller package, local geometry or projection bound remains active.
+Compressed history and native transfer are described in [DOCUMENTS](DOCUMENTS.md).
+Selected
 large-PBF scanning has a combined2GiB disk allowance for coordinate files and
 SQLite metadata; this does not relax selected
 payload, native geometry or history limits. Logical reservations are not RSS limits.
 The national-source scan permits100million raw entities and80million references,
 bounded independently by2GiB source/index and the15-minute deadline. This replaces
 the20million raw-entity scan cap that rejected the Korean source before spatial
-selection; the250,000 selected-entity and20,000 feature caps are unchanged. Name
+selection. Name
 lookup filters boundary member IDs in libosmium before materialising Python objects.
 Sorted node IDs use disposable read-only file arrays of exact1e-7-degree integer
 coordinates. Up to20,000 references are looked up together, preserving enclosing
 polygons and crossing ways even when no source vertex is inside the crop.
-Way lookups and SQLite writes are grouped across at most128 ways,20,000 total
+Way lookups and SQLite writes are grouped across at most 128 ways,20,000 total
 references and4MiB serialized payload. Each way retains its own envelope; empty
 ways, missing nodes and duplicate IDs cannot be merged away by batching. Metadata
 and incidence stay in SQLite; its page limit reserves the coordinate-file bytes
 before each64KiB append. Unsorted inputs use bounded-block SQLite indexing under
 the same combined disk allowance, with duplicate/missing-ID checks on both paths.
-The file mappings share that2GiB reservation; it is not a fixed resident-RAM claim.
-No geometry is simplified. NumPy2.5.3 is an explicit importer dependency;
+Unselected ways retain compact immutable PBF block locations rather than expanded
+tags/vertices in SQLite. Selected relation members are resolved from captured
+blocks on demand with duplicate/missing-node and source-hash checks. The file
+mappings share that2GiB reservation; it is not a fixed resident-RAM claim.
+Exact mode performs no geometric generalization. NumPy2.5.3 is an explicit importer dependency;
 install `requirements-import.txt` in Python3.12 or newer.
 Full failure text is available in **Activity → Operation details…**.
 The native PBF picker uses the single `*.pbf` extension filter, which also accepts
@@ -192,20 +266,36 @@ Undo/Redo compares authored content independently of the intentional edit timest
 The Editor UX validator passes 61 assertions, including complete timeout text,
 read-only details and minimum-window layout; name lookup also passes independently.
 
+City tests cover synthetic cities in different hemispheres,20,100 source buildings,
+road/park/courtyard/name protection, merged loops, topology, source coverage,
+determinism, width/material estimates, overlap partition and unchanged originals.
+The native synthetic city flow covers review, forged metadata, complete adoption,
+atomic Undo/Redo, project/package reopen, generated geometry and cancellation.
+Compressed-history and batch tests additionally cover 6,000 mixed records and
+corrupt/oversized/stale command failures. Read-only real-data diagnostics are kept
+separate from maps actually authored through the UI.
+
 The scoped macOS real-data workflow verified browser acquisition, Korean Suwon and
 Yeongtong name/boundary selection, click/drag coordinates, wide button labels,
-native PBF selection, source preservation and reopening the saved empty project.
-It did not produce a completed regional map: the 2026-10-09 Korean national PBF
-exhausts the combined2GiB index allowance, and a separately downloaded2,434,654-byte
-BBBike regional PBF still exceeds20,000 selected source features for the full
-Yeongtong rectangle `[127.032369,37.231186,127.089872,37.320589]`. Both reject before
-candidate adoption. DEM/facility adoption, real-map export/reopen and Client loading
-of that map remain unperformed. A small diagnostic area is not whole-region success.
-Supporting that region under the same budgets needs bounded partitioning with
-source topology, duplicate control, whole-candidate validation and atomic history;
-merely enlarging limits was not used. Ground roads follow terrain, but building
-`base_cm` is absolute: applying DEM does not automatically align estimated building
-bases, and the combined real-data height check remains outstanding.
+source preservation and reopening the saved project. The in-app macOS source
+chooser opens the original regional PBF; the system chooser remains unreliable.
+Projection CLI numbers preserve full precision and origin checks compare the same
+JSON-decoded representation as the helper response, avoiding SpinBox binary
+rounding mismatches while still rejecting changed coordinates.
+
+Read-only diagnostics on the full Yeongtong rectangle
+`[127.032369,37.231186,127.089872,37.320589]` reduce21,828 features/156,136 positions
+to14,149/108,821 (7,659 roads,5,410 buildings,1,080 areas; gap32 source metres).
+The11,531,765-byte Editor candidate passes all96 native cells at128 m cell size,
+including prepared command transfer and source recheck, within the unchanged
+120-second deadline. This is not yet proof of UI adoption or a completed map.
+The full Suwon candidate still exceeds the32MiB output allowance at33,822,459 bytes.
+National extraction now fits its unchanged2GiB index allowance; the former20,000
+selected-source ceiling belongs to the exact profile, not automatic city mode.
+Real DEM/facility adoption, package reopen and Client loading remain pending until
+that actual UI flow completes. Small diagnostic areas are not whole-region success.
+Ground roads follow terrain, but building `base_cm` is absolute: applying DEM does
+not automatically align estimated bases. The combined height check is separate.
 
 For a change, choose its `tests/test_osm*.py`, `test_collections.py` or other adapter
 unit and the relevant Godot validator via the root isolated checker. Do not repeat

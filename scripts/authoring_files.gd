@@ -86,12 +86,19 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 		_progress(context, "open", 1, 1)
 		_progress(context, "generate", 0, cells.size())
 		var completed := 0
-		for cell: Vector2i in cells:
-			result = native.generate_packed(cell.x,cell.y,false)
+		while completed < cells.size():
+			# Each bounded batch reuses one immutable prepared native document.
+			# Admission generates actual geometry without discarded render packing.
+			var batch: Array[Vector2i] = []
+			for i in range(completed, mini(completed+16,cells.size())): batch.append(cells[i])
+			result = JSON.parse_string(native.validate_cells(batch))
 			if not result.ok:
-				failure = "Cell %s: %s" % [cell, store.reason(result)]
+				failure = store.reason(result)
 				break
-			completed += 1
+			if result.get("data",{}).get("cells",-1) != batch.size():
+				failure = "Native cell validation did not complete the entire batch."
+				break
+			completed += batch.size()
 			_progress(context, "generate", completed, cells.size())
 	if context.has("hashes"):
 		for path: String in context.hashes:

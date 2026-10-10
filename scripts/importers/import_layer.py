@@ -8,6 +8,10 @@ MAX_INPUT = 32 * 1024 * 1024
 MAX_OUTPUT = 12 * 1024 * 1024
 MAX_RECORDS = 60_000
 MAX_POINTS = 200_000
+CITY_OUTPUT = 32 * 1024 * 1024
+CITY_RECORDS = 180_000  # Leave room below current-v1's 200,000 document objects.
+CITY_POINTS = 800_000  # Leave room below current-v1's 1,000,000 vertices.
+CITY_FEATURES = 100_000
 FIELDS = ("nodes", "roads", "buildings", "zones", "pois")
 
 
@@ -70,7 +74,7 @@ class ImportLayer:
             raise ValueError("invalid source hash")
 
     def add(self, field_name, record):
-        if field_name not in FIELDS or len(self.patches) >= MAX_RECORDS:
+        if field_name not in FIELDS or len(self.patches) >= (CITY_RECORDS if self.coordinates.get("city_source_ids") or self.coordinates.get("osm_city") else MAX_RECORDS):
             raise ValueError("unsupported record or import record budget exceeded")
         self.patches.append({"field": field_name, "id": record["id"], "before": None, "after": record})
 
@@ -84,7 +88,7 @@ class ImportLayer:
 
     def point(self, x, y):
         self.point_count += 1
-        if self.point_count > MAX_POINTS:
+        if self.point_count > (CITY_POINTS if self.coordinates.get("city_source_ids") or self.coordinates.get("osm_city") else MAX_POINTS):
             raise ValueError("coordinate budget exceeded")
         if not self.extent_cm:
             self.extent_cm = [x, y, x, y]
@@ -93,6 +97,7 @@ class ImportLayer:
 
     def encode(self):
         data = json.dumps(asdict(self), sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
-        if len(data) > MAX_OUTPUT:
-            raise ValueError("ImportLayer exceeds 12 MiB; use a smaller source area")
+        maximum = CITY_OUTPUT if self.coordinates.get("osm_city") or self.coordinates.get("city_source_ids") else MAX_OUTPUT
+        if len(data) > maximum:
+            raise ValueError(f"ImportLayer exceeds {maximum//1024**2} MiB output budget")
         return data

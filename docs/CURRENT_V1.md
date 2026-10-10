@@ -17,6 +17,12 @@ Copernicus `copernicus-dem-v1` uses one bounded array contract for a single loca
 COG or a folder mosaic. It preserves source hashes, atomic adoption, cancellation,
 Undo/Redo and source/output budgets. No previous import shape is auto-converted.
 
+The OSM city profile emits ordinary current-v1 geometry with a complete compact
+source/output map and reviewed approximations. It changes neither package numbers
+nor game execution formats. Its source/output limits and protected geometry are
+defined in [IMPORTS](IMPORTS.md); compressed atomic history is private Editor state
+defined in [DOCUMENTS](DOCUMENTS.md).
+
 Normal projects, regional packages, supported external map inputs and current
 recovery snapshots remain supported. Original files and already generated user
 artifacts are never removed. Historical examples retain their map names; their

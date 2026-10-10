@@ -5,6 +5,8 @@ const SNAPSHOT := preload("./project_snapshot.gd")
 const TYPES := preload("./import_layer.gd")
 const BUNDLE_LIMIT := 24 * 1024 * 1024
 const HISTORY_LIMIT := 16 * 1024 * 1024
+const HISTORY := preload("./history_codec.gd")
+const EXPANDED_BUNDLE_LIMIT := 96 * 1024 * 1024
 
 static func encode(prepared: Dictionary) -> Dictionary:
 	return {"version":1, "canonical":prepared.canonical, "command_json":prepared.command_json,
@@ -15,13 +17,14 @@ static func decode(value: Variant, allow_assets: bool = false, allow_generation:
 		return {"error":"Invalid prepared import command transfer."}
 	# Charge the actual text and bytes, never a size asserted by the result.
 	var size: int = value.command_json.to_utf8_buffer().size()
-	if value.canonical.to_utf8_buffer().size() > BUNDLE_LIMIT or size > HISTORY_LIMIT:
+	if value.canonical.to_utf8_buffer().size() > 32 * 1024 * 1024 or size > HISTORY.TEXT_LIMIT:
 		return {"error":"Prepared command exceeds its text budget."}
+	var binary_size := 0
 	for path: Variant in value.retained:
 		if path is not String or not SNAPSHOT.safe_relative(path) or value.retained[path] is not PackedByteArray:
 			return {"error":"Invalid prepared binary memento."}
-		size += value.retained[path].size()
-		if size > HISTORY_LIMIT: return {"error":"Prepared command exceeds the 16 MiB Undo budget."}
+		binary_size += value.retained[path].size()
+		if binary_size >= HISTORY_LIMIT: return {"error":"Prepared command exceeds the 16 MiB Undo budget."}
 	var document_parser := JSON.new()
 	var command_parser := JSON.new()
 	if document_parser.parse(value.canonical) != OK or command_parser.parse(value.command_json) != OK:
@@ -44,12 +47,14 @@ static func decode(value: Variant, allow_assets: bool = false, allow_generation:
 			continue
 		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]) or patch.field not in fields or patch.id is not String or patch.id.is_empty() or (patch.after is not Dictionary and not (allow_generation and patch.after == null)) or (patch.before != null and patch.before is not Dictionary):
 			return {"error":"Invalid prepared command memento."}
-	command.bytes = size
-	if not value.retained.is_empty(): command.binary_mementos = value.retained
+	command = HISTORY.retain(command,value.command_json,value.retained)
+	if command.has("error"): return command
 	return {"candidate":candidate, "command":command, "signature":value.signature}
 
 static func write_bundle(directory: String, bundle: Dictionary, output: Dictionary) -> String:
 	var bytes := var_to_bytes(bundle)
+	if bytes.size() > EXPANDED_BUNDLE_LIMIT: return "Prepared import transfer exceeds 96 MiB expanded."
+	bytes = var_to_bytes({"expanded":bytes.size(),"packed":bytes.compress(FileAccess.COMPRESSION_ZSTD)})
 	if bytes.size() > BUNDLE_LIMIT: return "Prepared import transfer exceeds 24 MiB."
 	var failure := FILES.write_new(directory.path_join("bundle.bin"), bytes)
 	if failure == "": output.merge({"bundle_bytes":bytes.size(), "bundle_sha256":FILES.digest(bytes)})
@@ -61,5 +66,9 @@ static func read_bundle(directory: String, output: Dictionary) -> Dictionary:
 		return {"error":"Prepared import transfer changed or exceeded its budget."}
 	# Object deserialization is deliberately disabled.
 	var decoded: Variant = bytes_to_var(read.bytes)
+	if decoded is not Dictionary or decoded.get("expanded") is not int or decoded.expanded < 1 or decoded.expanded > EXPANDED_BUNDLE_LIMIT or decoded.get("packed") is not PackedByteArray: return {"error":"Invalid compressed import transfer."}
+	var expanded: PackedByteArray = decoded.packed.decompress(decoded.expanded,FileAccess.COMPRESSION_ZSTD)
+	if expanded.size() != decoded.expanded: return {"error":"Invalid expanded import transfer."}
+	decoded = bytes_to_var(expanded)
 	if decoded is not Dictionary: return {"error":"Invalid prepared import transfer."}
 	return decoded

@@ -1,7 +1,7 @@
 extends RefCounted
 const I18N := preload("./locale_text.gd")
 ## Untrusted adapter output can only add a fresh, explicitly adopted vector layer.
-const MAX_BYTES := 12 * 1024 * 1024
+const MAX_BYTES := 32 * 1024 * 1024
 const FIELDS := ["nodes", "roads", "buildings", "zones", "pois"]
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 const OVERTURE_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
@@ -54,7 +54,10 @@ static func _coordinates(c: Variant, requested: Dictionary) -> String:
 		if not requested.is_empty():
 			if requested.get(key) is not Array or requested[key].size() != 2: return "Missing requested projection origin."
 			for i in range(2):
-				if c[key][i] != requested[key][i]: return "Projection origin does not match request."
+				# Compare the same JSON-decoded float representation used by the
+				# helper response. SpinBox arithmetic can differ by one binary ULP.
+				var wire_value: Variant = JSON.parse_string(JSON.stringify(requested[key][i], "", false, true))
+				if c[key][i] != wire_value: return "Projection origin does not match request."
 	if not _finite(c.origin[0], -180, 180) or not _finite(c.origin[1], -80, 84): return "Invalid geographic origin."
 	for n in c.local_origin_m:
 		if not _finite(n, -100000, 100000): return "Invalid local origin."
@@ -76,6 +79,10 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if coordinate_error != "": return coordinate_error
 	var exclusion_error := _exclusion_review(raw, requested)
 	if exclusion_error != "": return exclusion_error
+	var city_error: String = preload("./import_city.gd").validate(raw, requested, get_script())
+	if city_error != "": return city_error
+	var city: bool = raw.coordinates.has("osm_city")
+	if not city and JSON.stringify(raw).to_utf8_buffer().size() > 12 * 1024 * 1024: return "Non-city ImportLayer exceeds 12 MiB."
 	var vertical_error: String = preload("./import_vertical.gd").validate(raw, requested)
 	if vertical_error != "": return vertical_error
 	var height_error: String = preload("./import_height_supplement.gd").validate(raw, requested)
@@ -88,9 +95,10 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if source.bytes <= 0 or streaming.get("source_bytes") != source.bytes or streaming.get("source_sha256") != source.sha256: return "PBF captured source mismatch."
 		if streaming.get("scan") is not Dictionary or streaming.get("selected") is not Dictionary: return "Invalid PBF streaming counts."
 		for key in ["nodes", "ways", "relations", "references"]:
-			if not _count(streaming.scan.get(key), 80000000 if key == "references" else 100000000) or not _count(streaming.selected.get(key), 200000 if key in ["nodes", "references"] else 250000): return "PBF streaming count budget exceeded."
+			var selected_limit := (4000000 if key == "references" else 2000000) if city else (200000 if key in ["nodes", "references"] else 250000)
+			if not _count(streaming.scan.get(key), 80000000 if key == "references" else 100000000) or not _count(streaming.selected.get(key), selected_limit): return "PBF streaming count budget exceeded."
 			if streaming.selected[key] > streaming.scan[key]: return "PBF selected counts exceed scanned source."
-		if streaming.scan.nodes + streaming.scan.ways + streaming.scan.relations > 100000000 or streaming.selected.nodes + streaming.selected.ways + streaming.selected.relations > 250000 or not _count(streaming.selected.get("bytes"), 32 * 1024 * 1024): return "PBF streaming selection budget exceeded."
+		if streaming.scan.nodes + streaming.scan.ways + streaming.scan.relations > 100000000 or streaming.selected.nodes + streaming.selected.ways + streaming.selected.relations > (2000000 if city else 250000) or not _count(streaming.selected.get("bytes"), (256 if city else 32) * 1024 * 1024): return "PBF streaming selection budget exceeded."
 		if streaming.has("structure_closure"):
 			var closure: Variant = streaming.structure_closure
 			if closure is not Dictionary or closure.get("profile") not in ["structural-incidence-v1", "loop-structural-incidence-v1"]: return "Invalid structural closure profile."
@@ -111,8 +119,9 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if not requested.is_empty() and JSON.stringify(bbox) != JSON.stringify(requested.get("osm_bbox")): return "OSM crop selection changed."
 		if crop.get("counts") is not Dictionary: return "Invalid OSM crop counts."
 		for key in ["input_features", "outside_features", "changed_features", "output_features", "boundary_contacts"]:
-			if not _count(crop.counts.get(key), 200000): return "Invalid OSM crop count."
+			if not _count(crop.counts.get(key), 250000 if city else 200000): return "Invalid OSM crop count."
 		if crop.counts.output_features != raw.get("feature_count"): return "OSM crop count mismatch."
+		if city and crop.counts.get("pre_optimization_output_features") != raw.coordinates.osm_city.before.features: return "City crop source count mismatch."
 		var vertical: Variant = crop.get("vertical")
 		var profile := "explicit-connected-structure-crop-v1"
 		if vertical is not Dictionary or vertical.get("profile") != profile or vertical.get("connection_sections") is not Array: return "Invalid OSM vertical crop profile."
@@ -164,7 +173,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 			if not linked.is_empty(): return "Unknown Overture part link."
 
 	for key in ["feature_count", "point_count", "warning_count"]:
-		if not _count(raw.get(key), 200000): return "Invalid import counts."
+		if not _count(raw.get(key), 800000 if city else 200000): return "Invalid import counts."
 	if raw.get("warnings") is not Array or raw.warnings.size() > 50 or raw.warning_count < raw.warnings.size(): return "Invalid import warnings."
 	for warning in raw.warnings:
 		if not _text(warning): return "Invalid import warning."
@@ -175,7 +184,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	for n in raw.extent_cm:
 		if not _count(n + 10000000 if n is int or n is float else null, 20000000): return "Invalid import extent coordinate."
 	if raw.extent_cm[0] > raw.extent_cm[2] or raw.extent_cm[1] > raw.extent_cm[3]: return "Invalid import extent ordering."
-	if raw.get("patches") is not Array or (raw.patches.is_empty() and raw.coordinates.get("generation_regions", []).is_empty()) or raw.patches.size() > 60000: return "Invalid import records."
+	if raw.get("patches") is not Array or (raw.patches.is_empty() and raw.coordinates.get("generation_regions", []).is_empty()) or raw.patches.size() > (180000 if city else 60000): return "Invalid import records."
 	if raw.adapter == "overture-buildings-v1" and overture_building_ids.size() != raw.patches.size(): return "Incomplete Overture footprint mapping."
 	var region_error: String = preload("./import_regions.gd").validate(raw.coordinates.get("generation_regions", []))
 	if region_error != "": return region_error
@@ -229,6 +238,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 			_review_prefix = preload("./import_vertical.gd").summary(value.coordinates.vertical) + "\n"
 	if value.coordinates.has("osm_height_supplement"):
 		_review_prefix += preload("./import_height_supplement.gd").summary(value.coordinates.osm_height_supplement) + "\n"
+	if city: _review_prefix = preload("./import_city.gd").summary(value.coordinates.osm_city) + "\n" + _review_prefix
 	return ""
 
 static func _structure_connections(raw: Dictionary, prefix: String) -> String:
@@ -393,8 +403,9 @@ func patches(store: RefCounted) -> Array:
 	var metadata := value.duplicate(true)
 	metadata.erase("patches")
 	if value.adapter == "osm-extract-v1":
-		result = preload("./import_units.gd").osm_patches(value.patches)
+		result = preload("./import_units.gd").osm_patches(value.patches,value.coordinates.has("osm_city"))
 		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1"}
+		if value.coordinates.has("osm_city"): metadata.authored_units.quantization_cleanup = "adjacent-equal-vertices-v1"
 		metadata.authored_regions = preload("./import_regions.gd").scaled(value.coordinates.get("generation_regions", []))
 	var attribution := {"source": value.source.name + "#" + value.layer_id, "license": value.source.license, "notice": JSON.stringify(metadata)}
 	result.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
@@ -408,7 +419,10 @@ func has_structures() -> bool:
 	return false
 
 func requires_generation() -> bool:
-	return has_structures() or not value.get("coordinates", {}).get("osm_ground_loops", {}).get("retained", []).is_empty()
+	return value.get("coordinates", {}).has("osm_city") or has_structures() or not value.get("coordinates", {}).get("osm_ground_loops", {}).get("retained", []).is_empty()
+
+func generation_cell_limit() -> int:
+	return 256 if value.get("coordinates", {}).has("osm_city") else 16
 
 func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 	if value.is_empty(): return "No import candidate."
@@ -429,6 +443,16 @@ func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 	var result: Dictionary = store._validate(candidate)
 	if not result.ok: return store.reason(result)
 	if value.adapter == "osm-extract-v1":
+		if value.coordinates.has("osm_city"):
+			var size := int(result.data.document.cell_size_cm)
+			var bounds: Dictionary = result.data.document.bounds
+			var columns := ceili(float(bounds.max[0]-bounds.min[0])/size)
+			var rows := ceili(float(bounds.max[1]-bounds.min[1])/size)
+			if columns * rows > generation_cell_limit(): return "City generation check exceeds 256 cells; increase cell size or reduce the selected area."
+			var cells: Array = []
+			for x in range(columns):
+				for y in range(rows): cells.append(Vector2i(x,y))
+			return preload("./authoring_files.gd").validate(store, result.data.document, {}, cells, context)
 		if not value.coordinates.get("osm_ground_loops", {}).get("retained", []).is_empty():
 			return _validate_structure_cells(store, result.data.document, context)
 		for patch: Dictionary in value.patches:
@@ -477,7 +501,7 @@ func summary() -> String:
 	if value.is_empty(): return I18N.t("No import candidate.")
 	var text := preload("./import_review_text.gd")
 	var coordinates := {}
-	for key in ["osm_review", "csv", "mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
+	for key in ["osm_city", "osm_review", "csv", "mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
 		if value.coordinates.has(key): coordinates[key] = value.coordinates[key]
 	var estimates := ""
 	var count := 0

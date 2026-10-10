@@ -43,11 +43,13 @@ func pointer(button: Button) -> void:
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.store.new_track(true)
 	root.size = Vector2i(1024,720)
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	ui.import_source_format.select(1)
 	ui.import_source_format.item_selected.emit(1)
+	ui.osm_panel.city.button_pressed = false # This fixture exercises the exact source-node profile.
 	ui.import_origin_lon.value = 9
 	ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512
@@ -75,6 +77,32 @@ func run() -> void:
 		quit(1)
 		return
 	var raw: Dictionary = ui.pending_import.value.duplicate(true)
+	var city := raw.duplicate(true)
+	city.coordinates.osm_city = {} # Unit-check the loop contract independently of outer city admission.
+	var retained: Array = city.coordinates.osm_ground_loops.retained
+	var second_id: String = retained[1].road_id
+	var second: Dictionary
+	for patch: Dictionary in city.patches:
+		if patch.id == second_id: second = patch.after
+	for patch: Dictionary in city.patches:
+		if patch.id == retained[0].road_id:
+			patch.after.to = second.to
+			patch.after.points = [patch.after.points[0],second.points[-1]]
+	retained[0].source_range = [0,2]
+	retained[0].source_positions = [0,2]
+	retained[0].refs = ["1","3"]
+	retained.remove_at(1)
+	city.patches = city.patches.filter(func(p): return p.id != second_id)
+	var loop_contract := preload("res://scripts/import_osm_loops.gd")
+	check(loop_contract.validate(city,LAYER)=="","city simplification retains original traversal and endpoint identities")
+	for positions in [null, [0,0], [0,"bad"], [1,2], [0,0.5,2]]:
+		var bad_city := city.duplicate(true)
+		bad_city.coordinates.osm_ground_loops.retained[0].source_positions = positions
+		check(loop_contract.validate(bad_city,LAYER)!="","malformed city source positions fail closed")
+	var hidden := city.duplicate(true)
+	hidden.coordinates.osm_ground_loops.retained[0].source_range = [0,3]
+	hidden.coordinates.osm_ground_loops.retained[0].source_positions = [0,3]
+	check(loop_contract.validate(hidden,LAYER).contains("junction"),"city simplification cannot skip a source junction")
 	check(raw.feature_count == 8 and raw.coordinates.osm_ground_loops.retained.size() == 7,"loop and incident approach mapping")
 	check(raw.coordinates.vertical.explicit_points == 0,"estimated heights are not explicit vertical data")
 	check(ui.import_summary.text.contains("No source height datum was applied") and not ui.import_summary.text.contains("EPSG:5773"),"review does not present estimated ground as converted EGM96 heights")

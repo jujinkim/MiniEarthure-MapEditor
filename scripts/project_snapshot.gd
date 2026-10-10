@@ -14,7 +14,9 @@ static func capture_working(working: RefCounted, source: String, history: Array 
 	var bytes := 0
 	var paths := {}
 	for command: Dictionary in history:
-		for patch: Dictionary in command.get("patches", []):
+		var unpacked := preload("./history_codec.gd").unpack(command)
+		if unpacked.has("error"): return error(unpacked.error)
+		for patch: Dictionary in unpacked.patches:
 			for record in [patch.before, patch.after]:
 				if record is Dictionary and patch.field in ["heightmaps","assets"]:
 					for path: String in PAYLOADS.paths(record): paths[path] = true
@@ -68,7 +70,9 @@ static func capture(document: Dictionary, source: String, history: Array = []) -
 		if course.has("validation"): paths[str(course.validation.path)] = true
 	# Save As keeps Undo/Redo usable, including old immutable raster versions.
 	for command: Dictionary in history:
-		for patch: Dictionary in command.patches:
+		var unpacked := preload("./history_codec.gd").unpack(command)
+		if unpacked.has("error"): return error(unpacked.error)
+		for patch: Dictionary in unpacked.patches:
 			if patch.field == "courses":
 				for value in [patch.before, patch.after]:
 					if value != null and value.has("validation"): paths[str(value.validation.path)] = true

@@ -102,6 +102,9 @@ func draw(tool: String, draft: Array[Vector2]) -> String:
 
 func apply(label: String, patches: Array, check_roads: bool = false) -> String:
 	if store.editing_locked(): return store.EDIT_BUSY
+	for patch: Dictionary in patches:
+		if patch.field == "cell_size_cm" and patch.before != patch.after and (not store.document.heightmaps.is_empty() or store.document.has("assembled_track")):
+			return "Cell size cannot change after terrain tiles or an assembled track are present."
 	var candidate: Dictionary = store.document.duplicate(true)
 	var failure: String = store._apply(candidate, patches, false)
 	if failure != "": return failure
@@ -115,7 +118,7 @@ func apply(label: String, patches: Array, check_roads: bool = false) -> String:
 		var size := int(candidate.cell_size_cm)
 		var road_patches: Array = patches.duplicate()
 		for patch: Dictionary in patches:
-			if patch.field in ["bounds", "terrain_base_cm"]:
+			if patch.field in ["bounds", "terrain_base_cm", "cell_size_cm"]:
 				for road: Dictionary in candidate.roads: road_patches.append({"field":"roads","after":road})
 				break
 		for patch: Dictionary in road_patches:

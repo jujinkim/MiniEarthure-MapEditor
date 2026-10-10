@@ -16,6 +16,7 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 	if meta == null: return "Missing OSM loop provenance." if not roads.is_empty() else ""
 	if raw.adapter != "osm-extract-v1" or meta is not Dictionary or meta.size() != 3 or meta.get("profile") != "source-node-segments-v1" or meta.get("sources") is not Array or meta.sources.is_empty() or meta.sources.size() > 20000 or meta.get("retained") is not Array or meta.retained.size() != roads.size(): return "Invalid OSM loop profile."
 	var sources := {}
+	var source_uses := {}
 	var loop_nodes := {}
 	var reference_count := 0
 	var previous_way := ""
@@ -39,6 +40,7 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 			unique[ref] = true
 			if entry.closed: loop_nodes[ref] = true
 		sources[entry.way] = entry
+		for ref: String in unique: source_uses[ref] = int(source_uses.get(ref,0))+1
 	if loop_nodes.is_empty(): return "Missing closed OSM source way."
 	for entry: Dictionary in meta.sources:
 		var incident := false
@@ -51,7 +53,7 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 	var total_points := 0
 	var cuts := {}
 	for entry in meta.retained:
-		if entry is not Dictionary or entry.size() != 5 or entry.get("road_id") is not String or not roads.has(entry.road_id) or entry.get("source_way") is not String or not sources.has(entry.source_way) or entry.get("explicit_height") is not bool: return "Invalid retained OSM loop mapping."
+		if entry is not Dictionary or entry.size() != (6 if entry.has("source_positions") else 5) or entry.get("road_id") is not String or not roads.has(entry.road_id) or entry.get("source_way") is not String or not sources.has(entry.source_way) or entry.get("explicit_height") is not bool: return "Invalid retained OSM loop mapping."
 		var prefix: String = "import-" + raw.layer_id + "-"
 		var index: String = entry.road_id.trim_prefix(prefix).trim_suffix("-loop")
 		if not index.is_valid_int() or str(int(index)) != index or int(index) <= last_feature or not boundary._count(int(index), raw.feature_count-1): return "Invalid OSM loop feature order."
@@ -59,21 +61,34 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 		var source: Dictionary = sources[entry.source_way]
 		var span: Variant = entry.get("source_range")
 		if span is not Array or span.size() != 2 or not boundary._finite(span[0],0,source.refs.size()-1) or not boundary._finite(span[1],0,source.refs.size()-1) or span[0] >= span[1]: return "Invalid OSM loop source range."
-		if source.closed and ceilf(span[1])-floorf(span[0]) != 1: return "Closed OSM road must split at every original node."
+		var merged_city_ground: bool = raw.coordinates.has("osm_city") and source.kind == "ground" and not entry.explicit_height
+		if source.closed and ceilf(span[1])-floorf(span[0]) != 1 and not merged_city_ground: return "Closed OSM road must split at every original node."
 		var previous: float = ranges.get(entry.source_way,0.0)
 		if span[0] < previous or (not crop and span[0] != previous): return "Overlapping or missing OSM loop source range."
 		ranges[entry.source_way] = span[1]
 		var refs: Variant = entry.get("refs")
 		var road: Dictionary = roads[entry.road_id]
 		var count := int(ceilf(span[1])-floorf(span[0]))+1
+		var positions: Variant = entry.get("source_positions")
+		if entry.has("source_positions") and positions == null: return "Invalid city loop simplification mapping."
+		if positions != null:
+			if not merged_city_ground or positions is not Array or positions.size()<2 or positions.size()>count: return "Invalid city loop simplification mapping."
+			for i in range(positions.size()):
+				if not boundary._finite(positions[i],span[0],span[1]) or (i>0 and positions[i]<=positions[i-1]) or (i>0 and i<positions.size()-1 and positions[i]!=floorf(positions[i])): return "Invalid city loop simplification mapping."
+			if positions[0]!=span[0] or positions[-1]!=span[1]: return "Invalid city loop simplification mapping."
+			count=positions.size()
+		if merged_city_ground:
+			for i in range(int(floorf(span[0]))+1,int(ceilf(span[1]))):
+				if int(source_uses.get(source.refs[i],0))>1: return "City loop merge hides a source junction."
 		if refs is not Array or refs.size() != count or road.get("kind") != source.kind or road.get("clearance_cm") != source.clearance_cm or road.get("points") is not Array or road.points.size() != count: return "Invalid OSM loop geometry/profile."
 		if road.kind != "ground" and not entry.explicit_height: return "OSM structural loop requires explicit heights."
 		total_points += count
 		if total_points > raw.point_count: return "OSM loop point budget exceeded."
 		for i in range(count):
-			var position: float = span[0] if i == 0 else span[1] if i == count-1 else floorf(span[0])+i
+			var position: float = positions[i] if positions != null else span[0] if i == 0 else span[1] if i == count-1 else floorf(span[0])+i
 			if position == floorf(position):
 				if refs[i] != source.refs[int(position)]: return "OSM loop original node changed."
+				if merged_city_ground and i > 0 and i < count-1 and int(source_uses.get(refs[i],0)) > 1: return "City loop merge hides a source junction."
 			else:
 				if not crop or refs[i] is not String or not refs[i].begins_with("crop-") or refs[i].length() > 80: return "Invalid OSM loop crop endpoint."
 				if cuts.has(refs[i]): return "OSM loop crop endpoints must remain independent."

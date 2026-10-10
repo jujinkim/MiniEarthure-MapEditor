@@ -6,6 +6,7 @@ var dialog: AcceptDialog
 var enabled: CheckBox
 var streaming: CheckBox
 var exclusions: CheckBox
+var city: CheckBox
 var fields: Array[SpinBox] = []
 var area: Control
 var status: Label
@@ -49,7 +50,7 @@ func setup(owner_ui: Control) -> void:
 	source_dialog = FileDialog.new()
 	source_dialog.access = FileDialog.ACCESS_FILESYSTEM
 	source_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	source_dialog.use_native_dialog = true
+	source_dialog.use_native_dialog = OS.get_name() != "macOS"
 	source_dialog.filters = PackedStringArray(["*.pbf ; OSM PBF"])
 	source_dialog.file_selected.connect(func(path):
 		source_path.text = path
@@ -70,6 +71,11 @@ func setup(owner_ui: Control) -> void:
 	streaming = CheckBox.new()
 	streaming.text = I18N.t("PBF streaming · local source up to 2 GiB (requires crop)")
 	layout.add_child(streaming)
+	city = CheckBox.new()
+	city.text = I18N.t("Automatically merge and simplify city geometry (1:8)")
+	city.button_pressed = true
+	layout.add_child(city)
+	ui._label(layout, "City optimization combines compatible road chains, nearby unnamed low buildings and matching vegetation.\nRoad corridors, junctions, courtyards and landmarks are protected. Review before/after counts and approximations.")
 	exclusions = CheckBox.new()
 	exclusions.text = "Review and exclude unsupported source objects (PBF streaming)"
 	layout.add_child(exclusions)
@@ -102,6 +108,7 @@ func setup(owner_ui: Control) -> void:
 	for field in fields: field.value_changed.connect(func(_v): changed())
 	enabled.toggled.connect(func(_v): changed())
 	streaming.toggled.connect(func(_v): changed())
+	city.toggled.connect(func(_v): changed())
 	exclusions.toggled.connect(func(_v): changed())
 	dialog.confirmed.connect(func(): ui.import_dialog.popup_centered(Vector2i(760,550)))
 	dialog.canceled.connect(func(): ui.import_dialog.popup_centered(Vector2i(760,550)))
@@ -124,6 +131,7 @@ func error() -> String:
 
 func changed() -> void:
 	revision += 1
+	city.disabled = not (enabled.button_pressed and streaming.button_pressed)
 	ui._discard_import()
 	ui.osm_crop_button.set_meta("action_label", "Find area / OSM crop: %s…" % (I18N.t("on") if enabled.button_pressed else I18N.t("off")))
 	preload("./workbench_style.gd").refresh_label(ui.osm_crop_button)

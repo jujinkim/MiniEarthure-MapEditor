@@ -16,6 +16,48 @@ class Budget:
             raise ValueError("polygon topology budget exceeded; use a smaller extract")
 
 
+class SpatialBudget(Budget):
+    """Same ring rules, with bounded spatial candidates instead of all edge pairs."""
+    spatial = True
+
+
+def spatial_rings(outers, inners, budget):
+    from shapely.geometry import Polygon
+    from shapely.strtree import STRtree
+    if not outers: raise ValueError("multipolygon requires an outer ring")
+    rings = outers + inners
+    polygons = []
+    for ring in rings:
+        budget.spend(len(ring))
+        if len(ring) < 4 or ring[0] != ring[-1] or len({tuple(p) for p in ring[:-1]}) != len(ring)-1:
+            raise ValueError("polygon must be a closed simple ring without repeated positions")
+        polygon = Polygon(ring)
+        if not polygon.is_valid or polygon.is_empty or not polygon.exterior.is_simple or polygon.area == 0:
+            raise ValueError("polygon boundary self-intersects, touches or has zero area")
+        polygons.append(polygon)
+    tree = STRtree(polygons)
+    parents = [None] * len(rings)
+    for i, polygon in enumerate(polygons):
+        candidates = tree.query(polygon)
+        budget.spend(len(candidates))
+        parent_area = float("inf")
+        for j in candidates:
+            if i == j: continue
+            other = polygons[j]
+            if polygon.exterior.intersects(other.exterior):
+                raise ValueError("multipolygon boundaries intersect or touch")
+            if other.area < parent_area and other.contains(polygon):
+                parents[i], parent_area = int(j), other.area
+    result = [[ring] for ring in outers]
+    for i,parent in enumerate(parents):
+        if i < len(outers):
+            if parent is not None and parent < len(outers): raise ValueError("multipolygon outer areas overlap")
+        else:
+            if parent is None or parent >= len(outers): raise ValueError("multipolygon inner must be inside an outer, without nested holes")
+            result[parent].append(rings[i])
+    return result
+
+
 def cross(a, b, c):
     return (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0])
 
@@ -47,6 +89,8 @@ def group_rings(outers, inners, budget):
     Nested outer islands are allowed only inside a hole of their containing outer.
     Input order is retained; OSM assembly canonicalizes node IDs beforehand.
     """
+    if getattr(budget, "spatial", False):
+        return spatial_rings(outers, inners, budget)
     if not outers:
         raise ValueError("multipolygon requires an outer ring")
     rings = outers + inners

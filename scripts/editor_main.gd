@@ -485,7 +485,9 @@ func _build_ui() -> void:
 	activity.add_child(import_progress)
 	dialog = FileDialog.new()
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
-	dialog.use_native_dialog = true
+	# The in-app chooser supports custom import extensions on macOS where
+	# the native Open panel can keep its confirmation disabled after selection.
+	dialog.use_native_dialog = OS.get_name() != "macOS"
 	dialog.canceled.connect(func():
 		_release_file_dialog_lock()
 		if dialog_action == "save_transition": pending_document_action.clear()
@@ -1465,6 +1467,7 @@ func _start_import(source: String, license_name: String) -> void:
 			_status(I18N.t("PBF streaming requires PBF input and an enabled valid crop area."))
 			return
 		import_coordinates_request.osm_stream = true
+		if osm_panel.city.button_pressed: import_coordinates_request.osm_city = true
 	if input_format in ["osm", "pbf"] and osm_panel.enabled.button_pressed:
 		if osm_panel.error() != "":
 			_status(I18N.diagnostic(osm_panel.error()))

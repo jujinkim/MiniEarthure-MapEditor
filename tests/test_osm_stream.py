@@ -50,6 +50,24 @@ class Streaming(unittest.TestCase):
                     self.assertEqual(steps[-1][1:3],(meta["source_bytes"],meta["source_bytes"]))
                     self.assertEqual([e[1] for e in steps],sorted(e[1] for e in steps))
 
+    def test_city_block_pointers_keep_off_window_members_and_approaches(self):
+        def without_city(value):
+            result=json.loads(json.dumps(value))
+            for feature in result["features"]:
+                feature["properties"]={k:v for k,v in feature["properties"].items() if not k.startswith("_city")}
+            return result
+        for xml,selected in [(multipolygon_xml(),[9.0031,55.0011,9.0049,55.0029]),
+                             (structural_xml(),[9.0004,54.9999,9.0016,55.0001])]:
+            self.source.unlink(missing_ok=True)
+            original=pbf(self.source,xml)
+            exact=stream.extract(self.source,selected,self.directory)
+            city=stream.extract(self.source,selected,self.directory,city=True)
+            self.assertEqual(without_city(city[0]),exact[0])
+            self.assertEqual(city[2]["index_policy"],"source-block-pointers-v1")
+            self.assertGreater(city[2]["resolved_way_blocks"],0)
+            self.assertEqual(self.source.read_bytes(),original)
+            self.assertTrue(all(not (self.directory/n).exists() for n in stream.OWNED_FILES))
+
     def test_enclosing_relation_holes_island_and_crossing_no_inside_vertices(self):
         for xml,box in [(XML,[9.00051,54.9999,9.0006,55.0001]),
                         (XML,[9.00005,55.00005,9.00015,55.00015]),

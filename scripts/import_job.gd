@@ -8,7 +8,7 @@ const FILES := preload("./document_files.gd")
 const PIPE_LIMIT := 1024 * 1024
 const LINE_LIMIT := 4096
 const READ_BUDGET := 16384
-const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
+const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "osm_generalize.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
 var pid := -1
 var identity := ""
 var directory := ""
@@ -55,6 +55,9 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		progress_limit = 2 * 1024 * 1024 * 1024
 		timeout_seconds = 900
 		stages = ["read", "index_nodes", "index_ways", "index_relations", "select", "parse", "convert", "write", "complete"]
+	if coordinates.get("osm_city", false):
+		if not streaming: return "Automatic city optimization requires PBF streaming."
+		stages.insert(stages.find("convert"), "optimize")
 	if size <= 0 or size > progress_limit: return "Import source exceeds %s or is empty; PBF streaming needs an explicit crop area." % ("2 GiB" if streaming else "32 MiB")
 	var reservation := _reserve_directory(token)
 	if reservation != "": return reservation
@@ -74,13 +77,13 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 			if coordinates.get(key) is not Array or coordinates[key].size() != 2:
 				cleanup()
 				return "Geographic/local origins are required."
-		arguments.append_array(PackedStringArray(["--origin", str(coordinates.origin[0]), str(coordinates.origin[1]), "--local-origin", str(coordinates.local_origin_m[0]), str(coordinates.local_origin_m[1])]))
+		arguments.append_array(PackedStringArray(["--origin", JSON.stringify(coordinates.origin[0], "", false, true), JSON.stringify(coordinates.origin[1], "", false, true), "--local-origin", JSON.stringify(coordinates.local_origin_m[0], "", false, true), JSON.stringify(coordinates.local_origin_m[1], "", false, true)]))
 	if coordinates.has("osm_bbox"):
 		if input_format not in ["osm", "pbf"] or coordinates.osm_bbox is not Array or coordinates.osm_bbox.size() != 4:
 			cleanup()
 			return "OSM crop requires four coordinates and an OSM source."
 		arguments.append("--osm-bbox")
-		for value in coordinates.osm_bbox: arguments.append(str(value))
+		for value in coordinates.osm_bbox: arguments.append(JSON.stringify(value, "", false, true))
 	if coordinates.has("csv"):
 		if input_format != "csv": cleanup(); return "CSV mapping requires CSV input."
 		var csv_path := directory.path_join("csv.json")
@@ -88,6 +91,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		if csv_error != "": cleanup(); return csv_error
 		arguments.append_array(PackedStringArray(["--csv-request", csv_path]))
 	if streaming: arguments.append("--osm-stream")
+	if coordinates.get("osm_city", false): arguments.append("--osm-city")
 	if coordinates.get("osm_review_exclusions",false):
 		if not streaming: cleanup(); return "Object exclusion review requires PBF streaming."
 		arguments.append("--osm-review-exclusions")
@@ -190,7 +194,7 @@ func _event(line: PackedByteArray) -> void:
 	if timeout_seconds == 900 and index > phase and phase >= 0 and progress.completed != progress.total:
 		_fail("Incomplete PBF streaming stage.")
 		return
-	if raw.get("unit") != ("features" if raw.get("stage") == "convert" else "entities" if raw.get("stage") == "select" else "samples" if raw.get("stage") == "sample" else "bytes"):
+	if raw.get("unit") != ("features" if raw.get("stage") == "convert" else "entities" if raw.get("stage") == "select" else "steps" if raw.get("stage") == "optimize" else "samples" if raw.get("stage") == "sample" else "bytes"):
 		_fail("Invalid import progress unit.")
 		return
 	phase = index
