@@ -515,7 +515,7 @@ func _build_ui() -> void:
 	var import_fields := VBoxContainer.new()
 	import_fields.custom_minimum_size.x = 700
 	import_dialog.add_child(import_fields)
-	_label(import_fields, "Local sources up to 32 MiB; PBF streaming in OSM crop supports up to 2 GiB.\nWGS84 needs pyproj 3.7.2; OSM also needs osmium 4.3.1 in the selected Python.")
+	_label(import_fields, "Local sources up to 32 MiB; PBF streaming in OSM crop supports up to 2 GiB.\nUse Python 3.12+ with requirements-import.txt installed for geographic inputs.")
 	import_fields.get_child(0).custom_minimum_size.x = 700
 	import_source_format = OptionButton.new()
 	for format_title in [I18N.t("GeoJSON"), I18N.t("OSM PBF extract (.osm.pbf)"), I18N.t("OSM XML extract (.osm)"), I18N.t("Overture building area snapshot (.overture.json)"), I18N.t("Overture transportation snapshot (.overture-roads.json)"), I18N.t("Overture land cover snapshot (.overture-land-cover.json)"), "Facility CSV (.csv)"]: import_source_format.add_item(format_title)

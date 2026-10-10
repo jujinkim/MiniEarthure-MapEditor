@@ -16,6 +16,7 @@ func wait_import(ui: Control) -> void:
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.store.new_track(true)  # Import fixture uses a blank free-roam map.
 	await process_frame
 	root.size = Vector2i(1024,720)
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
@@ -76,14 +77,19 @@ func run() -> void:
 	check(ui.store.document.roads.size()==1 and ui.store.document.buildings.size()==3 and ui.store.document.zones.size()==3,"complete roads/multipart/hole/island atomic native adoption: "+ui.status_label.text)
 	var adopted: Dictionary=ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.roads.is_empty(),"one-command Undo")
-	check(ui.store.redo()=="" and ui.store.document==adopted,"exact Redo")
+	var redo_error: String=ui.store.redo()
+	# Editing deliberately updates provenance.last_edited; source and all authored
+	# content must be exact even when Undo/Redo crosses a wall-clock second.
+	check(redo_error=="" and ui.store._signature(ui.store.document)==ui.store._signature(adopted),"exact Redo content: "+redo_error)
+	adopted=ui.store.document.duplicate(true)
 	var base := ProjectSettings.globalize_path("user://stream-project")
 	check(ui.store.save_project(base)=="","save source provenance")
 	var package := base+".memap"
 	check(JSON.parse_string(ui.store.bridge.export_project(base,package)).ok,"build streaming package")
 	var package_hash := FileAccess.get_sha256(package)
 	check(JSON.parse_string(ui.store.bridge.open_package(package)).ok,"reopen streaming package")
-	check(JSON.parse_string(ui.store.bridge.generate_chunk(1,1)).ok,"generate adopted native geometry")
+	var generated: Dictionary=JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
+	check(generated.ok,"generate adopted 1:8 native geometry in its actual cell: "+str(generated.get("error",{})))
 	# Abort while owned index/snapshot exists, not only before process creation.
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	directory=ui.import_job.directory
@@ -103,13 +109,16 @@ func run() -> void:
 	ui.osm_panel.fields[0].value-=0.000001
 	await wait_import(ui)
 	check(ui.pending_import==null and ui.store.document==adopted,"changed-restored bbox blocks late output")
+	# A second copy of this source must not overlap its already adopted buildings.
+	# Remove the layer before testing a fresh review, after cancellation assertions.
+	check(ui.store.undo()=="" and ui.store.document.roads.is_empty(),"remove prior layer before fresh review")
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	await wait_import(ui)
-	check(ui.pending_import!=null,"fresh retry after cancellation/timeout/stale response")
-	check(ui.store.undo()=="","change document after review")
+	check(ui.pending_import!=null,"fresh retry after cancellation/timeout/stale response: "+ui.status_label.text)
+	check(ui.store.redo()=="","change document after review")
 	ui._adopt_import()
 	await wait_import(ui)
-	check(ui.store.document.roads.is_empty(),"stale review cannot overwrite edited document")
+	check(ui.store._signature(ui.store.document)==ui.store._signature(adopted),"stale review cannot overwrite edited document")
 	check(FileAccess.get_sha256(path)==source_hash and FileAccess.get_sha256(package)==package_hash,"original PBF and previous package immutable")
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	var owned: RefCounted=ui.import_job

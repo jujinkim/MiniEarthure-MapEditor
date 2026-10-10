@@ -70,6 +70,26 @@ class Streaming(unittest.TestCase):
             original=parse(self.source.read_bytes(),"pbf")[0]
             self.assertEqual(crop(value,selected)[0],crop(original,selected)[0])
 
+    def test_sorted_and_unsorted_node_batches_preserve_selection(self):
+        root=ET.fromstring(XML)
+        nodes=root.findall("node")
+        nodes.extend(ET.Element("node",id=str(i),lon="20.1234567",lat="60.7654321") for i in range(100,4300))
+        remainder=[item for item in root if item.tag!="node"]
+        expected=None
+        for ordered in [nodes,list(reversed(nodes))]:
+            snapshot=ET.Element("osm",root.attrib);snapshot.extend(ordered+remainder)
+            value,_,_=self.extract(ET.tostring(snapshot,encoding="unicode"))
+            if expected is None: expected=value
+            else: self.assertEqual(value,expected)
+        with patch.object(stream,"MAX_INDEX",65536),self.assertRaisesRegex(ValueError,"index budget"):
+            self.extract(ET.tostring(snapshot,encoding="unicode"))
+        self.assertTrue(all(not (self.directory/name).exists() for name in stream.OWNED_FILES))
+        # A duplicate far from its earlier occurrence cannot disappear in a
+        # file index, even when it is outside the selected geographic area.
+        snapshot.insert(0,ET.Element("node",id="100",lon="20.1234567",lat="60.7654321"))
+        with self.assertRaisesRegex(ValueError,"UNIQUE|duplicate"):
+            self.extract(ET.tostring(snapshot,encoding="unicode"))
+
     def test_selected_outside_semantics_and_complete_references(self):
         # Unsupported geometry outside candidate envelopes is a disclosed omission.
         root=ET.fromstring(XML)
@@ -133,6 +153,11 @@ class Streaming(unittest.TestCase):
                 with self.source.open("ab") as writer: writer.write(b"changed")
         pbf(self.directory/"untouched.pbf")
         with self.assertRaisesRegex(ValueError,"changed during capture"): self.extract(event=mutate)
+        for name in stream.NODE_FILES:
+            reserved=self.directory/name;reserved.write_bytes(b"not-owned")
+            with self.assertRaisesRegex(ValueError,"workspace"): stream.extract(self.source,BOX,self.directory)
+            self.assertEqual(reserved.read_bytes(),b"not-owned")
+            reserved.unlink()  # This test owns the reservation fixture.
         occupied=self.directory/"source.pbf"
         occupied.write_bytes(b"not-owned")
         with self.assertRaisesRegex(ValueError,"workspace"): stream.extract(self.source,BOX,self.directory)

@@ -1,7 +1,8 @@
 """Disk-indexed, three-pass selected-area PBF input. Public MIT adapter.
 
 The original is read only. A private captured PBF and a quota-limited disposable
-SQLite index belong to the import worker; no libosmium location/area cache.
+coordinate arrays and SQLite metadata belong to the import worker; no libosmium
+location/area cache. Their combined disk allocation stays within MAX_INDEX.
 PBF framing makes progress actual bytes, not an estimate of parser position.
 """
 import hashlib
@@ -17,6 +18,7 @@ from collections import deque
 
 from import_layer import MAX_INPUT, MAX_POINTS
 from osm_review import Review
+from osm_disk_nodes import DiskNodes, MissingNode, FILES as NODE_FILES
 from osm_area import bounds
 from osm_extract import dependency, category, build_features, MAX_ENTITIES, MAX_REFS, MAX_FEATURES
 
@@ -29,7 +31,7 @@ MAX_BLOB = 32 * 1024**2
 MAX_HEADER = 64 * 1024
 COPY_BLOCK = 1024**2
 PROFILE = "pbf-area-stream-v1"
-OWNED_FILES = ("source.pbf.part", "source.pbf", "source-index.sqlite")
+OWNED_FILES = ("source.pbf.part", "source.pbf", "source-index.sqlite", *NODE_FILES)
 
 
 def _varint(value):
@@ -232,7 +234,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
     # Refuse before claiming ownership. Cleanup may only remove files created here.
     if any((directory / name).exists() for name in OWNED_FILES):
         raise ValueError("PBF stream workspace already contains owned filenames")
-    db = None
+    db, locations = None, None
     try:
         size, digest = _capture(source, directory, event)
         path = directory / "source.pbf"
@@ -245,7 +247,8 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             PRAGMA mmap_size=0;
             PRAGMA journal_mode=OFF;
             PRAGMA synchronous=OFF;
-            CREATE TABLE nodes(id INTEGER PRIMARY KEY, x INTEGER, y INTEGER, tags TEXT);
+            CREATE TABLE nodes(id INTEGER PRIMARY KEY, x INTEGER, y INTEGER);
+            CREATE TABLE node_tags(id INTEGER PRIMARY KEY, tags TEXT);
             CREATE TABLE ways(id INTEGER PRIMARY KEY, west REAL, south REAL, east REAL, north REAL, data TEXT, feature INTEGER);
             CREATE TABLE relations(id INTEGER PRIMARY KEY, data TEXT, candidate INTEGER);
             CREATE TABLE owners(way INTEGER, relation INTEGER, blocked INTEGER, PRIMARY KEY(way,relation));
@@ -255,6 +258,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             CREATE TABLE loop_ways(id INTEGER PRIMARY KEY);
 
         """)
+        locations = DiskNodes(directory, db, MAX_INDEX)
         totals = dict(nodes=0, ways=0, relations=0, references=0)
         scanned = 0
         def scalar(entity, key):
@@ -292,36 +296,22 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         def envelope(box, x, y, east=None, north=None):
             other = [x,y,x if east is None else east,y if north is None else north]
             return other if box is None else [min(box[0],other[0]),min(box[1],other[1]),max(box[2],other[2]),max(box[3],other[3])]
-        node_insert, node_lookup = db.cursor(), db.cursor()
+        tag_insert = db.cursor()
         def node(entity):
             tags = scalar(entity, "nodes")
             location = entity.location
             if not location.valid(): raise ValueError("OSM invalid node location")
             x, y = location.x, location.y
             if not -1800000000 <= x <= 1800000000 or not -900000000 <= y <= 900000000: raise ValueError("OSM invalid node location")
-            # The national scan is dominated by untagged shape nodes. Reuse the
-            # cursor and constant JSON; copy each location through the binding
-            # once. Store libosmium's exact 1e-7 degree integer coordinates, not
-            # two larger SQLite doubles. All IDs, visibility and index quotas pass
-            # the same checks, including duplicate-ID rejection by SQLite.
-            node_insert.execute("INSERT INTO nodes VALUES(?,?,?,?)", (entity.id,x,y,json.dumps(tags) if tags else "{}"))
+            locations.add(entity.id,x,y)
+            if tags: tag_insert.execute("INSERT INTO node_tags VALUES(?,?)", (entity.id,json.dumps(tags)))
         def way(entity):
             tags = scalar(entity, "ways")
             references(len(entity.nodes))
-            refs, box = [], None
+            refs = [n.ref for n in entity.nodes]
             potential = _potential(tags)
             if potential and not len(entity.nodes): raise ValueError("OSM feature way has no referenced geometry")
-            for n in entity.nodes:
-                row = node_lookup.execute("SELECT x,y FROM nodes WHERE id=?", (n.ref,)).fetchone()
-                if row is None: raise ValueError("OSM way missing referenced node; use a complete snapshot")
-                x, y = row[0] / 10000000.0, row[1] / 10000000.0
-                if box is None: box = [x,y,x,y]
-                else:
-                    if x < box[0]: box[0] = x
-                    if y < box[1]: box[1] = y
-                    if x > box[2]: box[2] = x
-                    if y > box[3]: box[3] = y
-                refs.append(n.ref)
+            box = locations.bounds(refs)
             db.execute("INSERT INTO ways VALUES(?,?,?,?,?,?,?)", (entity.id,*(box or [None]*4),json.dumps([refs,tags]),int(potential)))
             if "highway" in tags:
                 # Only source graph evidence, never an inferred positional join.
@@ -349,8 +339,8 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                 if m.type == "w":
                     row = db.execute("SELECT west,south,east,north FROM ways WHERE id=?", (m.ref,)).fetchone()
                 elif m.type == "n":
-                    xy = db.execute("SELECT x,y FROM nodes WHERE id=?", (m.ref,)).fetchone()
-                    if xy is not None: xy = (xy[0] / 10000000.0, xy[1] / 10000000.0)
+                    try: xy = locations.point(m.ref)
+                    except MissingNode: xy = None
                     row = None if xy is None else (*xy,*xy)
                 else: raise ValueError("OSM unsupported relation member type")
                 if row is None:
@@ -377,6 +367,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                 if candidate and kind == "w": db.execute("INSERT OR IGNORE INTO chosen VALUES(?)", (ref,))
         for stage, bits, callback in [("index_nodes",osmium.osm.NODE,node),("index_ways",osmium.osm.WAY,way),("index_relations",osmium.osm.RELATION,relation)]:
             _scan(path, stage, event, size, osmium, bits, callback)
+            if stage == "index_nodes": locations.seal()
             db.commit()
         closure = _structure_closure(db, event, size)
         event("index_relations", size, size)
@@ -412,9 +403,9 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             for ref in refs:
                 if ref in nodes: continue
                 if len(nodes) >= MAX_POINTS: raise ValueError("OSM selected node budget exceeded")
-                x,y,raw_tags = db.execute("SELECT x,y,tags FROM nodes WHERE id=?", (ref,)).fetchone()
-                x, y = x / 10000000.0, y / 10000000.0
-                tags_at_node = json.loads(raw_tags)
+                x,y = locations.point(ref)
+                tagged = db.execute("SELECT tags FROM node_tags WHERE id=?", (ref,)).fetchone()
+                tags_at_node = json.loads(tagged[0]) if tagged else {}
                 admit(json.dumps([ref,x,y,tags_at_node]))
                 nodes[ref] = [x,y]
                 if tags_at_node: node_tags[ref] = tags_at_node
@@ -441,6 +432,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
     except (sqlite3.Error, RuntimeError, zlib.error) as exc:
         raise ValueError("invalid/budget-exceeding PBF stream: " + str(exc)[:300]) from exc
     finally:
+        if locations is not None: locations.close()
         if db is not None: db.close()
         for name in OWNED_FILES:
             (directory / name).unlink(missing_ok=True)

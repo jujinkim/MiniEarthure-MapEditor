@@ -8,7 +8,7 @@ const FILES := preload("./document_files.gd")
 const PIPE_LIMIT := 1024 * 1024
 const LINE_LIMIT := 4096
 const READ_BUDGET := 16384
-const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_review.py", "osm_area.py", "osm_stream.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
+const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
 var pid := -1
 var identity := ""
 var directory := ""
@@ -279,7 +279,7 @@ func cleanup() -> void:
 	if presence != null: presence.close()
 	presence = null
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in MODULES + ["vertical.json", "csv.json", "height-supplement.json", "source.pbf.part", "source.pbf", "source-index.sqlite", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
+	for name in MODULES + ["vertical.json", "csv.json", "height-supplement.json", "source.pbf.part", "source.pbf", "source-index.sqlite", "node-ids.i64", "node-xy.i32", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory.path_join(PRESENCE.PENDING))

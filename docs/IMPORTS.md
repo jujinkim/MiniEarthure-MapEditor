@@ -131,16 +131,23 @@ touching source files or another request's directory.
 
 Snapshot input≤32MiB, result≤12MiB,20,000 features,200,000 positions,60,000 records,
 50 warning samples and shared16MiB Undo budget remain admission bounds. Selected
-large-PBF scanning has its own bounded2GiB disk index; this does not relax selected
+large-PBF scanning has a combined2GiB disk allowance for coordinate files and
+SQLite metadata; this does not relax selected
 payload, native geometry or history limits. Logical reservations are not RSS limits.
 The national-source scan permits100million raw entities and80million references,
 bounded independently by2GiB source/index and the15-minute deadline. This replaces
 the20million raw-entity scan cap that rejected the Korean source before spatial
 selection; the250,000 selected-entity and20,000 feature caps are unchanged. Name
 lookup filters boundary member IDs in libosmium before materialising Python objects.
-The disposable node index stores libosmium's exact1e-7-degree integer coordinates
-and avoids repeated empty-tag serialization and coordinate binding calls. Whole
-source validation and the same SQLite quota still apply; no geometry is simplified.
+Sorted node IDs use disposable read-only file arrays of exact1e-7-degree integer
+coordinates. Up to20,000 references are looked up together, preserving enclosing
+polygons and crossing ways even when no source vertex is inside the crop. Metadata
+and incidence stay in SQLite; its page limit reserves the coordinate-file bytes
+before each64KiB append. Unsorted inputs use bounded-block SQLite indexing under
+the same combined disk allowance, with duplicate/missing-ID checks on both paths.
+The file mappings share that2GiB reservation; it is not a fixed resident-RAM claim.
+No geometry is simplified. NumPy2.5.3 is an explicit importer dependency;
+install `requirements-import.txt` in Python3.12 or newer.
 Full failure text is available in **Activity → Operation details…**.
 
 The immutable review candidate exposes summary and exact provenance details.
@@ -167,8 +174,14 @@ and review accounting, worker cancellation, source preservation, map-centre1:8
 placement, atomic facility Undo/Redo and project/package reopening. Boundary
 selection and name-search Godot validators pass. OSM extraction/structure/loop
 regressions retain exact multipolygon membership counts after exclusion review.
-The focused stream/import/place Python checks pass 24 tests, including exact
-seven-decimal source positions in northern/eastern and southern/western fixtures.
+Focused stream/import/place Python checks include exact seven-decimal source
+positions in both hemispheres, sorted/unsorted parity, combined disk limits,
+exclusive workspace ownership, source preservation and cleanup after cancellation.
+The bulk-coordinate index passes14 Python stream cases and compiled Godot stream
+(45 checks), exclusion review, name lookup and import-job validators. The stream
+fixture generates its actual occupied1:8 cell; native vegetation visits only the
+cell/zone envelope while retaining its global lattice and existing work limits.
+Undo/Redo compares authored content independently of the intentional edit timestamp.
 The Editor UX validator passes 61 assertions, including complete timeout text,
 read-only details and minimum-window layout; name lookup also passes independently.
 
