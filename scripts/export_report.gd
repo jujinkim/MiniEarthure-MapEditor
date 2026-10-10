@@ -27,14 +27,14 @@ func show_report(value: Dictionary) -> void:
 		popup_centered()
 		return
 	overview.show()
-	summary.text = (I18N.t("Validated files, seams, inventory and spatial index · %d cells / %d index references\n")
+	summary.text = (I18N.t("Validated files, seams, inventory and spatial index · %d cells\n")
 		+ I18N.t("Compressed package: %d bytes\nBase including ZIP/manifest overhead: %d / %d bytes · %s\n")
 		+ I18N.t("User assets: %d compressed / %d expanded bytes\nBase data expanded: %d bytes · Total expanded: %d bytes\n")
 		+ I18N.t("Native validation estimate: %d bytes peak / %d retained (not measured RSS)\n")
 		+ I18N.t("Full 3D generation: %s · %.3f seconds\n")
 		+ I18N.t("Preview: 256 MiB work + 256 MiB / 4 cached cells; 3 ms/frame batch admission.\n")
 		+ I18N.t("2D overview: roads / buildings; source map and export ignore layer filters.")) % [
-		data.cell_count, data.index_references, data.package_bytes, data.base_package_bytes, data.base_target_bytes,
+		data.cell_count, data.package_bytes, data.base_package_bytes, data.base_target_bytes,
 		I18N.t("within 50 MB goal") if data.base_target_met else I18N.t("over goal; reduce base data"),
 		data.user_asset_compressed_bytes, data.user_asset_bytes, data.base_data_bytes, data.expanded_bytes,
 		data.validation_peak_bytes, data.retained_memory_bytes,
@@ -54,7 +54,7 @@ func show_report(value: Dictionary) -> void:
 		var row: Dictionary = data.chunk_costs[key]
 		summary.text += I18N.t("\nCell %s: %d objects / %d triangles / %d prisms / %d convexes · display %.1f MiB · work %.1f MiB estimated · %s") % [key,row.objects,row.triangles,row.building_prisms,row.asset_convexes,float(row.presentation_bytes)/1048576.0,float(row.work_bytes)/1048576.0,row.warning]
 		var delay: Dictionary = data.get("preview_delays",{}).get(key,{})
-		if delay.get("signature","") == row.signature: summary.text += I18N.t(" · measured preview %.2fs") % delay.seconds
+		if not row.signature.is_empty() and delay.get("signature","") == row.signature: summary.text += I18N.t(" · measured preview %.2fs") % delay.seconds
 	overview.queue_redraw()
 	popup_centered()
 

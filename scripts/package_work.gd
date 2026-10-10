@@ -106,9 +106,13 @@ func _memory_preview(document: Dictionary, operation: String, cell: Vector2i, fu
 func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: String, cell: Vector2i, cached: Dictionary, full: bool) -> Dictionary:
 	var native: RefCounted = staged.bridge
 	if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
-	update("Building affected-object / cell index")
-	var index := INDEX.build(native, snapshot.document, stopped)
-	if not index.ok: return index
+	# Export owns an immutable snapshot and never reuses preview-cache entries.
+	# Native staging/package validation already checks the spatial index.
+	var index := {"data": {}}
+	if operation != "export":
+		update("Building affected-object / cell index")
+		index = INDEX.build(native, snapshot.document, stopped)
+		if not index.ok: return index
 	if operation == "preview":
 		var signature := INDEX.signature(snapshot.document, snapshot.hashes, index.data, cell)
 		if cached.get("signature", "") == signature:
@@ -128,11 +132,10 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 		generated.data.generation_seconds = (Time.get_ticks_usec() - generation_started) / 1000000.0
 		return generated
 	var report: Dictionary = staged.inspection.duplicate(true)
-	var density := density_report(native, snapshot, index.data, cached)
+	var density := density_report(native, snapshot, index.data, cached, operation != "export")
 	if not density.ok: return density
 	report.chunk_costs = density.data
 	if operation == "density": return {"ok":true,"data":report}
-	report.index_references = index.data.references
 	update("Preparing 2D overview")
 	var overview: Dictionary = JSON.parse_string(native.overview_json(OVERVIEW_BYTES))
 	if not overview.ok: return overview
@@ -230,7 +233,7 @@ static func materialized_preview_cost(cost: Dictionary, data: Dictionary) -> Dic
 	refined.presentation_bytes = source_bytes + int(refined.triangles) * 256 + styles.size() * 16384
 	return refined
 
-func density_report(native: RefCounted, snapshot: Dictionary, index: Dictionary, cached: Dictionary) -> Dictionary:
+func density_report(native: RefCounted, snapshot: Dictionary, index: Dictionary, cached: Dictionary, use_cache: bool = true) -> Dictionary:
 	var bounds: Dictionary = snapshot.document.bounds
 	var query: Dictionary = JSON.parse_string(native.query_cells(int(bounds.min[0]),int(bounds.min[1]),int(bounds.max[0]),int(bounds.max[1]),16384))
 	if not query.ok: return query
@@ -239,8 +242,8 @@ func density_report(native: RefCounted, snapshot: Dictionary, index: Dictionary,
 		if stopped(): return failure("E_CANCELLED", "Density analysis cancelled.")
 		var cell := Vector2i(int(target.x), int(target.y))
 		var key := "%d/%d" % [cell.x,cell.y]
-		var signature := INDEX.signature(snapshot.document,snapshot.hashes,index,cell)
-		if cached.get(key,{}).get("signature","") == signature:
+		var signature := INDEX.signature(snapshot.document,snapshot.hashes,index,cell) if use_cache else ""
+		if use_cache and cached.get(key,{}).get("signature","") == signature:
 			rows[key] = cached[key]
 			continue
 		var estimated: Dictionary = JSON.parse_string(native.estimate_chunk(cell.x,cell.y))

@@ -66,6 +66,11 @@ for package validation/compression. Cancellation and request/session/revision ch
 prevent stale publication/launch. Completed/cancelled operation scratch is removed;
 original projects, packages and recovery files are not garbage-collected. Final
 package publication checks destination hashes and renames an owned pending file.
+Export calculates each cell's native estimate without building the Editor's
+preview-invalidation index or hashing unchanged records per cell. Native file,
+seam, inventory and spatial validation still run. Nullable imported sidewalk widths
+are also accepted by the preview index. A malformed file-worker result ends the
+operation once, reports failure and unlocks editing instead of restarting it.
 
 The export report separates compressed ZIP/base/asset bytes, expanded resources,
 native memory estimates and optional full-generation results. Existing package,
@@ -76,7 +81,9 @@ a filesystem lock or a power-loss guarantee beyond flush/rename.
 
 Affected isolated validators cover memory preview/export/reopen, cache reuse,
 resource budgets, file conflicts, cancellation, saved baselines and test-drive
-snapshot ownership. The short synthetic terrain benchmark on macOS arm64 / Godot
+snapshot ownership. The focused export validator passes95 checks, including
+nullable OSM roads and malformed-worker recovery; density cache bypass and queued
+worker cancellation also pass. The short synthetic terrain benchmark on macOS arm64 / Godot
 4.7.2 measured **35.9 updates/s**, input-to-installed-mesh **p95 28.5 ms**, with a
 **3 ms** installation budget. Detailed input feel, long sessions, platform/device
 performance and Client driving remain user verification.

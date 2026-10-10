@@ -18,7 +18,9 @@ static func build(native: RefCounted, document: Dictionary, cancelled: Callable 
 		# Deliberate Editor over-invalidation halo, not a generator constant.
 		# Authored proxy dimensions/offsets can be larger than this halo.
 		var margin := float(document.cell_size_cm)
-		if entry.field == "roads": margin=maxf(margin,float(entry.record.get("design",{}).get("shoulder_cm",0))+float(entry.record.get("sidewalk_cm",0)))
+		if entry.field == "roads":
+			var sidewalk: Variant = entry.record.get("sidewalk_cm")
+			margin = maxf(margin, float(entry.record.get("design", {}).get("shoulder_cm", 0)) + (0.0 if sidewalk == null else float(sidewalk)))
 		if entry.field == "placements":
 			for asset: Dictionary in document.assets:
 				if asset.id != entry.record.asset_id: continue

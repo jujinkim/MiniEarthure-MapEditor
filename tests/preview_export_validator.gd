@@ -8,6 +8,14 @@ const INDEX := preload("res://scripts/preview_index.gd")
 var ui: Control
 var checks := 0
 
+class InvalidFileJob extends RefCounted:
+	var starts := 0
+	func start(_store: RefCounted, _request: Dictionary) -> Error:
+		starts += 1
+		return OK
+	func is_alive() -> bool: return false
+	func finish() -> Dictionary: return {}
+
 func _initialize() -> void:
 	run.call_deferred()
 
@@ -50,6 +58,17 @@ func click_button(node: Node, title: String) -> bool:
 	return false
 
 func run() -> void:
+	var failed_store := STORE.new()
+	failed_store.new_document()
+	var invalid_job := InvalidFileJob.new()
+	failed_store.file_job_factory = func(): return invalid_job
+	var failures: Array = []
+	failed_store.file_operation_finished.connect(func(result: Dictionary): failures.append(result))
+	ok(failed_store.start_file_operation("export", "user://invalid-worker.memap"), "invalid worker starts")
+	failed_store.poll_file_operation()
+	failed_store.poll_file_operation()
+	check(failures.size() == 1 and not failures[0].ok and failures[0].error.contains("invalid result"), "malformed worker has one visible failure")
+	check(not failed_store.editing_locked() and invalid_job.starts == 1, "malformed worker unlocks without relaunch")
 	var coarse := {"triangles":500000,"objects":200,"building_prisms":8000,"asset_convexes":0,"generation_scratch_bytes":50331648,"max_object_id_bytes":80,"presentation_bytes":128000000+1048576}
 	var measured := {"generated_counts":{"triangles":40000,"objects":20,"building_prisms":2000,"asset_convexes":0},"preview_bytes":2097152}
 	check(WORK.work_bytes(coarse)>WORK.PREVIEW_BYTES,"dense road upper bound exceeds preview capacity")
@@ -115,6 +134,12 @@ func run() -> void:
 		ui._preview()
 		await wait_work()
 	check(ui.preview_cache.size() == 4, "bounded four-cell LRU")
+	ui.preview_enabled = false
+	ok(ui.store.apply_command("Imported road", [
+		{"field":"nodes","id":"import-a","before":null,"after":{"id":"import-a","position":[1000,0,20000],"level":0}},
+		{"field":"nodes","id":"import-b","before":null,"after":{"id":"import-b","position":[20000,0,20000],"level":0}},
+		{"field":"roads","id":"import-road","before":null,"after":{"id":"import-road","from":"import-a","to":"import-b","points":[[1000,0,20000],[20000,0,20000]],"widths_cm":[200],"surfaces":["asphalt"],"kind":"ground","clearance_cm":null,"sidewalk_cm":null}}
+	]), "imported road with unspecified sidewalk")
 	# Unsaved snapshot validation/export does not save or mutate the document.
 	var document_before: String = JSON.stringify(ui.store.document)
 	ui._validate()
@@ -134,6 +159,7 @@ func run() -> void:
 	check(ui.operation_dim.visible, "export dim remains visible until publication")
 	await wait_work()
 	check(FileAccess.file_exists(export_path), "validated snapshot published")
+	check(not ui.last_export_report.has("index_references") and ui.last_export_report.chunk_costs.size() == 49, "export validates every cell without a preview invalidation index")
 	var digest := FileAccess.get_sha256(export_path)
 	ui.export_report.hide()
 	ui._start_package("export", export_path)
@@ -141,6 +167,8 @@ func run() -> void:
 	check(not ui.store.editing_locked() and FileAccess.get_sha256(export_path) == digest, "existing package never overwritten")
 	var native: RefCounted = ClassDB.instantiate("MapKitBridge")
 	check(JSON.parse_string(native.open_package(export_path)).ok, "export reopens with public native")
+	var imported_index := INDEX.build(native,ui.store.document)
+	check(imported_index.ok, "preview index accepts nullable imported sidewalk: " + str(imported_index.get("error", "")))
 	# Save As copies asset bytes AND history-only immutable payloads.
 	ui.preview_enabled = false
 	ui.preview_due = 0

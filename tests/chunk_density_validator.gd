@@ -24,6 +24,8 @@ func run() -> void:
 	check(report.ok and report.data["0/0"].warning == "high", "75 percent work allowance warns without object count")
 	var reused := work.density_report(native,snapshot,index,report.data)
 	check(reused.ok and native.calls == 1, "unchanged chunk estimate reused")
+	var uncached := work.density_report(native,snapshot,{},report.data,false)
+	check(uncached.ok and native.calls == 2 and uncached.data["0/0"].signature == "", "export estimates every cell without a preview index or cached result")
 	native.bytes = WORK.PREVIEW_BYTES + 1
 	report = work.density_report(native,snapshot,index,{})
 	check(report.ok and report.data["0/0"].warning == "over limit", "warning is nonblocking; preview allowance remains enforced separately")

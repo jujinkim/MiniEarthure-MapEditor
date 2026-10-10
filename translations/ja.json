@@ -109,7 +109,7 @@
     "Height supplement must be nonempty and at most 256 KiB.": "高度補完ファイルは空ではなく、256 KiB以下である必要があります。",
     "Height supplement changed or is not UTF-8; retry.": "高度補完ファイルが変更されたか、UTF-8ではありません。再試行してください。",
     "Package validation and capacity": "パッケージ検証と容量",
-    "Validated files, seams, inventory and spatial index · %d cells / %d index references\n": "ファイル・境界・一覧・空間索引を検証済み · %dセル / 索引参照%d件\n",
+    "Validated files, seams, inventory and spatial index · %d cells\n": "ファイル・境界・一覧・空間索引を検証済み · %dセル\n",
     "Compressed package: %d bytes\nBase including ZIP/manifest overhead: %d / %d bytes · %s\n": "圧縮パッケージ: %dバイト\nZIP・マニフェストを含む基本データ: %d / %dバイト · %s\n",
     "User assets: %d compressed / %d expanded bytes\nBase data expanded: %d bytes · Total expanded: %d bytes\n": "ユーザーアセット: 圧縮%d / 展開%dバイト\n基本データ展開: %dバイト · 全体展開: %dバイト\n",
     "Native validation estimate: %d bytes peak / %d retained (not measured RSS)\n": "ネイティブ検証の推定: 最大%dバイト / 保持%dバイト（実測RSSではありません）\n",

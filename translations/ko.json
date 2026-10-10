@@ -109,7 +109,7 @@
     "Height supplement must be nonempty and at most 256 KiB.": "높이 보충 파일은 비어 있지 않아야 하며 256 KiB 이하여야 합니다.",
     "Height supplement changed or is not UTF-8; retry.": "높이 보충 파일이 변경되었거나 UTF-8이 아닙니다. 다시 시도하세요.",
     "Package validation and capacity": "패키지 검증 및 용량",
-    "Validated files, seams, inventory and spatial index · %d cells / %d index references\n": "파일·경계·목록·공간 색인 검증 완료 · %d셀 / 색인 참조 %d개\n",
+    "Validated files, seams, inventory and spatial index · %d cells\n": "파일·경계·목록·공간 색인 검증 완료 · %d셀\n",
     "Compressed package: %d bytes\nBase including ZIP/manifest overhead: %d / %d bytes · %s\n": "압축 패키지: %d바이트\nZIP·매니페스트 비용 포함 기본 데이터: %d / %d바이트 · %s\n",
     "User assets: %d compressed / %d expanded bytes\nBase data expanded: %d bytes · Total expanded: %d bytes\n": "사용자 자산: 압축 %d / 압축 해제 %d바이트\n기본 데이터 압축 해제: %d바이트 · 전체 압축 해제: %d바이트\n",
     "Native validation estimate: %d bytes peak / %d retained (not measured RSS)\n": "네이티브 검증 추정: 최대 %d바이트 / 유지 %d바이트(실측 RSS 아님)\n",

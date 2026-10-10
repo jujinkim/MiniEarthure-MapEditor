@@ -109,7 +109,7 @@
     "Height supplement must be nonempty and at most 256 KiB.": "Height supplement must be nonempty and at most 256 KiB.",
     "Height supplement changed or is not UTF-8; retry.": "Height supplement changed or is not UTF-8; retry.",
     "Package validation and capacity": "Package validation and capacity",
-    "Validated files, seams, inventory and spatial index · %d cells / %d index references\n": "Validated files, seams, inventory and spatial index · %d cells / %d index references\n",
+    "Validated files, seams, inventory and spatial index · %d cells\n": "Validated files, seams, inventory and spatial index · %d cells\n",
     "Compressed package: %d bytes\nBase including ZIP/manifest overhead: %d / %d bytes · %s\n": "Compressed package: %d bytes\nBase including ZIP/manifest overhead: %d / %d bytes · %s\n",
     "User assets: %d compressed / %d expanded bytes\nBase data expanded: %d bytes · Total expanded: %d bytes\n": "User assets: %d compressed / %d expanded bytes\nBase data expanded: %d bytes · Total expanded: %d bytes\n",
     "Native validation estimate: %d bytes peak / %d retained (not measured RSS)\n": "Native validation estimate: %d bytes peak / %d retained (not measured RSS)\n",

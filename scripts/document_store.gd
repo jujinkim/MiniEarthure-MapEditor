@@ -366,6 +366,8 @@ func _poll_file() -> void:
 	if file_job.is_alive(): return
 	var result: Dictionary = file_job.finish()
 	file_job = null
+	if typeof(result.get("ok")) != TYPE_BOOL:
+		result = {"ok":false, "error":"File worker returned an invalid result; previous files retained."}
 	# A successful publication wins over a cancellation arriving after rename.
 	if file_request.session != session_id or file_request.revision != draft_revision:
 		result = {"ok":false, "error":"File operation belongs to another document session."}
