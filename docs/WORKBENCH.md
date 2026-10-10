@@ -10,7 +10,8 @@ commands, history and explicit saving.
 
 The shared Luna-inspired theme uses ivory `#ECE9D8` panels, white inputs, blue
 `#245EDB` accents, shallow bevels and `#B8C2CF` section borders. Text is 14px,
-actions at least 40px and palette tiles 52px. The menu is 28px high with a 4px
+actions at least 40px and palette tiles 52px. Rich import-review text uses the
+same dark ink as labels against the light panels. The menu is 28px high with a 4px
 upper margin. Menus, fields and confirmation actions retain text; icon actions
 have accessible names and tooltips. Non-tile buttons at least 160px wide show
 the action label beside the icon, including import choices and property-panel

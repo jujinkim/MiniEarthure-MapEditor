@@ -118,6 +118,7 @@ static func create_theme() -> Theme:
 		result.set_color("caret_color", type, INK)
 		result.set_color("selection_color", type, SELECTION)
 		result.set_stylebox("focus", type, focus)
+	result.set_color("default_color", "RichTextLabel", INK)
 	for type in ["Button", "OptionButton"]:
 		result.set_stylebox("normal", type, bevel(Color("ffffff"), Color("e5e4dd")))
 		result.set_stylebox("hover", type, bevel(Color("fffdf2"), Color("ffe5a5"), Color("d3a44d")))
