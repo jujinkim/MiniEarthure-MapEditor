@@ -27,7 +27,12 @@ information; compressed package sizes are available only after explicit export.
 
 Limits remain 64 MiB unique source resources, 256 MiB preview work and four cached
 storage cells / 256 MiB. Native scratch, triangle/ID/object and decoded presentation
-costs are charged. Nearby display also caps resource and picking geometry demand.
+costs are charged. After bounded native generation, storage previews check actual
+triangle/object/prism counts against their admitted upper bounds and use those
+counts for scene/cache admission. Source assets, styles and workspace stay charged;
+missing, invalid or larger counts reject the result. This avoids rejecting a small
+generated city cell merely because its possible road cuts reach the coarse limit.
+Nearby display also caps resource and picking geometry demand.
 These are admission bounds, not measured process/GPU memory. Over-budget work
 retains the prior preview and reports a recoverable error.
 

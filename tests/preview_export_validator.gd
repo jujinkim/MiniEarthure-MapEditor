@@ -50,6 +50,17 @@ func click_button(node: Node, title: String) -> bool:
 	return false
 
 func run() -> void:
+	var coarse := {"triangles":500000,"objects":200,"building_prisms":8000,"asset_convexes":0,"generation_scratch_bytes":50331648,"max_object_id_bytes":80,"presentation_bytes":128000000+1048576}
+	var measured := {"generated_counts":{"triangles":40000,"objects":20,"building_prisms":2000,"asset_convexes":0},"preview_bytes":2097152}
+	check(WORK.work_bytes(coarse)>WORK.PREVIEW_BYTES,"dense road upper bound exceeds preview capacity")
+	var refined := WORK.materialized_preview_cost(coarse,measured)
+	check(not refined.is_empty() and WORK.work_bytes(refined)+measured.preview_bytes<WORK.PREVIEW_BYTES,"actual bounded cell fits without raising preview capacity")
+	check(refined.generation_scratch_bytes==coarse.generation_scratch_bytes and refined.presentation_bytes>=measured.preview_bytes+40000*256,"workspace and full asset allowance retained")
+	for invalid in [-1, 0.5, 500001]:
+		var forged: Dictionary=measured.duplicate(true)
+		forged.generated_counts.triangles=invalid
+		check(WORK.materialized_preview_cost(coarse,forged).is_empty(),"invalid or over-admission count rejected")
+	check(WORK.materialized_preview_cost(coarse,{}).is_empty(),"missing counts never release reservation")
 	root.size = Vector2i(1440,900)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)

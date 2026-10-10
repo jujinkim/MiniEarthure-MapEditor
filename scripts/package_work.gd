@@ -70,7 +70,12 @@ func _memory_preview(document: Dictionary, operation: String, cell: Vector2i, fu
 		result.data.cell = cell
 		var cost: Dictionary = JSON.parse_string(working.estimate(cell.x,cell.y))
 		if not cost.ok: return cost
-		result.data.charge = work_bytes(cost.data) + result.data.preview_bytes
+		# Native generation has already enforced its separate work/triangle limit.
+		# Reserve the materialized output, rather than every possible road cut in
+		# the conservative pre-generation estimate, before creating scene resources.
+		var measured := materialized_preview_cost(cost.data, result.data)
+		if measured.is_empty(): return failure("E_PREVIEW_BUDGET", "Generated counts exceed the admitted preview estimate.")
+		result.data.charge = work_bytes(measured) + result.data.preview_bytes
 		if result.data.charge > PREVIEW_BYTES: return failure("E_PREVIEW_BUDGET", "Cell exceeds preview allowance.")
 		result.data.generation_seconds = (Time.get_ticks_usec()-started)/1000000.0
 		result.data.seconds = result.data.generation_seconds
@@ -210,6 +215,20 @@ func allowance(native: RefCounted, cell: Vector2i) -> Dictionary:
 
 static func work_bytes(cost: Dictionary) -> int:
 	return int(cost.get("gimmick_bytes",0)) + int(cost.generation_scratch_bytes) + int(cost.triangles) * (256 + int(cost.max_object_id_bytes)) + int(cost.objects) * 1024 + int(cost.presentation_bytes) * 4
+
+static func materialized_preview_cost(cost: Dictionary, data: Dictionary) -> Dictionary:
+	var counts: Dictionary = data.get("generated_counts", {})
+	var refined := cost.duplicate()
+	for key in ["triangles", "objects", "building_prisms", "asset_convexes"]:
+		var value: Variant = counts.get(key)
+		if not (value is int or value is float) or not is_finite(float(value)) or value < 0 or float(value) != floor(float(value)) or value > cost.get(key, 0): return {}
+		refined[key] = int(value)
+	# Keep source/environment allowances; only replace the per-triangle bound.
+	# Source assets and styles remain fully charged even when geometry is sparse.
+	var source_bytes := maxi(int(cost.presentation_bytes) - int(cost.triangles) * 256, int(data.get("preview_bytes", 0)))
+	var styles: Dictionary = data.get("chunk", {}).get("presentation", {}).get("road_styles", {})
+	refined.presentation_bytes = source_bytes + int(refined.triangles) * 256 + styles.size() * 16384
+	return refined
 
 func density_report(native: RefCounted, snapshot: Dictionary, index: Dictionary, cached: Dictionary) -> Dictionary:
 	var bounds: Dictionary = snapshot.document.bounds
