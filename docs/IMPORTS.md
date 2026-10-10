@@ -156,7 +156,10 @@ the entire candidate fails. This is not unlimited or proven coverage of every ci
 
 Select **Facility CSV**, set its license and source reference, choose the file's
 encoding, and map the exact name/latitude/longitude headers in **Facility CSV
-columns**. Supply the category explicitly. Coordinates share the declared import
+columns**. Supply the category explicitly. **Use imported OSM coordinates** fills
+the existing source origin without retyping coordinates; conflicting imported
+frames require an explicit choice instead. The scrollable mapping dialog keeps
+its confirmation button on screen. Coordinates share the declared import
 origin and the adopted map's1:1 or1:8 scale. The selected OSM crop can filter the
 rows in addition to map bounds. Review includes every invalid line/name/reason
 and every outside line; invalid rows require explicit exclusion before adoption.

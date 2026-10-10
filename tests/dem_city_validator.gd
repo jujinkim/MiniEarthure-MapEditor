@@ -34,6 +34,8 @@ func run() -> void:
 		var id: String="manual" if index==2 else prefix+str(index)
 		patches.append({"field":"buildings","id":id,"before":null,"after":{"id":id,"footprint":[[x,8000],[x+400,8000],[x+400,8400],[x,8400]],"height_cm":600,"base_cm":123 if index==1 else 0,"roof":"flat","material":"concrete","usage":"residential"}})
 	check(ui.store.apply_command("synthetic city",patches)=="","96-cell synthetic bounds and road")
+	ui.csv_panel.use_imported_frame()
+	check(ui.import_coordinate_mode.selected == 1 and ui.import_origin_lon.value == 9.5 and ui.import_origin_lat.value == 55.5 and ui.import_origin_x.value == 0 and ui.import_origin_y.value == 0, "CSV reuses the same source frame without applying map scale twice")
 	var project := ProjectSettings.globalize_path("user://dem-city")
 	check(ui.store.save_project(project)=="","save isolated test project")
 	var source := ProjectSettings.globalize_path("user://synthetic-city.tif")

@@ -10,10 +10,16 @@ func setup(owner_ui: Control) -> void:
 	dialog = AcceptDialog.new()
 	dialog.title = "Facility CSV columns"
 	dialog.ok_button_text = "Keep mapping"
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(760, 480)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	dialog.add_child(scroll)
 	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(600, 380)
-	dialog.add_child(box)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.custom_minimum_size.x = 720
+	scroll.add_child(box)
 	ui._label(box, "Enter exact CSV header names. Coordinates use the import origin and current map scale. Rows outside the map are excluded; invalid rows require review.")
+	ui._button(box, "Use imported OSM coordinates", use_imported_frame)
 	encoding = OptionButton.new()
 	for value in ["UTF-8 (optional BOM)", "CP949", "EUC-KR"]: encoding.add_item(value)
 	box.add_child(encoding)
@@ -50,4 +56,18 @@ func capture() -> Dictionary:
 func open() -> void:
 	if ui.busy: return
 	ui.import_dialog.hide()
-	dialog.popup_centered()
+	dialog.popup_centered(Vector2i(780, 560))
+
+func use_imported_frame() -> void:
+	var frames := preload("./dem_building_grounding.gd").layers(ui.store.document)
+	if frames.is_empty(): ui._status("No imported OSM coordinate frame."); return
+	var coordinates: Dictionary = frames.values()[0]
+	for frame: Dictionary in frames.values():
+		for key in ["mode", "origin", "local_origin_m"]:
+			if frame.get(key) != coordinates.get(key): ui._status("Imported OSM coordinate frames differ."); return
+	ui.import_coordinate_mode.select(1)
+	ui.import_origin_lon.value = coordinates.origin[0]
+	ui.import_origin_lat.value = coordinates.origin[1]
+	ui.import_origin_x.value = coordinates.local_origin_m[0]
+	ui.import_origin_y.value = coordinates.local_origin_m[1]
+	ui._import_controls_changed()
