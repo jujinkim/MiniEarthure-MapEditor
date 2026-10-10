@@ -17,4 +17,4 @@ preparation through completed scene attachment taking more than5s is recorded se
 with its source signature. Stale measurements are not carried across edits.
 
 Automated density and preview/export checks pass on Windows Godot4.7.2. Final UI
-acceptance and root integration remain pending; no release completion is implied.
+acceptance remains user verification; no release completion is implied.

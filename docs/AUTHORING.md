@@ -204,7 +204,6 @@ active-cell replacement, source notices and review cancellation semantics.
 The offline [G01 driving test map](DRIVING_TEST_MAP.md) provides a fixed small
 project with connected grades, structures, surface transitions and bumps.
 
-
 ## Cylinder walls
 
 Choose **Cylinder wall** and click its centre. **Authoring settings → Drawing**
@@ -218,7 +217,7 @@ This authoring shape emits a 48-sided solid, flat-roof MapKit building prism
 collision; no custom assets or new package/runtime version are needed. An edited
 irregular polygon remains editable as ordinary geometry instead of being silently
 rounded. Locked layers, invalid bounds and road/obstacle overlaps reject atomically.
-See [Driving School Town](DRIVING_SCHOOL.md) for two ready-to-drive kart courses
+See [Driving School Town](history/REFERENCE_WORLDS.md#driving-school-town) for two ready-to-drive kart courses
 using these round inside-corner walls.
 
 ## World themes and map writing
@@ -277,7 +276,6 @@ signatures, transfer decoding, immutable installation, history mutation, cleanup
 and UI signals still have synchronous costs. Native preparation is killable;
 this does not promise a fixed UI frame time, whole-process RSS cap or a filesystem
 transaction against arbitrary external writers. No engine/ABI/recipe changes.
-
 
 Scoped `asset_native_validator`, command/history, PNG/DEM, recovery and scratch
 checks passed on Godot 4.7.2/macOS with synthetic input and isolated user data.

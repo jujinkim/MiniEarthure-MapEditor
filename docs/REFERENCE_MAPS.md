@@ -1,4 +1,4 @@
-# Fixed synthetic reference projects (P01 preparation)
+# Fixed synthetic reference projects
 
 `p01-synthetic-v1` is an original MIT, offline, reproducible authoring workload.
 It is not a surveyed region, a calibrated dense-city workload, a 50 MB transfer
@@ -88,7 +88,7 @@ surface queries distinguish ground/bridge and underpass/tunnel floors.
 
 **Deferred:** all 400 baseline cells, native OS parity, renderer/physical driving,
 real-region density/accuracy, ground-to-deck approach design, ≥10 minute/≥3 boundary
-runs, cold/warm timing, 50 MB transfer/listening, CPU/RSS/GPU/8-player/S04 accounting,
+runs, cold/warm timing, 50 MB transfer/listening, CPU/RSS/GPU/eight-player/memory accounting,
 actual Windows/Linux exports and installed Client, anonymous clone/full integration.
 These are not replaced by source counts or native sample success. For full
 coverage generate each cell (0..19 in both axes), retain hashes/failures and compare

@@ -3,7 +3,6 @@
 The 2026-09-30 [icon workbench replacement](WORKBENCH.md) supersedes immediate
 palette placement, fixed shortcut UI and the previous visual presentation below.
 
-
 New Map defaults to a track draft. Selecting free roam retains the existing map
 editing tools. Track mode opens a primary 3D workspace and auxiliary plan, three
 category palettes on the left, source properties on the right and connection /
@@ -49,7 +48,6 @@ The command fixture exercises palette placement, numeric movement, duplicate/del
 free connection replacement, continuous-road action placement and Undo without
 claiming detailed interactive acceptance.
 
-
 Grounded seed policy (2026-09-30): first manual conversion keeps MapKit's
 `grounded_supports` policy with the original seed settings. Source edits rebuild
 the grounded floor and per-piece collision columns. The shared draft preview now
@@ -59,12 +57,10 @@ policy preservation, Undo/Redo, project save/reopen with exact floor/support
 records, and shared preview identities. Placement/generation failure still keeps
 the existing document; detailed interactive editing remains user verification.
 
-
 The 2026-10-01 [responsive editing implementation](TRACK_EDIT_PERFORMANCE.md) replaces
 synchronous interactive track commits and whole-preview selection refreshes. It
 documents live move ghosts, sequential cancellable worker edits, exact scoped
 measurements (including the 49-piece seed latency miss) and user verification.
-
 
 ## Grind Line palette
 
@@ -145,7 +141,7 @@ Previous practice packages remain preserved. Current output and reproduction
 are described below. All own formats remain v1; detailed editing, material
 preference and game driving remain user verification.
 
-## Air ring defaults 09
+## Air ring defaults
 
 Consumes MapKit 6c5e3a0. New automatic/manual rings and standalone preview now
 use a3m opening and100% strength. Existing explicit ring parts/radius/strength

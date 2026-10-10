@@ -136,3 +136,9 @@ Use isolated user state, especially when fixtures persist view preferences.
 Detailed editing, Windows source-launch behavior, IME/OS focus, DPI, devices and
 native distributions remain user verification. Historical execution logs are not
 required inputs or current platform acceptance.
+
+Cold headless import uses `--frame-delay 1000` for the observed GDExtension
+documentation shutdown race. A fresh Linux import without it exited with SIGABRT;
+the delayed import and Editor validator passed. This workaround does not establish
+a platform-wide engine fix. Preserve fresh failure diagnostics instead of treating
+a successful retry as resolution.

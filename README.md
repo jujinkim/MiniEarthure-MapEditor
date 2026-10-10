@@ -1,14 +1,8 @@
 # MiniEarthure MapEditor
 
-[Current v1 authoring/import contracts](docs/CURRENT_V1.md) supersede historical
-recipe-version selection, automatic promotion and previous-format compatibility.
+[Documentation index](docs/README.md) · [Current v1 contracts](docs/CURRENT_V1.md)
 
-[Authored default worlds and semantic infill](docs/ARCADE_WORLD.md) documents the
-authored sources, actual-render art review, reproducible recipes and general
-Editor generation. Village’s art direction is user-approved; the remaining themes
-are being completed in order.
-
-Independent Godot 4.7.2 Windows/Linux editor foundation, licensed MIT. Requires
+Independent Godot 4.7.2 map editor, licensed MIT. Requires
 only this repository and its public MapKit submodule; no game installation or
 private repository is needed to build or edit.
 
@@ -73,7 +67,7 @@ See [preview, Save As and export contracts](docs/PREVIEW_EXPORT.md).
 
 ## Test drive in installed Client
 
-For a ready-made large map, open [Driving School Town](docs/DRIVING_SCHOOL.md):
+For a ready-made large map, open [Driving School Town](docs/history/REFERENCE_WORLDS.md):
 a 6.144km square connected school, city, village, 2km straight, S curves,
 six hairpins and two kart courses studying Village Freeway and The Glove, with
 round collision walls and a Cylinder wall authoring tool. Both an editable project
@@ -100,136 +94,28 @@ The standalone validator uses a recording process adapter and needs no game.
 Optionally set `MINIEARTHURE_TEST_CLIENT` to an installed Linux executable to run
 an additional headless, bounded native launch. It does not require private source.
 
-## Current boundaries
+## Features and boundaries
 
-The implementation includes terrain brush/PNG16, bridge/tunnel editing, asset/proxy
-authoring, affected-cell preview, bounded attachment and file-copy/export tools.
-E01's 2D type/import view layers never remove source records from preview or export.
-Local import accepts authored/WGS84 GeoJSON lines, polygon/courtyard geometry and
-bounded nested GeometryCollections, plus local OSM PBF/XML, Overture snapshots
-and Copernicus COG/PNG raster profiles. OSM loops support direct bridge/tunnel
-connections and closed structures with explicit metric heights and ground anchors.
-Review retains the original source tree/graph and exact output mappings; adoption
-is one Undo command. Sources and existing packages remain untouched.
+| Need | Current implementation |
+| --- | --- |
+| Roads, terrain, tracks and assets | [Authoring](docs/AUTHORING.md), [track workspace](docs/TRACK_AUTHORING.md), [workbench](docs/WORKBENCH.md) |
+| Save, Undo/Redo and recovery | [Document ownership](docs/DOCUMENTS.md), [memory preview and explicit output](docs/PREVIEW_EXPORT.md) |
+| Local GeoJSON, OSM PBF/XML, Overture and DEM input | [Supported profiles, height references and limits](docs/IMPORTS.md) |
+| `.memap` and `.mkregions` export/reopen | [Current v1](docs/CURRENT_V1.md), [regional packages](docs/REGIONAL_SOURCE.md) |
+| Language-neutral world assets and map-owned signs | [World authoring](docs/WORLD_THEME_AUTHORING.md) |
+| Seven authored default worlds | [Sources, recipes and scoped review](docs/ARCADE_WORLD.md) |
+| Reproducible synthetic diagnostics | [Reference fixtures](docs/REFERENCE_MAPS.md), [scale fixtures](docs/SCALE_MAPS.md), [driving fixtures](docs/DRIVING_TEST_MAP.md) |
+| Editing latency | [Known 49-piece commit latency limit](docs/TRACK_EDIT_PERFORMANCE.md) |
 
-The [local input contracts and remaining support audit](docs/IMPORTS.md) distinguish
-implemented profiles from generic points/structures, additional source semantics,
-geoid-model preparation and raster/large-area work that needs further contracts.
-Platform-specific function and installed-Client authoring acceptance remain open.
-Representative-map primary performance remains open where it has not been measured;
-cross-platform repetition is unscheduled under root §44.159. This is not the
-completed transition plan.
+Default sources are `examples/default-worlds`. All seven themes are implemented;
+Village's first art direction is user-approved. Detailed driving, remaining art
+and device acceptance are separate user checks. Public sources and MapKit assets
+contain no private game dependency. Earlier town fixtures are described only in
+[reference-world history](docs/history/REFERENCE_WORLDS.md).
 
-**Import vector** selects GeoJSON or bounded local OSM PBF/XML snapshots, with
-source accuracy and license (fixed ODbL/contributor notice for OSM), then prepares
-a typed local-metre or WGS84 layer in a Python 3 child process. WGS84 uses an explicit geographic/local
-origin and optional pyproj 3.7.2 from `requirements-import.txt`. Review extent, provenance and estimated values
-before **Adopt new layer**. Discard changes nothing; reimport creates a fresh layer
-and adoption is one Undo command. GeoJSON multipart lines become independent ground
-roads with exact source-part mapping; see [multipart road input](docs/IMPORTS.md)
-and [import contracts](docs/IMPORTS.md).
-The wizard supports Python executable selection, actual per-stage progress, Cancel
-and Retry last source. Child exit/output/identity budgets protect publication;
-owner shutdown and a parent-EOF watchdog stop helpers. Structural OSM surface checks
-before review and adoption use a separate cancellable Godot child, with a 120-second
-deadline and the same 16-cell/64 MiB limits. See the [native validation contract](docs/IMPORTS.md),
-including bare-engine PCK launch instructions.
-
-Explicit **PBF streaming** in the OSM crop dialog supports local sources up to
-2 GiB using bounded disk indexing and complete candidate references before crop;
-the ordinary vector/snapshot import limit remains 32 MiB. See the
-[streaming limits and verification](docs/IMPORTS.md).
-OSM needs optional osmium
-4.3.1 and imports supported ways, multipolygons and explicit structures;
-incomplete or unsupported geometry rejects as a whole. Terrain authoring also supports staged
-PNG16 review and explicit active-tile adoption. Sources must be obtained separately;
-the Editor has no provider catalog, remote query or download function. Existing local
-Overture snapshots and Copernicus 2021 COG files/folders (explicit EGM2008 zero and bilinear
-sampling) are available through the import dialog; see the scoped contracts and
-remaining multi-theme/multi-cell limits in [IMPORTS](docs/IMPORTS.md).
-
-Linux native build, command/save/recovery/export and rendered preview are tested.
-E01 Mac pointer/key, layer/property/panel and graph-safety checks are scoped
-workbench evidence. Native Windows/Linux final export/interaction and full authoring/game
-driving acceptance remain unverified.
-No CI/CD or private game assets are included.
-
-Cold headless import uses `--frame-delay 1000` to avoid the observed Godot
-GDExtension documentation shutdown race. Without it, a fresh import exited with
-SIGABRT although later runs succeeded; do not ignore that failure. The upstream
-[Godot issue 111048](https://github.com/godotengine/godot/issues/111048) describes a
-similar timing-sensitive failure and this workaround. Fresh import plus the
-editor validator passed with the documented command on Linux.
-
-
-K07 asset previews now use the same MapKit packed renderer as game consumers.
-Saved projects with static GLB/PNG/WebP and declarative materials load validated
-in-memory resources; empty-file document previews use the same style decoration.
-A failed replacement leaves the previous preview visible. Asset/proxy editing
-widgets are implemented in the [E03 authoring tools](docs/AUTHORING.md). `tests/asset_preview_validator.gd` verifies a
-synthetic project through open, preview, save/export, failed replacement and
-resource cleanup without installing the private game.
-
-Authoring tools (terrain strokes/PNG16, structural roads, buildings/zones, assets/proxies):
-[AUTHORING.md](docs/AUTHORING.md). Incremental preview/file-copy Save As/export:
-[PREVIEW_EXPORT.md](docs/PREVIEW_EXPORT.md). Final native-platform-specific function
-and E05 installed-Client authoring acceptance remain open. Cross-platform repeat
-performance is unscheduled and non-blocking under root architecture §44.159.
-
-
-Reproducible offline synthetic reference projects, frozen source/generated hashes,
-capacity accounting and scoped validation: [REFERENCE_MAPS.md](docs/REFERENCE_MAPS.md).
-
-Fixed-density 2km mixed/dense experiments and smaller controls, preserving the
-Hanbit quality block: [SCALE_MAPS.md](docs/SCALE_MAPS.md). These measure actual
-regional transfer/audit limits; authored area alone is not supported gameplay.
-These development fixtures do not establish representative-map performance acceptance.
-
-OSM import now assembles bounded split-way multipolygons, multiple building/zone
-outers and forest/orchard holes (zone exclusions), preserving atomic review and
-adoption. Later extensions below describe courtyard and explicit structure support. See
-[the exact import profile](docs/IMPORTS.md).
-
-
-OSM explicit heights support an EGM96 local zero or a bounded, externally prepared
-local EGM96→EGM2008 difference grid. Active imported DEM/OSM datum, zero and origins
-must agree. Review retains correction bytes/hash/license/accuracy; it never fits
-heights to terrain. See [height references](docs/IMPORTS.md).
-
-
-Explicit OSM bridges/tunnels can continue through unique same-kind source
-endpoints with complete grounded ends. Full structural source closure, lost-join
-crop sections and bounded current-v1 native generation protect atomic adoption.
-See [connected structures and the native validation correction](docs/IMPORTS.md).
-
-
-Local OSM structural imports can use an explicit node-ID/EGM96 height supplement
-for missing elevations. Select it in **Import vector → OSM height reference…**;
-review retains its exact bytes, source/license/accuracy and the bound OSM hash.
-See [the bounded local height contract](docs/IMPORTS.md).
-Existing source heights and the full structural validation remain authoritative.
-
-### Seven world-theme examples and signs
-
-Open `examples/world-themes/<profile>.memap` in a consumer or its source directory
-in this editor. Map authoring → Signs supports licensed-font text and prepared
-PNG import as separate map-owned assets. [Authoring, commands and limits](docs/WORLD_THEME_AUTHORING.md).
-
-## Regional packages
-
-[Regional export/reopen](docs/REGIONAL_SOURCE.md) adds explicit `.mkregions` export,
-storage grouping and recovery into a new project directory. Existing `.memap` and
-source projects remain supported and preserved.
-
-## Default worlds
-
-Current authored sources are in `examples/default-worlds`. Editor owns the
-landscape recipes and three road-route plans; MapKit owns paired near/distant
-models and shared rendering. Runtime/Client seal game courses separately.
-Retired default-only source/distribution families and improvers were removed;
-practice, physics and shared authoring fixtures remain. Git retains history.
-
-- [Icon workbench, shortcuts and preview placement](docs/WORKBENCH.md)
-- [Track piece workspace and draft authoring](docs/TRACK_AUTHORING.md)
-
-- [Track drag feedback, worker commits and timing evidence](docs/TRACK_EDIT_PERFORMANCE.md)
+Run affected feature/unit checks and necessary build/load checks. In the
+superproject use its root `.venv` and development workflow. Detailed interaction,
+installed-Client test driving, OS/device and export acceptance belong to the user;
+full check/clean-clone/long performance runs require an explicit request.
+No CI/CD is included. Source/native startup errors and the cold-import workaround
+are described in [workbench validation](docs/WORKBENCH.md#essential-validation-and-limits).

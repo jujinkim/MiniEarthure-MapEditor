@@ -1,4 +1,4 @@
-# World themes and map-owned writing — Q03-G
+# World themes and map-owned writing
 
 Seven authored representative scenes are implemented in `examples/world-themes/`:
 polar, metropolis, countryside, middle-eastern, desert, jungle and southeast-asian.
