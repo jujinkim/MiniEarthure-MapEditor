@@ -1530,6 +1530,9 @@ func _process(_delta: float) -> void:
 	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy and store.file_request.is_empty() and store.water_job == null
 	cancel_button.tooltip_text = I18N.t("Cancel the running operation; keep prior preview and original files.") if busy or store.track_edit_busy else I18N.t("No running operation.")
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
+	# Density owns its own worker. A queued preview must wait for its cancellation
+	# to drain; the package worker has not been started and cannot be joined yet.
+	if not density_deferred_package.is_empty(): return
 	if import_job != null:
 		if import_job is ASSET_NATIVE_JOB:
 			if generation != worker_generation or import_job.document_epoch != store.command_epoch or import_job.selection_signature != author_panel.asset_selection(): import_job.cancel()

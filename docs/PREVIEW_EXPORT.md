@@ -12,6 +12,8 @@ cells** plus needed neighbors. One running worker and latest pending cells bound
 demand while preserving all brush input time/path. Nearby display is a 3×3 cell
 window. Unchanged nodes and common mesh/material/asset caches are retained.
 Request epoch/session checks prevent old documents from receiving results.
+A storage preview queued behind density analysis waits for that worker to drain;
+cancelling the queue does not join or launch a package worker.
 
 Explicit **3D Preview** generates a chosen storage cell from memory. Committed
 record edits refresh it after 150 ms of inactivity. Generated content signatures

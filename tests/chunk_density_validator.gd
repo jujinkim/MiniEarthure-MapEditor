@@ -57,6 +57,14 @@ func run() -> void:
 	check(panel.generation > before and panel.rows.is_empty() and ui.canvas.density_cells.is_empty(), "document replacement clears stale results immediately")
 	panel.cancel()
 	check(panel.due == 0 and panel.rows.is_empty(), "cancel clears pending publication")
+	panel.set_process(false)
+	panel.task = WORK.new()
+	ui._start_package("preview")
+	ui._process(0)
+	check(ui.busy and not ui.density_deferred_package.is_empty() and not ui.worker.is_started(), "queued preview waits for the density owner without joining an unstarted worker")
+	ui._cancel_operation()
+	check(not ui.busy and ui.density_deferred_package.is_empty(), "cancellation also removes a queued preview")
+	panel.task = null
 	ui.queue_free()
 	await process_frame
 	print("chunk_density_validator: ", "FAIL" if failed else "PASS")
