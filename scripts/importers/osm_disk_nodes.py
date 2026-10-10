@@ -113,6 +113,25 @@ class DiskNodes:
         low, high = points.min(axis=0), points.max(axis=0)
         return [int(low[0])/PRECISION,int(low[1])/PRECISION,int(high[0])/PRECISION,int(high[1])/PRECISION]
 
+    def bounds_many(self, groups):
+        """One bounded search for several ways, without mixing their envelopes."""
+        if len(groups) > 256: raise ValueError("OSM node lookup group budget exceeded")
+        refs, starts, owners = [], [], []
+        result = [None] * len(groups)
+        for owner, group in enumerate(groups):
+            if not group: continue
+            if len(refs) + len(group) > MAX_LOOKUP:
+                raise ValueError("OSM node lookup reference budget exceeded")
+            starts.append(len(refs)); owners.append(owner); refs.extend(group)
+        if not refs: return result
+        points = self._points(refs)
+        lows = self.np.minimum.reduceat(points, starts, axis=0)
+        highs = self.np.maximum.reduceat(points, starts, axis=0)
+        for owner, low, high in zip(owners, lows, highs):
+            result[owner] = [int(low[0])/PRECISION,int(low[1])/PRECISION,
+                             int(high[0])/PRECISION,int(high[1])/PRECISION]
+        return result
+
     def point(self, ref):
         point = self._points([ref])[0]
         return [int(point[0])/PRECISION,int(point[1])/PRECISION]

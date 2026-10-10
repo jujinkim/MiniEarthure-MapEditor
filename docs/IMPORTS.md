@@ -141,7 +141,10 @@ selection; the250,000 selected-entity and20,000 feature caps are unchanged. Name
 lookup filters boundary member IDs in libosmium before materialising Python objects.
 Sorted node IDs use disposable read-only file arrays of exact1e-7-degree integer
 coordinates. Up to20,000 references are looked up together, preserving enclosing
-polygons and crossing ways even when no source vertex is inside the crop. Metadata
+polygons and crossing ways even when no source vertex is inside the crop.
+Way lookups and SQLite writes are grouped across at most128 ways,20,000 total
+references and4MiB serialized payload. Each way retains its own envelope; empty
+ways, missing nodes and duplicate IDs cannot be merged away by batching. Metadata
 and incidence stay in SQLite; its page limit reserves the coordinate-file bytes
 before each64KiB append. Unsorted inputs use bounded-block SQLite indexing under
 the same combined disk allowance, with duplicate/missing-ID checks on both paths.
@@ -177,7 +180,7 @@ regressions retain exact multipolygon membership counts after exclusion review.
 Focused stream/import/place Python checks include exact seven-decimal source
 positions in both hemispheres, sorted/unsorted parity, combined disk limits,
 exclusive workspace ownership, source preservation and cleanup after cancellation.
-The bulk-coordinate index passes14 Python stream cases and compiled Godot stream
+The bulk-coordinate index passes15 Python stream cases and compiled Godot stream
 (45 checks), exclusion review, name lookup and import-job validators. The stream
 fixture generates its actual occupied1:8 cell; native vegetation visits only the
 cell/zone envelope while retaining its global lattice and existing work limits.

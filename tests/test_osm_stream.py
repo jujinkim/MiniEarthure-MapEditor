@@ -106,6 +106,27 @@ class Streaming(unittest.TestCase):
                     structural_xml().replace('<tag k="ele" v="6" />', '',1)]:
             with self.assertRaises(ValueError): self.extract(xml)
 
+    def test_way_batches_keep_envelopes_empty_ways_and_failures_separate(self):
+        root=ET.fromstring(multipolygon_xml())
+        # Empty/nonfeature ways and disjoint source geometry must not pollute
+        # a neighbouring way's envelope when bounds are reduced together.
+        for identity in range(1000,1260):
+            way=ET.SubElement(root,"way",id=str(identity))
+            if identity%3: ET.SubElement(way,"nd",ref="1")
+        xml=ET.tostring(root,encoding="unicode")
+        expected=None
+        for batch in [1,2,128]:
+            with patch.object(stream,"WAY_BATCH_ROWS",batch):
+                actual=self.extract(xml)
+            if expected is None: expected=actual
+            else: self.assertEqual(actual,expected)
+        with patch.object(stream,"WAY_BATCH_BYTES",1),self.assertRaisesRegex(ValueError,"buffer byte budget"):
+            self.extract(xml)
+        root.find("way[@id='1259']/nd").set("ref","999999")
+        with self.assertRaisesRegex(ValueError,"missing referenced node"):
+            self.extract(ET.tostring(root,encoding="unicode"))
+        self.assertTrue(all(not (self.directory/n).exists() for n in stream.OWNED_FILES))
+
     def test_ignored_area_ownership_and_partial_structure_source_closure(self):
         xml=XML.replace('</osm>','<relation id="3"><member type="way" ref="1" role="outer"/><tag k="type" v="boundary"/></relation></osm>')
         with self.assertRaisesRegex(ValueError,"area relation"): self.extract(xml)

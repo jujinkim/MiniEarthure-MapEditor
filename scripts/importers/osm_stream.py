@@ -18,7 +18,7 @@ from collections import deque
 
 from import_layer import MAX_INPUT, MAX_POINTS
 from osm_review import Review
-from osm_disk_nodes import DiskNodes, MissingNode, FILES as NODE_FILES
+from osm_disk_nodes import DiskNodes, MissingNode, FILES as NODE_FILES, MAX_LOOKUP
 from osm_area import bounds
 from osm_extract import dependency, category, build_features, MAX_ENTITIES, MAX_REFS, MAX_FEATURES
 
@@ -32,6 +32,8 @@ MAX_HEADER = 64 * 1024
 COPY_BLOCK = 1024**2
 PROFILE = "pbf-area-stream-v1"
 OWNED_FILES = ("source.pbf.part", "source.pbf", "source-index.sqlite", *NODE_FILES)
+WAY_BATCH_ROWS = 128
+WAY_BATCH_BYTES = 4 * 1024**2
 
 
 def _varint(value):
@@ -305,24 +307,41 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             if not -1800000000 <= x <= 1800000000 or not -900000000 <= y <= 900000000: raise ValueError("OSM invalid node location")
             locations.add(entity.id,x,y)
             if tags: tag_insert.execute("INSERT INTO node_tags VALUES(?,?)", (entity.id,json.dumps(tags)))
+        pending_ways, pending_refs, pending_bytes = [], 0, 0
+        def flush_ways():
+            nonlocal pending_refs, pending_bytes
+            if not pending_ways: return
+            boxes = locations.bounds_many([row[1] for row in pending_ways])
+            db.executemany("INSERT INTO ways VALUES(?,?,?,?,?,?,?)",
+                ((identity,*(box or [None]*4),raw,int(potential))
+                 for (identity,refs,tags,raw,potential),box in zip(pending_ways,boxes)))
+            # Only source graph evidence, never an inferred positional join.
+            # Batches obey the same aggregate reference/disk/deadline caps.
+            db.executemany("INSERT OR IGNORE INTO road_nodes VALUES(?,?)",
+                ((ref,identity) for identity,refs,tags,raw,potential in pending_ways
+                 if "highway" in tags for ref in refs))
+            for (identity,refs,tags,raw,potential),box in zip(pending_ways,boxes):
+                if "highway" in tags:
+                    if any(tags.get(k, "no") not in ("no", "0") for k in ("bridge", "tunnel")):
+                        db.execute("INSERT INTO structural_ways VALUES(?)", (identity,))
+                    elif len(refs) > 1 and refs[0] == refs[-1]:
+                        db.execute("INSERT INTO loop_ways VALUES(?)", (identity,))
+                if potential and intersects(box):
+                    db.execute("INSERT INTO chosen VALUES(?)", (identity,))
+            pending_ways.clear(); pending_refs = pending_bytes = 0
         def way(entity):
+            nonlocal pending_refs, pending_bytes
             tags = scalar(entity, "ways")
             references(len(entity.nodes))
             refs = [n.ref for n in entity.nodes]
             potential = _potential(tags)
             if potential and not len(entity.nodes): raise ValueError("OSM feature way has no referenced geometry")
-            box = locations.bounds(refs)
-            db.execute("INSERT INTO ways VALUES(?,?,?,?,?,?,?)", (entity.id,*(box or [None]*4),json.dumps([refs,tags]),int(potential)))
-            if "highway" in tags:
-                # Only source graph evidence, never an inferred positional join.
-                # Disk/index/deadline/reference caps also cover this adjacency.
-                db.executemany("INSERT OR IGNORE INTO road_nodes VALUES(?,?)", ((ref,entity.id) for ref in refs))
-                if any(tags.get(k, "no") not in ("no", "0") for k in ("bridge", "tunnel")):
-                    db.execute("INSERT INTO structural_ways VALUES(?)", (entity.id,))
-                elif len(refs) > 1 and refs[0] == refs[-1]:
-                    db.execute("INSERT INTO loop_ways VALUES(?)", (entity.id,))
-            if potential and intersects(box):
-                db.execute("INSERT INTO chosen VALUES(?)", (entity.id,))
+            raw = json.dumps([refs,tags]); size = len(raw.encode("utf-8"))
+            if size > WAY_BATCH_BYTES: raise ValueError("OSM way buffer byte budget exceeded")
+            if len(pending_ways) >= WAY_BATCH_ROWS or pending_refs + len(refs) > MAX_LOOKUP or pending_bytes + size > WAY_BATCH_BYTES:
+                flush_ways()
+            pending_ways.append((entity.id,refs,tags,raw,potential))
+            pending_refs += len(refs); pending_bytes += size
         def relation(entity):
             tags = scalar(entity, "relations")
             references(len(entity.members))
@@ -368,6 +387,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         for stage, bits, callback in [("index_nodes",osmium.osm.NODE,node),("index_ways",osmium.osm.WAY,way),("index_relations",osmium.osm.RELATION,relation)]:
             _scan(path, stage, event, size, osmium, bits, callback)
             if stage == "index_nodes": locations.seal()
+            if stage == "index_ways": flush_ways()
             db.commit()
         closure = _structure_closure(db, event, size)
         event("index_relations", size, size)
