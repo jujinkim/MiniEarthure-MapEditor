@@ -306,19 +306,37 @@ Projection CLI numbers preserve full precision and origin checks compare the sam
 JSON-decoded representation as the helper response, avoiding SpinBox binary
 rounding mismatches while still rejecting changed coordinates.
 
-Read-only diagnostics on the full Yeongtong rectangle
-`[127.032369,37.231186,127.089872,37.320589]` reduce21,828 features/156,136 positions
-to14,149/108,821 (7,659 roads,5,410 buildings,1,080 areas; gap32 source metres).
-The11,531,765-byte Editor candidate passes all96 native cells at128 m cell size,
-including prepared command transfer and source recheck, within the unchanged
-120-second deadline. This is not yet proof of UI adoption or a completed map.
-The full Suwon candidate still exceeds the32MiB output allowance at33,822,459 bytes.
-National extraction now fits its unchanged2GiB index allowance; the former20,000
-selected-source ceiling belongs to the exact profile, not automatic city mode.
-Real DEM/facility adoption, package reopen and Client loading remain pending until
-that actual UI flow completes. Small diagnostic areas are not whole-region success.
-Ground roads follow terrain; absolute building bases can use the explicit DSM
-estimate above. Real combined terrain/building validation remains a separate step.
+The actual UI-authored full Yeongtong rectangle
+`[127.032369,37.231186,127.089872,37.320589]` reduces21,828 features/156,136 positions
+to14,148/108,678 (7,659 roads,5,409 buildings,1,080 areas; gap32 source metres).
+All96 native128m cells pass before atomic UI adoption. The saved1024×1536m map
+uses WGS84 origin127.061119/37.275887, source-local4096/6144m and1:8 scale.
+The rectangle also includes parts of neighboring Suwon districts, Yongin and
+Hwaseong; it is not the administrative polygon itself.
+
+The UI imported the E127 GLO-30 tile at4m map spacing into96 terrain cells and
+explicitly grounded5,409 zero-base OSM buildings using123,578 DSM samples.
+CP949 library CSV mapping adopted42 of135 rows (93 outside, no invalid rows),
+using the imported OSM frame and category `작은도서관`. All42 projected positions
+match the original CSV to the authored centimetre. Source file hashes are unchanged.
+Project save/reopen, three representative3D cells(3/2,2/4,3/7), whole-map2D facility
+pins/Korean labels, UI export and UI package restore pass. Restored document,
+all96 terrain payloads and facility/source receipts match the saved project exactly.
+The `.memap` is1,881,000 bytes; saved document9,163,635 bytes. Nullable sidewalks,
+preview-vs-export indexing and conservative preview/receipt costs were corrected
+without raising preview or package-restore allowances. Actual Client loading is
+recorded separately in the [Client import guide](../../client/docs/PACKAGE_FILE_IMPORT.md).
+These local user artifacts are not public fixtures or committed datasets.
+
+The full Suwon candidate still exceeds the32MiB output allowance at33,822,459 bytes;
+its two DEM tiles total79,266,369 bytes, above the64MiB source allowance. Full
+Yeongtong is the authorized fallback, not a claim of full Suwon or every-city
+success. National extraction fits the unchanged2GiB index allowance; the former
+20,000 selected-source ceiling belongs to exact mode, not automatic city mode.
+Ground roads follow terrain; explicit DSM building bases remain surface estimates
+with possible roof/tree bias. OSM omissions and unsupported source exclusions
+remain recorded, without invented bridge/tunnel heights. Overture/GIS building
+completeness comparisons and detailed driving were not performed.
 
 For a change, choose its `tests/test_osm*.py`, `test_collections.py` or other adapter
 unit and the relevant Godot validator via the root isolated checker. Do not repeat
