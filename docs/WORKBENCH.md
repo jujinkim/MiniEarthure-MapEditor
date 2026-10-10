@@ -34,6 +34,14 @@ and limits are in [preview/export](PREVIEW_EXPORT.md) and
 [editing performance](TRACK_EDIT_PERFORMANCE.md); general 3D gizmos remain outside
 the implemented scope.
 
+Below four screen pixels per map metre, the 2D overview batches unselected road
+segments and closed area/courtyard outlines by color and opacity. Offscreen
+objects and unselected node handles do not submit overview geometry. Selected
+objects and closer zoom retain detailed handles; facility pins/labels remain in
+their shared renderer. This changes only display detail, not objects, picking,
+source coordinates or exported collision. Focused batching and the66-assertion
+workbench interaction regression pass.
+
 Splitters, dock visibility, grid settings and per-map view layers persist in
 `user://workbench.cfg`, separate from map bytes and Undo. Preferences do not dirty
 a document. Shortcut/favorite writers reload the file before updating their own

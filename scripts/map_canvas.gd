@@ -172,6 +172,8 @@ func _draw() -> void:
 	if dragging and drag_offset != Vector2.ZERO:
 		for item: Dictionary in EDIT.plan(doc, selected, "move", drag_offset).patches:
 			transformed[EDIT.key(item.field, item.id)] = item.after
+	var overview_batches := {}
+	var overview := _scale() < 0.04 # Fewer than four pixels per map metre.
 	for entry in EDIT.entries(doc):
 		if not available(entry): continue
 		var record: Dictionary = transformed.get(entry.key, entry.record)
@@ -181,6 +183,13 @@ func _draw() -> void:
 		var color := Color("c76035") if chosen else (Color("45bdd0") if entry.field == "water_bodies" else Color("202020"))
 		color.a = opacity(entry)
 		if not available(entry, true): color = Color(0.5, 0.52, 0.55, color.a)
+		if overview and not chosen:
+			_overview_add(overview_batches,entry.field,points,color)
+			for polygon: Array in record.get("holes",record.get("islands",[])):
+				var outline:=PackedVector2Array()
+				for point: Array in polygon: outline.append(screen(point))
+				_overview_add(overview_batches,entry.field,outline,color)
+			continue
 		if entry.field in ["water_bodies", "surface_areas", "zones", "buildings"]:
 			if points.size() < 3: continue
 			# At city zoom, valid cm-scale outlines can collapse to a subpixel
@@ -206,6 +215,8 @@ func _draw() -> void:
 			draw_arc(points[0], 5.0 if entry.field == "nodes" else 8.0, 0, TAU, 20, color, 2.0, true)
 		if chosen:
 			for p in points: draw_rect(Rect2(p - Vector2(3, 3), Vector2(6, 6)), Color("c76035"))
+	for color: Color in overview_batches:
+		draw_multiline(PackedVector2Array(overview_batches[color]),color,-1.0,false)
 	var pois: Array = []
 	for poi: Dictionary in doc.get("pois", []):
 		if available({"field":"pois", "record":poi}): pois.append(transformed.get(EDIT.key("pois",poi.id), poi))
@@ -277,6 +288,26 @@ func _snap_vertex(p: Vector2) -> Vector2:
 				distance = p.distance_to(vertex)
 				best = vertex
 	return best
+
+func _overview_add(batches: Dictionary, field: String, points: PackedVector2Array, color: Color) -> void:
+	# At city scale node handles obscure roads and thousands of individual draw
+	# calls dominate the tiny navigation map. Keep independent segments in one
+	# submission per style; detailed handles remain available when zoomed/selected.
+	if points.is_empty() or field in ["nodes","pois"]: return
+	var extent:=Rect2(points[0],Vector2.ZERO)
+	for point in points: extent=extent.expand(point)
+	if not extent.grow(1).intersects(Rect2(Vector2.ZERO,size)): return
+	# Array shares its mutable backing store here. A packed copy per object would
+	# turn appending thousands of paths into quadratic copy-on-write work.
+	var lines: Array=batches.get(color,[])
+	if points.size()==1:
+		lines.append(points[0]+Vector2(-1,0));lines.append(points[0]+Vector2(1,0))
+	else:
+		for i in range(points.size()-1):
+			lines.append(points[i]);lines.append(points[i+1])
+		if field in ["water_bodies","surface_areas","zones","buildings"]:
+			lines.append(points[-1]);lines.append(points[0])
+	batches[color]=lines
 
 func _gui_input(event: InputEvent) -> void:
 	if navigation_only or (store != null and store.editing_locked()):

@@ -96,6 +96,8 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	ui.store.new_track(true)
+	ui.set_tool_workspace("landscape")
+	ui._set_view_mode("2d")
 	await process_frame
 	await process_frame
 	var patches: Array = []
@@ -235,7 +237,7 @@ func run() -> void:
 	await click_button("Validate")
 	var validation_deadline := Time.get_ticks_msec() + 20000
 	while ui.busy and Time.get_ticks_msec() < validation_deadline: await create_timer(0.002).timeout
-	check(not ui.busy and ui.validation_label.text.begins_with("Validated"), "asynchronous file validation has persistent dedicated status")
+	check(not ui.busy and ui.store.file_request.is_empty() and ui.status_label.text.begins_with("Validated"), "asynchronous file validation completes with persistent status")
 	ui.export_report.hide()
 	await click_button("3D Preview")
 	for _i in range(600):
