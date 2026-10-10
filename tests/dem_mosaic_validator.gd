@@ -28,6 +28,7 @@ func run() -> void:
 	ui=load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
+	ui.store.new_document()
 	check(ui.store.apply_command("four-cell synthetic map",[{"field":"bounds","before":ui.store.document.bounds.duplicate(true),"after":{"min":[0,0],"max":[102400,102400]}}])=="","fixture bounds")
 	var project := ProjectSettings.globalize_path("user://mosaic-project")
 	check(ui.store.save_project(project)=="","save isolated mosaic project")

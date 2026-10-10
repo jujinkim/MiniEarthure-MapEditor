@@ -1,7 +1,8 @@
 extends "./raster_native_job.gd"
 ## Local DEM request admission; lifecycle and binary commands are shared.
+var ground_layers := {}
 
-func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destination: String, adopt: bool, selection: String, token: String, previous: Dictionary = {}) -> String:
+func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destination: String, adopt: bool, selection: String, token: String, previous: Dictionary = {}, ground_buildings: bool = false) -> String:
 	if _attempted or cancelled: return "Native DEM jobs are single use."
 	_attempted = true
 	if not LAYER._hex(token, 32) or store.project_path == "" or store.has_gesture(): return "Save the project and finish gestures before DEM validation."
@@ -15,14 +16,15 @@ func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destin
 	document_epoch = store.command_epoch
 	_store_id = store.get_instance_id()
 	var outputs: Variant = data.get("outputs")
-	if reviewed.get("adapter") != "copernicus-dem-v1" or outputs is not Array or outputs.is_empty() or outputs.size() > 16: return "Invalid DEM output count."
+	generation_limit = preload("./dem_import_layer.gd").MAX_CELLS
+	if reviewed.get("adapter") != "copernicus-dem-v1" or outputs is not Array or outputs.is_empty() or outputs.size() > generation_limit: return "Invalid DEM output count."
 	for output: Variant in outputs:
 		if output is not Dictionary or not LAYER._hex(output.get("png_sha256"), 64): return "Invalid DEM PNG identity."
-	expected_cells = outputs.size() if not store.document.roads.is_empty() else 0
-	if expected_cells > 16: return "DEM exceeds 16 candidate cells."
+	expected_cells = outputs.size() if not store.document.roads.is_empty() or (ground_buildings and not store.document.buildings.is_empty()) else 0
 	structural = expected_cells > 0
+	if ground_buildings: ground_layers = preload("./dem_building_grounding.gd").layers(store.document)
 	request = {"kind":"dem", "request":token, "document":store.document.duplicate(true), "project":project_source,
-		"data":data.duplicate(true), "reviewed":reviewed.duplicate(true), "destination":destination,
+		"data":data.duplicate(true), "reviewed":reviewed.duplicate(true), "destination":destination,"ground_buildings":ground_buildings,
 		"layer_id":previous.layer_id if adopt else token, "expected_payloads":previous.get("payloads", "")}
 	for field in ["assets", "heightmaps"]:
 		for record: Dictionary in store.document.get(field, []):
@@ -35,5 +37,8 @@ func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destin
 		var path := "editor/" + str(output.png_sha256) + ".png"
 		if path not in owned_payloads: owned_payloads.append(path)
 	var bytes := JSON.stringify(request).to_utf8_buffer()
-	if bytes.size() > REQUEST_LIMIT: return "Native DEM request exceeds 24 MiB."
+	if bytes.size() > REQUEST_LIMIT: return "Native DEM request exceeds 64 MiB."
 	return _start_request(bytes)
+
+func _additional_patch(patch: Dictionary) -> bool:
+	return ground_layers.has(str(patch.get("id","")).left(40)) and preload("./dem_building_grounding.gd").valid_patch(patch,request.get("ground_buildings",false))

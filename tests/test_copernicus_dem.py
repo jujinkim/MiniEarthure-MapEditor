@@ -67,6 +67,31 @@ class DemTests(unittest.TestCase):
                 with self.assertRaises(ValueError):dem.execute(dict(mode="dem",plan=changed,destination=str(d/"absent")),d,lambda *a:None)
             self.assertEqual(list(d.iterdir()),[])
 
+    def test_city_grid_keeps_sample_source_and_cell_budgets(self):
+        raw = dict(options(self.source), cell_count=[8,12], cell_size_cm=12800,
+                   spacing_cm=400, osm_denominator=8)
+        p = dem.plan(raw)
+        self.assertEqual((len(p['cells']), p['side']), (96,33))
+        self.assertEqual(p['cells'][-1], [7,11])
+        self.assertEqual(len(p['sources']), 1)
+        # Count is independent of aspect ratio, but never unbounded.
+        for counts in [[16,16],[256,1],[1,256]]:
+            grid=dem.mosaic_grid(dict(options(self.source),cell_count=counts,
+                                      cell_size_cm=200,spacing_cm=200))
+            self.assertEqual(len(grid[2]),256)
+        for counts in [[17,16],[257,1],[1,257],[True,1]]:
+            with self.subTest(counts=counts),self.assertRaises(ValueError):
+                dem.mosaic_grid(dict(raw,cell_count=counts))
+        with self.assertRaisesRegex(ValueError,'sample budget'):
+            dem.mosaic_grid(dict(raw,cell_count=[16,16],spacing_cm=200))
+        original = dem.identity(self.source)
+        with tempfile.TemporaryDirectory() as folder:
+            d=Path(folder)
+            result=dem.execute(dict(mode='dem',plan=p,destination=str(d/'city')),d,lambda *a:None)
+            self.assertEqual(len(result['outputs']),96)
+            self.assertEqual(result['outputs'][-1]['cell'],[7,11])
+        self.assertEqual(dem.identity(self.source),original)
+
     def test_bad_rasters_no_fill_and_dependency_failure(self):
         with tempfile.TemporaryDirectory() as folder:
             d=Path(folder);bad=d/"bad.tif"

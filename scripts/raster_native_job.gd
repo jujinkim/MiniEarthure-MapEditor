@@ -36,6 +36,7 @@ func _decode_command(output: Dictionary) -> void:
 		for patch: Variant in decoded.patches:
 			# COMMAND.decode already checks the exact imported free-roam policy.
 			if patch.get("field") == "free_roam": continue
+			if _additional_patch(patch): continue
 			if patch.get("field") not in ["heightmaps", "attributions"] or patch.get("after") is not Dictionary or (patch.get("before") != null and patch.before is not Dictionary):
 				failure = "Invalid raster command transfer."
 				break
@@ -48,6 +49,8 @@ func _decode_command(output: Dictionary) -> void:
 		return
 	decoded.erase("prepared")
 	bundle = decoded
+
+func _additional_patch(_patch: Dictionary) -> bool: return false
 
 func commit(store: RefCounted) -> String:
 	if store.editing_locked(): return store.EDIT_BUSY

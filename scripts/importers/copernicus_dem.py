@@ -125,6 +125,7 @@ def execute(request, scratch, progress):
 
 MAX_MOSAIC_SAMPLES = 1025 * 1025
 MAX_MOSAIC_SOURCES = 4
+MAX_MOSAIC_CELLS = 256
 
 
 def mosaic_grid(options):
@@ -132,7 +133,8 @@ def mosaic_grid(options):
     counts = base.pop("cell_count")
     if not isinstance(counts, list) or len(counts) != 2:
         raise ValueError("DEM cell_count must be [columns, rows]")
-    nx, ny = [integer(v, "cell count", 1, 4) for v in counts]
+    nx, ny = [integer(v, "cell count", 1, MAX_MOSAIC_CELLS) for v in counts]
+    if nx * ny > MAX_MOSAIC_CELLS: raise ValueError("DEM exceeds 256 candidate cells")
     size = integer(base["cell_size_cm"], "cell size", 200, 102400)
     spacing = integer(base["spacing_cm"], "spacing", 200, size)
     sample_count = nx * ny * (size // spacing + 1) ** 2

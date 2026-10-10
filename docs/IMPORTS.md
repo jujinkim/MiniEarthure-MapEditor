@@ -31,6 +31,23 @@ coordinates and never apply the factor again.
 | Copernicus COG `copernicus-dem-v1` | One bounded array of local COGs, including single file and atomic mosaic | Remote acquisition, arbitrary raster/nodata/warp profiles, unbounded partitioning |
 | Facility CSV `facility-csv-v1` | Explicit UTF-8/CP949/EUC-KR, header mapping, WGS84 names/positions/category/source; geographic and map-bounds filtering | Missing/invalid coordinates are review rows, never guessed or geocoded; malformed headers/encoding fail the import |
 
+Copernicus mosaics admit at most256 cells of any rectangular aspect ratio while
+retaining the combined64MiB source limit, four source tiles,1025² total samples,
+513 samples per cell side,64MiB output payload and120-second native deadline.
+**Use imported OSM coordinates and full map extent** copies the active imported
+frame, selects all cells and uses4m map spacing when the grid permits it. The
+source lookup and relative heights retain the linked1:8 denominator.
+
+**Place zero-base OSM buildings on this DSM (estimated)** is an explicit option.
+Only active imported OSM buildings whose absolute base is still zero and whose
+complete footprint is covered by this mosaic qualify. MapKit samples the raw DEM
+at footprint/courtyard vertices and edge midpoints; the lowest sample sets the
+base. This is a disclosed DSM estimate, including possible roof/tree bias, not a
+surveyed ground elevation. Shapes and building heights stay unchanged, as do
+nonzero or non-OSM bases and every bridge/tunnel height. The receipt lists every
+old/new base and uncovered building count. Full candidate geometry validation,
+source rechecks, revision guards and one atomic terrain/building Undo still apply.
+
 Every whole candidate is validated before adoption. Repeated/invalid JSON keys,
 missing coordinates, zero/invalid rings, conflicting identities and unsupported
 members reject rather than silently flattening or partially importing. Source SHA,
@@ -226,10 +243,9 @@ mappings share that2GiB reservation; it is not a fixed resident-RAM claim.
 Exact mode performs no geometric generalization. NumPy2.5.3 is an explicit importer dependency;
 install `requirements-import.txt` in Python3.12 or newer.
 Full failure text is available in **Activity → Operation details…**.
-The native PBF picker uses the single `*.pbf` extension filter, which also accepts
-`.osm.pbf`. On macOS, the former redundant multipart extension filter could list
-a PBF while keeping Open disabled. The same downloaded file opens with the corrected
-filter; standalone startup and this native file-selection path were verified.
+The PBF picker uses the single `*.pbf` extension filter, which also accepts
+`.osm.pbf`. The in-app macOS chooser is used because the system Open panel can
+still keep confirmation disabled for a selected source.
 
 The immutable review candidate exposes summary and exact provenance details.
 Native validation, source recheck and final command preparation use owned workers;
@@ -274,6 +290,10 @@ atomic Undo/Redo, project/package reopen, generated geometry and cancellation.
 Compressed-history and batch tests additionally cover 6,000 mixed records and
 corrupt/oversized/stale command failures. Read-only real-data diagnostics are kept
 separate from maps actually authored through the UI.
+The bounded DEM extension passes10 Python cases plus the compiled96-cell city
+and native DEM validators. These include explicit building estimates, unchanged
+authored heights, projection mismatch/uncovered footprint rejection, cancellation,
+same-size source mutations, last-cell corruption, atomic Undo/Redo and reopen.
 
 The scoped macOS real-data workflow verified browser acquisition, Korean Suwon and
 Yeongtong name/boundary selection, click/drag coordinates, wide button labels,
@@ -294,8 +314,8 @@ National extraction now fits its unchanged2GiB index allowance; the former20,000
 selected-source ceiling belongs to the exact profile, not automatic city mode.
 Real DEM/facility adoption, package reopen and Client loading remain pending until
 that actual UI flow completes. Small diagnostic areas are not whole-region success.
-Ground roads follow terrain, but building `base_cm` is absolute: applying DEM does
-not automatically align estimated bases. The combined height check is separate.
+Ground roads follow terrain; absolute building bases can use the explicit DSM
+estimate above. Real combined terrain/building validation remains a separate step.
 
 For a change, choose its `tests/test_osm*.py`, `test_collections.py` or other adapter
 unit and the relevant Godot validator via the root isolated checker. Do not repeat

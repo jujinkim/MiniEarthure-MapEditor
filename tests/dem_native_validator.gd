@@ -92,7 +92,7 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	await await_native(initial)
 	check(accepted(initial) and initial.expected_cells==0 and initial.generated_all,"all raster files/native seams checked without roads")
 	if not accepted(initial): return
-	check(initial.bundle.blob_paths.size()<=4 and initial.bundle.patches.size()==5,"four cells plus provenance and immutable blobs transferred")
+	check(initial.bundle.blob_paths.size()<=4 and initial.bundle.patches.size()==6,"four cells plus provenance, free-roam policy and immutable blobs transferred")
 	check(not DirAccess.dir_exists_absolute(initial.directory),"bundle read before owned scratch retired")
 	var previous: Dictionary={"layer_id":initial.bundle.value.layer_id,"payloads":initial.result.data.payloads}
 	var guarded := preload("res://tests/command_guard_store.gd").new()
@@ -160,7 +160,7 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	DirAccess.remove_absolute(unknown.directory)
 	var oversized:=JOB.new()
 	var large:=raster_result.duplicate(true);large.extension="x".repeat(JOB.REQUEST_LIMIT)
-	check(oversized.start_dem(ui.store,large,source_plan,capture,false,"test",token()).contains("24 MiB") and oversized.directory=="","request budget before scratch/launch")
+	check(oversized.start_dem(ui.store,large,source_plan,capture,false,"test",token()).contains("64 MiB") and oversized.directory=="","request budget before scratch/launch")
 	for malformed in [null, 7, [], [null]]:
 		var invalid:=raster_result.duplicate(true);invalid.outputs=malformed
 		check(JOB.new().start_dem(ui.store,invalid,source_plan,capture,false,"test",token())!="","malformed output admission refuses without a script error")
@@ -227,6 +227,7 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	for path: String in payloads: write(ui.store.project_path.path_join(path),payloads[path])
 	check(ui.store.redo()=="" and ui.store.document.heightmaps.size()==4,"Redo succeeds after exact fixture bytes return")
 	for path: String in payloads: check(FILES.read(ui.store.project_path.path_join(path)).bytes==payloads[path],"Redo restores exact PNG bytes")
+	check(ui.store.save_project(ui.store.project_path)=="","persist working terrain before replacing its grid")
 	# Reimport the same cells with an interior change to old terrain. Before-image
 	# must be transferred together with new bytes for exact Undo validation.
 	var heightmap: Dictionary=ui.store.document.heightmaps[0]
@@ -251,7 +252,8 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	var edited:=heightmap.duplicate(true)
 	edited.path="editor/"+FILES.digest(encoded.bytes)+".png";edited.offset_cm=encoded.offset_cm;edited.step_cm=encoded.step_cm
 	check(FILES.write_new(ui.store.project_path.path_join(edited.path),encoded.bytes)=="","install isolated edited terrain")
-	check(ui.store.apply_command("edit old tile",[{"field":"heightmaps","id":ui.store.record_id("heightmaps",heightmap),"before":heightmap.duplicate(true),"after":edited}])=="","select distinct prior tile")
+	var edit_failure: String=FILES.apply(ui.store,"edit old tile",[{"field":"heightmaps","id":ui.store.record_id("heightmaps",heightmap),"before":heightmap.duplicate(true),"after":edited}],{edited.path:encoded.bytes})
+	check(edit_failure=="","select distinct prior tile: "+edit_failure)
 	var replacing:=JOB.new();check(start(replacing)=="","review distinct old/new tile")
 	await await_native(replacing)
 	check(accepted(replacing) and replacing.bundle.retained.has(edited.path) and replacing.bundle.retained.has(heightmap.path),"transfer contains distinct before/after PNG mementos")
@@ -267,6 +269,7 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	check(ui.store.undo()=="","restore empty fixture document")
 	ui.store.redo_stack.clear();ui.store.history_bytes=0
 	for command: Dictionary in ui.store.undo_stack: ui.store.history_bytes+=int(command.bytes)
+	check(ui.store.save_project(ui.store.project_path)=="","restore saved empty fixture baseline")
 	var restored: Array=JSON.parse_string(state())
 	var expected: Array=JSON.parse_string(before)
 	check(restored[0].provenance.last_edited>=expected[0].provenance.last_edited,"successful edits advance provenance time")

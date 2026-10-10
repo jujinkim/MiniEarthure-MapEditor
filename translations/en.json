@@ -676,7 +676,7 @@
     "Tools": "Tools",
     "Local Copernicus DEM · 2021 source to local terrain cells": "Local Copernicus DEM · 2021 source to local terrain cells",
     "Copy reviewed local source and sample": "Copy reviewed local source and sample",
-    "DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nSingle cell or mosaic ≤ 4×4 cells; each ≤ 1024 m. Bilinear; no missing-data or seam repair.": "DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nSingle cell or mosaic ≤ 4×4 cells; each ≤ 1024 m. Bilinear; no missing-data or seam repair.",
+    "DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nUp to 256 cells within the sample budget; each ≤ 1024 m. Bilinear; no missing-data or seam repair.": "DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nUp to 256 cells within the sample budget; each ≤ 1024 m. Bilinear; no missing-data or seam repair.",
     "Cell columns": "Cell columns",
     "Cell rows": "Cell rows",
     "Local origin x (m)": "Local origin x (m)",
@@ -1707,9 +1707,9 @@
     "Missing reviewed DEM identity.": "Missing reviewed DEM identity.",
     "Invalid DEM output count.": "Invalid DEM output count.",
     "Invalid DEM PNG identity.": "Invalid DEM PNG identity.",
-    "DEM exceeds 16 candidate cells.": "DEM exceeds 16 candidate cells.",
+    "DEM exceeds 256 candidate cells.": "DEM exceeds 256 candidate cells.",
     "Unsafe DEM dependency path.": "Unsafe DEM dependency path.",
-    "Native DEM request exceeds 24 MiB.": "Native DEM request exceeds 24 MiB.",
+    "Native DEM request exceeds 64 MiB.": "Native DEM request exceeds 64 MiB.",
     "MultiLineString provenance requires GeoJSON.": "MultiLineString provenance requires GeoJSON.",
     "Missing MultiLineString provenance.": "Missing MultiLineString provenance.",
     "Invalid MultiLineString profile.": "Invalid MultiLineString profile.",
@@ -2017,7 +2017,13 @@
     "City generation check exceeds 256 cells; increase cell size or reduce the selected area.": "City generation check exceeds 256 cells; increase cell size or reduce the selected area.",
     "Invalid city loop simplification mapping.": "Invalid city loop simplification mapping.",
     "Invalid city vegetation estimates.": "Invalid city vegetation estimates.",
-    "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n": "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n"
-  },
-  "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n"
+    "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n": "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n",
+    "Place zero-base OSM buildings on this DSM (estimated)": "Place zero-base OSM buildings on this DSM (estimated)",
+    "Use imported OSM coordinates and full map extent": "Use imported OSM coordinates and full map extent",
+    "No imported OSM coordinate frame.": "No imported OSM coordinate frame.",
+    "Imported OSM coordinate frames differ.": "Imported OSM coordinate frames differ.",
+    "Building grounding exceeds one million terrain samples.": "Building grounding exceeds one million terrain samples.",
+    "\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n": "\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n",
+    "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n"
+  }
 }

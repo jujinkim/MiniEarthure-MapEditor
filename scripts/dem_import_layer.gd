@@ -1,5 +1,6 @@
 extends "./heightmap_import_layer.gd"
 const LICENSE := "https://copernicus-dem-30m.s3.amazonaws.com/readme.html#license"
+const MAX_CELLS := 256
 const NOTICE := "produced using Copernicus WorldDEM-%d © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved"
 
 func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String, context: Dictionary = {}) -> String:
@@ -15,6 +16,8 @@ func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, de
 func summary() -> String:
 	if value.is_empty(): return I18N.t("No DEM candidate.")
 	var text := I18N.t("Copernicus 2021 DSM · %d sources → %d cells\nAdopt all terrain cells atomically; one Undo restores every previous cell.\nEGM2008 height minus %s m at local zero; explicit bilinear sampling.\nSource accuracy unknown. Shared PNG quantization error ≤ %s cm.\nNo missing-data or seam repair. Save explicitly after adoption.\n") % [value.dem.receipt.sources.size(),value.heightmaps.size(),str(value.dem.sampling.vertical_zero_m),str(value.dem.sampling.max_quantization_error_cm)]
+	if value.dem.has("grounding"):
+		text+=I18N.t("\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n") % [value.dem.grounding.changes.size(),value.dem.grounding.skipped_partial]
 	for index in range(value.heightmaps.size()):
 		var record: Dictionary=value.heightmaps[index]
 		text+=I18N.t("\nCell (%d, %d) · spacing %d cm · %s\nDerived PNG SHA-256: %s\n") % [record.cell.x,record.cell.y,record.spacing_cm,I18N.t("replaces an active tile (Undo retained)") if value.previous[index]!=null else I18N.t("new active terrain"),str(record.path).get_file().get_basename()]
@@ -52,7 +55,8 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	var options: Dictionary = reviewed.options
 	var doc: Dictionary = terrain.store.document
 	if options.cell_size_cm!=doc.cell_size_cm or options.map_min_cm!=doc.bounds.min or options.get("cell_count") is not Array or options.cell_count.size()!=2: return "DEM map grid changed."
-	if not TYPES._count(options.cell_count[0],4) or not TYPES._count(options.cell_count[1],4) or options.cell_count[0]<1 or options.cell_count[1]<1: return "Invalid DEM cell count."
+	if not TYPES._count(options.cell_count[0],MAX_CELLS) or not TYPES._count(options.cell_count[1],MAX_CELLS) or options.cell_count[0]<1 or options.cell_count[1]<1: return "Invalid DEM cell count."
+	if int(options.cell_count[0])*int(options.cell_count[1])>MAX_CELLS: return "DEM exceeds 256 candidate cells."
 	var expected_cells: Array = []
 	for y in range(int(options.cell_count[1])):
 		for x in range(int(options.cell_count[0])): expected_cells.append([float(options.cell[0])+x,float(options.cell[1])+y])
@@ -79,6 +83,13 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		_cells.append_array(layer._cells)
 		layer.discard()
 	value={"import_version":1,"adapter":"copernicus-dem-v1","layer_id":context.get("layer_id", Crypto.new().generate_random_bytes(16).hex_encode()),"heightmaps":records,"previous":previous,"dem":{"receipt":receipt.duplicate(true),"sampling":raster.duplicate(true)}}
+	if context.get("ground_buildings",false):
+		var grounded:=preload("./dem_building_grounding.gd").prepare(terrain.store,records,_blobs,options)
+		if grounded.has("error"): discard();return grounded.error
+		_patches.append_array(grounded.patches)
+		value.dem.grounding=grounded.receipt
+		if not doc.buildings.is_empty() and _cells.is_empty():
+			for record: Dictionary in records: _cells.append(Vector2i(record.cell.x,record.cell.y))
 	var notice := {"source":"Copernicus 2021 mosaic#"+value.layer_id,"license":LICENSE,"notice":JSON.stringify(value)}
 	_patches.append({"field":"attributions","id":terrain.store.record_id("attributions",notice),"before":null,"after":notice})
 	_patches.append({"field":"free_roam","id":"","before":terrain.store.document.free_roam,"after":true})

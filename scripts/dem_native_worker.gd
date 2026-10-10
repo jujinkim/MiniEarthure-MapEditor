@@ -19,7 +19,7 @@ static func inputs(request: Dictionary) -> Dictionary:
 		entries.append([source.path, source.get("bytes"), source.get("sha256"), "original"])
 		entries.append([capture, source.get("bytes"), source.get("sha256"), "capture"])
 	var outputs: Variant = data.get("outputs")
-	if outputs is not Array or outputs.is_empty() or outputs.size() > 16: return {"error":"Invalid DEM output count."}
+	if outputs is not Array or outputs.is_empty() or outputs.size() > preload("./dem_import_layer.gd").MAX_CELLS: return {"error":"Invalid DEM output count."}
 	for output: Variant in outputs:
 		if output is not Dictionary: return {"error":"Invalid DEM output identity."}
 		entries.append([output.get("png_path"), output.get("png_bytes"), output.get("png_sha256"), "png"])
@@ -91,7 +91,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 		var terrain := preload("./terrain_tools.gd").new()
 		terrain.store = store
 		failure = layer.stage_dem(terrain, request.data, request.reviewed, request.destination,
-			{"layer_id":request.layer_id, "scratch":directory.path_join("candidate"), "hashes":{}, "retained":retained, "prepared":prepared, "command_label":"Adopt DEM terrain", "progress":progress})
+			{"layer_id":request.layer_id, "scratch":directory.path_join("candidate"), "hashes":{}, "retained":retained, "prepared":prepared, "command_label":"Adopt DEM terrain", "progress":progress,"ground_buildings":request.get("ground_buildings",false)})
 	if failure == "":
 		var command := preload("./import_command.gd")
 		failure = command.write_bundle(directory, {"value":layer.value, "prepared":command.encode(prepared), "blob_paths":layer._blobs.keys()}, output)

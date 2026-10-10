@@ -676,7 +676,7 @@
     "Tools": "ツール",
     "Local Copernicus DEM · 2021 source to local terrain cells": "ローカルCopernicus DEM · 2021年のソースをローカル地形セルへ",
     "Copy reviewed local source and sample": "確認したローカルソースをコピーしてサンプリング",
-    "DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nSingle cell or mosaic ≤ 4×4 cells; each ≤ 1024 m. Bilinear; no missing-data or seam repair.": "DSMには建物・植生を含みます。WGS84 → ローカルUTM、EGM2008高度。\n単一セルまたは最大4×4セルのモザイク、各セル最大1024 m。双線形補間、欠損・境界修復なし。",
+    "DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nUp to 256 cells within the sample budget; each ≤ 1024 m. Bilinear; no missing-data or seam repair.": "DSMには建物・植生を含みます。WGS84 → ローカルUTM、EGM2008高度。\nサンプル上限内で最大256セル、各セル最大1024 m。双線形補間、欠損・境界修復なし。",
     "Cell columns": "セルの列数",
     "Cell rows": "セルの行数",
     "Local origin x (m)": "ローカル原点x（m）",
@@ -1707,9 +1707,9 @@
     "Missing reviewed DEM identity.": "確認済み DEM の識別情報がありません。",
     "Invalid DEM output count.": "DEM の出力数が無効です。",
     "Invalid DEM PNG identity.": "DEM PNG の識別情報が無効です。",
-    "DEM exceeds 16 candidate cells.": "DEM が 16 個の候補セルを超えています。",
+    "DEM exceeds 256 candidate cells.": "DEM が 256 個の候補セルを超えています。",
     "Unsafe DEM dependency path.": "DEM の依存ファイルのパスが安全ではありません。",
-    "Native DEM request exceeds 24 MiB.": "ネイティブ DEM リクエストが 24 MiB を超えています。",
+    "Native DEM request exceeds 64 MiB.": "ネイティブ DEM リクエストが 64 MiB を超えています。",
     "MultiLineString provenance requires GeoJSON.": "MultiLineString の出典情報には GeoJSON が必要です。",
     "Missing MultiLineString provenance.": "MultiLineString の出典情報がありません。",
     "Invalid MultiLineString profile.": "MultiLineString のプロファイルが無効です。",
@@ -2017,7 +2017,13 @@
     "City generation check exceeds 256 cells; increase cell size or reduce the selected area.": "都市の生成検査が256セルを超えます。セルを大きくするか選択範囲を狭めてください。",
     "Invalid city loop simplification mapping.": "都市の環状道路の簡略化対応情報が不正です。",
     "Invalid city vegetation estimates.": "都市の植生推定値が不正です。",
-    "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n": "森林・果樹園の樹木は表現用の推定です。原寸間隔%.0f m（マップ%.0f m）、密度%d%%。原資料の区域境界はすべて保持され、個々の樹木位置は実測ではありません。\n"
-  },
-  "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "複雑なポリゴンは原資料 %.2fm（マップ %.2fm）の間隔で分割します。原資料IDと中庭情報は保持されます。\n"
+    "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n": "森林・果樹園の樹木は表現用の推定です。原寸間隔%.0f m（マップ%.0f m）、密度%d%%。原資料の区域境界はすべて保持され、個々の樹木位置は実測ではありません。\n",
+    "Place zero-base OSM buildings on this DSM (estimated)": "底面高度0のOSM建物をこのDSMに配置（推定）",
+    "Use imported OSM coordinates and full map extent": "取り込んだOSM座標とマップ全域を使用",
+    "No imported OSM coordinate frame.": "取り込んだOSM座標系がありません。",
+    "Imported OSM coordinate frames differ.": "取り込んだOSMの座標系が異なります。",
+    "Building grounding exceeds one million terrain samples.": "建物底面の推定が地形サンプル100万点を超えています。",
+    "\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n": "\n建物底面の推定: %d件変更、DEM境界をまたぐ%d件は維持。外周サンプルの最低高度です。DSMには屋根と樹木を含みます。建物自体の高さは維持し、地形と底面を一度に元に戻します。\n",
+    "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "複雑なポリゴンは原資料 %.2fm（マップ %.2fm）の間隔で分割します。原資料IDと中庭情報は保持されます。\n"
+  }
 }

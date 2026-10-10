@@ -5,6 +5,7 @@ const LAYER := preload("./dem_import_layer.gd")
 var editor: Control
 var fields := {}
 var mosaic: CheckBox
+var ground_buildings: CheckBox
 var selection_revision := 0
 var requested_revision := -1
 var source: LineEdit
@@ -30,18 +31,23 @@ func _ready() -> void:
 	column.custom_minimum_size.x = 710
 	add_child(column)
 	var explanation := Label.new()
-	explanation.text = I18N.t("DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nSingle cell or mosaic ≤ 4×4 cells; each ≤ 1024 m. Bilinear; no missing-data or seam repair.")
+	explanation.text = I18N.t("DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nUp to 256 cells within the sample budget; each ≤ 1024 m. Bilinear; no missing-data or seam repair.")
 	column.add_child(explanation)
 	var grid := GridContainer.new()
 	grid.columns = 4
 	column.add_child(grid)
-	for item in [["Cell columns",1,4,1,1],["Cell rows",1,4,1,1],["Longitude",-180,180,0,0.000001],["Latitude",-80,84,0,0.000001],["Local origin x (m)",-100000,100000,0,0.01],["Local origin y (m)",-100000,100000,0,0.01],["Cell x",0,100000,0,1],["Cell y",0,100000,0,1],["Spacing (cm)",200,102400,3200,1],["EGM2008 at local zero (m)",-10000,10000,0,0.01]]:
+	for item in [["Cell columns",1,LAYER.MAX_CELLS,1,1],["Cell rows",1,LAYER.MAX_CELLS,1,1],["Longitude",-180,180,0,0.000001],["Latitude",-80,84,0,0.000001],["Local origin x (m)",-100000,100000,0,0.01],["Local origin y (m)",-100000,100000,0,0.01],["Cell x",0,100000,0,1],["Cell y",0,100000,0,1],["Spacing (cm)",200,102400,3200,1],["EGM2008 at local zero (m)",-10000,10000,0,0.01]]:
 		fields[item[0]] = editor._import_number(grid,item[0],item[1],item[2],item[3],item[4])
 		fields[item[0]].value_changed.connect(func(_value): invalidate())
 	mosaic = CheckBox.new()
 	mosaic.text = I18N.t("Multi-source / multi-cell mosaic (local source is a folder of official tile filenames)")
 	column.add_child(mosaic)
 	mosaic.toggled.connect(_mosaic_changed)
+	ground_buildings = CheckBox.new()
+	ground_buildings.text = I18N.t("Place zero-base OSM buildings on this DSM (estimated)")
+	column.add_child(ground_buildings)
+	ground_buildings.toggled.connect(func(_enabled): invalidate())
+	editor._button(column,"Use imported OSM coordinates and full map extent",use_imported_frame)
 	source = LineEdit.new()
 	source.placeholder_text = I18N.t("Local 2021 GLO-30 COG (.tif)")
 	column.add_child(source)
@@ -97,8 +103,31 @@ func options() -> Dictionary:
 
 	result["cell_count"] = [fields["Cell columns"].value,fields["Cell rows"].value] if mosaic.button_pressed else [1.0,1.0]
 	var denominator := preload("./import_units.gd").dem_denominator(editor.store.document)
-	if denominator != 1: result["osm_denominator"] = denominator
+	if denominator != 1: result["osm_denominator"] = float(denominator)
 	return result
+
+func use_imported_frame() -> void:
+	var frames:=preload("./dem_building_grounding.gd").layers(editor.store.document)
+	if frames.is_empty(): editor._status(I18N.t("No imported OSM coordinate frame."));return
+	var coordinates: Dictionary=frames.values()[0]
+	for frame: Dictionary in frames.values():
+		for key in ["mode","origin","local_origin_m"]:
+			if frame.get(key)!=coordinates.get(key): editor._status(I18N.t("Imported OSM coordinate frames differ."));return
+	fields.Longitude.value=coordinates.origin[0]
+	fields.Latitude.value=coordinates.origin[1]
+	fields["Local origin x (m)"].value=coordinates.local_origin_m[0]
+	fields["Local origin y (m)"].value=coordinates.local_origin_m[1]
+	var doc: Dictionary=editor.store.document
+	var columns:=ceili(float(doc.bounds.max[0]-doc.bounds.min[0])/doc.cell_size_cm)
+	var rows:=ceili(float(doc.bounds.max[1]-doc.bounds.min[1])/doc.cell_size_cm)
+	if columns*rows>LAYER.MAX_CELLS: editor._status(I18N.t("DEM exceeds 256 candidate cells."));return
+	mosaic.button_pressed=true
+	fields["Cell columns"].value=columns
+	fields["Cell rows"].value=rows
+	fields["Cell x"].value=0
+	fields["Cell y"].value=0
+	if int(doc.cell_size_cm)%400==0: fields["Spacing (cm)"].value=400
+	invalidate()
 
 func open() -> void:
 	if editor.busy: return
@@ -172,7 +201,7 @@ func finish(mode: String, result: Dictionary) -> void:
 
 func native_selection() -> String:
 	return JSON.stringify([selection_revision, requested_revision, options(), requested, plan, destination,
-		candidate_data, candidate.value if candidate != null else {}, editor.canvas.layer_state]).sha256_text()
+		candidate_data, candidate.value if candidate != null else {}, editor.canvas.layer_state,ground_buildings.button_pressed]).sha256_text()
 
 func _start_native(adopting: bool) -> void:
 	if editor.busy: return
@@ -183,7 +212,7 @@ func _start_native(adopting: bool) -> void:
 	var job := NATIVE_JOB.new()
 	job.editor_generation = editor.generation
 	var previous := {"layer_id":candidate.value.layer_id, "payloads":reviewed_payloads} if adopting else {}
-	var failure := job.start_dem(editor.store, candidate_data, plan, destination, adopting, native_selection(), Crypto.new().generate_random_bytes(16).hex_encode(), previous)
+	var failure := job.start_dem(editor.store, candidate_data, plan, destination, adopting, native_selection(), Crypto.new().generate_random_bytes(16).hex_encode(), previous,ground_buildings.button_pressed)
 	if failure != "":
 		discard()
 		editor._status(I18N.t("E_DEM: ") + failure)

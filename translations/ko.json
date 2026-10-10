@@ -676,7 +676,7 @@
     "Tools": "도구",
     "Local Copernicus DEM · 2021 source to local terrain cells": "로컬 Copernicus DEM · 2021 원본을 로컬 지형 셀로",
     "Copy reviewed local source and sample": "검토한 로컬 원본 복사 및 샘플링",
-    "DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nSingle cell or mosaic ≤ 4×4 cells; each ≤ 1024 m. Bilinear; no missing-data or seam repair.": "DSM은 건물·식생을 포함합니다. WGS84 → 로컬 UTM; EGM2008 높이.\n단일 셀 또는 최대 4×4셀 모자이크, 각 셀 최대 1024 m. 이중 선형 보간; 결측값·경계 보정 없음.",
+    "DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nUp to 256 cells within the sample budget; each ≤ 1024 m. Bilinear; no missing-data or seam repair.": "DSM은 건물·식생을 포함합니다. WGS84 → 로컬 UTM; EGM2008 높이.\n샘플 예산 안에서 최대 256셀, 각 셀 최대 1024 m. 이중 선형 보간; 결측값·경계 보정 없음.",
     "Cell columns": "셀 열 수",
     "Cell rows": "셀 행 수",
     "Local origin x (m)": "로컬 원점 x(m)",
@@ -1707,9 +1707,9 @@
     "Missing reviewed DEM identity.": "검토한 DEM 식별 정보가 없습니다.",
     "Invalid DEM output count.": "DEM 출력 개수가 잘못되었습니다.",
     "Invalid DEM PNG identity.": "DEM PNG 식별 정보가 잘못되었습니다.",
-    "DEM exceeds 16 candidate cells.": "DEM이 후보 셀 16개를 초과합니다.",
+    "DEM exceeds 256 candidate cells.": "DEM이 후보 셀 256개를 초과합니다.",
     "Unsafe DEM dependency path.": "DEM 의존 파일 경로가 안전하지 않습니다.",
-    "Native DEM request exceeds 24 MiB.": "네이티브 DEM 요청이 24 MiB를 초과합니다.",
+    "Native DEM request exceeds 64 MiB.": "네이티브 DEM 요청이 64 MiB를 초과합니다.",
     "MultiLineString provenance requires GeoJSON.": "MultiLineString 출처 정보에는 GeoJSON이 필요합니다.",
     "Missing MultiLineString provenance.": "MultiLineString 출처 정보가 없습니다.",
     "Invalid MultiLineString profile.": "MultiLineString 프로필이 잘못되었습니다.",
@@ -2017,7 +2017,13 @@
     "City generation check exceeds 256 cells; increase cell size or reduce the selected area.": "도시 생성 검사가 256셀을 초과합니다. 셀 크기를 키우거나 선택 영역을 줄이세요.",
     "Invalid city loop simplification mapping.": "도시 순환 도로의 단순화 대응 정보가 잘못되었습니다.",
     "Invalid city vegetation estimates.": "도시 식생 추정값이 잘못되었습니다.",
-    "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n": "숲·과수원 수목은 표현용 추정입니다. 원본 간격 %.0fm(맵 %.0fm), 밀도 %d%%입니다. 원본 영역 경계는 모두 남으며 개별 나무 위치는 실측값이 아닙니다.\n"
-  },
-  "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "복잡한 다각형은 원본 %.2fm(맵 %.2fm) 간격을 두고 분할합니다. 원본 ID와 중정 정보는 보존됩니다.\n"
+    "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n": "숲·과수원 수목은 표현용 추정입니다. 원본 간격 %.0fm(맵 %.0fm), 밀도 %d%%입니다. 원본 영역 경계는 모두 남으며 개별 나무 위치는 실측값이 아닙니다.\n",
+    "Place zero-base OSM buildings on this DSM (estimated)": "이 DSM에 바닥 높이 0인 OSM 건물 배치(추정)",
+    "Use imported OSM coordinates and full map extent": "가져온 OSM 좌표와 전체 맵 범위 사용",
+    "No imported OSM coordinate frame.": "가져온 OSM 좌표 기준이 없습니다.",
+    "Imported OSM coordinate frames differ.": "가져온 OSM의 좌표 기준이 서로 다릅니다.",
+    "Building grounding exceeds one million terrain samples.": "건물 바닥 높이 추정이 지형 샘플 100만 개를 초과합니다.",
+    "\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n": "\n건물 바닥 높이 추정: %d개 변경, DEM 범위를 걸치는 %d개 유지. 외곽 샘플의 최저 높이이며 DSM에는 지붕과 수목이 포함됩니다. 건물 자체 높이는 유지합니다. 지형과 건물 바닥을 함께 한 번에 실행 취소합니다.\n",
+    "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "복잡한 다각형은 원본 %.2fm(맵 %.2fm) 간격을 두고 분할합니다. 원본 ID와 중정 정보는 보존됩니다.\n"
+  }
 }
