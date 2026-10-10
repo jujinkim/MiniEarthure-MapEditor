@@ -21,6 +21,24 @@ snaps a nearby entry to another exit. Add, duplicate, delete, explicit port snap
 Bézier connection, control-point positions and entry/exit widths are source edits.
 All geometry is rebuilt by MapKit and rendered by its production tessellator.
 
+The Driving palette includes five extra-wide pieces with a fixed 12m body:
+
+| Preset | Korean label | Geometry |
+| --- | --- | --- |
+| `straight_extra_wide` | 아주 넓은 트랙 | 8m straight |
+| `gentle90_extra_wide` | 아주 넓은 완만한 우회전 | 90° right, 48m centreline radius |
+| `gentle90_extra_wide_left` | 아주 넓은 완만한 좌회전 | 90° left, 48m centreline radius |
+| `right90_extra_wide` | 아주 넓은 직각 우회전 | 90° right, 8m centreline radius |
+| `right90_extra_wide_left` | 아주 넓은 직각 좌회전 | 90° left, 8m centreline radius |
+
+MapKit's single supported width selects 12m immediately for preview, body and
+both ports. Entry/exit controls still allow 2–12m and use ordinary snapping and
+width transitions. English, Korean and Japanese names are searchable alongside
+the stable preset IDs. SVGs draw the public road width/turn silhouette with a
+12 badge, distinguishing them from ordinary tools and from one another. Terrain
+choices, attachments, history and project storage use the existing source path;
+no save field or format version is added.
+
 Choose a base/alternative route, append/remove selected roads or edit their order.
 Choose a sample for the start, finish or intermediate common checkpoint. Add
 independent jump/acceleration/booster/ring actions with optional landing road and
@@ -47,6 +65,20 @@ The basic standalone initial screen also passed on macOS arm64 / Godot 4.7.2.
 The command fixture exercises palette placement, numeric movement, duplicate/delete,
 free connection replacement, continuous-road action placement and Undo without
 claiming detailed interactive acceptance.
+The scoped `extra_wide_track_validator` also passes all five default widths and
+port ranges, translated command/palette search, distinct visible SVG loading,
+cancelled/stale preview rejection, placement, 12m-to-4m snapped continuation,
+exact Undo/Redo and source/geometry save/reopen on macOS arm64/Godot 4.7.2.
+The existing workbench regression passes against the same native build. Detailed
+pointer editing, driving and device acceptance remain user verification.
+Rendered standalone Editor and Client startup/initial screens pass with no
+blocking load errors. The SVG 12 badge uses vector strokes because the runtime
+SVG loader does not render text elements; the corrected badge was checked in
+the Editor's initial palette. No detailed application acceptance is implied.
+The Client import exited successfully but emitted the Godot diagnostic
+`EditorSettings not instantiated yet` for `export/android/shutdown_adb_on_exit`;
+the subsequent standalone startup had no unexpected diagnostics. This import
+diagnostic remains outside the track change and is not claimed as fixed.
 
 Grounded seed policy (2026-09-30): first manual conversion keeps MapKit's
 `grounded_supports` policy with the original seed settings. Source edits rebuild

@@ -16,6 +16,8 @@ const DIALOG_TITLE_HEIGHT := 32
 const DIALOG_CLOSE_SIZE := 24
 static var textures: Dictionary = {}
 const ICON_NAMES := [
+	"piece_straight_extra_wide", "piece_gentle90_extra_wide", "piece_gentle90_extra_wide_left",
+	"piece_right90_extra_wide", "piece_right90_extra_wide_left",
 	"2d", "3d", "area", "building", "cancel",
 	"check", "connect", "curve", "cylinder", "delete",
 	"down", "duplicate", "export", "flag", "forest",

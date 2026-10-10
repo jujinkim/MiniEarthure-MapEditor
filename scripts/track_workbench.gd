@@ -126,7 +126,7 @@ func build(owner: Control) -> void:
 	report.max_lines_visible = 2
 
 static func piece_name(id: String) -> String:
-	return {"gentle90":"Gentle 90°", "gentle45":"Gentle 45°", "gentle90_left":"Gentle 90° left", "gentle45_left":"Gentle 45° left", "hairpin":"Hairpin", "slope_up":"Slope Up"}.get(id, id.replace("_", " ").capitalize())
+	return {"straight_extra_wide":"Extra-wide track", "gentle90_extra_wide":"Extra-wide gentle right turn", "gentle90_extra_wide_left":"Extra-wide gentle left turn", "right90_extra_wide":"Extra-wide right-angle right turn", "right90_extra_wide_left":"Extra-wide right-angle left turn", "gentle90":"Gentle 90°", "gentle45":"Gentle 45°", "gentle90_left":"Gentle 90° left", "gentle45_left":"Gentle 45° left", "hairpin":"Hairpin", "slope_up":"Slope Up"}.get(id, id.replace("_", " ").capitalize())
 
 func show_hint() -> void:
 	if not active: return
@@ -322,7 +322,7 @@ func _properties() -> void:
 		for section in [transform, connections, actions_box]: editor._label(section, "Select a piece to edit its properties.")
 		return
 	var item: Dictionary = source.instances[selected]
-	road_tools.terrain_policy_control(transform, str(source.get("terrain_policies",{}).get(item.id,"auto_fit" if item.preset in ["straight","gentle45","gentle90","gentle45_left","gentle90_left","free_curve","slope_up","slope_down"] else "preserve")), func(value: String): var next := source.duplicate(true); next.get_or_add("terrain_policies",{})[item.id]=value; _commit(next))
+	road_tools.terrain_policy_control(transform, str(source.get("terrain_policies",{}).get(item.id,"auto_fit" if item.preset.replace("_extra_wide", "") in ["straight","gentle45","gentle90","gentle45_left","gentle90_left","free_curve","slope_up","slope_down"] else "preserve")), func(value: String): var next := source.duplicate(true); next.get_or_add("terrain_policies",{})[item.id]=value; _commit(next))
 	for j in 3: controls.append(_spin(transform, ["X (m)", "Height (m)", "Z (m)"][j], float(item.position_cm[j]) / 100.0))
 	for j in 3: controls.append(_spin(transform, ["Pitch X°", "Yaw Y°", "Roll Z°"][j], float(item.rotation_mdeg[j]) / 1000.0, -360.0, 360.0, 0.1))
 	width = OptionButton.new()

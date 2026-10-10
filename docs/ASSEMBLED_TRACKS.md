@@ -21,6 +21,10 @@ indeterminate; saving bytes does not mean collision/display or AI is ready.
 Cancellation, failure or superseding work preserves the last valid selection.
 Controls use the common scrolling/layout and current catalogue dimensions.
 Generated pipes use 2/3/4 m bores; manual 2/3/4/6 m bores come from MapKit.
+When the existing driving shape/width draws choose a 12m straight, gentle90
+left/right or right90 left/right, MapKit publishes the corresponding extra-wide
+ID listed in [TRACK_AUTHORING](TRACK_AUTHORING.md). Their occurrence is optional;
+difficulty weights, random draw order and the generation dialog stay unchanged.
 
 Generation, source-preservation, cancellation, settings restoration and package
 reentry have scoped automated coverage. Detailed generation UX, actual complete
