@@ -16,6 +16,10 @@ godot --headless --import --frame-delay 1000 --path .
 godot --path .
 ```
 
+When embedded in a superproject, its native installer may supply the same pinned
+MapKit library; use that build entry point to avoid a second Cargo cache. The
+commands above remain sufficient for this independent public checkout.
+
 Direct source launch (including the Client's **Map editor** button) works before the
 first import; a missing or incompatible MapKit binding shows copyable startup
 diagnostics. See [workbench validation](docs/WORKBENCH.md#essential-validation-and-limits).
