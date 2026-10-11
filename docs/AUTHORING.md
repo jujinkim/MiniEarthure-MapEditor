@@ -1,286 +1,132 @@
 # Map authoring tools
 
-Current authoring uses [CURRENT_V1](CURRENT_V1.md). All current features use v1
-without a recipe selector.
-[DOCUMENTS.md](DOCUMENTS.md) defines atomic commands and recovery;
-[WORKBENCH.md](WORKBENCH.md) defines selection, layers and shortcuts.
-
-Selected roads expose **Snow retention (%)** (0–100, default 100). The property
-uses the normal atomic graph edit, validation, Undo and export path. MapKit owns
-its rendering and hashes; it does not alter terrain traction. Authoring-property
-checks cover the edit, and shared material checks cover snow-stage contrast and
-markings. The retired snow-only default-map improver is no longer required.
+Authoring follows [CURRENT_V1](CURRENT_V1.md). [DOCUMENTS](DOCUMENTS.md) defines
+atomic commands, Save and recovery; [WORKBENCH](WORKBENCH.md) defines selection,
+layers and shortcuts.
 
 ## Start and draw
 
-Terrain and water can be edited before the first Save. Asset imports require a project directory. Open **Authoring settings…**.
-The Map tab chooses the theme with **Apply theme**. Typed map bounds and implicit
-terrain base have their own atomic Apply; payload seams and road junctions are
-revalidated. Roads, buildings, entrances, repetitions, convex proxies, courtyards,
-vegetation and environment all use the current v1 rules. Unsupported input is
-rejected by MapKit; there is no recipe selection or automatic upgrade.
+Terrain and water can be edited before the first Save; asset imports need a project
+directory. In **Authoring settings…** the Map tab applies the theme, typed map bounds
+and terrain base, each as one atomic Apply with seams and junctions revalidated.
+Unsupported input is rejected by MapKit.
 
-The Drawing tab sets the next shape's parameters. Close the dialog, choose the
-canvas tool and click vertices; right-click finishes. Place uses a single click.
-Backspace/Delete removes the last draft vertex; Escape discards the draft. A
-rejected shape keeps its vertices for correction. Tool/focus/document/history
-changes cancel pending input. Every successful shape is one Undo operation.
-The tool list scrolls at small window sizes; Authoring, Duplicate/Delete and Snap
-remain outside that scroll area. The workbench still supports 1024×720.
+The Drawing tab sets the next shape's parameters. Choose the canvas tool and click
+vertices; right-click finishes, Place uses one click. Backspace/Delete removes the
+last vertex; Escape discards the draft. A rejected shape keeps its vertices.
+Tool/focus/document/history changes cancel pending input. Each shape is one Undo.
 
-- Road: ground/elevated/bridge/underpass/tunnel, width, surface, start/end height
-  and graph levels, clearance and sidewalks. Heights interpolate by polyline
-  distance. Matching exact XYZ and level reuse an explicit endpoint node; a 2D
-  crossing does not connect roads. Start a branch at an existing endpoint using
-  its exact height/level. New endpoints respect the Nodes layer lock.
-- Select one road, then Authoring → Selected to edit each point's X/height/Y,
-  each segment's width/surface, kind, clearance, sidewalks and endpoint levels.
-  Shared endpoint positions and every incident road end change once, together.
-  Hidden/locked dependencies, stale inputs or invalid junctions reject everything.
-- Building: drawn footprint, base/wall height, use, concrete/brick/wood and flat/
-  gable roof. Gables require axis-aligned rectangles. The ordinary property dock
-  also edits material/use/roof. Select a building and draw Entrance polygons for
-  access corridors. Native bounds, topology and overlap rules apply.
-- Forest/Orchard: polygon, spacing and density; select a zone and draw Exclusion
-  polygons. Place supports builtin tree/fence/streetlight and custom assets with
-  absolute base and quarter turns. Repeat supports builtin fence/streetlight
-  paths, authored heights and spacing; fence segments must be cardinal.
-- Selected exposes exact record editing for non-road footprint/path/ring and
-  other detailed geometry. The stable ID must be retained. JSON form input is limited to 1 MiB and malformed
-text is reported without engine parse diagnostics. This is an explicit
-  JSON geometry editor alongside graphical creation and vector transforms;
-  arbitrary-angle props, curved fences and free-form roof generators are outside
-  the existing MapKit profile.
+- **Road:** ground/elevated/bridge/underpass/tunnel, width, surface, start/end height
+  and levels, clearance and sidewalks. Heights interpolate by distance. Matching XYZ
+  and level reuse an endpoint node; a 2D crossing does not connect roads. Selected
+  roads also expose **Snow retention (%)** (0–100, default 100), a rendering property
+  that does not change traction.
+- **Selected road:** Authoring → Selected edits each point's X/height/Y, each
+  segment's width/surface, kind, clearance, sidewalks and endpoint levels. Shared
+  endpoints and incident road ends move together; hidden/locked dependencies or
+  invalid junctions reject the whole edit.
+- **Building:** footprint, base/wall height, use, concrete/brick/wood and flat/gable
+  roof (gables need axis-aligned rectangles). Draw Entrance polygons on a selected
+  building for access corridors.
+- **Forest/Orchard:** polygon, spacing and density; draw Exclusion polygons on a
+  selected zone. Choose a GLB under **Planting tree** and set canopy half-width and
+  obstacle clearance; the model's collision must fit that footprint (≤2 m tree
+  radius). MapKit generates trees from polygons, exclusions, spacing, density and
+  seed; zero density or an occupied zone can produce none.
+- **Place/Repeat:** builtin tree/fence/streetlight and custom assets with absolute
+  base and quarter turns; Repeat follows paths with spacing (fence segments must be
+  cardinal).
+- **Selected (other records):** exact JSON geometry editing for footprints, paths and
+  rings (≤1 MiB, stable ID retained).
 
-Road creation/structural editing checks generated junction cells through MapKit
-before publication (closed seams, at most 16 cells per operation). Terrain edits
-with roads also generate affected cells, so changing terrain cannot silently break
-a ground/structure portal. Generation failures appear in persistent validation
-status. This is bounded correctness preflight, not incremental preview scheduling.
+Road creation and structural edits generate affected junction cells through MapKit
+before publication (≤16 cells). Terrain edits with roads also regenerate affected
+cells, so terrain cannot silently break a portal. Failures appear in validation status.
 
-## Terrain and heightmaps
+## Terrain and water
 
-The same circular brush works in 2D and 3D. Hold to raise/lower over time and drag
-to interpolate a continuous ridge or valley. Defaults are **16 m radius, 2 m/s,
-50% steepness**. Radius ranges from the existing grid spacing to twice the storage
-cell size; new terrain uses **2 m** samples. Flatten keeps the first click's height
-as its fixed target, or accepts an explicit numeric height. Flatten/smooth strength
-(default **50%**) controls approach speed. Shared cell edges change together.
-Hidden/locked terrain cannot be painted. Escape, focus/tool/layer changes cancel
-an unfinished stroke without publication.
+The same circular brush works in 2D and 3D: hold to raise/lower over time, drag for
+a continuous ridge or valley. Defaults are **16 m radius, 2 m/s, 50% steepness**;
+radius ranges from the grid spacing to twice the storage cell size and new terrain
+uses **2 m** samples. Flatten keeps the first click's height or a typed height;
+flatten/smooth strength defaults to **50%**. Shared cell edges change together.
+Hidden/locked terrain cannot be painted.
 
-Working height tiles stay as arrays. `begin / step / preview / finish / cancel`
-manages each stroke; `finish` records one sparse Undo command, including shoreline
-changes. Input time and path are retained while display requests coalesce. Only
-changed 32 m display cells and necessary neighbors rebuild; other meshes, common
-materials and assets are reused. The 2D tint cache invalidates touched storage
-tiles. There is no 16-tile or 2048-point brush cap: a stroke permits **one million
-changed samples**, with **16 MiB / 200 commands** shared Undo/Redo and **64 MiB**
-working height-array/resource admission. Nothing spills to disk.
+Height tiles stay in memory as arrays. `begin / step / preview / finish / cancel`
+manages a stroke; `finish` records one sparse Undo command including shoreline
+changes. Only changed 32 m display cells and neighbours rebuild. A stroke may change
+up to **one million samples** within the shared 16 MiB / 200-command history and
+**64 MiB** working-array admission.
 
-**Water** clicks a slope and fills connected lower terrain at that height. Flat
-terrain is unchanged. Search reaches the map boundary without draining an open
-edge. Raising terrain makes islands and splits lakes; lowering it joins connected
-same-level water. A horizontally overlapping higher surface removes the entire
-lower connected lake. **Remove water** deletes the clicked connected surface.
-Direct water/island polygon drawing is removed. New water has zero flow; there is
-no fluid/drainage simulation. MapKit uses the common fitted terrain surface.
+**Water** fills connected lower terrain from a clicked slope at that height; flat
+terrain is unchanged. Raising terrain makes islands or splits lakes; lowering joins
+same-level water. A higher overlapping surface removes the lower connected lake.
+**Remove water** deletes the clicked surface. Water has no flow simulation. Searches
+run on cancellable workers; a stroke and its shore update share one Undo, and budget
+failures restore the previous command.
 
-Water searches run on cancellable workers. Session, command revision and request
-ID must still match before applying a result. A terrain stroke and its completed
-shore update share one Undo. Large shorelines use valid v1 `water_bodies` fragments;
-connected equal-level fragments behave as one lake. Search and polygon budgets
-fail with a visible error and restore the previous command rather than writing
-intermediate files.
-
-Save runs PNG16 encoding in its worker, using exact 1 cm samples and an offset.
-A range wider than 65535 cm cannot be losslessly encoded: Save fails and leaves
-the edit dirty. Existing unmodified PNGs are reused. PNG import still accepts
-unsigned grayscale16, exact full-cell dimensions, CRC/filter checks, explicit
-spacing/accuracy and attribution; original files are preserved. Preview, query,
-road fitting, validation and explicit export use the same unsaved arrays.
+Save encodes PNG16 with exact 1 cm samples and an offset; a range wider than 65535 cm
+fails and leaves the edit dirty. PNG import accepts unsigned grayscale16 with exact
+full-cell dimensions, explicit spacing/accuracy and attribution, using staged
+asynchronous review/adoption with progress and Cancel; see [IMPORTS](IMPORTS.md).
 
 ## Assets and proxies
 
-Assets tab imports static GLB/PNG/WebP into the saved project with source, license
-and notice. Its library selector reopens existing records. Box dimension controls
-create an exact box proxy; the tetrahedron preset creates an outward-oriented
-convex proxy. Multi-box centers/sizes and convex vertices/faces remain explicitly
-editable arrays. There is no inferred visual-mesh collider. MapKit rejects open,
-nonconvex, malformed, out-of-bounds or excessive proxy geometry.
+The Assets tab imports static GLB/PNG/WebP into the saved project with source,
+license and notice; its library selector reopens existing records. Box controls
+create an exact box proxy; the tetrahedron preset creates a convex proxy; multi-box
+and convex arrays stay editable. There is no inferred visual-mesh collider. Material
+controls set albedo RGBA, metallic/roughness ‰, double-sided and an optional texture
+asset ID. Select the new asset in Drawing before using Place.
 
-Current material controls provide albedo RGBA, metallic/roughness per mille,
-double-sided and optional declared texture asset ID. Existing placements use the
-updated asset after validation. File decoder, bounds/clearance, texture references
-and provenance validation run before publication. A failed import/proxy/material
-edit preserves both document and history. Select the new asset in Drawing before
-using Place; close/reopen settings to refresh a library after adding records.
+Apply runs one owned Godot child with progress and Cancel. It hashes the original
+and project files, decodes the asset, validates the detached document with MapKit,
+prepares attribution and the binary Undo command, and rechecks all inputs.
+Metadata-only edits reuse existing bytes. The parent binds the result to the store,
+command epoch, document, project and selection; changing a field, the selection,
+layers, closing authoring, a new gesture, save or document replacement invalidates
+it. The supervisor enforces a 120-second deadline, EOF termination, strict IPC and
+child reaping. Only then is the immutable file installed and one command published.
 
-Apply now prepares the asset in an owned Godot child with progress and Cancel in
-the authoring dialog. This includes original/project-file hashes, static asset
-decoding, detached native validation, complete attribution and binary Undo command
-preparation. Changing/restoring controls, switching the selected asset, closing
-authoring, changing the document or starting another gesture invalidates the
-result. An unchanged source is required through preparation; no file is installed
-until the successful result passes the current document/selection guard.
-Metadata/proxy edits without a new source use the same path and retain the old
-file. Synchronous `AuthoringTools.asset()` remains available to script callers.
-See [asset execution and checks](AUTHORING.md).
+Limits: one asset ID and at most one new GLB/PNG/WebP payload per job; 16 MiB shared
+history; 64 MiB candidate payloads; 24 MiB transfer. Output paths are registered in
+a request-owned marker before writing; cleanup removes only known paths after
+confirmed exit. `AuthoringTools.asset()` stays synchronous for scripts.
 
-## Environment composition
-
-**Create → New region / Complete selected area** opens the shared theme/seed/bounds
-preview. Use the configured Import Python and review diagnostics before Apply. New
-worlds publish to a new directory; infill is one Undo and protects source/manual
-objects. See [environment contracts and checks](ARCADE_WORLD.md). Assets offers
-128/256/512px immutable derivatives (default 256); placement/Inspector yaw adds
-`yaw_offset_mdeg` to the quarter-turn orientation.
-
-## Atomic payloads, history and limits
+## Payloads and history
 
 Original PNG/GLB/WebP files are never overwritten. Editor writes content-addressed
-`editor/<sha256>.<ext>` payloads in the saved project, checks an existing file's
-bytes before reuse. Candidate validation uses an in-memory MapKit resource provider
-and a 64 MiB payload allowance. Standalone PNG review/adoption and asset/proxy
-authoring retain their cancellable owned workers. Terrain strokes write no payloads. Synchronous script APIs remain
-available.
-Request/selection signatures, transfer decoding and final file/history installation
-remain synchronous. Large-map latency/RSS calibration is a separate acceptance gate.
+`editor/<sha256>.<ext>` payloads and checks existing bytes before reuse. Binary
+before/after bytes count toward the shared 16 MiB Undo budget. History travel checks
+retained bytes against referenced files; a changed or missing file blocks travel
+without changing the stacks. Installed payloads are kept after Undo, cancellation or
+eviction because saved documents and recovery snapshots may reference them; there
+is no automatic garbage collection.
 
-Binary before/after bytes accompany file-command mementos and count toward the
-same shared **200 commands / 16 MiB** Undo+Redo limit as serialized record patches.
-An oversized command is rejected before installation/publication. History travel
-checks retained bytes against referenced files and validates the candidate payloads;
-an externally changed/missing file blocks travel without changing the stacks or
-rewriting that file. Heightmap identities canonicalize integer cell coordinates,
-including JSON-decoded floats and key ordering.
+## Cylinder walls
 
-Installed immutable payloads are retained after Undo, cancellation after install,
-or history eviction because saved documents, previous versions and recovery
-snapshots can still reference them. Binary files are not embedded in recovery JSON.
-Keep the project directory with its snapshots. Automatic on-disk garbage collection is not implemented; no source cleanup is
-performed. External-file-copy Save As is defined in [PREVIEW_EXPORT.md](PREVIEW_EXPORT.md).
-A failed operation may leave an unreferenced new immutable payload if filesystem
-installation succeeded before a later write/commit failure. It never replaces the
-original document. Single-user checks do not claim cross-process write locking or
-power-loss durability beyond the existing flush/rename contract.
+Choose **Cylinder wall** and click its centre. **Authoring settings → Drawing** sets
+radius (0.25–500 m), wall height, base and material; select a wall and use **Selected
+→ Apply cylinder wall** to change it. It is a 48-sided flat-roof MapKit building
+prism whose polygon drives both rendering and collision. An edited irregular polygon
+stays ordinary geometry. The [Driving School Town](DRIVING_TEST_MAP.md#preserved-fixtures)
+kart courses use these round walls.
 
-## Verification and next work
+## Related tools
 
-Affected native and isolated Godot validators cover timed brushes, interpolation,
-shared seams, saved baselines, no implicit writes, save failure/cancel/conflicts,
-water topology (including partial map edges), memory preview/export/reopen and
-retained recovery reading. Cancel before adoption rolls back height and shore
-together; late request/session/revision results cannot publish.
-`terrain_frame_validator` measures a short synthetic input-to-installed-mesh loop
-with a 3 ms scene installation budget. Detailed editor feel, long sessions,
-Windows/Linux/device behavior and Client driving remain user verification.
+- Environment and generation: [ENVIRONMENT](ENVIRONMENT.md).
+- Signs and world themes: [WORLD_THEME_AUTHORING](WORLD_THEME_AUTHORING.md).
+- Preview and output budgets: [PREVIEW_EXPORT](PREVIEW_EXPORT.md).
+- Small fixed driving project: [DRIVING_TEST_MAP](DRIVING_TEST_MAP.md).
 
-On macOS arm64 / Godot 4.7.2, the 9 native working-snapshot tests and isolated
-memory/save (163), document history (571), retained recovery (63), preview/export
-(82), continuous track editing (271) and minimum-window UI (57) checks passed.
-Water authoring, PNG/asset import, portal safety and test-drive snapshot checks
-also passed. The Client standalone initial screen loaded without blocking errors;
-this does not claim detailed driving or platform acceptance.
-The matching Runtime native dependency rebuilt and its isolated water-cell
-registration/disposal check passed.
-
-Run focused checks after building the matching public MapKit binding:
+## Validation and open work
 
 ```sh
 rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --script terrain_native_validator --script terrain_frame_validator --script water_authoring_validator --script authoring_validator --log-dir /new/path/checks
 ```
 
-The runner uses isolated synthetic data and rejects engine/script diagnostics.
-[Preview and explicit output](PREVIEW_EXPORT.md) defines cache and publication
-budgets; [document lifecycle](DOCUMENTS.md) defines Save and the unsaved prompt.
-
-The PNG UI uses staged asynchronous review/adoption, with progress and Cancel in
-the Authoring window. The original PNG must remain unchanged until adoption;
-changed options/layers discard review. The old direct import button is removed.
-See [IMPORTS.md](IMPORTS.md) for source,
-active-cell replacement, source notices and review cancellation semantics.
-
-The offline [G01 driving test map](DRIVING_TEST_MAP.md) provides a fixed small
-project with connected grades, structures, surface transitions and bumps.
-
-## Cylinder walls
-
-Choose **Cylinder wall** and click its centre. **Authoring settings → Drawing**
-sets the radius (0.25–500 m), wall height, base and material. The cursor previews
-its footprint. Select a wall and use **Selected → Apply cylinder wall** to change
-its centre, radius, base or height. Move, rotate, mirror, duplicate, undo/redo,
-save/reopen and package export use the ordinary document operations.
-
-This authoring shape emits a 48-sided solid, flat-roof MapKit building prism
-(current v1). The integer polygon is authoritative for both rendering and solid
-collision; no custom assets or new package/runtime version are needed. An edited
-irregular polygon remains editable as ordinary geometry instead of being silently
-rounded. Locked layers, invalid bounds and road/obstacle overlaps reject atomically.
-See [Driving School Town](history/REFERENCE_WORLDS.md#driving-school-town) for two ready-to-drive kart courses
-using these round inside-corner walls.
-
-## World themes and map writing
-
-The Signs tab creates text with an explicit licensed font or imports a prepared PNG,
-then adopts a separate UV-mapped GLB through native asset validation. See
-[world profiles, language separation and limits](WORLD_THEME_AUTHORING.md).
-
-Planting: choose a GLB under **Planting tree**, set canopy half-width and obstacle clearance, then draw Forest/Orchard. The model's declared collision must fit within that footprint (up to the existing 2m tree radius). Polygons, exclusions, spacing, density and seed drive MapKit generation; there is no fixed count or relocation. Density zero or an occupied zone may produce no trees.
-
-## Current boundaries
-
-General 3D picking/gizmos outside Track Mode, broad asset/dependency and collision
-editing, deployment-cost profiles and camera-neighborhood streaming remain open.
-Track preview reuse and default-world examples do not imply those tools exist.
-The 49-piece commit p95 remains 532.745 ms against a 500 ms target; see
-[editing performance](TRACK_EDIT_PERFORMANCE.md). Detailed authoring and devices
-remain user verification. Package restore/export tests cover original/unused asset
-preservation, corruption, cancellation, obsolete results and new destinations.
-
-## Asynchronous asset operations
-
-Assets → Apply starts one owned Godot child for static GLB/PNG/WebP and proxy or
-material edits. Original source and existing project payloads are inspected and
-hashed before native work. The child captures immutable candidate bytes, checks
-the detached document with MapKit, prepares the complete canonical attribution
-and binary/text command, serializes the transfer, and rechecks all inputs.
-Metadata-only edits use existing immutable bytes and the same native checks.
-Previously loaded bridges, source files, packages and live history stay intact.
-
-The parent binds the result to the exact store instance, command epoch, document,
-project and authoring selection/revision. Changing and restoring a field in one
-frame still cancels the pending result. Asset selection, layer changes, close,
-new gestures, save and document replacement also invalidate it. Progress and
-Cancel remain in the authoring window; the existing supervisor enforces a
-120-second deadline, parent EOF termination, strict IPC, child exit and reaping.
-Only after successful validation does the parent install an immutable file and
-publish one prepared command, consumed before `changed` callbacks. Undo/Redo
-retains the exact old and new bytes. Failed validation has no document command.
-
-An asset job accepts only asset/attribution prepared patches, one matching asset
-ID and at most one new content-addressed GLB/PNG/WebP payload. Existing vector
-command decoding keeps its previous field restrictions. The source is limited
-by the 16 MiB shared text+binary history budget; candidate/existing payload groups
-remain 64 MiB, request/transfer 24 MiB and history 200 commands. Static asset/native
-limits and MapKit versions are unchanged. Native document/file validation is used;
-this operation does not claim new generated-cell or rendering coverage.
-
-Before candidate writes, the child registers its dynamic output path in a small
-request-owned marker. Cleanup retires known paths only after confirmed exit.
-Existing directories, links, unknown files and malformed/wrong-owner markers
-remain protected. No user recovery directory is silently adopted or deleted.
-
-`AuthoringTools.asset()` retains its synchronous API for script callers. Request
-signatures, transfer decoding, immutable installation, history mutation, cleanup
-and UI signals still have synchronous costs. Native preparation is killable;
-this does not promise a fixed UI frame time, whole-process RSS cap or a filesystem
-transaction against arbitrary external writers. No engine/ABI/recipe changes.
-
-Scoped `asset_native_validator`, command/history, PNG/DEM, recovery and scratch
-checks passed on Godot 4.7.2/macOS with synthetic input and isolated user data.
-Coverage includes worker cancel/deadline/EOF, stale/duplicate publication, corrupt
-IPC, unknown scratch preservation, binary Undo/Redo and save/reopen. Run affected
-scripts with `scripts/check_documents.py --script <validator> --log-dir <new-path>`.
-Detailed material editing, picker behavior, device latency and native platform
-acceptance remain user verification.
+Add `asset_native_validator` for asset changes. The runner uses isolated synthetic
+data and rejects engine diagnostics. General 3D gizmos outside Track Mode, broad
+collision editing and camera-neighbourhood streaming remain open; the 49-piece commit
+latency issue is in [TRACK_EDIT_PERFORMANCE](TRACK_EDIT_PERFORMANCE.md). Editor feel,
+devices and Client driving are user checks.

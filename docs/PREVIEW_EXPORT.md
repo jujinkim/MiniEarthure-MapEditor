@@ -3,87 +3,87 @@
 Terrain, water, records and referenced resources form one detached MapKit working
 snapshot. Height queries, road cut/fill, display, validation and export read that
 snapshot, including unsaved height arrays. Editor owns commands and saved baselines;
-MapKit owns generation, polygon operations, PNG16 and the public v1 contracts.
+MapKit owns generation, polygon operations, PNG16 and the v1 contracts. Save and
+Save As are defined in [DOCUMENTS](DOCUMENTS.md#save-and-recovery).
 
 ## Preview and validation
 
-Terrain input immediately updates arrays and requests affected **32 m display
-cells** plus needed neighbors. One running worker and latest pending cells bound
-demand while preserving all brush input time/path. Nearby display is a 3×3 cell
-window. Unchanged nodes and common mesh/material/asset caches are retained.
-Request epoch/session checks prevent old documents from receiving results.
-A storage preview queued behind density analysis waits for that worker to drain;
-cancelling the queue does not join or launch a package worker.
+Terrain input updates arrays immediately and requests the affected **32 m display
+cells** plus needed neighbours. One running worker plus the latest pending cells
+bound demand while keeping the full brush path. Nearby display is a 3×3 cell window.
+Unchanged nodes and shared mesh/material/asset caches are reused; request epoch and
+session checks stop old documents receiving results.
 
-Explicit **3D Preview** generates a chosen storage cell from memory. Committed
-record edits refresh it after 150 ms of inactivity. Generated content signatures
-retain unchanged cached roots, including a remote-object-only change. A hidden
-candidate replaces the old root only after successful frame-budgeted installation.
-The scene installation admission budget is **3 ms/frame**; one indivisible engine
-operation may exceed it. This is not an engine preemption or GPU/RSS guarantee.
+**3D Preview** generates a chosen storage cell from memory and refreshes 150 ms
+after the last committed edit. Unchanged content signatures keep cached roots. A
+hidden candidate replaces the old root only after frame-budgeted installation
+(**3 ms/frame**; one indivisible engine operation may exceed it).
 
-Preview and **Validate** never stage projects, encode terrain PNGs or write recovery
-files. Validation checks document/resources/seams using arrays. Optional full 3D
-validation generates cells in memory. A memory validation report gives cell/cost
-information; compressed package sizes are available only after explicit export.
+Preview and **Validate** never stage projects, encode PNGs or write recovery files.
+Validation checks document, resources and seams from arrays; optional full 3D
+validation generates cells in memory. Compressed sizes exist only after export.
 
-Limits remain 64 MiB unique source resources, 256 MiB preview work and four cached
-storage cells / 256 MiB. Native scratch, triangle/ID/object and decoded presentation
-costs are charged. After bounded native generation, storage previews check actual
-triangle/object/prism counts against their admitted upper bounds and use those
-counts for scene/cache admission. Source assets, styles and workspace stay charged;
-missing, invalid or larger counts reject the result. This avoids rejecting a small
-generated city cell merely because its possible road cuts reach the coarse limit.
-Nearby display also caps resource and picking geometry demand.
-These are admission bounds, not measured process/GPU memory. Over-budget work
-retains the prior preview and reports a recoverable error.
+| Bound | Limit |
+| --- | --- |
+| Unique source resources | 64 MiB |
+| Preview work | 256 MiB |
+| Cached storage cells | 4 / 256 MiB |
 
-## Save and Save As
+Native scratch, triangles/IDs/objects and decoded presentation are charged. After
+generation, storage previews check actual triangle/object/prism counts against the
+admitted upper bounds and charge those counts; larger or invalid counts reject the
+result. These are admission bounds, not measured process/GPU memory. Over-budget work
+keeps the prior preview and reports a recoverable error.
 
-Save finishes current terrain input in memory and waits for necessary water/track
-validation. The revision remains frozen while a worker encodes **only modified
-height tiles** as lossless PNG16. Original unchanged payloads are reused. The same
-source hash and external document conflict checks apply. Save As selects a directory
-without an existing document and carries current plus Undo/Redo-only referenced
-payloads. Existing original files and recovery snapshots are preserved.
+## Chunk density
 
-Payloads are flushed, checked and atomically installed before publishing
-`document.json` last through the existing pending/previous writer. A successful
-publication alone updates the path and saved baseline. History survives Save.
-Failure/cancellation retains the dirty memory state; unchanged repeat Save skips
-writes. The UI/camera remain responsive while editing is locked. See
-[DOCUMENTS.md](DOCUMENTS.md) for shortcuts and unsaved document transitions.
+The density list reuses MapKit generation estimates and the 256 MiB preview work
+calculation: it warns at 192 MiB and flags cells above 256 MiB. Rows include
+triangle, prism, convex and presentation costs; selecting a row centres the 2D map
+on that cell. Analysis runs on a worker 350 ms after the last change; edits,
+Undo/Redo and cancellation clear rows immediately. Package preview/export waits for
+a cancelled analysis worker before allocating another snapshot. Warnings do not
+block Save/Export. Preview preparation over 5 s is recorded with its source
+signature and dropped after edits.
 
 ## Export and test drive
 
-Export and test drive accept a **new unsaved map**. They create explicit independent
-outputs from the current working snapshot without saving the project or clearing
-dirty. Existing package filenames are refused. Test drive uses the installed
-Client through its existing argument-vector adapter.
+Export and test drive accept a **new unsaved map**. They create independent outputs
+from the working snapshot without saving the project or clearing dirty state;
+existing package filenames are refused. Test drive launches the installed Client
+through its argument-vector adapter (see the [README](../README.md)).
 
-Only explicit output preparation encodes changed PNGs and uses disposable staging
-for package validation/compression. Cancellation and request/session/revision checks
-prevent stale publication/launch. Completed/cancelled operation scratch is removed;
-original projects, packages and recovery files are not garbage-collected. Final
-package publication checks destination hashes and renames an owned pending file.
-Export calculates each cell's native estimate without building the Editor's
-preview-invalidation index or hashing unchanged records per cell. Native file,
-seam, inventory and spatial validation still run. Nullable imported sidewalk widths
-are also accepted by the preview index. A malformed file-worker result ends the
-operation once, reports failure and unlocks editing instead of restarting it.
+Only explicit output encodes changed PNGs and uses disposable staging for
+validation/compression. Request/session/revision checks prevent stale publication or
+launch; operation scratch is removed, while projects, packages and recovery files are
+kept. Publication checks destination hashes and renames an owned pending file.
+Native file, seam, inventory and spatial validation always run. A malformed worker
+result ends the operation once, reports failure and unlocks editing.
 
-The export report separates compressed ZIP/base/asset bytes, expanded resources,
-native memory estimates and optional full-generation results. Existing package,
-regional, course and format-v1 limits remain. Single-user conflict detection is not
-a filesystem lock or a power-loss guarantee beyond flush/rename.
+The report separates compressed ZIP/base/asset bytes, expanded resources, native
+memory estimates and optional full-generation results. Conflict detection is
+single-user; it is not a filesystem lock or power-loss guarantee.
 
-## Verification
+## Regional packages
 
-Affected isolated validators cover memory preview/export/reopen, cache reuse,
-resource budgets, file conflicts, cancellation, saved baselines and test-drive
-snapshot ownership. The focused export validator passes95 checks, including
-nullable OSM roads and malformed-worker recovery; density cache bypass and queued
-worker cancellation also pass. The short synthetic terrain benchmark on macOS arm64 / Godot
-4.7.2 measured **35.9 updates/s**, input-to-installed-mesh **p95 28.5 ms**, with a
-**3 ms** installation budget. Detailed input feel, long sessions, platform/device
-performance and Client driving remain user verification.
+Choose **Export map** with the `.mkregions` filter (or filename) and set **Regional
+export · cells per side** (1–128, initial 8). This groups storage records only; cell
+size, geometry, assets and quality are unchanged. The worker exports independent
+regional sources from the immutable snapshot and audits all dependencies. The
+capacity report shows total transfer size, expanded records, shared asset bytes,
+audit peak, retained index/overview and the largest source validation allowance.
+
+**Reopen .mkregions** restores the canonical document and every original payload,
+including unused assets, into a new adjacent `<package>.source` directory, which must
+not exist. Adoption then follows the ordinary unsaved-document flow. A cancelled or
+stale reopen leaves a restored directory intact and reports its path. The Editor
+still authors one bounded document; regional export does not lift document/object
+limits.
+
+## Validation
+
+Isolated validators cover memory preview/export/reopen, cache reuse, resource
+budgets, density, file conflicts, cancellation, saved baselines and test-drive
+snapshots; `tests/regional_export_validator.gd` covers regional export/reopen, audit,
+byte-exact unused PNG recovery, corruption and refusal to overwrite. Input feel, long
+sessions, device performance and Client driving are user checks.

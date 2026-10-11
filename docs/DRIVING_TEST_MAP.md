@@ -73,7 +73,40 @@ rtk proxy /path/to/mapkit pack /new/physics-test /new/physics-test.memap
 rtk proxy python3 scripts/check_driving_school.py --mapkit /path/to/mapkit --project /new/physics-test --output /new/physics-check
 ```
 
-The package is 1,519 bytes. `tests/physics_test.lock.json` locks its source and cell.
-[Old source](../examples/physics-test-v1/) and [package](../examples/physics-test-v1.memap)
-remain intact as reference artifacts. Their old scale measurements are not current
-application acceptance; all own format versions remain v1.
+`tests/physics_test.lock.json` locks its source and cell. The older
+[source](../examples/physics-test-v1/) and [package](../examples/physics-test-v1.memap)
+are preserved reference artifacts.
+
+## Preserved fixtures
+
+These synthetic MIT fixtures are kept intact and are never upgraded automatically.
+Fixture names such as v1–v6 or "recipe 9" are fixture generations, not format
+versions; all own formats are v1.
+
+**Driving School Town** (`examples/driving-school/`, `examples/driving-school.memap`,
+profile `driving-school-town-v6`) is a 576 × 192 m town at 1:1 with 432 cells of
+16 m, 622 roads and 786 buildings: western practice courses, a Korean district and a
+high-rise district. `driving.json` holds the sixteen start locations and ten routes
+(school perimeter, license, technical, slalom, skidpad, straight, hairpins and three
+kart courses studying Village layouts, using round [cylinder walls](AUTHORING.md#cylinder-walls)).
+`overview.svg`, `village-freeway.svg` and `village-finger.svg` show the layout.
+Reproduce with Shapely 2.1.2 (not an Editor runtime dependency):
+
+```sh
+rtk proxy python3 scripts/driving_school_map.py /new/town
+rtk proxy addons/mapkit/target/debug/mapkit pack /new/town /new/town.memap
+rtk proxy python3 scripts/check_driving_school.py --mapkit addons/mapkit/target/debug/mapkit --project /new/town --output /new/town-check
+```
+
+`tests/driving_school.lock.json` records source/package/cell hashes and
+`tests/driving_school_validator.gd` covers open, Save As, reopen and export.
+`driving-school-v1` (a 6.144 km source square at 1:8), `driving-school-v2`…`v5`,
+`driving-school-recipe9` and `driving-school-atmosphere` are earlier generations of
+the same town. `scripts/shop_block.py` owns the six Hanbit shops reused by the scale
+fixtures in [SYNTHETIC_FIXTURES](SYNTHETIC_FIXTURES.md).
+
+**Practice packages:** `examples/practice-tight-corners/` is current (see
+[track authoring](TRACK_AUTHORING.md#reproducible-practice-course)).
+`examples/practice-track/` and the dated `practice-*` directories are earlier
+compilations whose `entry.json` identifies each exact package; `human_completion`
+stays unverified.

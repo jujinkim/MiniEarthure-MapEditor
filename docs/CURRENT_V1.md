@@ -1,39 +1,16 @@
 # Current v1 authoring and imports
 
-New documents, saves and exports use the current MapKit v1 definition. The recipe
-selector and automatic feature-driven promotion are removed. Current road
-arrangements, buildings, vegetation, environment and regional files use the same
-rules. Do not increment format/protocol versions without explicit user approval.
+New documents, saves and exports use the current MapKit v1 definition; there is no
+recipe selector or feature-driven promotion. Do not increment format/protocol
+versions without explicit user approval. Preserved historical packages are neither
+upgraded nor loaded automatically.
 
-The 2026-09-26 decision explicitly replaces `.memap` format 2 with current v1.
-[Arcade worlds and water authoring](ARCADE_WORLD.md) are the active new examples;
-preserved historical packages are not automatically upgraded or loaded.
+Each import adapter has one current shape: GeoJSON `geojson-v1`, OSM crop/loop/
+structural provenance, Overture transportation with exact spans, and Copernicus
+`copernicus-dem-v1` for a single COG or mosaic. Profiles and limits are in
+[IMPORTS](IMPORTS.md); the OSM city profile ([IMPORT_CITY](IMPORT_CITY.md)) emits
+ordinary v1 geometry. Compressed history is private Editor state
+([DOCUMENTS](DOCUMENTS.md)).
 
-GeoJSON uses `geojson-v1`, including disconnected multilines and collections.
-OSM crop, loop and structural-connection provenance have one current v1 shape;
-all structural arms, retained directions, crop sections and source kinds are
-explicit. Overture transportation requires exact physical spans and positions.
-Copernicus `copernicus-dem-v1` uses one bounded array contract for a single local
-COG or a folder mosaic. It preserves source hashes, atomic adoption, cancellation,
-Undo/Redo and source/output budgets. No previous import shape is auto-converted.
-
-The OSM city profile emits ordinary current-v1 geometry with a complete compact
-source/output map and reviewed approximations. It changes neither package numbers
-nor game execution formats. Its source/output limits and protected geometry are
-defined in [IMPORTS](IMPORTS.md); compressed atomic history is private Editor state
-defined in [DOCUMENTS](DOCUMENTS.md).
-
-Normal projects, regional packages, supported external map inputs and current
-recovery snapshots remain supported. Original files and already generated user
-artifacts are never removed. Historical examples retain their map names; their
-owned package definitions now use current v1. Historical reports document their
-original revisions and do not impose compatibility requirements.
-
-## Verification
-
-Affected Python importer/source fixture tests and Godot OSM connection/loop/
-junction, Overture transport, DEM/native adoption, environment, authoring safety
-and document history/recovery validators passed. Current fixtures keep bounded
-geometry and explicit source provenance. Standalone startup and the initial
-canvas loaded without blocking diagnostics. Detailed editing, test driving and
-platform acceptance remain user verification.
+Projects, regional packages, supported external inputs and recovery snapshots remain
+supported. Original files and generated user artifacts are never removed.
