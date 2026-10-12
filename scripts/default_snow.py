@@ -43,6 +43,7 @@ def compose(w):
         w.paint('lodge-access-'+str(i),LineString([(x,y),(roadpoint.x,roadpoint.y)]).buffer(2.4),'gravel')
         w.place('lodge-car-'+str(i),'parked-car',x+13,y,a,z)
         w.place('lodge-bin-'+str(i),'bin',x-11,y+10,level=z)
+        w.boundary('lodge-boundary-'+str(i),'timber-fence',[(x-19,y-19),(x+19,y-19),(x+19,y+19),(x-19,y+19),(x-19,y-19)],gates=[(x,y+19 if y<1720 else y-19)],level=z)
     # A solid ice sheet in a shallow sculpted basin is a frozen watercourse,
     # not liquid water wearing an ice texture; its physical top is explicit.
     w.pads.append((946,1280,48,34,92.6));w.place('frozen-tarn','frozen-lake',946,1280,0,93)
@@ -67,6 +68,10 @@ def compose(w):
                 w.place(name+'-rail-'+str(side)+'-'+str(i),'alpine-rail',x,y,yaw,float(w.height(p.x,p.y)),solid=False)
                 if i%2==0:w.place(name+'-drift-'+str(side)+'-'+str(i),'snowbank',p.x-dy/length*side*9,y=p.y+dx/length*side*9,yaw=yaw,solid=False)
     exclusion=w.road_area(12).union(unary_union(yards))
+    for i,(points,z) in enumerate([([(765,503),(910,503)],None), ([(1067,534),(1093,598)],None), ([(555,1813),(714,1813)],60)]):
+        w.boundary('snow-break-'+str(i),'snow-fence',points,level=z)
+    for i,x in enumerate(range(558,715,18)):
+        w.place('lodge-snowdrift-'+str(i),'snowbank',x,1819,i*13,solid=False)
     rng=random.Random(9153)
     # Forest thins deliberately by altitude; the upper cirque is rock and snow.
     for row,y in enumerate(range(550,2030,18)):

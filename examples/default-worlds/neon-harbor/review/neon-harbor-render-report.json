@@ -1,51 +1,71 @@
 [
   {
-    "far_cells": 129,
-    "far_display_triangles": 224723,
-    "image": "neon-harbor-main-street.png",
-    "largest_far_cell_bytes": 3547456,
-    "near_cells": 46,
-    "near_collision_triangles": 43455,
-    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
-    "preparation_ms": 6223,
-    "render": {
-      "draw_calls": 462,
-      "objects": 462,
-      "primitives": 145251
+    "attachment": {
+      "advance_usec": 126740,
+      "phase_peak_usec": {
+        "environment_preparation": 8,
+        "instance_upload": 782,
+        "mesh_upload": 2036,
+        "multimesh_setup": 66,
+        "template_preparation": 2674
+      },
+      "phase_usec": {
+        "environment_preparation": 207,
+        "instance_upload": 13655,
+        "mesh_upload": 15182,
+        "multimesh_setup": 2794,
+        "template_preparation": 94902
+      },
+      "release_usec": 0,
+      "steps": 831
     },
-    "shared_cache_bytes": 83064832,
-    "view": {
-      "name": "main-street",
-      "position_m": [
-        478.0,
-        9.7,
-        560.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        591.0,
-        10.0,
-        560.0
-      ],
-      "time_minutes": 1088.0,
-      "view_distance_m": 384.0
-    }
-  },
-  {
+    "cache": {
+      "bytes": 74390272,
+      "entries": 4,
+      "hits": 44,
+      "import_usec": 40762,
+      "imports": 35,
+      "peak_import_usec": 2093,
+      "preparation_peak_usec": {
+        "import": 2093,
+        "lod": 2668,
+        "materials": 1091,
+        "mipmap_upload": 813,
+        "texture_load": 10118
+      },
+      "preparation_usec": {
+        "import": 40762,
+        "lod": 38064,
+        "materials": 13730,
+        "mipmap_upload": 7209,
+        "texture_load": 90457
+      }
+    },
+    "cell_prepare_p95_ms": 79.594,
+    "cell_prepare_p99_ms": 112.079,
+    "device": "Apple M1",
     "far_cells": 129,
-    "far_display_triangles": 224723,
+    "far_display_triangles": 228561,
+    "frame_p95_ms": 16.344,
+    "frame_p99_ms": 17.758,
     "image": "neon-harbor-day-street.png",
-    "largest_far_cell_bytes": 3547456,
+    "largest_far_cell_bytes": 3509824,
     "near_cells": 46,
-    "near_collision_triangles": 43455,
-    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
-    "preparation_ms": 5440,
+    "near_collision_triangles": 44643,
+    "package_sha256": "6f442f27dabbb8d86fa81b92bc36b81b4e5f9ab4cb81c7cad52c74ec7b062307",
+    "preparation_ms": 4656,
     "render": {
-      "draw_calls": 1196,
-      "objects": 1196,
-      "primitives": 145251
+      "draw_calls": 1251,
+      "objects": 1251,
+      "primitives": 144813
     },
-    "shared_cache_bytes": 83064832,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 74390272,
+    "static_memory_bytes": 77846395.0,
+    "video_memory_bytes": 70065255.0,
     "view": {
       "name": "day-street",
       "position_m": [
@@ -64,20 +84,74 @@
     }
   },
   {
+    "attachment": {
+      "advance_usec": 158653,
+      "phase_peak_usec": {
+        "environment_preparation": 8,
+        "instance_upload": 782,
+        "mesh_upload": 2036,
+        "multimesh_setup": 66,
+        "template_preparation": 2674,
+        "water_upload": 32
+      },
+      "phase_usec": {
+        "environment_preparation": 405,
+        "instance_upload": 18735,
+        "mesh_upload": 27235,
+        "multimesh_setup": 4403,
+        "template_preparation": 107387,
+        "water_upload": 488
+      },
+      "release_usec": 345,
+      "steps": 1490
+    },
+    "cache": {
+      "bytes": 91068160,
+      "entries": 11,
+      "hits": 40,
+      "import_usec": 6914,
+      "imports": 11,
+      "peak_import_usec": 1135,
+      "preparation_peak_usec": {
+        "import": 1135,
+        "lod": 814,
+        "materials": 311,
+        "mipmap_upload": 523,
+        "texture_load": 6904
+      },
+      "preparation_usec": {
+        "import": 6914,
+        "lod": 3176,
+        "materials": 1429,
+        "mipmap_upload": 4828,
+        "texture_load": 63143
+      }
+    },
+    "cell_prepare_p95_ms": 78.311,
+    "cell_prepare_p99_ms": 199.796,
+    "device": "Apple M1",
     "far_cells": 114,
-    "far_display_triangles": 100442,
+    "far_display_triangles": 103130,
+    "frame_p95_ms": 15.514,
+    "frame_p99_ms": 18.416,
     "image": "neon-harbor-port-road.png",
     "largest_far_cell_bytes": 2740160,
     "near_cells": 52,
-    "near_collision_triangles": 36064,
-    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
-    "preparation_ms": 4771,
+    "near_collision_triangles": 37192,
+    "package_sha256": "6f442f27dabbb8d86fa81b92bc36b81b4e5f9ab4cb81c7cad52c74ec7b062307",
+    "preparation_ms": 3437,
     "render": {
-      "draw_calls": 891,
-      "objects": 891,
-      "primitives": 133160
+      "draw_calls": 926,
+      "objects": 926,
+      "primitives": 137728
     },
-    "shared_cache_bytes": 89928192,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 91068160,
+    "static_memory_bytes": 75130139.0,
+    "video_memory_bytes": 64636039.0,
     "view": {
       "name": "port-road",
       "position_m": [
@@ -96,84 +170,74 @@
     }
   },
   {
-    "far_cells": 124,
-    "far_display_triangles": 133597,
-    "image": "neon-harbor-coastal-road.png",
-    "largest_far_cell_bytes": 2801984,
-    "near_cells": 49,
-    "near_collision_triangles": 45059,
-    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
-    "preparation_ms": 4371,
-    "render": {
-      "draw_calls": 1475,
-      "objects": 1475,
-      "primitives": 152867
+    "attachment": {
+      "advance_usec": 538573,
+      "phase_peak_usec": {
+        "environment_preparation": 8,
+        "instance_upload": 796,
+        "mesh_upload": 2036,
+        "multimesh_setup": 66,
+        "template_preparation": 2755,
+        "water_upload": 32
+      },
+      "phase_usec": {
+        "environment_preparation": 867,
+        "instance_upload": 54444,
+        "mesh_upload": 75172,
+        "multimesh_setup": 10462,
+        "template_preparation": 397140,
+        "water_upload": 488
+      },
+      "release_usec": 671,
+      "steps": 3369
     },
-    "shared_cache_bytes": 114921472,
-    "view": {
-      "name": "coastal-road",
-      "position_m": [
-        465.0,
-        7.7,
-        758.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        640.0,
-        8.0,
-        805.0
-      ],
-      "time_minutes": 1030.0,
-      "view_distance_m": 384.0
-    }
-  },
-  {
-    "far_cells": 113,
-    "far_display_triangles": 80737,
-    "image": "neon-harbor-distant.png",
-    "largest_far_cell_bytes": 1314176,
-    "near_cells": 48,
-    "near_collision_triangles": 55909,
-    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
-    "preparation_ms": 4069,
-    "render": {
-      "draw_calls": 942,
-      "objects": 942,
-      "primitives": 122900
+    "cache": {
+      "bytes": 73579520,
+      "entries": 3,
+      "hits": 79,
+      "import_usec": 104845,
+      "imports": 84,
+      "peak_import_usec": 2202,
+      "preparation_peak_usec": {
+        "import": 2202,
+        "lod": 2749,
+        "materials": 2157,
+        "mipmap_upload": 495,
+        "texture_load": 6834
+      },
+      "preparation_usec": {
+        "import": 104845,
+        "lod": 101447,
+        "materials": 77959,
+        "mipmap_upload": 4748,
+        "texture_load": 63167
+      }
     },
-    "shared_cache_bytes": 81908480,
-    "view": {
-      "name": "distant",
-      "position_m": [
-        1280.0,
-        11.7,
-        960.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        1440.0,
-        20.0,
-        1028.0
-      ],
-      "time_minutes": 1010.0,
-      "view_distance_m": 384.0
-    }
-  },
-  {
+    "cell_prepare_p95_ms": 76.666,
+    "cell_prepare_p99_ms": 104.85,
+    "device": "Apple M1",
     "far_cells": 148,
-    "far_display_triangles": 248600,
+    "far_display_triangles": 252878,
+    "frame_p95_ms": 31.145,
+    "frame_p99_ms": 33.88,
     "image": "neon-harbor-overview.png",
-    "largest_far_cell_bytes": 3547456,
+    "largest_far_cell_bytes": 3509824,
     "near_cells": 108,
-    "near_collision_triangles": 123782,
-    "package_sha256": "4522898aa8e68b83536cce2102f6e787e83fc747ead98212674385ef43436852",
-    "preparation_ms": 8787,
+    "near_collision_triangles": 125570,
+    "package_sha256": "6f442f27dabbb8d86fa81b92bc36b81b4e5f9ab4cb81c7cad52c74ec7b062307",
+    "preparation_ms": 6607,
     "render": {
-      "draw_calls": 3506,
-      "objects": 3506,
-      "primitives": 382148
+      "draw_calls": 4128,
+      "objects": 4128,
+      "primitives": 404174
     },
-    "shared_cache_bytes": 126376960,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 73579520,
+    "static_memory_bytes": 88398523.0,
+    "video_memory_bytes": 94926591.0,
     "view": {
       "name": "overview",
       "position_m": [

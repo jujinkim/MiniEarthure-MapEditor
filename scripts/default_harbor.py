@@ -105,6 +105,7 @@ def compose(w):
     for i,(cx,cy) in enumerate([(563,439),(791,440),(567,650)]):
         w.paint('courtyard-'+str(i),box(cx-60,cy-36,cx+60,cy+36),'concrete')
         w.paint('courtyard-link-'+str(i),LineString([(cx,cy),(cx,cy+105)]).buffer(2),'concrete')
+        w.boundary('courtyard-wall-'+str(i),'stone-wall',[(cx-61,cy-37),(cx+61,cy-37),(cx+61,cy+37),(cx-61,cy+37),(cx-61,cy-37)],gates=[(cx,cy+37),(cx,cy-37)])
         for j in range(5):
             w.place('court-tree-'+str(i)+'-'+str(j),'tree-'+str(1+j%3),cx-44+j*22,cy+22,solid=False)
             w.place('court-bench-'+str(i)+'-'+str(j),'bench',cx-44+j*22,cy+16,180)
@@ -138,6 +139,7 @@ def compose(w):
         w.paint(label+'-apron',box(x-30,y-31,x+30,y+31),'concrete')
         w.place(label+'-truck','parked-truck',x+22,y-24,yaw,level)
         for j in range(3):w.place(label+'-crate-'+str(j),'crate',x-13+j*2,y+22,level=level)
+        w.boundary(label+'-service-fence','metal-fence',[(x-31,y-32),(x+31,y-32),(x+31,y+32),(x-31,y+32),(x-31,y-32)],gates=[(x,y-32),(x+31,y)],level=level)
     for i,x in enumerate(range(995,1189,17)):w.place('freight-pipe-'+str(i),'pipeline',x,738,level=8)
     for i,x in enumerate((977,1000,1023)):
         w.place('quay-loading-truck-'+str(i),'parked-truck',x,929,180,6)
@@ -168,6 +170,9 @@ def compose(w):
     for i,x in enumerate(range(1315,1780,32)):
         w.place('east-mooring-'+str(i),'bollard',x,1053,level=6)
     # Functional terminal fence lines leave their road and loading entrances open.
+    w.boundary('west-cargo-divider','metal-fence',[(987,986),(1190,986)],gates=[(1085,986)],level=6)
+    w.boundary('promenade-railing','park-railing',[(297,843),(769,843)],gates=[(455,843)],level=6)
+    w.boundary('east-quay-railing','metal-fence',[(1314,1044),(1785,1044)],gates=[(1510,1044),(1675,1044)],level=6)
     for label,y,xs in [('cargo-north',771,range(990,1240,7)),('yard-east',766,range(1401,1612,7))]:
         for i,x in enumerate(xs):w.place(label+'-fence-'+str(i),'port-fence',x,y,solid=False)
     for label in ('arrival-road','neon-avenue','hotel-street','waterfront-street','freight-boulevard','container-way','east-port-approach'):

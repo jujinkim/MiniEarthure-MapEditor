@@ -46,6 +46,11 @@ func visible_cell(camera: Camera3D, x: int, y: int, eye: Vector3, heights: Array
 		if all_outside: return false
 	return true
 
+func percentile(values: Array, fraction: float) -> float:
+	if values.is_empty(): return 0.0
+	var sorted := values.duplicate();sorted.sort()
+	return float(sorted[mini(sorted.size()-1,floori(sorted.size()*fraction))])
+
 func run() -> void:
 	root.size=Vector2i(1440,900)
 	var source := OS.get_environment("DEFAULT_WORLD_SOURCE")
@@ -69,8 +74,19 @@ func run() -> void:
 		views=[dense,dense.duplicate(true)]
 		views[1].name=str(dense.name)+"-authored-far-comparison"
 		views[1]["force_distant"]=true
+	var revisit := OS.get_environment("DEFAULT_WORLD_REVISIT")=="1"
+	var shared_cache: RefCounted
+	if revisit:
+		views=views.filter(func(v):return wanted.is_empty() or v.name in wanted)
+		var repeated: Array=[]
+		for view: Dictionary in views:
+			repeated.append(view)
+			var second:=view.duplicate(true);second.name=str(view.name)+"-revisit";repeated.append(second)
+		views=repeated;wanted=PackedStringArray()
 	for view: Dictionary in views:
 		if not wanted.is_empty() and view.name not in wanted: continue
+		var override:=OS.get_environment("DEFAULT_WORLD_QUALITY")
+		if not override.is_empty(): view.quality=int(override)
 		QUALITY.apply(root,QUALITY.profile(int(view.quality)))
 		var scene:=Node3D.new();root.add_child(scene)
 		var atmosphere:=WorldEnvironment.new();atmosphere.environment=Environment.new();scene.add_child(atmosphere)
@@ -87,10 +103,13 @@ func run() -> void:
 		var state:=StillSky.new();state.profile=doc.environment;state.config=doc.environment.duplicate(true)
 		state.config.merge({"intensity":.3,"aurora_probability":0.0,"celestial_mode":"simple"})
 		state.seconds=float(view.get("time_minutes",doc.environment.start_minutes))*60
-		var cache:=CACHE.new();cache.environment_profile=state.profile
+		var cache: RefCounted=shared_cache if shared_cache!=null else CACHE.new()
+		if revisit: shared_cache=cache
+		cache.environment_profile=state.profile
 		cache.quality_profile=QUALITY.active()
 		var leases: Array[Lease]=[]
 		var jobs: Array[Dictionary]=[]
+		var cell_times: Array=[]
 		var near_count:=0;var far_count:=0;var near_triangles:=0;var far_triangles:=0
 		var maximum_far_cell:=0;var started:=Time.get_ticks_msec()
 		var window: Dictionary=JSON.parse_string(bridge.cell_window(roundi(camera.position.x*100),roundi(-camera.position.z*100)))
@@ -101,6 +120,7 @@ func run() -> void:
 				var distance:=Vector2(x*32+16,y*32+16).distance_to(Vector2(camera.position.x,-camera.position.z))
 				if distance-32*.707107>float(view.view_distance_m): continue
 				if not visible_cell(camera,x,y,camera.position,meta.get("display_height_range_m",[-6,80])): continue
+				var cell_started:=Time.get_ticks_usec()
 				# Same 128m detail radius, 16m prefetch and visual margin as the
 				# current display streamer. No altered execution-cell budgets.
 				if not view.get("force_distant",false) and maxf(0.0,distance-32*.707107-margin)<=128+16:
@@ -126,12 +146,19 @@ func run() -> void:
 					job.root.visible=true;jobs.append(job)
 					far_count+=1;far_triangles+=int(generated.data.triangles)
 					maximum_far_cell=maxi(maximum_far_cell,int(generated.data.retained_bytes)+int(generated.data.display_bytes))
+				cell_times.append(float(Time.get_ticks_usec()-cell_started)/1000.0)
 				if (near_count+far_count)%40==0:
 					print("REVIEW_PROGRESS ",view.name," cells=",near_count+far_count)
 					await process_frame
+		var preparation_ms:=Time.get_ticks_msec()-started
 		environment.update_environment(state,camera.position,[],cache,true)
 		environment.update_dynamic_lights(camera.position,[])
 		for frame in 12: await process_frame
+		var frame_times: Array=[]
+		var last:=Time.get_ticks_usec()
+		for frame in 120:
+			await process_frame
+			var now:=Time.get_ticks_usec();frame_times.append(float(now-last)/1000.0);last=now
 		await RenderingServer.frame_post_draw
 		var frame_stats: Dictionary={"objects":RenderingServer.viewport_get_render_info(root.get_viewport_rid(),RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE,RenderingServer.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME),
 			"primitives":RenderingServer.viewport_get_render_info(root.get_viewport_rid(),RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE,RenderingServer.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME),
@@ -140,16 +167,23 @@ func run() -> void:
 		if root.get_texture().get_image().save_png(file)!=OK: push_error("capture failed");quit(1);return
 		var report: Dictionary={"package_sha256":FileAccess.get_sha256(source.path_join(id+".memap")),"view":view,"near_cells":near_count,"far_cells":far_count,"near_collision_triangles":near_triangles,
 			"far_display_triangles":far_triangles,"largest_far_cell_bytes":maximum_far_cell,"shared_cache_bytes":cache.bytes(),
-			"render":frame_stats,"preparation_ms":Time.get_ticks_msec()-started,"image":file}
+			"render":frame_stats,"preparation_ms":preparation_ms,"image":file,
+			"cell_prepare_p95_ms":percentile(cell_times,.95),"cell_prepare_p99_ms":percentile(cell_times,.99),
+			"frame_p95_ms":percentile(frame_times,.95),"frame_p99_ms":percentile(frame_times,.99),
+			"static_memory_bytes":Performance.get_monitor(Performance.MEMORY_STATIC),"video_memory_bytes":Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED),
+			"cache":cache.diagnostics(),"attachment":RENDER.diagnostics(),"device":RenderingServer.get_video_adapter_name(),"resolution":[1440,900]}
 		results.append(report);print("REVIEW_CAPTURE ",JSON.stringify(report))
 		for job: Dictionary in jobs:
 			if job.get("distant",false): FAR.cancel(job)
 			else: RENDER.cancel(job)
-		jobs.clear();scene.queue_free();cache.shutdown();environment=null;cache=null
+		jobs.clear();scene.queue_free()
+		if not revisit: cache.shutdown()
+		environment=null;cache=null
 		for frame in 4: await process_frame
 		for lease: Lease in leases:
 			if lease.live()!=0: push_error("far resource ownership retained after release");quit(1);return
 		leases.clear()
+	if shared_cache!=null: shared_cache.shutdown();shared_cache=null
 	var report_file:=FileAccess.open(output.path_join(id+"-render-report.json"),FileAccess.WRITE)
 	report_file.store_string(JSON.stringify(results,"\t"));report_file.close()
 	print("render_default_world: PASS (fixed common-renderer views; user art review pending)")

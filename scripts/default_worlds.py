@@ -68,7 +68,7 @@ class World:
             from park_assets import library as park_library
             self.library.update(park_library())
         self.footprints=[];self.footprint_grid=defaultdict(list);self._road_exclusion=None
-        self.routes={};self.paints=[];self.water=[];self.places=[];self.reviews=[]
+        self.routes={};self.paints=[];self.water=[];self.places=[];self.reviews=[];self.boundaries={};self._boundary_requests=[];self.shoulders={}
         self.doc=empty('default-'+theme+'-authored-20261009',self.size[0]*100,3200)
         self.doc.update(bounds=dict(min=[0,0],max=[v*100 for v in self.size]),free_roam=True,
             seed=10092026,terrain_base_cm=0,surface_areas=[],water_bodies=[],courses=[],gimmicks=[])
@@ -84,17 +84,34 @@ class World:
     @staticmethod
     def river_y(x):return 292+32*np.sin(np.asarray(x)/170)+12*np.sin(np.asarray(x)/73)
 
+    def river_line(self):
+        return LineString([(x,float(self.river_y(x))) for x in range(0,1121,16)])
+
+    def river_distance(self,x,y):
+        # Same sampled centreline as the water polygon. Nearby segments suffice
+        # inside the bank belt of this gently meandering, x-monotone river.
+        x,y=np.broadcast_arrays(np.asarray(x),np.asarray(y));nearest=np.full(x.shape,np.inf)
+        segment=np.clip(np.floor(x/16).astype(int),0,69)
+        for offset in (-1,0,1):
+            ax=np.clip(segment+offset,0,69)*16;ay=self.river_y(ax)
+            dy=self.river_y(ax+16)-ay
+            t=np.clip(((x-ax)*16+(y-ay)*dy)/(256+dy*dy),0,1)
+            nearest=np.minimum(nearest,np.hypot(x-ax-t*16,y-ay-t*dy))
+        return nearest
+
     def base(self,x,y):
         x=np.asarray(x);y=np.asarray(y)
         h=8.5+1.2*np.sin(x/126)*np.sin(y/148)
         for cx,cy,height,sx,sy in [(135,110,24,165,165),(920,130,23,215,180),(1080,845,16,165,230),(60,860,12,170,170)]:
             h=h+height*np.exp(-((x-cx)/sx)**2-((y-cy)/sy)**2)
-        valley=np.abs(y-self.river_y(x));bank=smooth((valley-6)/27)
-        return 2.2*(1-bank)+h*bank
+        distance=self.river_distance(x,y)
+        bed=2.2+1.6*smooth(distance/5.5)
+        bank=smooth((distance-5.5)/27)
+        return bed*(1-bank)+h*bank
 
     def height(self,x,y):
         if np.ndim(x)==0 and np.ndim(y)==0:
-            x=float(x);y=float(y);h=float(self.base(x,y));best=float('inf');level=h;width=0
+            x=float(x);y=float(y);h=float(self.base(x,y));best=float('inf');level=h;width=0;shoulder=24
             for cx,cy,rx,ry,z in self.pads:
                 d=max(abs(x-cx)-rx,abs(y-cy)-ry);blend=max(0,min(1,d/6));blend=blend*blend*(3-2*blend)
                 h=h*blend+z*(1-blend)
@@ -104,8 +121,10 @@ class World:
                     ax,az,ay=[v/100 for v in a];bx,bz,by=[v/100 for v in b]
                     dx=bx-ax;dy=by-ay;t=max(0,min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy)))
                     distance=math.hypot(x-ax-t*dx,y-ay-t*dy)
-                    if distance<best:best=distance;level=az+t*(bz-az);width=r['widths_cm'][0]/200+r.get('sidewalk_cm',0)/100+1
-            blend=max(0,min(1,(best-width)/24));blend=blend*blend*(3-2*blend)
+                    if distance<best:
+                        best=distance;level=az+t*(bz-az);width=r['widths_cm'][0]/200+r.get('sidewalk_cm',0)/100+1
+                        shoulder=self.shoulders.get(r['id'],24)
+            blend=max(0,min(1,(best-width)/shoulder));blend=blend*blend*(3-2*blend)
             h=h*blend+level*(1-blend)
             return h
         x=np.asarray(x);y=np.asarray(y);h=self.base(x,y)
@@ -113,7 +132,7 @@ class World:
             d=np.maximum(np.abs(x-cx)-rx,np.abs(y-cy)-ry)
             blend=1-smooth(d/6)
             h=h*(1-blend)+z*blend
-        best=np.full(np.broadcast_shapes(x.shape,y.shape),np.inf);level=h.copy();width=np.zeros_like(h)
+        best=np.full(np.broadcast_shapes(x.shape,y.shape),np.inf);level=h.copy();width=np.zeros_like(h);shoulder=np.full_like(h,24)
         for r in self.doc['roads']:
             if r['kind']!='ground':continue
             for a,b in zip(r['points'],r['points'][1:]):
@@ -123,11 +142,14 @@ class World:
                 take=distance<best;best=np.where(take,distance,best)
                 level=np.where(take,az+t*(bz-az),level)
                 width=np.where(take,r['widths_cm'][0]/200+r.get('sidewalk_cm',0)/100+1,width)
-        weight=1-smooth((best-width)/24)
+                shoulder=np.where(take,self.shoulders.get(r['id'],24),shoulder)
+        weight=1-smooth((best-width)/shoulder)
         h=h*(1-weight)+level*weight
         return h
 
-    def path(self,name,points,width=7,sidewalk=0,kind='ground',level=None,surface='asphalt',markings=True):
+    def path(self,name,points,width=7,sidewalk=0,kind='ground',level=None,surface='asphalt',markings=True,shoulder_m=24):
+        if not 0<shoulder_m<=50:raise ValueError('Road shoulder outside current-v1 range')
+        self.shoulders[name]=shoulder_m
         points=curve(points)
         line=LineString(points);length=line.length
         # Explicit level approaches keep the entire junction overlap on the
@@ -248,6 +270,43 @@ class World:
                     polygon=points));index+=1
             self.paints.append(part)
 
+    def boundary(self,name,asset,points,gates=(),level=None):
+        self._boundary_requests.append((name,asset,points,gates,level))
+
+    def apply_boundaries(self):
+        # Facilities, driveways and planted scenery get their full existing
+        # footprint first, including frontages authored later in the recipe.
+        for args in self._boundary_requests:self._place_boundary(*args)
+        self._boundary_requests.clear()
+
+    def _place_boundary(self,name,asset,points,gates=(),level=None):
+        """Solid four-metre modules, open gateways and a generous road shoulder.
+
+        Optional placement skips conflicts, but accepted modules retain their
+        real collision and are included in the architectural clearance audit.
+        """
+        record,bounds=self.library[asset][0],self.library[asset][2]
+        if not record['collision']:raise ValueError('Boundary needs real collision: '+asset)
+        road_clear=self.road_area(1.5)
+        gateways=unary_union([Point(p).buffer(4.5) for p in gates])
+        count=0
+        for segment,(a,b) in enumerate(zip(points,points[1:])):
+            line=LineString([a,b]);yaw=math.degrees(math.atan2(b[1]-a[1],b[0]-a[0]))
+            for index,station in enumerate(np.arange(2.3,line.length-2.1,4.4)):
+                p=line.interpolate(station)
+                area=affinity.translate(affinity.rotate(box(bounds[0][0],bounds[0][2],bounds[1][0],bounds[1][2]),yaw,origin=(0,0)),p.x,p.y)
+                if area.intersects(road_clear) or area.intersects(gateways):continue
+                if any(area.intersects(water) for water in self.water):continue
+                if level is None:
+                    ends=[line.interpolate(station+d) for d in (-2,2)]
+                    if abs(float(self.height(ends[0].x,ends[0].y))-float(self.height(ends[1].x,ends[1].y)))>.65:continue
+                identity=name+'-'+str(segment)+'-'+str(index)
+                placed=self.place(identity,asset,p.x,p.y,yaw,level,solid=False)
+                if placed is not None:
+                    self.obstacles.append((identity,placed));count+=1
+        self.boundaries[name]=dict(asset=asset,modules=count,gateway_width_m=9 if gates else None)
+        return count
+
     def water_body(self,name,shape,level=3.8):
         shape=shape.intersection(box(0,0,*self.size)).simplify(.12)
         self.doc['water_bodies'].append(dict(id=name,polygon=[[round(x*100),round(y*100)] for x,y in list(shape.exterior.coords)[:-1]],
@@ -268,6 +327,11 @@ class World:
             self.paint(name+'-access',LineString([(x,y),(p.x,p.y)]).buffer(1.15,cap_style=2),'concrete' if asset.startswith('shop') else 'gravel')
             # Deliberate rear yards, useful frontage objects and occasional cars.
             if asset.startswith('home'):
+                # Side and rear garden boundaries leave the entire front access
+                # open, including the larger vehicle's turning approach.
+                corners=[(p.x+dx/length*a+nx*b,p.y+dy/length*a+ny*b)
+                    for a,b in [(-6.8,10),(-6.8,25),(6.8,25),(6.8,10)]]
+                self.boundary(name+'-garden-boundary','stone-wall' if i%3==0 else 'timber-fence',corners,level=ground)
                 self.place(name+'-garden-tree','tree-'+str((i%3)+2),x+nx*11,y+ny*11,(i*73)%360,solid=False)
                 tangent=math.degrees(math.atan2(dy,dx))
                 for edge in (-1,1):
@@ -363,7 +427,7 @@ class World:
         counts=defaultdict(int)
         for _,_,asset in self.scenery:counts[asset]+=1
         return dict(road_graph_connected=True,max_road_grade=round(grade,5),placements=len(self.scenery),
-            authored_places=self.places,asset_instances=dict(counts),texture_max_px=512,
+            authored_places=self.places,asset_instances=dict(counts),boundaries=self.boundaries,texture_max_px=512,
             formats=1,cell_size_m=32,art_status='user review required')
 
 def build(theme,kit):
@@ -383,6 +447,7 @@ def build(theme,kit):
         from default_park import compose
     else:raise ValueError('Theme recipe has not yet been authored: '+theme)
     world=World(theme,kit);meta=compose(world)
+    world.apply_boundaries()
     meta['validation']=world.validate()
     heights=world.bake_terrain();meta['relief']=round(float(heights.max()-heights.min())/100,2)
     bounds={r['id']:b for r,_,b in world.library.values()}
@@ -413,6 +478,9 @@ def publish(destination,theme,kit,cli):
         subprocess.run([str(cli.resolve()),'design-roads',str(pending/'uncompiled.json'),str(pending/'document.json')],check=True)
         (pending/'uncompiled.json').unlink()
         world.doc=json.loads((pending/'document.json').read_bytes())
+        for r in world.doc['roads']:
+            r['design']['shoulder_cm']=round(world.shoulders[r['id']]*100)
+        (pending/'document.json').write_bytes(canonical(world.doc))
         meta['validation'].update(world.validate())
         (pending/'region.json').write_bytes(canonical(meta))
         for path,data in world.payloads.items():

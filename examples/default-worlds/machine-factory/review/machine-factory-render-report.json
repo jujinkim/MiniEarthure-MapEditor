@@ -1,19 +1,71 @@
 [
   {
+    "attachment": {
+      "advance_usec": 23730,
+      "phase_peak_usec": {
+        "environment_preparation": 7,
+        "instance_upload": 354,
+        "mesh_upload": 2086,
+        "multimesh_setup": 47,
+        "template_preparation": 1356
+      },
+      "phase_usec": {
+        "environment_preparation": 194,
+        "instance_upload": 2942,
+        "mesh_upload": 11178,
+        "multimesh_setup": 485,
+        "template_preparation": 8931
+      },
+      "release_usec": 0,
+      "steps": 382
+    },
+    "cache": {
+      "bytes": 90481408,
+      "entries": 5,
+      "hits": 10,
+      "import_usec": 4277,
+      "imports": 5,
+      "peak_import_usec": 1336,
+      "preparation_peak_usec": {
+        "import": 1336,
+        "lod": 1349,
+        "materials": 250,
+        "mipmap_upload": 511,
+        "texture_load": 6848
+      },
+      "preparation_usec": {
+        "import": 4277,
+        "lod": 3430,
+        "materials": 844,
+        "mipmap_upload": 4771,
+        "texture_load": 62779
+      }
+    },
+    "cell_prepare_p95_ms": 15.682,
+    "cell_prepare_p99_ms": 22.881,
+    "device": "Apple M1",
     "far_cells": 114,
-    "far_display_triangles": 88132,
+    "far_display_triangles": 99748,
+    "frame_p95_ms": 16.379,
+    "frame_p99_ms": 16.874,
     "image": "machine-factory-production-road.png",
-    "largest_far_cell_bytes": 816896,
+    "largest_far_cell_bytes": 1014016,
     "near_cells": 57,
     "near_collision_triangles": 40181,
-    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
-    "preparation_ms": 2584,
+    "package_sha256": "0317a042f4e0b36be71ee1a871818b23088fadc66056e0d550f66961a7a41889",
+    "preparation_ms": 1620,
     "render": {
-      "draw_calls": 583,
-      "objects": 583,
-      "primitives": 108404
+      "draw_calls": 600,
+      "objects": 600,
+      "primitives": 118284
     },
+    "resolution": [
+      1440,
+      900
+    ],
     "shared_cache_bytes": 90481408,
+    "static_memory_bytes": 60769775.0,
+    "video_memory_bytes": 54363223.0,
     "view": {
       "name": "production-road",
       "position_m": [
@@ -31,20 +83,72 @@
     }
   },
   {
-    "far_cells": 114,
-    "far_display_triangles": 99709,
-    "image": "machine-factory-process-road.png",
-    "largest_far_cell_bytes": 833472,
-    "near_cells": 57,
-    "near_collision_triangles": 39152,
-    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
-    "preparation_ms": 2549,
-    "render": {
-      "draw_calls": 632,
-      "objects": 632,
-      "primitives": 126276
+    "attachment": {
+      "advance_usec": 126577,
+      "phase_peak_usec": {
+        "environment_preparation": 6785,
+        "instance_upload": 393,
+        "mesh_upload": 2150,
+        "multimesh_setup": 47,
+        "template_preparation": 1356
+      },
+      "phase_usec": {
+        "environment_preparation": 68022,
+        "instance_upload": 10249,
+        "mesh_upload": 23199,
+        "multimesh_setup": 1792,
+        "template_preparation": 23315
+      },
+      "release_usec": 306,
+      "steps": 958
     },
-    "shared_cache_bytes": 94686464,
+    "cache": {
+      "bytes": 94687488,
+      "entries": 12,
+      "hits": 29,
+      "import_usec": 7528,
+      "imports": 12,
+      "peak_import_usec": 789,
+      "preparation_peak_usec": {
+        "import": 789,
+        "lod": 753,
+        "materials": 188,
+        "mipmap_upload": 492,
+        "texture_load": 6777
+      },
+      "preparation_usec": {
+        "import": 7528,
+        "lod": 4304,
+        "materials": 1613,
+        "mipmap_upload": 4743,
+        "texture_load": 62828
+      }
+    },
+    "cell_prepare_p95_ms": 14.912,
+    "cell_prepare_p99_ms": 20.476,
+    "device": "Apple M1",
+    "far_cells": 114,
+    "far_display_triangles": 99791,
+    "frame_p95_ms": 14.837,
+    "frame_p99_ms": 15.624,
+    "image": "machine-factory-process-road.png",
+    "largest_far_cell_bytes": 938752,
+    "near_cells": 57,
+    "near_collision_triangles": 40029,
+    "package_sha256": "0317a042f4e0b36be71ee1a871818b23088fadc66056e0d550f66961a7a41889",
+    "preparation_ms": 1661,
+    "render": {
+      "draw_calls": 680,
+      "objects": 680,
+      "primitives": 129758
+    },
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 94687488,
+    "static_memory_bytes": 61388841.0,
+    "video_memory_bytes": 64709063.0,
     "view": {
       "name": "process-road",
       "position_m": [
@@ -62,82 +166,72 @@
     }
   },
   {
-    "far_cells": 117,
-    "far_display_triangles": 96211,
-    "image": "machine-factory-shipping-road.png",
-    "largest_far_cell_bytes": 816000,
-    "near_cells": 56,
-    "near_collision_triangles": 38192,
-    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
-    "preparation_ms": 2286,
-    "render": {
-      "draw_calls": 578,
-      "objects": 578,
-      "primitives": 114365
+    "attachment": {
+      "advance_usec": 185525,
+      "phase_peak_usec": {
+        "environment_preparation": 6785,
+        "instance_upload": 393,
+        "mesh_upload": 2150,
+        "multimesh_setup": 60,
+        "template_preparation": 1356
+      },
+      "phase_usec": {
+        "environment_preparation": 68389,
+        "instance_upload": 27747,
+        "mesh_upload": 43605,
+        "multimesh_setup": 4692,
+        "template_preparation": 41092
+      },
+      "release_usec": 621,
+      "steps": 2139
     },
-    "shared_cache_bytes": 77225216,
-    "view": {
-      "name": "shipping-road",
-      "position_m": [
-        1100.0,
-        13.7,
-        965.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        996.0,
-        16.0,
-        924.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
-    "far_cells": 114,
-    "far_display_triangles": 87429,
-    "image": "machine-factory-distant.png",
-    "largest_far_cell_bytes": 816000,
-    "near_cells": 52,
-    "near_collision_triangles": 39709,
-    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
-    "preparation_ms": 2188,
-    "render": {
-      "draw_calls": 653,
-      "objects": 653,
-      "primitives": 113224
+    "cache": {
+      "bytes": 100103680,
+      "entries": 15,
+      "hits": 79,
+      "import_usec": 9282,
+      "imports": 15,
+      "peak_import_usec": 805,
+      "preparation_peak_usec": {
+        "import": 805,
+        "lod": 726,
+        "materials": 202,
+        "mipmap_upload": 512,
+        "texture_load": 6901
+      },
+      "preparation_usec": {
+        "import": 9282,
+        "lod": 5028,
+        "materials": 1860,
+        "mipmap_upload": 4741,
+        "texture_load": 62846
+      }
     },
-    "shared_cache_bytes": 78414848,
-    "view": {
-      "name": "distant",
-      "position_m": [
-        720.0,
-        38.0,
-        1090.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        950.0,
-        29.0,
-        820.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
+    "cell_prepare_p95_ms": 18.835,
+    "cell_prepare_p99_ms": 26.65,
+    "device": "Apple M1",
     "far_cells": 62,
-    "far_display_triangles": 61157,
+    "far_display_triangles": 65705,
+    "frame_p95_ms": 18.292,
+    "frame_p99_ms": 19.718,
     "image": "machine-factory-overview.png",
-    "largest_far_cell_bytes": 833472,
+    "largest_far_cell_bytes": 944128,
     "near_cells": 114,
-    "near_collision_triangles": 81384,
-    "package_sha256": "2b0fc58d588f5cb6a7d0683cac65fff5c5de7e273bd111f9dd2e53bbf0c773db",
-    "preparation_ms": 2759,
+    "near_collision_triangles": 83560,
+    "package_sha256": "0317a042f4e0b36be71ee1a871818b23088fadc66056e0d550f66961a7a41889",
+    "preparation_ms": 1775,
     "render": {
-      "draw_calls": 1626,
-      "objects": 1626,
-      "primitives": 141388
+      "draw_calls": 1812,
+      "objects": 1812,
+      "primitives": 154843
     },
-    "shared_cache_bytes": 97811456,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 100103680,
+    "static_memory_bytes": 63603326.0,
+    "video_memory_bytes": 64840275.0,
     "view": {
       "name": "overview",
       "position_m": [

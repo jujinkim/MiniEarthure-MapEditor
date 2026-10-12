@@ -26,7 +26,16 @@ wooded ridge. Neon Harbor leads commercial streets, courtyards and service alley
 through warehouses to two cargo quays and a channel bridge; neon bindings keep sign
 colour at night and disable emission by day. Terrain shares 2 m integer samples at
 every 32 m cell edge; vegetation and props fill declared habitats only. All primary
-and distant models are original MapKit assets.
+and distant models are original MapKit assets. Theme boundaries use shared solid
+wall, fence and railing modules, keep road clearance and provide open entrances.
+Village has garden/farm boundaries; Harbor has warehouse/cargo partitions; Forest
+has camp palisades and trail markers; Canyon has overlook/quarry walls; Snow has
+lodge fences and snow breaks; Factory has safety partitions; Park has plaza rails.
+
+Village river terrain and water share one sampled centreline: the 2.2 m bed rises
+to the 3.8 m water edge and then the banks. The river-walk road uses a narrow
+shoulder so native road fitting preserves the adjacent bank. Actual generated
+terrain, including cell seams and bridge crossings, is checked against that edge.
 
 ## Editing roads, tracks and landscape
 
@@ -75,7 +84,10 @@ run_godot_checks.py --project editor --script render_default_world --rendered
 ```
 
 Set `DEFAULT_WORLD_SOURCE` and a new `DEFAULT_WORLD_OUTPUT`; optional
-`DEFAULT_WORLD_THEME` and `DEFAULT_WORLD_VIEWS` pick one theme/view. Views use the
+`DEFAULT_WORLD_THEME` and `DEFAULT_WORLD_VIEWS` pick one theme/view. `DEFAULT_WORLD_QUALITY=0|1|2` overrides the preset;
+`DEFAULT_WORLD_REVISIT=1` repeats selected views with their shared asset cache.
+Reports include preparation stages, cell/frame percentiles, draws, triangles and
+memory. These fixed views measure rendering, not interactive driving. Views use the
 common near/distant renderers, quality 2 and a 384 m limit; road eyes are 1.7 m
 above the surface and the overview is orthographic. Village views: main street,
 farm road, nature road, river distance, overview. Harbor adds day/night high
@@ -84,12 +96,16 @@ theme's `review/`; `<theme>-render-report.json` binds them to the package SHA-25
 
 ## Validation and acceptance
 
+`test_default_worlds.py` checks authored road clearance, solid boundary geometry
+and entrances. `default_river_bank_validator` samples final native terrain at the
+water edge and bridge crossings.
+
 `mapkit audit-roads` checks collision triangles every 0.5 m across five width
 lines and junctions with 1 cm tolerance and a 12% maximum designed grade; all
 seven worlds pass. Editor `composite_road_validator`, `track_workbench_validator`
 and `document_history_validator` cover road editing, attachments, derived-terrain
 restoration, Undo/Redo, save/reopen and stale-document protection.
 
-Village's first art direction is user-approved. Detailed editing feel, driving,
-course completion, other themes' art and device performance are user checks.
+The enriched seven-theme art requires user review. Detailed editing feel, driving,
+course completion and device performance are user checks.
 General asset gizmos and a reusable scenery palette are separate work.

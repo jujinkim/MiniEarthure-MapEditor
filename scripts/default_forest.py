@@ -82,6 +82,11 @@ def compose(w):
         w.place('camp-bench-'+str(i),'bench',x+6,y+5,a,32)
     w.place('camp-shelter','picnic-shelter',885,1225,90,32,True)
     w.place('camp-table','table',916,1224,0,32)
+    w.boundary('camp-palisade','timber-fence',[(848,1191),(945,1180),(955,1252),(899,1276),(847,1252),(848,1191)],gates=[(848,1220),(950,1210)],level=32)
+    for i,(x,y,a) in enumerate([(847,1215,90),(962,1196,35),(697,1060,0)]):
+        w.place('walking-trail-sign-'+str(i),'trail-sign',x,y,a,solid=False)
+    for i,(x,y) in enumerate([(864,1279),(873,1280),(879,1285)]):
+        w.place('camp-log-cluster-'+str(i),'fallen-cedar' if i==0 else 'rock-'+str(i),x,y,i*53,solid=False)
     # A gravel lake walk has rocks, reeds and a seated outlook; it is scenery,
     # not a fourth race course or simulated pedestrian system.
     w.paint('lake-walk',LineString([(938,1220),(973,1190),(982,1140),(974,1080)]).buffer(1.4),'gravel')

@@ -1,19 +1,71 @@
 [
   {
-    "far_cells": 128,
-    "far_display_triangles": 304298,
-    "image": "deep-forest-forest-road.png",
-    "largest_far_cell_bytes": 4948800,
-    "near_cells": 44,
-    "near_collision_triangles": 34692,
-    "package_sha256": "ebf05f441b79b1b9833d98964286d48d8e2c97b4a5437287ca6fba20477579ea",
-    "preparation_ms": 6250,
-    "render": {
-      "draw_calls": 2163,
-      "objects": 2163,
-      "primitives": 413631
+    "attachment": {
+      "advance_usec": 57064,
+      "phase_peak_usec": {
+        "environment_preparation": 13,
+        "instance_upload": 256,
+        "mesh_upload": 1716,
+        "multimesh_setup": 79,
+        "template_preparation": 835
+      },
+      "phase_usec": {
+        "environment_preparation": 189,
+        "instance_upload": 28952,
+        "mesh_upload": 11076,
+        "multimesh_setup": 6596,
+        "template_preparation": 10251
+      },
+      "release_usec": 0,
+      "steps": 1108
     },
-    "shared_cache_bytes": 106520576,
+    "cache": {
+      "bytes": 86074624,
+      "entries": 7,
+      "hits": 217,
+      "import_usec": 4591,
+      "imports": 7,
+      "peak_import_usec": 820,
+      "preparation_peak_usec": {
+        "import": 820,
+        "lod": 819,
+        "materials": 160,
+        "mipmap_upload": 504,
+        "texture_load": 6880
+      },
+      "preparation_usec": {
+        "import": 4591,
+        "lod": 2477,
+        "materials": 792,
+        "mipmap_upload": 4771,
+        "texture_load": 63020
+      }
+    },
+    "cell_prepare_p95_ms": 25.011,
+    "cell_prepare_p99_ms": 87.968,
+    "device": "Apple M1",
+    "far_cells": 128,
+    "far_display_triangles": 200454,
+    "frame_p95_ms": 19.411,
+    "frame_p99_ms": 21.416,
+    "image": "deep-forest-forest-road.png",
+    "largest_far_cell_bytes": 4810816,
+    "near_cells": 44,
+    "near_collision_triangles": 34728,
+    "package_sha256": "27909eb358aece2c8a5867d3bc35bd7c1073c6320ff79b521511592e2e7e4807",
+    "preparation_ms": 3922,
+    "render": {
+      "draw_calls": 2018,
+      "objects": 2018,
+      "primitives": 268158
+    },
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 86074624,
+    "static_memory_bytes": 98193071.0,
+    "video_memory_bytes": 63308275.0,
     "view": {
       "name": "forest-road",
       "position_m": [
@@ -31,51 +83,74 @@
     }
   },
   {
-    "far_cells": 132,
-    "far_display_triangles": 312359,
-    "image": "deep-forest-ranger-road.png",
-    "largest_far_cell_bytes": 1711104,
-    "near_cells": 45,
-    "near_collision_triangles": 31538,
-    "package_sha256": "ebf05f441b79b1b9833d98964286d48d8e2c97b4a5437287ca6fba20477579ea",
-    "preparation_ms": 4838,
-    "render": {
-      "draw_calls": 1705,
-      "objects": 1705,
-      "primitives": 368598
+    "attachment": {
+      "advance_usec": 123353,
+      "phase_peak_usec": {
+        "environment_preparation": 13,
+        "instance_upload": 256,
+        "mesh_upload": 1726,
+        "multimesh_setup": 79,
+        "template_preparation": 1070,
+        "water_upload": 69
+      },
+      "phase_usec": {
+        "environment_preparation": 367,
+        "instance_upload": 55351,
+        "mesh_upload": 22649,
+        "multimesh_setup": 13468,
+        "template_preparation": 31250,
+        "water_upload": 268
+      },
+      "release_usec": 432,
+      "steps": 2401
     },
-    "shared_cache_bytes": 118016256,
-    "view": {
-      "name": "ranger-road",
-      "position_m": [
-        393.0,
-        33.7,
-        1300.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        480.0,
-        38.8421029379449,
-        1268.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
+    "cache": {
+      "bytes": 103616640,
+      "entries": 21,
+      "hits": 210,
+      "import_usec": 11287,
+      "imports": 21,
+      "peak_import_usec": 1058,
+      "preparation_peak_usec": {
+        "import": 1058,
+        "lod": 833,
+        "materials": 196,
+        "mipmap_upload": 559,
+        "texture_load": 6840
+      },
+      "preparation_usec": {
+        "import": 11287,
+        "lod": 4560,
+        "materials": 2189,
+        "mipmap_upload": 4939,
+        "texture_load": 64816
+      }
+    },
+    "cell_prepare_p95_ms": 85.912,
+    "cell_prepare_p99_ms": 658.96,
+    "device": "Apple M1",
     "far_cells": 128,
-    "far_display_triangles": 229002,
+    "far_display_triangles": 166988,
+    "frame_p95_ms": 19.342,
+    "frame_p99_ms": 21.019,
     "image": "deep-forest-camp-road.png",
-    "largest_far_cell_bytes": 4244544,
+    "largest_far_cell_bytes": 3921984,
     "near_cells": 43,
-    "near_collision_triangles": 33885,
-    "package_sha256": "ebf05f441b79b1b9833d98964286d48d8e2c97b4a5437287ca6fba20477579ea",
-    "preparation_ms": 8103,
+    "near_collision_triangles": 34999,
+    "package_sha256": "27909eb358aece2c8a5867d3bc35bd7c1073c6320ff79b521511592e2e7e4807",
+    "preparation_ms": 6175,
     "render": {
-      "draw_calls": 2030,
-      "objects": 2030,
-      "primitives": 331840
+      "draw_calls": 1998,
+      "objects": 1998,
+      "primitives": 230496
     },
-    "shared_cache_bytes": 125373120,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 103616640,
+    "static_memory_bytes": 99475535.0,
+    "video_memory_bytes": 70471983.0,
     "view": {
       "name": "camp-road",
       "position_m": [
@@ -93,51 +168,74 @@
     }
   },
   {
-    "far_cells": 128,
-    "far_display_triangles": 257678,
-    "image": "deep-forest-distant.png",
-    "largest_far_cell_bytes": 2372352,
-    "near_cells": 44,
-    "near_collision_triangles": 54194,
-    "package_sha256": "ebf05f441b79b1b9833d98964286d48d8e2c97b4a5437287ca6fba20477579ea",
-    "preparation_ms": 5810,
-    "render": {
-      "draw_calls": 1924,
-      "objects": 1924,
-      "primitives": 317847
+    "attachment": {
+      "advance_usec": 216390,
+      "phase_peak_usec": {
+        "environment_preparation": 13,
+        "instance_upload": 256,
+        "mesh_upload": 1769,
+        "multimesh_setup": 79,
+        "template_preparation": 1070,
+        "water_upload": 79
+      },
+      "phase_usec": {
+        "environment_preparation": 727,
+        "instance_upload": 91386,
+        "mesh_upload": 44770,
+        "multimesh_setup": 24240,
+        "template_preparation": 53150,
+        "water_upload": 2117
+      },
+      "release_usec": 897,
+      "steps": 4451
     },
-    "shared_cache_bytes": 122377408,
-    "view": {
-      "name": "distant",
-      "position_m": [
-        1010.0,
-        37.7,
-        1370.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        1085.0,
-        23.0,
-        1160.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
+    "cache": {
+      "bytes": 103550080,
+      "entries": 21,
+      "hits": 337,
+      "import_usec": 11061,
+      "imports": 21,
+      "peak_import_usec": 1054,
+      "preparation_peak_usec": {
+        "import": 1054,
+        "lod": 815,
+        "materials": 207,
+        "mipmap_upload": 558,
+        "texture_load": 6718
+      },
+      "preparation_usec": {
+        "import": 11061,
+        "lod": 4537,
+        "materials": 2157,
+        "mipmap_upload": 4926,
+        "texture_load": 63251
+      }
+    },
+    "cell_prepare_p95_ms": 83.23,
+    "cell_prepare_p99_ms": 686.458,
+    "device": "Apple M1",
     "far_cells": 100,
-    "far_display_triangles": 242423,
+    "far_display_triangles": 165155,
+    "frame_p95_ms": 28.789,
+    "frame_p99_ms": 30.463,
     "image": "deep-forest-overview.png",
-    "largest_far_cell_bytes": 3652736,
+    "largest_far_cell_bytes": 3414400,
     "near_cells": 92,
-    "near_collision_triangles": 86254,
-    "package_sha256": "ebf05f441b79b1b9833d98964286d48d8e2c97b4a5437287ca6fba20477579ea",
-    "preparation_ms": 8067,
+    "near_collision_triangles": 87255,
+    "package_sha256": "27909eb358aece2c8a5867d3bc35bd7c1073c6320ff79b521511592e2e7e4807",
+    "preparation_ms": 6092,
     "render": {
-      "draw_calls": 3386,
-      "objects": 3386,
-      "primitives": 373589
+      "draw_calls": 3571,
+      "objects": 3571,
+      "primitives": 244091
     },
-    "shared_cache_bytes": 127009472,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 103550080,
+    "static_memory_bytes": 106343476.0,
+    "video_memory_bytes": 74549367.0,
     "view": {
       "name": "overview",
       "position_m": [

@@ -77,6 +77,10 @@ def compose(w):
     w.paint('overlook-bay',box(1686,432,1738,451),'gravel')
     for i,x in enumerate(range(1693,1734,12)):w.place('overlook-bench-'+str(i),'bench',x,438,180)
     w.place('overlook-car','parked-car',1727,430,95)
+    w.boundary('overlook-railing','metal-fence',[(1683,435),(1683,454),(1741,454),(1741,435)])
+    w.boundary('quarry-stone-wall','stone-wall',[(962,977),(1080,977),(1160,997)],gates=[(1080,977)],level=73)
+    for i,(x,y) in enumerate([(1752,456),(1764,452),(1757,465),(1774,463)]):
+        w.place('overlook-weathered-rock-'+str(i),'canyon-rubble',x,y,i*61,solid=False)
     # Terrain forms the continuous walls; placed eroded fins define different
     # silhouettes and strata without using a fence of identical boxed cliffs.
     rng=random.Random(1947);exclusion=w.road_area(13).union(quarry.buffer(18))

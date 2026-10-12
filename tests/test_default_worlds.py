@@ -10,7 +10,7 @@ import unittest
 
 import numpy as np
 from PIL import Image
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
@@ -59,6 +59,32 @@ class DefaultWorlds(unittest.TestCase):
         asset=next(a for a in self.world.doc['assets'] if a['id']=='authored-bridge-support')
         top=max(c['center'][1]+c['size_cm'][1]/2 for c in asset['collision'])
         self.assertTrue(all(p['position'][1]+top==1080 for p in supports))
+
+    def test_solid_boundaries_preserve_roads_and_open_farm_gateways(self):
+        boundaries=self.meta['validation']['boundaries']
+        self.assertGreater(sum(row['modules'] for row in boundaries.values()),100)
+        road_clear=self.world.road_area(1.5)
+        for name,shape in self.world.footprints:
+            if any(name.startswith(prefix+'-') for prefix in boundaries):
+                self.assertTrue(shape.disjoint(road_clear),name)
+                for prefix,gate in [('mill-farm-boundary',(855,597)),('south-farm-boundary',(636,763))]:
+                    if name.startswith(prefix+'-'):
+                        self.assertTrue(shape.disjoint(Point(gate).buffer(4.5)),name)
+        assets={a['id']:a for a in self.world.doc['assets']}
+        for kind in ['stone-wall','timber-fence']:
+            asset=assets['authored-'+kind]
+            self.assertEqual(len(asset['collision']),1)
+            self.assertGreater(asset['collision'][0]['size_cm'][1],0)
+
+    def test_river_bed_shore_and_bank_use_the_water_centreline(self):
+        river=self.world.river_line()
+        water=self.world.water[0]
+        for station in np.arange(20,river.length-20,8):
+            p=river.interpolate(station)
+            self.assertAlmostEqual(float(self.world.base(p.x,p.y)),2.2,delta=.001)
+        for x,y in list(water.exterior.coords):
+            if x<1 or x>1119:continue
+            self.assertAlmostEqual(float(self.world.base(x,y)),3.8,delta=.05)
 
     def test_routes_views_and_paired_assets_are_complete(self):
         routes=self.meta['routes'];self.assertEqual(len(routes),3)

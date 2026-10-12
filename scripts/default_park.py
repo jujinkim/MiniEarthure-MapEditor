@@ -84,6 +84,12 @@ def compose(w):
         w.place(name+'-tree','tree-3',x,y,level=z)
         w.place(name+'-flowers','flowerbed',x,y-5.5,level=z)
         w.place(name+'-bench','bench',x,y+8,180,z)
+    for label,cx,cy,rx,ry,z,gate in [('entrance',447,1130,61,39,42,(447,1169)),
+            ('carousel',542,1030,81,62,48,(542,1092)),('wheel',1380,897,72,60,64,(1372,957)),
+            ('upper',647,549,61,51,88,(647,498))]:
+        points=[(cx+rx*math.cos(a),cy+ry*math.sin(a)) for a in np.linspace(0,math.tau,25)]
+        w.boundary(label+'-plaza-railing','park-railing',points,gates=[gate],level=z)
+    w.boundary('coaster-garden-wall','stone-wall',[(1150,652),(1275,652)],gates=[(1210,652)],level=88)
     # Retained green strips separate plazas from roads and hold mature trees,
     # clipped hedges, smaller shrubs and lawn. High roads cross a real valley.
     exclusion=w.road_area(13).union(unary_union(courts)).union(unary_union([a for _,a in w.obstacles]).buffer(5))

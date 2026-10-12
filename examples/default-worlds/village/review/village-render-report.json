@@ -1,19 +1,73 @@
 [
   {
-    "far_cells": 130,
-    "far_display_triangles": 163557,
-    "image": "village-main-street.png",
-    "largest_far_cell_bytes": 4047872,
-    "near_cells": 44,
-    "near_collision_triangles": 53872,
-    "package_sha256": "d78a69be968be23d9373479daf3911c7f7827be1f1d1bdd4827a01dd55e4ff48",
-    "preparation_ms": 5772,
-    "render": {
-      "draw_calls": 1572,
-      "objects": 1572,
-      "primitives": 141580
+    "attachment": {
+      "advance_usec": 155831,
+      "phase_peak_usec": {
+        "environment_preparation": 9,
+        "instance_upload": 640,
+        "mesh_upload": 1791,
+        "multimesh_setup": 63,
+        "template_preparation": 1444,
+        "water_upload": 6
+      },
+      "phase_usec": {
+        "environment_preparation": 221,
+        "instance_upload": 16702,
+        "mesh_upload": 20315,
+        "multimesh_setup": 4871,
+        "template_preparation": 113712,
+        "water_upload": 10
+      },
+      "release_usec": 0,
+      "steps": 1282
     },
-    "shared_cache_bytes": 92779776,
+    "cache": {
+      "bytes": 80365312,
+      "entries": 4,
+      "hits": 85,
+      "import_usec": 48201,
+      "imports": 63,
+      "peak_import_usec": 1436,
+      "preparation_peak_usec": {
+        "import": 1436,
+        "lod": 1392,
+        "materials": 1374,
+        "mipmap_upload": 501,
+        "texture_load": 6822
+      },
+      "preparation_usec": {
+        "import": 48201,
+        "lod": 33301,
+        "materials": 28127,
+        "mipmap_upload": 4761,
+        "texture_load": 62995
+      }
+    },
+    "cell_prepare_p95_ms": 76.166,
+    "cell_prepare_p99_ms": 286.703,
+    "device": "Apple M1",
+    "far_cells": 130,
+    "far_display_triangles": 165801,
+    "frame_p95_ms": 17.962,
+    "frame_p99_ms": 18.411,
+    "image": "village-main-street.png",
+    "largest_far_cell_bytes": 3989632,
+    "near_cells": 44,
+    "near_collision_triangles": 55664,
+    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
+    "preparation_ms": 4403,
+    "render": {
+      "draw_calls": 1657,
+      "objects": 1657,
+      "primitives": 144078
+    },
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 80365312,
+    "static_memory_bytes": 71726700.0,
+    "video_memory_bytes": 74247807.0,
     "view": {
       "name": "main-street",
       "position_m": [
@@ -31,20 +85,74 @@
     }
   },
   {
-    "far_cells": 126,
-    "far_display_triangles": 171160,
-    "image": "village-farm-road.png",
-    "largest_far_cell_bytes": 4047872,
-    "near_cells": 43,
-    "near_collision_triangles": 34029,
-    "package_sha256": "d78a69be968be23d9373479daf3911c7f7827be1f1d1bdd4827a01dd55e4ff48",
-    "preparation_ms": 4212,
-    "render": {
-      "draw_calls": 1121,
-      "objects": 1121,
-      "primitives": 337451
+    "attachment": {
+      "advance_usec": 209277,
+      "phase_peak_usec": {
+        "environment_preparation": 9,
+        "instance_upload": 640,
+        "mesh_upload": 1791,
+        "multimesh_setup": 63,
+        "template_preparation": 1444,
+        "water_upload": 33
+      },
+      "phase_usec": {
+        "environment_preparation": 395,
+        "instance_upload": 37302,
+        "mesh_upload": 32414,
+        "multimesh_setup": 6796,
+        "template_preparation": 132254,
+        "water_upload": 116
+      },
+      "release_usec": 407,
+      "steps": 1989
     },
-    "shared_cache_bytes": 107399680,
+    "cache": {
+      "bytes": 113490944,
+      "entries": 13,
+      "hits": 45,
+      "import_usec": 9662,
+      "imports": 13,
+      "peak_import_usec": 1192,
+      "preparation_peak_usec": {
+        "import": 1192,
+        "lod": 1248,
+        "materials": 283,
+        "mipmap_upload": 492,
+        "texture_load": 6951
+      },
+      "preparation_usec": {
+        "import": 9662,
+        "lod": 5757,
+        "materials": 1976,
+        "mipmap_upload": 4734,
+        "texture_load": 63017
+      }
+    },
+    "cell_prepare_p95_ms": 54.344,
+    "cell_prepare_p99_ms": 190.408,
+    "device": "Apple M1",
+    "far_cells": 126,
+    "far_display_triangles": 183918,
+    "frame_p95_ms": 17.986,
+    "frame_p99_ms": 21.051,
+    "image": "village-farm-road.png",
+    "largest_far_cell_bytes": 3989632,
+    "near_cells": 43,
+    "near_collision_triangles": 35209,
+    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
+    "preparation_ms": 3178,
+    "render": {
+      "draw_calls": 1180,
+      "objects": 1180,
+      "primitives": 260027
+    },
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 113490944,
+    "static_memory_bytes": 68199626.0,
+    "video_memory_bytes": 72382447.0,
     "view": {
       "name": "farm-road",
       "position_m": [
@@ -62,20 +170,74 @@
     }
   },
   {
-    "far_cells": 110,
-    "far_display_triangles": 204903,
-    "image": "village-nature-road.png",
-    "largest_far_cell_bytes": 4120000,
-    "near_cells": 45,
-    "near_collision_triangles": 34808,
-    "package_sha256": "d78a69be968be23d9373479daf3911c7f7827be1f1d1bdd4827a01dd55e4ff48",
-    "preparation_ms": 3344,
-    "render": {
-      "draw_calls": 1716,
-      "objects": 1716,
-      "primitives": 256987
+    "attachment": {
+      "advance_usec": 245380,
+      "phase_peak_usec": {
+        "environment_preparation": 9,
+        "instance_upload": 640,
+        "mesh_upload": 1852,
+        "multimesh_setup": 63,
+        "template_preparation": 1444,
+        "water_upload": 66
+      },
+      "phase_usec": {
+        "environment_preparation": 565,
+        "instance_upload": 45899,
+        "mesh_upload": 42452,
+        "multimesh_setup": 11363,
+        "template_preparation": 144566,
+        "water_upload": 535
+      },
+      "release_usec": 702,
+      "steps": 2869
     },
-    "shared_cache_bytes": 104163584,
+    "cache": {
+      "bytes": 85990912,
+      "entries": 11,
+      "hits": 135,
+      "import_usec": 6354,
+      "imports": 11,
+      "peak_import_usec": 701,
+      "preparation_peak_usec": {
+        "import": 701,
+        "lod": 420,
+        "materials": 205,
+        "mipmap_upload": 485,
+        "texture_load": 6816
+      },
+      "preparation_usec": {
+        "import": 6354,
+        "lod": 2714,
+        "materials": 1479,
+        "mipmap_upload": 4706,
+        "texture_load": 62846
+      }
+    },
+    "cell_prepare_p95_ms": 18.166,
+    "cell_prepare_p99_ms": 236.787,
+    "device": "Apple M1",
+    "far_cells": 110,
+    "far_display_triangles": 137981,
+    "frame_p95_ms": 19.03,
+    "frame_p99_ms": 21.192,
+    "image": "village-nature-road.png",
+    "largest_far_cell_bytes": 3965888,
+    "near_cells": 45,
+    "near_collision_triangles": 34810,
+    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
+    "preparation_ms": 2223,
+    "render": {
+      "draw_calls": 1607,
+      "objects": 1607,
+      "primitives": 177947
+    },
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 85990912,
+    "static_memory_bytes": 68067562.0,
+    "video_memory_bytes": 67755363.0,
     "view": {
       "name": "nature-road",
       "position_m": [
@@ -93,20 +255,74 @@
     }
   },
   {
-    "far_cells": 122,
-    "far_display_triangles": 219511,
-    "image": "village-distant.png",
-    "largest_far_cell_bytes": 4120000,
-    "near_cells": 44,
-    "near_collision_triangles": 55212,
-    "package_sha256": "d78a69be968be23d9373479daf3911c7f7827be1f1d1bdd4827a01dd55e4ff48",
-    "preparation_ms": 3961,
-    "render": {
-      "draw_calls": 1330,
-      "objects": 1330,
-      "primitives": 242124
+    "attachment": {
+      "advance_usec": 292142,
+      "phase_peak_usec": {
+        "environment_preparation": 9,
+        "instance_upload": 640,
+        "mesh_upload": 1852,
+        "multimesh_setup": 63,
+        "template_preparation": 1444,
+        "water_upload": 66
+      },
+      "phase_usec": {
+        "environment_preparation": 735,
+        "instance_upload": 52107,
+        "mesh_upload": 55841,
+        "multimesh_setup": 15066,
+        "template_preparation": 167296,
+        "water_upload": 1097
+      },
+      "release_usec": 1094,
+      "steps": 3681
     },
-    "shared_cache_bytes": 133667072,
+    "cache": {
+      "bytes": 116148224,
+      "entries": 17,
+      "hits": 93,
+      "import_usec": 11669,
+      "imports": 17,
+      "peak_import_usec": 1366,
+      "preparation_peak_usec": {
+        "import": 1366,
+        "lod": 1297,
+        "materials": 294,
+        "mipmap_upload": 512,
+        "texture_load": 6739
+      },
+      "preparation_usec": {
+        "import": 11669,
+        "lod": 6525,
+        "materials": 2793,
+        "mipmap_upload": 4711,
+        "texture_load": 62588
+      }
+    },
+    "cell_prepare_p95_ms": 29.201,
+    "cell_prepare_p99_ms": 319.496,
+    "device": "Apple M1",
+    "far_cells": 122,
+    "far_display_triangles": 153099,
+    "frame_p95_ms": 17.679,
+    "frame_p99_ms": 19.558,
+    "image": "village-distant.png",
+    "largest_far_cell_bytes": 3965888,
+    "near_cells": 44,
+    "near_collision_triangles": 55654,
+    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
+    "preparation_ms": 2904,
+    "render": {
+      "draw_calls": 1236,
+      "objects": 1236,
+      "primitives": 172004
+    },
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 116148224,
+    "static_memory_bytes": 69281062.0,
+    "video_memory_bytes": 71297199.0,
     "view": {
       "name": "distant",
       "position_m": [
@@ -124,20 +340,74 @@
     }
   },
   {
-    "far_cells": 158,
-    "far_display_triangles": 200484,
-    "image": "village-overview.png",
-    "largest_far_cell_bytes": 4047872,
-    "near_cells": 97,
-    "near_collision_triangles": 108801,
-    "package_sha256": "d78a69be968be23d9373479daf3911c7f7827be1f1d1bdd4827a01dd55e4ff48",
-    "preparation_ms": 7197,
-    "render": {
-      "draw_calls": 4961,
-      "objects": 4961,
-      "primitives": 411721
+    "attachment": {
+      "advance_usec": 552243,
+      "phase_peak_usec": {
+        "environment_preparation": 9,
+        "instance_upload": 640,
+        "mesh_upload": 1852,
+        "multimesh_setup": 63,
+        "template_preparation": 1938,
+        "water_upload": 66
+      },
+      "phase_usec": {
+        "environment_preparation": 1147,
+        "instance_upload": 86213,
+        "mesh_upload": 104801,
+        "multimesh_setup": 23137,
+        "template_preparation": 335848,
+        "water_upload": 1097
+      },
+      "release_usec": 1455,
+      "steps": 5880
     },
-    "shared_cache_bytes": 105380096,
+    "cache": {
+      "bytes": 126892032,
+      "entries": 15,
+      "hits": 152,
+      "import_usec": 65809,
+      "imports": 84,
+      "peak_import_usec": 1430,
+      "preparation_peak_usec": {
+        "import": 1430,
+        "lod": 1390,
+        "materials": 1930,
+        "mipmap_upload": 504,
+        "texture_load": 6741
+      },
+      "preparation_usec": {
+        "import": 65809,
+        "lod": 45890,
+        "materials": 51004,
+        "mipmap_upload": 4730,
+        "texture_load": 62771
+      }
+    },
+    "cell_prepare_p95_ms": 71.349,
+    "cell_prepare_p99_ms": 190.081,
+    "device": "Apple M1",
+    "far_cells": 158,
+    "far_display_triangles": 195912,
+    "frame_p95_ms": 36.772,
+    "frame_p99_ms": 37.383,
+    "image": "village-overview.png",
+    "largest_far_cell_bytes": 3989632,
+    "near_cells": 97,
+    "near_collision_triangles": 112355,
+    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
+    "preparation_ms": 5464,
+    "render": {
+      "draw_calls": 5486,
+      "objects": 5486,
+      "primitives": 361850
+    },
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 126892032,
+    "static_memory_bytes": 80140337.0,
+    "video_memory_bytes": 82393071.0,
     "view": {
       "name": "overview",
       "position_m": [

@@ -49,12 +49,12 @@ def compose(w):
         level=lambda x,y:9+max(0,480-y)*.004)
     w.path('green-lane',[Q,(452,380),(510,416),C],6.5,1.2,level=9.3)
     w.path('river-walk-access',[Q,(398,342),(401,323)],4,surface='gravel',
-        level=lambda x,y:8+(y-323)/42*1.46,markings=False)
+        level=lambda x,y:8+(y-323)/42*1.46,markings=False,shoulder_m=4)
     w.places=['Market Street and Clock Hall','Orchard Cottages','Ridge Gardens',
         'Mill Farm','South Farm and Crops','River Meadow','Bridge and Woodland Ridge']
 
     # Low river valley, continuous water with curved banks, then wooded hills.
-    river=LineString([(x,float(w.river_y(x))) for x in range(0,1121,16)])
+    river=w.river_line()
     w.water_body('willow-river',river.buffer(5.5,cap_style=2),3.8)
     # Irrigation is a functional field edge, away from carriageways and entrances.
     for i,(x,y,X,Y) in enumerate([(680,580,800,582),(680,691,800,693),(690,742,824,744)]):
@@ -117,6 +117,8 @@ def compose(w):
         for i in range(3):w.place(farm+'-crate-'+str(i),'crate',x-10+i,y-11,yaw,z)
     w.paint('mill-drive',LineString([(851,608),(858,580)]).buffer(3.6),'gravel')
     w.paint('south-drive',LineString([(631,752),(645,800)]).buffer(3.6),'gravel')
+    w.boundary('mill-farm-boundary','timber-fence',[(809,597),(891,597),(891,640),(809,640),(809,597)],gates=[(855,597)],level=9)
+    w.boundary('south-farm-boundary','timber-fence',[(588,721),(671,721),(671,763),(588,763),(588,721)],gates=[(636,763)],level=10.8)
 
     fields=[('mill-upper-wheat',Polygon([(816,527),(864,551),(927,584),(943,573),(935,529),(841,505)]),'wheat'),
         ('north-wheat',box(680,589,800,651),'wheat'),('east-cabbage',box(884,658,930,758),'cabbage'),

@@ -1,50 +1,71 @@
 [
   {
-    "far_cells": 0,
-    "far_display_triangles": 0,
-    "image": "red-canyon-junction-close.png",
-    "largest_far_cell_bytes": 0,
-    "near_cells": 33,
-    "near_collision_triangles": 31150,
-    "package_sha256": "e9c8f7d7b09bea69ae3511e351b1a6143925667e4301db7814c8a457b1ea64de",
-    "preparation_ms": 2966,
-    "render": {
-      "draw_calls": 570,
-      "objects": 570,
-      "primitives": 24655
+    "attachment": {
+      "advance_usec": 18319,
+      "phase_peak_usec": {
+        "environment_preparation": 7,
+        "instance_upload": 89,
+        "mesh_upload": 1805,
+        "multimesh_setup": 46,
+        "template_preparation": 782
+      },
+      "phase_usec": {
+        "environment_preparation": 173,
+        "instance_upload": 1225,
+        "mesh_upload": 10627,
+        "multimesh_setup": 1613,
+        "template_preparation": 4681
+      },
+      "release_usec": 0,
+      "steps": 454
     },
-    "shared_cache_bytes": 74373632,
-    "view": {
-      "name": "junction-close",
-      "position_m": [
-        665.0,
-        61.8,
-        908.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        670.0,
-        60.0,
-        895.0
-      ],
-      "view_distance_m": 128.0
-    }
-  },
-  {
+    "cache": {
+      "bytes": 70836992,
+      "entries": 4,
+      "hits": 44,
+      "import_usec": 2666,
+      "imports": 4,
+      "peak_import_usec": 773,
+      "preparation_peak_usec": {
+        "import": 773,
+        "lod": 258,
+        "materials": 156,
+        "mipmap_upload": 548,
+        "texture_load": 17924
+      },
+      "preparation_usec": {
+        "import": 2666,
+        "lod": 848,
+        "materials": 470,
+        "mipmap_upload": 5204,
+        "texture_load": 79492
+      }
+    },
+    "cell_prepare_p95_ms": 13.421,
+    "cell_prepare_p99_ms": 26.099,
+    "device": "Apple M1",
     "far_cells": 127,
-    "far_display_triangles": 114290,
+    "far_display_triangles": 98540,
+    "frame_p95_ms": 12.733,
+    "frame_p99_ms": 13.443,
     "image": "red-canyon-canyon-road.png",
     "largest_far_cell_bytes": 825856,
     "near_cells": 47,
     "near_collision_triangles": 31397,
-    "package_sha256": "e9c8f7d7b09bea69ae3511e351b1a6143925667e4301db7814c8a457b1ea64de",
-    "preparation_ms": 7059,
+    "package_sha256": "6556b0013423b4daaec408aff4db2a194da8ef627a53a699c2dbe66a0a7ef1e1",
+    "preparation_ms": 1686,
     "render": {
-      "draw_calls": 683,
-      "objects": 683,
-      "primitives": 99938
+      "draw_calls": 776,
+      "objects": 776,
+      "primitives": 116574
     },
-    "shared_cache_bytes": 72317696,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 70836992,
+    "static_memory_bytes": 65648034.0,
+    "video_memory_bytes": 53414499.0,
     "view": {
       "name": "canyon-road",
       "position_m": [
@@ -62,20 +83,72 @@
     }
   },
   {
+    "attachment": {
+      "advance_usec": 39365,
+      "phase_peak_usec": {
+        "environment_preparation": 8,
+        "instance_upload": 103,
+        "mesh_upload": 1805,
+        "multimesh_setup": 47,
+        "template_preparation": 788
+      },
+      "phase_usec": {
+        "environment_preparation": 357,
+        "instance_upload": 3072,
+        "mesh_upload": 21414,
+        "multimesh_setup": 3444,
+        "template_preparation": 11078
+      },
+      "release_usec": 262,
+      "steps": 957
+    },
+    "cache": {
+      "bytes": 74268416,
+      "entries": 6,
+      "hits": 49,
+      "import_usec": 3627,
+      "imports": 6,
+      "peak_import_usec": 775,
+      "preparation_peak_usec": {
+        "import": 775,
+        "lod": 257,
+        "materials": 149,
+        "mipmap_upload": 539,
+        "texture_load": 6962
+      },
+      "preparation_usec": {
+        "import": 3627,
+        "lod": 1254,
+        "materials": 683,
+        "mipmap_upload": 4900,
+        "texture_load": 64361
+      }
+    },
+    "cell_prepare_p95_ms": 14.934,
+    "cell_prepare_p99_ms": 19.357,
+    "device": "Apple M1",
     "far_cells": 125,
-    "far_display_triangles": 112386,
+    "far_display_triangles": 98176,
+    "frame_p95_ms": 12.973,
+    "frame_p99_ms": 15.06,
     "image": "red-canyon-wash-road.png",
     "largest_far_cell_bytes": 733120,
     "near_cells": 46,
     "near_collision_triangles": 28266,
-    "package_sha256": "e9c8f7d7b09bea69ae3511e351b1a6143925667e4301db7814c8a457b1ea64de",
-    "preparation_ms": 7161,
+    "package_sha256": "6556b0013423b4daaec408aff4db2a194da8ef627a53a699c2dbe66a0a7ef1e1",
+    "preparation_ms": 1864,
     "render": {
-      "draw_calls": 696,
-      "objects": 696,
-      "primitives": 99608
+      "draw_calls": 771,
+      "objects": 771,
+      "primitives": 111944
     },
-    "shared_cache_bytes": 77227776,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 74268416,
+    "static_memory_bytes": 66049003.0,
+    "video_memory_bytes": 53129199.0,
     "view": {
       "name": "wash-road",
       "position_m": [
@@ -93,82 +166,72 @@
     }
   },
   {
-    "far_cells": 111,
-    "far_display_triangles": 96454,
-    "image": "red-canyon-quarry-road.png",
-    "largest_far_cell_bytes": 988480,
-    "near_cells": 48,
-    "near_collision_triangles": 29185,
-    "package_sha256": "e9c8f7d7b09bea69ae3511e351b1a6143925667e4301db7814c8a457b1ea64de",
-    "preparation_ms": 2713,
-    "render": {
-      "draw_calls": 504,
-      "objects": 504,
-      "primitives": 85051
+    "attachment": {
+      "advance_usec": 65748,
+      "phase_peak_usec": {
+        "environment_preparation": 8,
+        "instance_upload": 125,
+        "mesh_upload": 1805,
+        "multimesh_setup": 71,
+        "template_preparation": 788
+      },
+      "phase_usec": {
+        "environment_preparation": 627,
+        "instance_upload": 5008,
+        "mesh_upload": 36332,
+        "multimesh_setup": 4849,
+        "template_preparation": 18932
+      },
+      "release_usec": 554,
+      "steps": 1600
     },
-    "shared_cache_bytes": 77129088,
-    "view": {
-      "name": "quarry-road",
-      "position_m": [
-        1090.0,
-        74.7,
-        1038.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        980.0,
-        80.0,
-        1030.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
-    "far_cells": 129,
-    "far_display_triangles": 122410,
-    "image": "red-canyon-distant.png",
-    "largest_far_cell_bytes": 988480,
-    "near_cells": 47,
-    "near_collision_triangles": 45886,
-    "package_sha256": "e9c8f7d7b09bea69ae3511e351b1a6143925667e4301db7814c8a457b1ea64de",
-    "preparation_ms": 2959,
-    "render": {
-      "draw_calls": 612,
-      "objects": 612,
-      "primitives": 109699
+    "cache": {
+      "bytes": 76163200,
+      "entries": 8,
+      "hits": 33,
+      "import_usec": 4455,
+      "imports": 8,
+      "peak_import_usec": 614,
+      "preparation_peak_usec": {
+        "import": 614,
+        "lod": 315,
+        "materials": 183,
+        "mipmap_upload": 500,
+        "texture_load": 7115
+      },
+      "preparation_usec": {
+        "import": 4455,
+        "lod": 1632,
+        "materials": 970,
+        "mipmap_upload": 4746,
+        "texture_load": 63395
+      }
     },
-    "shared_cache_bytes": 77969408,
-    "view": {
-      "name": "distant",
-      "position_m": [
-        670.0,
-        61.7,
-        630.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        855.0,
-        56.0,
-        665.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
+    "cell_prepare_p95_ms": 11.462,
+    "cell_prepare_p99_ms": 16.704,
+    "device": "Apple M1",
     "far_cells": 100,
-    "far_display_triangles": 87061,
+    "far_display_triangles": 79081,
+    "frame_p95_ms": 19.424,
+    "frame_p99_ms": 20.656,
     "image": "red-canyon-overview.png",
     "largest_far_cell_bytes": 988480,
     "near_cells": 87,
-    "near_collision_triangles": 44767,
-    "package_sha256": "e9c8f7d7b09bea69ae3511e351b1a6143925667e4301db7814c8a457b1ea64de",
-    "preparation_ms": 2613,
+    "near_collision_triangles": 45399,
+    "package_sha256": "6556b0013423b4daaec408aff4db2a194da8ef627a53a699c2dbe66a0a7ef1e1",
+    "preparation_ms": 1754,
     "render": {
-      "draw_calls": 976,
-      "objects": 976,
-      "primitives": 87762
+      "draw_calls": 1173,
+      "objects": 1173,
+      "primitives": 98740
     },
-    "shared_cache_bytes": 77129088,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 76163200,
+    "static_memory_bytes": 66463781.0,
+    "video_memory_bytes": 52708223.0,
     "view": {
       "name": "overview",
       "position_m": [

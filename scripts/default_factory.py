@@ -76,6 +76,9 @@ def compose(w):
         if 315<x<333 or 375<x<395:continue
         w.place('admin-fence-'+str(i),'port-fence',x,1017,level=12)
     w.water_body('stormwater-channel',box(1276,275,1284,1208),5.7)
+    w.boundary('process-safety-fence','safety-barrier',[(779,465),(779,611),(1068,611),(1068,465)],gates=[(779,565),(930,611)],level=12)
+    w.boundary('electrical-safety-wall','stone-wall',[(786,725),(1066,725)],gates=[(1005,725)],level=12)
+    w.boundary('shipping-safety-fence','metal-fence',[(775,885),(775,995),(1058,995)],gates=[(775,942),(1007,995)],level=12)
     for i,y in enumerate(range(300,1200,24)):w.place('channel-reed-'+str(i),'reeds',1287,y,level=5.2,solid=False)
     exclusion=w.road_area(15).union(unary_union([a for _,a in lots]).buffer(17)).union(unary_union(w.water).buffer(14))
     rng=random.Random(8610)

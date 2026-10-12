@@ -1,19 +1,71 @@
 [
   {
+    "attachment": {
+      "advance_usec": 53707,
+      "phase_peak_usec": {
+        "environment_preparation": 6,
+        "instance_upload": 488,
+        "mesh_upload": 1710,
+        "multimesh_setup": 54,
+        "template_preparation": 1419
+      },
+      "phase_usec": {
+        "environment_preparation": 283,
+        "instance_upload": 8000,
+        "mesh_upload": 20607,
+        "multimesh_setup": 4106,
+        "template_preparation": 20711
+      },
+      "release_usec": 0,
+      "steps": 1107
+    },
+    "cache": {
+      "bytes": 106213120,
+      "entries": 16,
+      "hits": 105,
+      "import_usec": 10611,
+      "imports": 16,
+      "peak_import_usec": 1220,
+      "preparation_peak_usec": {
+        "import": 1220,
+        "lod": 1411,
+        "materials": 218,
+        "mipmap_upload": 504,
+        "texture_load": 6946
+      },
+      "preparation_usec": {
+        "import": 10611,
+        "lod": 5694,
+        "materials": 2449,
+        "mipmap_upload": 4763,
+        "texture_load": 63071
+      }
+    },
+    "cell_prepare_p95_ms": 50.768,
+    "cell_prepare_p99_ms": 89.533,
+    "device": "Apple M1",
     "far_cells": 99,
-    "far_display_triangles": 124378,
+    "far_display_triangles": 107760,
+    "frame_p95_ms": 18.876,
+    "frame_p99_ms": 19.449,
     "image": "sky-park-garden-road.png",
     "largest_far_cell_bytes": 2435072,
     "near_cells": 71,
-    "near_collision_triangles": 86075,
-    "package_sha256": "4ad8da062682bdf664a3a379e71b69ba36efa4e7a05efbf89419ce0542ee649b",
-    "preparation_ms": 5461,
+    "near_collision_triangles": 87943,
+    "package_sha256": "777cab40155fad8961ddb5f148a4f154c0a1612b3231103d08fc11982c837c47",
+    "preparation_ms": 3352,
     "render": {
-      "draw_calls": 1547,
-      "objects": 1547,
-      "primitives": 211672
+      "draw_calls": 1622,
+      "objects": 1622,
+      "primitives": 182144
     },
-    "shared_cache_bytes": 132653312,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 106213120,
+    "static_memory_bytes": 71875605.0,
+    "video_memory_bytes": 59018715.0,
     "view": {
       "name": "garden-road",
       "position_m": [
@@ -31,20 +83,72 @@
     }
   },
   {
-    "far_cells": 99,
-    "far_display_triangles": 111844,
-    "image": "sky-park-wheel-road.png",
-    "largest_far_cell_bytes": 2009920,
-    "near_cells": 74,
-    "near_collision_triangles": 87951,
-    "package_sha256": "4ad8da062682bdf664a3a379e71b69ba36efa4e7a05efbf89419ce0542ee649b",
-    "preparation_ms": 4902,
-    "render": {
-      "draw_calls": 1618,
-      "objects": 1618,
-      "primitives": 218928
+    "attachment": {
+      "advance_usec": 110335,
+      "phase_peak_usec": {
+        "environment_preparation": 7,
+        "instance_upload": 488,
+        "mesh_upload": 1731,
+        "multimesh_setup": 59,
+        "template_preparation": 3096
+      },
+      "phase_usec": {
+        "environment_preparation": 574,
+        "instance_upload": 15883,
+        "mesh_upload": 41707,
+        "multimesh_setup": 8807,
+        "template_preparation": 43364
+      },
+      "release_usec": 493,
+      "steps": 2194
     },
-    "shared_cache_bytes": 113332480,
+    "cache": {
+      "bytes": 122694144,
+      "entries": 15,
+      "hits": 116,
+      "import_usec": 11188,
+      "imports": 15,
+      "peak_import_usec": 2323,
+      "preparation_peak_usec": {
+        "import": 2323,
+        "lod": 3089,
+        "materials": 278,
+        "mipmap_upload": 505,
+        "texture_load": 6787
+      },
+      "preparation_usec": {
+        "import": 11188,
+        "lod": 7019,
+        "materials": 2400,
+        "mipmap_upload": 4796,
+        "texture_load": 63096
+      }
+    },
+    "cell_prepare_p95_ms": 55.038,
+    "cell_prepare_p99_ms": 132.308,
+    "device": "Apple M1",
+    "far_cells": 99,
+    "far_display_triangles": 90600,
+    "frame_p95_ms": 18.938,
+    "frame_p99_ms": 19.766,
+    "image": "sky-park-wheel-road.png",
+    "largest_far_cell_bytes": 1951680,
+    "near_cells": 74,
+    "near_collision_triangles": 88815,
+    "package_sha256": "777cab40155fad8961ddb5f148a4f154c0a1612b3231103d08fc11982c837c47",
+    "preparation_ms": 2960,
+    "render": {
+      "draw_calls": 1655,
+      "objects": 1655,
+      "primitives": 178418
+    },
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 122694144,
+    "static_memory_bytes": 72175653.0,
+    "video_memory_bytes": 57733819.0,
     "view": {
       "name": "wheel-road",
       "position_m": [
@@ -62,82 +166,72 @@
     }
   },
   {
-    "far_cells": 100,
-    "far_display_triangles": 130945,
-    "image": "sky-park-coaster-road.png",
-    "largest_far_cell_bytes": 1709760,
-    "near_cells": 68,
-    "near_collision_triangles": 46762,
-    "package_sha256": "4ad8da062682bdf664a3a379e71b69ba36efa4e7a05efbf89419ce0542ee649b",
-    "preparation_ms": 4316,
-    "render": {
-      "draw_calls": 1050,
-      "objects": 1050,
-      "primitives": 167451
+    "attachment": {
+      "advance_usec": 203614,
+      "phase_peak_usec": {
+        "environment_preparation": 8,
+        "instance_upload": 488,
+        "mesh_upload": 1747,
+        "multimesh_setup": 77,
+        "template_preparation": 3096
+      },
+      "phase_usec": {
+        "environment_preparation": 1193,
+        "instance_upload": 32445,
+        "mesh_upload": 83120,
+        "multimesh_setup": 19232,
+        "template_preparation": 67624
+      },
+      "release_usec": 1023,
+      "steps": 4311
     },
-    "shared_cache_bytes": 98820096,
-    "view": {
-      "name": "coaster-road",
-      "position_m": [
-        1330.0,
-        89.7,
-        480.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        1240.0,
-        101.0,
-        585.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
-    "far_cells": 100,
-    "far_display_triangles": 125337,
-    "image": "sky-park-distant.png",
-    "largest_far_cell_bytes": 2295296,
-    "near_cells": 74,
-    "near_collision_triangles": 68050,
-    "package_sha256": "4ad8da062682bdf664a3a379e71b69ba36efa4e7a05efbf89419ce0542ee649b",
-    "preparation_ms": 4631,
-    "render": {
-      "draw_calls": 1805,
-      "objects": 1805,
-      "primitives": 222438
+    "cache": {
+      "bytes": 122694144,
+      "entries": 15,
+      "hits": 284,
+      "import_usec": 11217,
+      "imports": 15,
+      "peak_import_usec": 2294,
+      "preparation_peak_usec": {
+        "import": 2294,
+        "lod": 3080,
+        "materials": 284,
+        "mipmap_upload": 580,
+        "texture_load": 7129
+      },
+      "preparation_usec": {
+        "import": 11217,
+        "lod": 6946,
+        "materials": 2365,
+        "mipmap_upload": 4951,
+        "texture_load": 64393
+      }
     },
-    "shared_cache_bytes": 99744256,
-    "view": {
-      "name": "distant",
-      "position_m": [
-        1050.0,
-        71.7,
-        800.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        1390.0,
-        90.0,
-        894.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
+    "cell_prepare_p95_ms": 51.599,
+    "cell_prepare_p99_ms": 80.284,
+    "device": "Apple M1",
     "far_cells": 69,
-    "far_display_triangles": 71217,
+    "far_display_triangles": 58319,
+    "frame_p95_ms": 35.022,
+    "frame_p99_ms": 35.255,
     "image": "sky-park-overview.png",
-    "largest_far_cell_bytes": 2009920,
+    "largest_far_cell_bytes": 1951680,
     "near_cells": 167,
-    "near_collision_triangles": 155262,
-    "package_sha256": "4ad8da062682bdf664a3a379e71b69ba36efa4e7a05efbf89419ce0542ee649b",
-    "preparation_ms": 6127,
+    "near_collision_triangles": 156117,
+    "package_sha256": "777cab40155fad8961ddb5f148a4f154c0a1612b3231103d08fc11982c837c47",
+    "preparation_ms": 3491,
     "render": {
-      "draw_calls": 5371,
-      "objects": 5371,
-      "primitives": 288846
+      "draw_calls": 5450,
+      "objects": 5450,
+      "primitives": 217815
     },
-    "shared_cache_bytes": 113332480,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 122694144,
+    "static_memory_bytes": 77732856.0,
+    "video_memory_bytes": 60096859.0,
     "view": {
       "name": "overview",
       "position_m": [
@@ -152,37 +246,6 @@
         1380.0,
         64.0,
         895.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
-    "far_cells": 102,
-    "far_display_triangles": 99086,
-    "image": "sky-park-skyway-supports.png",
-    "largest_far_cell_bytes": 1668096,
-    "near_cells": 73,
-    "near_collision_triangles": 74555,
-    "package_sha256": "4ad8da062682bdf664a3a379e71b69ba36efa4e7a05efbf89419ce0542ee649b",
-    "preparation_ms": 4692,
-    "render": {
-      "draw_calls": 1457,
-      "objects": 1457,
-      "primitives": 187278
-    },
-    "shared_cache_bytes": 99744256,
-    "view": {
-      "name": "skyway-supports",
-      "position_m": [
-        940.0,
-        42.0,
-        958.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        970.0,
-        53.0,
-        800.0
       ],
       "view_distance_m": 384.0
     }

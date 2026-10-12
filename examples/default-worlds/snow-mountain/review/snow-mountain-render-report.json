@@ -1,50 +1,71 @@
 [
   {
-    "far_cells": 109,
-    "far_display_triangles": 76604,
-    "image": "snow-mountain-valley-road.png",
-    "largest_far_cell_bytes": 868416,
-    "near_cells": 57,
-    "near_collision_triangles": 44078,
-    "package_sha256": "975a16620bddfec03772101f9d20a81ccf2a43e3c74b107430f3996e193cd592",
-    "preparation_ms": 3019,
-    "render": {
-      "draw_calls": 1166,
-      "objects": 1166,
-      "primitives": 143484
+    "attachment": {
+      "advance_usec": 51657,
+      "phase_peak_usec": {
+        "environment_preparation": 6,
+        "instance_upload": 267,
+        "mesh_upload": 1704,
+        "multimesh_setup": 50,
+        "template_preparation": 1067
+      },
+      "phase_usec": {
+        "environment_preparation": 211,
+        "instance_upload": 20098,
+        "mesh_upload": 13354,
+        "multimesh_setup": 4358,
+        "template_preparation": 13636
+      },
+      "release_usec": 0,
+      "steps": 1007
     },
-    "shared_cache_bytes": 75973376,
-    "view": {
-      "name": "valley-road",
-      "position_m": [
-        393.178397156464,
-        76.4348068641295,
-        1375.61747153833
-      ],
-      "quality": 2.0,
-      "target_m": [
-        335.178957611081,
-        71.2065660585251,
-        1432.74574951495
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
+    "cache": {
+      "bytes": 94161152,
+      "entries": 11,
+      "hits": 134,
+      "import_usec": 6819,
+      "imports": 11,
+      "peak_import_usec": 1056,
+      "preparation_peak_usec": {
+        "import": 1056,
+        "lod": 887,
+        "materials": 234,
+        "mipmap_upload": 496,
+        "texture_load": 6765
+      },
+      "preparation_usec": {
+        "import": 6819,
+        "lod": 3589,
+        "materials": 1349,
+        "mipmap_upload": 4702,
+        "texture_load": 62862
+      }
+    },
+    "cell_prepare_p95_ms": 13.445,
+    "cell_prepare_p99_ms": 22.472,
+    "device": "Apple M1",
     "far_cells": 113,
-    "far_display_triangles": 100979,
+    "far_display_triangles": 99887,
+    "frame_p95_ms": 17.995,
+    "frame_p99_ms": 19.334,
     "image": "snow-mountain-lodge-road.png",
-    "largest_far_cell_bytes": 1037312,
+    "largest_far_cell_bytes": 1024768,
     "near_cells": 60,
-    "near_collision_triangles": 38606,
-    "package_sha256": "975a16620bddfec03772101f9d20a81ccf2a43e3c74b107430f3996e193cd592",
-    "preparation_ms": 2773,
+    "near_collision_triangles": 40982,
+    "package_sha256": "856d843847fb4a383bd7d4c9994c079403f38e1562889fa02017de69c85d26be",
+    "preparation_ms": 1611,
     "render": {
-      "draw_calls": 1208,
-      "objects": 1208,
-      "primitives": 156866
+      "draw_calls": 1252,
+      "objects": 1252,
+      "primitives": 157402
     },
-    "shared_cache_bytes": 92145152,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 94161152,
+    "static_memory_bytes": 69320714.0,
+    "video_memory_bytes": 54234223.0,
     "view": {
       "name": "lodge-road",
       "position_m": [
@@ -62,20 +83,72 @@
     }
   },
   {
-    "far_cells": 114,
-    "far_display_triangles": 64080,
-    "image": "snow-mountain-snow-road.png",
-    "largest_far_cell_bytes": 1168576,
-    "near_cells": 60,
-    "near_collision_triangles": 36282,
-    "package_sha256": "975a16620bddfec03772101f9d20a81ccf2a43e3c74b107430f3996e193cd592",
-    "preparation_ms": 2517,
-    "render": {
-      "draw_calls": 423,
-      "objects": 423,
-      "primitives": 86449
+    "attachment": {
+      "advance_usec": 67263,
+      "phase_peak_usec": {
+        "environment_preparation": 6,
+        "instance_upload": 267,
+        "mesh_upload": 1735,
+        "multimesh_setup": 50,
+        "template_preparation": 1067
+      },
+      "phase_usec": {
+        "environment_preparation": 408,
+        "instance_upload": 20694,
+        "mesh_upload": 24372,
+        "multimesh_setup": 4653,
+        "template_preparation": 17136
+      },
+      "release_usec": 560,
+      "steps": 1368
     },
-    "shared_cache_bytes": 68257536,
+    "cache": {
+      "bytes": 68102912,
+      "entries": 4,
+      "hits": 5,
+      "import_usec": 2255,
+      "imports": 4,
+      "peak_import_usec": 607,
+      "preparation_peak_usec": {
+        "import": 607,
+        "lod": 170,
+        "materials": 130,
+        "mipmap_upload": 502,
+        "texture_load": 7053
+      },
+      "preparation_usec": {
+        "import": 2255,
+        "lod": 565,
+        "materials": 406,
+        "mipmap_upload": 4769,
+        "texture_load": 63001
+      }
+    },
+    "cell_prepare_p95_ms": 12.907,
+    "cell_prepare_p99_ms": 17.176,
+    "device": "Apple M1",
+    "far_cells": 114,
+    "far_display_triangles": 63800,
+    "frame_p95_ms": 17.658,
+    "frame_p99_ms": 18.491,
+    "image": "snow-mountain-snow-road.png",
+    "largest_far_cell_bytes": 1156032,
+    "near_cells": 60,
+    "near_collision_triangles": 36746,
+    "package_sha256": "856d843847fb4a383bd7d4c9994c079403f38e1562889fa02017de69c85d26be",
+    "preparation_ms": 1439,
+    "render": {
+      "draw_calls": 436,
+      "objects": 436,
+      "primitives": 87061
+    },
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 68102912,
+    "static_memory_bytes": 66085985.0,
+    "video_memory_bytes": 50528339.0,
     "view": {
       "name": "snow-road",
       "position_m": [
@@ -93,51 +166,72 @@
     }
   },
   {
-    "far_cells": 111,
-    "far_display_triangles": 109629,
-    "image": "snow-mountain-distant.png",
-    "largest_far_cell_bytes": 1145280,
-    "near_cells": 61,
-    "near_collision_triangles": 33706,
-    "package_sha256": "975a16620bddfec03772101f9d20a81ccf2a43e3c74b107430f3996e193cd592",
-    "preparation_ms": 2374,
-    "render": {
-      "draw_calls": 994,
-      "objects": 994,
-      "primitives": 156360
+    "attachment": {
+      "advance_usec": 176424,
+      "phase_peak_usec": {
+        "environment_preparation": 7,
+        "instance_upload": 267,
+        "mesh_upload": 1735,
+        "multimesh_setup": 53,
+        "template_preparation": 1094
+      },
+      "phase_usec": {
+        "environment_preparation": 911,
+        "instance_upload": 74482,
+        "mesh_upload": 53018,
+        "multimesh_setup": 14770,
+        "template_preparation": 33243
+      },
+      "release_usec": 836,
+      "steps": 3543
     },
-    "shared_cache_bytes": 76977920,
-    "view": {
-      "name": "distant",
-      "position_m": [
-        917.0,
-        106.003073830357,
-        1228.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        946.0,
-        93.4,
-        1290.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
+    "cache": {
+      "bytes": 94855680,
+      "entries": 12,
+      "hits": 335,
+      "import_usec": 7290,
+      "imports": 12,
+      "peak_import_usec": 1084,
+      "preparation_peak_usec": {
+        "import": 1084,
+        "lod": 887,
+        "materials": 241,
+        "mipmap_upload": 563,
+        "texture_load": 6935
+      },
+      "preparation_usec": {
+        "import": 7290,
+        "lod": 3506,
+        "materials": 1445,
+        "mipmap_upload": 4862,
+        "texture_load": 63657
+      }
+    },
+    "cell_prepare_p95_ms": 15.401,
+    "cell_prepare_p99_ms": 19.877,
+    "device": "Apple M1",
     "far_cells": 73,
-    "far_display_triangles": 65971,
+    "far_display_triangles": 65285,
+    "frame_p95_ms": 29.159,
+    "frame_p99_ms": 30.332,
     "image": "snow-mountain-overview.png",
-    "largest_far_cell_bytes": 673088,
+    "largest_far_cell_bytes": 660544,
     "near_cells": 151,
-    "near_collision_triangles": 95381,
-    "package_sha256": "975a16620bddfec03772101f9d20a81ccf2a43e3c74b107430f3996e193cd592",
-    "preparation_ms": 3580,
+    "near_collision_triangles": 98469,
+    "package_sha256": "856d843847fb4a383bd7d4c9994c079403f38e1562889fa02017de69c85d26be",
+    "preparation_ms": 2058,
     "render": {
-      "draw_calls": 3631,
-      "objects": 3631,
-      "primitives": 200886
+      "draw_calls": 3863,
+      "objects": 3863,
+      "primitives": 204784
     },
-    "shared_cache_bytes": 93686528,
+    "resolution": [
+      1440,
+      900
+    ],
+    "shared_cache_bytes": 94855680,
+    "static_memory_bytes": 74767472.0,
+    "video_memory_bytes": 55368315.0,
     "view": {
       "name": "overview",
       "position_m": [
