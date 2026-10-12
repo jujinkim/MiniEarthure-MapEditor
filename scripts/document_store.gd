@@ -44,6 +44,7 @@ var last_track_apply_ms := 0.0
 var last_track_timings: Dictionary = {}
 const EDIT_BUSY := "Wait for the explicit operation to finish."
 var draft: Dictionary = {}
+var draft_restore_document: Dictionary = {}
 var draft_revision := 0
 var validated_revision := 0
 var pending_track: Dictionary = {}
@@ -182,9 +183,16 @@ func track_pieces() -> Array:
 	if paths_revision == draft_revision: return cached_pieces
 	var rows: Array = []
 	var retained := {}
+	var stored: Dictionary = document.get("assembled_track", {})
+	var saved_source: Variant = stored.get("authoring")
+	if not saved_source is Dictionary: saved_source = stored.get("seed_source")
+	var originals: Array = saved_source.get("instances", []) if saved_source is Dictionary else []
 	for item: Dictionary in track_source().get("instances", []):
 		var key := JSON.stringify(item)
 		var row: Dictionary = draft_paths.get(key, {})
+		if row.is_empty():
+			var original := originals.find(item)
+			if original >= 0 and original < stored.get("pieces", []).size(): row = stored.pieces[original]
 		if row.is_empty():
 			var result: Dictionary = JSON.parse_string(bridge.track_instance(key))
 			row = result.data if result.ok else {"path":[]}
@@ -204,11 +212,33 @@ func start_track_edit(source: Dictionary, expected_epoch := -1, context: Diction
 		retry_track_edit()
 		return ""
 	var command := {"label":"Track assembly", "patches":[], "track_before":before, "track_after":source.duplicate(true)}
+	# Retain stored geometry only when new authoring rules cannot reproduce it.
+	# This memento shares the existing bounded history and immutable job gates.
+	if not draft_pending() and _needs_stored_track_memento(before):
+		command.track_before_document = document.duplicate(true)
 	command.bytes = JSON.stringify(command).to_utf8_buffer().size()
 	if command.bytes > HISTORY_BYTES: return "Command exceeds the 16 MiB undo budget; split this operation."
 	_record_command(command)
 	_accept_draft(command.track_after, context)
 	return ""
+
+func _needs_stored_track_memento(source: Dictionary) -> bool:
+	var catalogue: Dictionary = JSON.parse_string(bridge.track_catalogue()).data
+	if document.get("assembled_track", {}).get("generator_fingerprint", catalogue.generator_fingerprint) != catalogue.generator_fingerprint: return true
+	for item: Dictionary in source.get("instances", []):
+		for field: String in ["width_cm", "entry_width_cm", "exit_width_cm"]:
+			if int(item.get(field, 0)) < int(catalogue.min_width_cm): return true
+		if str(item.preset).begins_with("cylinder") and not catalogue.pipe_radii_cm.any(func(radius): return int(radius) * 2 == int(item.width_cm)): return true
+	for structure: Dictionary in source.get("structures", []):
+		if structure.has("track") and not JSON.parse_string(bridge.validate_special_track_authoring(JSON.stringify(structure.track))).ok: return true
+	return false
+
+func _prepare_stored_track(candidate: Dictionary) -> Dictionary:
+	var validation := _validate(candidate)
+	if not validation.ok: return {"error":reason(validation)}
+	var memory: Dictionary = JSON.parse_string(working_snapshot().fork().set_document(JSON.stringify(validation.data.document), project_path))
+	if not memory.ok: return {"error":reason(memory)}
+	return {"candidate":validation.data.document, "signature":_signature(validation.data.document)}
 
 func _record_command(command: Dictionary) -> void:
 	for discarded: Dictionary in redo_stack: history_bytes -= int(discarded.bytes)
@@ -220,6 +250,7 @@ func _record_command(command: Dictionary) -> void:
 
 func _accept_draft(source: Dictionary, context: Dictionary = {}) -> void:
 	draft = source.duplicate(true)
+	draft_restore_document = context.get("restore_document", {})
 	draft_revision += 1
 	command_epoch += 1
 	dirty = true
@@ -243,7 +274,9 @@ func start_track_history(forward: bool) -> String:
 		return _travel_history(not forward)
 	history.pop_back()
 	(undo_stack if forward else redo_stack).append(command)
-	_accept_draft(command.track_after if forward else command.track_before)
+	var context := {}
+	if not forward and command.has("track_before_document"): context.restore_document = command.track_before_document
+	_accept_draft(command.track_after if forward else command.track_before, context)
 	return ""
 
 func retry_track_edit() -> void:
@@ -251,7 +284,7 @@ func retry_track_edit() -> void:
 	if track_edit_job != null and track_edit_job.matches(self, track_request_id): return
 	draft_error = {}
 	if pending_since < 0: pending_since = int(clock.call())
-	pending_track = {"source":draft, "revision":draft_revision, "context":{}}
+	pending_track = {"source":draft, "revision":draft_revision, "context":{} if draft_restore_document.is_empty() else {"restore_document":draft_restore_document}}
 	_launch_track()
 
 func _launch_track() -> void:
@@ -435,6 +468,7 @@ func open_project(path: String) -> String:
 func _reset_session() -> void:
 	cancel_track_edit()
 	draft = {}
+	draft_restore_document = {}
 	draft_revision = 0
 	validated_revision = 0
 	draft_error = {}
@@ -596,6 +630,14 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 	var failure := _apply(candidate, patches, false)
 	if failure != "":
 		return {"error": failure}
+	for patch: Dictionary in patches:
+		if patch.field != "gimmicks": continue
+		var after: Variant = patch.get("after")
+		var before: Variant = patch.get("before")
+		if not after is Dictionary or not after.has("track"): continue
+		if before is Dictionary and before.get("track") == after.track: continue
+		var authored: Dictionary = JSON.parse_string(bridge.validate_special_track_authoring(JSON.stringify(after.track)))
+		if not authored.ok: return {"error":"Structure %s: %s" % [after.id, reason(authored)]}
 	var validation := _validate(candidate)
 	if not validation.ok:
 		return {"error": reason(validation)}
@@ -757,6 +799,7 @@ func cancel_gesture() -> void:
 
 func _after_edit(prepared_signature: String = "") -> void:
 	draft = {}
+	draft_restore_document = {}
 	draft_revision += 1
 	validated_revision = draft_revision
 	draft_paths = {}

@@ -216,6 +216,7 @@ func _button(parent: Node, text: String, callback: Callable) -> Button:
 func _spin(parent: Node, label: String, value: float, low := -100000.0, high := 100000.0, step := 0.01) -> SpinBox:
 	var s:=SpinBox.new()
 	s.prefix=I18N.t(label)+" "
+	s.allow_lesser=value < low
 	s.min_value=low
 	s.max_value=high
 	s.step=step
@@ -326,13 +327,20 @@ func _properties() -> void:
 	for j in 3: controls.append(_spin(transform, ["X (m)", "Height (m)", "Z (m)"][j], float(item.position_cm[j]) / 100.0))
 	for j in 3: controls.append(_spin(transform, ["Pitch X°", "Yaw Y°", "Roll Z°"][j], float(item.rotation_mdeg[j]) / 1000.0, -360.0, 360.0, 0.1))
 	width = OptionButton.new()
-	var minimum_port := 2.0
+	var minimum_port := float(catalogue.min_width_cm) / 100.0
+	var found_width := false
 	for entry: Dictionary in catalogue.entries:
 		if entry.id != item.preset: continue
 		minimum_port = float(entry.min_port_width_cm) / 100.0
 		for w in entry.widths_cm:
 			width.add_item(I18N.t("Width %dm") % (float(w) / 100.0), int(w))
-			if int(w) == int(item.width_cm): width.select(width.item_count - 1)
+			if int(w) == int(item.width_cm):
+				width.select(width.item_count - 1)
+				found_width = true
+	if not found_width:
+		width.add_item("Stored %.2fm" % (float(item.width_cm) / 100.0), int(item.width_cm))
+		width.select(width.item_count - 1)
+		width.set_item_disabled(width.item_count - 1, true)
 	transform.add_child(width)
 	port_widths.append(_spin(transform, "Entry width (m)", float(item.entry_width_cm) / 100.0, minimum_port, 12.0))
 	port_widths.append(_spin(transform, "Exit width (m)", float(item.exit_width_cm) / 100.0, minimum_port, 12.0))

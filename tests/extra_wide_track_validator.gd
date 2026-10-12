@@ -47,7 +47,7 @@ func run() -> void:
 		await settle(ui)
 		bench.placement.cancel(); bench.select_piece(bench.source.instances.size()-1); bench._properties()
 		check(bench.width.item_count == 1 and bench.width.get_selected_id() == 1200, "fixed body width control " + preset)
-		check(bench.port_widths.all(func(s): return s.min_value == 2 and s.max_value == 12 and s.value == 12), "12m default ports and 2–12m range " + preset)
+		check(bench.port_widths.all(func(s): return s.min_value == 4 and s.max_value == 12 and s.value == 12), "12m default ports and 4–12m range " + preset)
 		var after: Dictionary = ui.store.document.duplicate(true)
 		ui._history(false); await settle(ui); check(ui.store.document == before, "Undo " + preset)
 		ui._history(true); await settle(ui); check(ui.store.document == after, "Redo " + preset)

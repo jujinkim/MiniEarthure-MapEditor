@@ -28,8 +28,14 @@ func setup(owner: Control) -> void:
 	controls.yaw = panel.number(box, "Yaw (degrees)", 0, -360, 360, 1)
 	controls.strength = panel.number(box, "Target speed strength (%)", 100, 1, 100, 1)
 	controls.height = panel.number(box, "Jump apex in still air (m)", 3, 0.1, 10, 0.1)
-	controls.radius = panel.number(box, "Track radius (m)", 2.5, 1.5, 6, 0.1)
-	controls.width = panel.number(box, "Loop width (m)", 2.2, 1.4, 6, 0.1)
+	var catalogue: Dictionary = JSON.parse_string(panel.editor.store.bridge.track_catalogue()).data
+	controls.radius = panel.number(box, "Track radius (m)", float(catalogue.pipe_default_radius_cm)/100.0, 1.0, 6, 0.01)
+	controls.radius.allow_lesser = true
+	controls.pipe_radius = OptionButton.new()
+	box.add_child(controls.pipe_radius)
+	controls.pipe_radius.item_selected.connect(func(index: int): controls.radius.value = float(controls.pipe_radius.get_item_id(index))/100.0)
+	controls.width = panel.number(box, "Loop width (m)", float(catalogue.loop_default_width_cm)/100.0, float(catalogue.loop_min_width_cm)/100.0, 6, 0.01)
+	controls.width.allow_lesser = true
 	controls.length = panel.number(box, "Cylinder length (m)", 16, 6, 32, 0.1)
 	panel.button(box, "Place panel on surface (click preview)", func():
 		picking_surface = true
@@ -68,9 +74,22 @@ func load_controls(g: Dictionary) -> void:
 	var pipe: bool = track.get("kind", "") in ["cylinder", "swept_cylinder"]
 	var catalogue: Dictionary = JSON.parse_string(panel.editor.store.bridge.track_catalogue()).data
 	controls.radius.min_value = float(catalogue.pipe_min_radius_cm)/100.0 if pipe else 1.0 if track.get("kind", "") == "swept_half_pipe" else 1.5
-	controls.radius.step = 0.01 if pipe else 0.1
-	controls.radius.value = track.get("radius_cm",250)/100.0
-	controls.width.value = track.get("width_cm",220)/100.0
+	controls.radius.step = 0.01
+	controls.radius.value = track.get("radius_cm",catalogue.pipe_default_radius_cm)/100.0
+	controls.radius.visible = not pipe
+	controls.pipe_radius.visible = pipe
+	controls.pipe_radius.clear()
+	var stored_radius := int(track.get("radius_cm", catalogue.pipe_default_radius_cm))
+	var selected_radius := -1
+	for radius in catalogue.pipe_radii_cm:
+		controls.pipe_radius.add_item("Pipe bore %dm" % (int(radius)/50), int(radius))
+		if int(radius) == stored_radius: selected_radius = controls.pipe_radius.item_count - 1
+	if selected_radius < 0:
+		controls.pipe_radius.add_item("Stored bore %.2fm" % (stored_radius/50.0), stored_radius)
+		selected_radius = controls.pipe_radius.item_count - 1
+		controls.pipe_radius.set_item_disabled(selected_radius, true)
+	controls.pipe_radius.select(selected_radius)
+	controls.width.value = track.get("width_cm",catalogue.loop_default_width_cm)/100.0
 	controls.length.value = track.get("length_cm",1600)/100.0
 	controls.period.value = g.motion.period_ms / 1000.0
 	controls.phase.value = g.motion.phase_ms / 1000.0

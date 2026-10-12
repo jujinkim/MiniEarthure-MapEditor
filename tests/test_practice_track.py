@@ -37,11 +37,11 @@ class PracticeTrack(unittest.TestCase):
         for number, turn in [(4,"right-sharp"),(5,"left-sharp")]:
             approach=pieces[f"course-{number:02d}"]
             runout=pieces[f"runout-{number:02d}"]
-            self.assertEqual((approach["entry_width_cm"],approach["exit_width_cm"]),(800,400))
-            self.assertEqual((runout["entry_width_cm"],runout["exit_width_cm"]),(400,800))
-            self.assertEqual(pieces[turn]["width_cm"],400)
-            self.assertEqual(pieces[turn]["entry_width_cm"],400)
-            self.assertEqual(pieces[turn]["control_points"][-1],[300,0,300])
+            self.assertEqual((approach["entry_width_cm"],approach["exit_width_cm"]),(800,600))
+            self.assertEqual((runout["entry_width_cm"],runout["exit_width_cm"]),(600,800))
+            self.assertEqual(pieces[turn]["width_cm"],600)
+            self.assertEqual(pieces[turn]["entry_width_cm"],600)
+            self.assertEqual(pieces[turn]["control_points"][-1],[400,0,400])
         # Both 90-degree cubics are exact left/right mirrors in their local heading.
         right=pieces["right-sharp"]["control_points"]
         left=pieces["left-sharp"]["control_points"]

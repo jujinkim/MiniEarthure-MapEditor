@@ -20,6 +20,9 @@ func start(store: RefCounted, id: int, _operation: String, source: Dictionary, v
 	context = view_context.duplicate(true)
 	var snapshot := {"document":store.document.duplicate(true), "source":source.duplicate(true),
 		"project_path":store.project_path, "command":{}, "preview":store.track_preview_cache,"working":store.working_snapshot().fork()}
+	if context.has("restore_document"):
+		snapshot.restore_document = context.restore_document.duplicate(true)
+		context.erase("restore_document")
 	return thread.start(_prepare.bind(snapshot))
 
 func _prepare(snapshot: Dictionary) -> Dictionary:
@@ -30,7 +33,7 @@ func _prepare(snapshot: Dictionary) -> Dictionary:
 	worker.project_path = snapshot.project_path
 	worker.working = snapshot.get("working")
 	worker._working_epoch = worker.command_epoch
-	var prepared: Dictionary = worker._prepare_track(snapshot.source, false)
+	var prepared: Dictionary = worker._prepare_stored_track(snapshot.restore_document) if snapshot.has("restore_document") else worker._prepare_track(snapshot.source, false)
 	var prepared_at := Time.get_ticks_usec()
 	if not prepared.has("error") and not prepared.get("noop", false) and not token.is_cancelled():
 		prepared.preview = PREVIEW.prepare(prepared.candidate, worker.bridge, snapshot.preview, token)

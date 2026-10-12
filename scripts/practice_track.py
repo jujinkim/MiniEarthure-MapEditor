@@ -103,8 +103,8 @@ def source():
     start(1);straight("runout-01",1600)
     start(2);turn("right-wide",600,True);straight("runout-02",1600)
     start(3);turn("left-wide",600,False);straight("runout-03",1600)
-    start(4,target_width=400);turn("right-sharp",300,True);straight("runout-04",2400,target_width=800)
-    start(5,target_width=400);turn("left-sharp",300,False);straight("runout-05",2400,target_width=800)
+    start(4,target_width=600);turn("right-sharp",400,True);straight("runout-04",2400,target_width=800)
+    start(5,target_width=600);turn("left-sharp",400,False);straight("runout-05",2400,target_width=800)
     start(6)
     center=pos[:];center[1]+=18
     box("low-barrier",center,[width,36,24],heading)

@@ -21,7 +21,7 @@ rebuilds and tessellates all geometry.
 
 The Driving palette includes five extra-wide presets with a fixed 12 m body
 (`straight_extra_wide`, `gentle90_extra_wide[_left]`, `right90_extra_wide[_left]`).
-Entry/exit controls still allow 2–12 m with ordinary width transitions. English,
+Entry/exit controls allow 4–12 m with ordinary width transitions. English,
 Korean and Japanese names and the stable IDs are searchable; their SVGs carry a
 vector-stroked "12" badge.
 
@@ -78,11 +78,14 @@ existing actions offer 25/50/75/100% and Left/Center/Right
 
 ## Pipes and rings
 
-The catalogue sets pipe sizes: manual bores are 2/3/4/6 m (minimum radius 1 m),
-generated bores 2/3/4 m, and pipe/ramp port inputs start at the catalogue minimum.
-Standalone cylinders default to a 2.5 m bore and 16 m length with centimetre radius
-input. New rings use a 3 m opening and 100% strength. Explicit stored sizes,
-colours and ring values remain authoritative; sources are never converted.
+MapKit supplies minimum widths and defaults: roads use 4/6/8/12 m,
+manual placement defaults to 4 m, and ports and loop ribbons start at 4 m.
+Manual and generated pipes use 4/6 m bores; standalone cylinders default to a
+4 m bore and 16 m length. Geometry edits use the same shared validation. New rings use a 3 m opening and 100% strength. Explicit stored sizes,
+colours and ring values remain authoritative. Opening a saved narrow v1 map keeps
+its exact geometry and control values. Recompilation reports the offending instance
+and fields until the user repairs them. Undo restores saved geometry within the
+existing history budget; it does not recompile a narrow original.
 
 ## Validation
 
@@ -95,9 +98,9 @@ devices are user checks.
 ## Reproducible practice course
 
 `scripts/practice_track.py` generates the ten-course manual source and package at
-[examples/practice-tight-corners](../examples/practice-tight-corners/README.md).
+[examples/practice-large-rc](../examples/practice-large-rc/README.md).
 Courses 2/3 are mirrored 90° turns with 6 m radius and 8 m width; courses 4/5 are
-sharper mirrored 90° bends with 3 m radius and 4 m width, narrowing from 8 m and
+sharper mirrored 90° bends with 4 m radius and 6 m width, narrowing from 8 m and
 widening back to 8 m with exact port widths. The remaining courses keep the jump,
 glide, raised grind beam, air turn and 3.6 m climb.
 
