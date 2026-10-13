@@ -87,12 +87,26 @@ Set `DEFAULT_WORLD_SOURCE` and a new `DEFAULT_WORLD_OUTPUT`; optional
 `DEFAULT_WORLD_THEME` and `DEFAULT_WORLD_VIEWS` pick one theme/view. `DEFAULT_WORLD_QUALITY=0|1|2` overrides the preset;
 `DEFAULT_WORLD_REVISIT=1` repeats selected views with their shared asset cache.
 Reports include preparation stages, cell/frame percentiles, draws, triangles and
-memory. These fixed views measure rendering, not interactive driving. Views use the
+memory, plus actual renderer/driver, VSync, viewport/internal sizes, quality and
+sample count. Rows are labelled `editor_preview`: this project's default OpenGL
+Compatibility timings do not establish Client performance. Use Client's
+`scripts/debug/render_default_world.gd` for its execution settings. Views use the
 common near/distant renderers, quality 2 and a 384 m limit; road eyes are 1.7 m
 above the surface and the overview is orthographic. Village views: main street,
 farm road, nature road, river distance, overview. Harbor adds day/night high
 street, cargo road, promenade, channel bridge and city overview. Images go to each
 theme's `review/`; `<theme>-render-report.json` binds them to the package SHA-256.
+`DEFAULT_WORLD_WIDTH/HEIGHT`, `DEFAULT_WORLD_WARMUP/FRAMES/REPEATS` and
+`DEFAULT_WORLD_OCCLUSION=0|1` support matched diagnostic comparisons;
+`DEFAULT_WORLD_CAPTURE=0` skips images. Defaults retain the preview dimensions,
+warmup, sample count and one repetition. `DEFAULT_WORLD_TIMEOUT_MS` bounds scene
+preparation. Fixed FPS/movie timing is rejected and captures run after timing.
+The superproject runner forwards `--rendering-method`, `--rendering-driver`,
+`--disable-vsync` and `--max-fps`; omitted options retain project/engine defaults.
+`--engine-profiler` enables per-frame CPU work timing. Zero GPU timings are
+unavailable, not GPU headroom. Each row separates frame-target verdicts from
+successful tool completion; driving remains unmeasured. Timer definitions and
+failure/release checks: [MapKit diagnostics](../addons/mapkit/docs/RENDER_DIAGNOSTICS.md).
 
 ## Validation and acceptance
 
