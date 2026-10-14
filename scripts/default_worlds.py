@@ -25,8 +25,8 @@ from shapely import constrained_delaunay_triangles
 
 from reference_maps import empty, canonical, road
 
-THEMES={'village':(1120,960),'neon-harbor':(1920,1280),'deep-forest':(1760,1760),
-    'red-canyon':(2400,1200),'snow-mountain':(1600,2080),'machine-factory':(1440,1440),'sky-park':(1920,1600)}
+THEMES={'village':(640,512),'neon-harbor':(960,768),'deep-forest':(896,896),
+    'red-canyon':(1152,640),'snow-mountain':(832,1056),'machine-factory':(768,768),'sky-park':(960,800)}
 RECIPES={'village':'default_village.py','neon-harbor':'default_harbor.py','deep-forest':'default_forest.py','red-canyon':'default_canyon.py','snow-mountain':'default_snow.py','machine-factory':'default_factory.py','sky-park':'default_park.py'}
 def digest(data):return hashlib.sha256(data).hexdigest()
 def smooth(value):return np.clip(value,0,1)**2*(3-2*np.clip(value,0,1))
@@ -69,45 +69,21 @@ class World:
             self.library.update(park_library())
         self.footprints=[];self.footprint_grid=defaultdict(list);self._road_exclusion=None
         self.routes={};self.paints=[];self.water=[];self.places=[];self.reviews=[];self.boundaries={};self._boundary_requests=[];self.shoulders={}
+        self.shortcuts=[];self.track_source=None;self.attachments=[];self.habitats=[]
         self.doc=empty('default-'+theme+'-authored-20261009',self.size[0]*100,3200)
         self.doc.update(bounds=dict(min=[0,0],max=[v*100 for v in self.size]),free_roam=True,
             seed=10092026,terrain_base_cm=0,surface_areas=[],water_bodies=[],courses=[],gimmicks=[])
         self.doc['attributions']=[dict(source='mapeditor-default-worlds-v1',license='MIT',
             notice='Original fictional landscape, roads and places; authored recipe in '+RECIPES[theme]+'. No surveyed/user data.')]
         self.doc['provenance'].update(tool_id='mapeditor-default-worlds',build_id='authored-worlds-v1',
-            first_created='2026-10-09T00:00:00Z',last_edited='2026-10-09T00:00:00Z')
+            first_created='2026-10-09T00:00:00Z',last_edited='2026-10-14T00:00:00Z')
         self.doc['theme']='rural'
         self.doc['environment']=dict(version=1,concept='countryside',architecture='rural',climate='temperate',settlement='village',
             latitude_mdeg=37000,longitude_mdeg=127000,utc_offset_minutes=540,sunrise_minutes=360,sunset_minutes=1080,
             start_minutes=840,ground_color=[117,140,88],lights=[],regions=[])
 
-    @staticmethod
-    def river_y(x):return 292+32*np.sin(np.asarray(x)/170)+12*np.sin(np.asarray(x)/73)
-
-    def river_line(self):
-        return LineString([(x,float(self.river_y(x))) for x in range(0,1121,16)])
-
-    def river_distance(self,x,y):
-        # Same sampled centreline as the water polygon. Nearby segments suffice
-        # inside the bank belt of this gently meandering, x-monotone river.
-        x,y=np.broadcast_arrays(np.asarray(x),np.asarray(y));nearest=np.full(x.shape,np.inf)
-        segment=np.clip(np.floor(x/16).astype(int),0,69)
-        for offset in (-1,0,1):
-            ax=np.clip(segment+offset,0,69)*16;ay=self.river_y(ax)
-            dy=self.river_y(ax+16)-ay
-            t=np.clip(((x-ax)*16+(y-ay)*dy)/(256+dy*dy),0,1)
-            nearest=np.minimum(nearest,np.hypot(x-ax-t*16,y-ay-t*dy))
-        return nearest
-
     def base(self,x,y):
-        x=np.asarray(x);y=np.asarray(y)
-        h=8.5+1.2*np.sin(x/126)*np.sin(y/148)
-        for cx,cy,height,sx,sy in [(135,110,24,165,165),(920,130,23,215,180),(1080,845,16,165,230),(60,860,12,170,170)]:
-            h=h+height*np.exp(-((x-cx)/sx)**2-((y-cy)/sy)**2)
-        distance=self.river_distance(x,y)
-        bed=2.2+1.6*smooth(distance/5.5)
-        bank=smooth((distance-5.5)/27)
-        return bed*(1-bank)+h*bank
+        raise RuntimeError('A default-world recipe must supply its explicit terrain')
 
     def height(self,x,y):
         if np.ndim(x)==0 and np.ndim(y)==0:
@@ -232,6 +208,7 @@ class World:
         if not solid and not asset.startswith(('bridge-support','harbor-pier','forest-pier','canyon-pier','sky-pier')):
             if self._road_exclusion is None:self._road_exclusion=self.road_area(.35)
             if footprint.intersects(self._road_exclusion):return None
+            if any(area.intersects(branch['clearance']) for branch in self.shortcuts):return None
             if any(footprint.buffer(.08).intersects(self.footprints[index][1]) for index in neighbors):return None
         z=float(self.height(x,y)) if level is None else level
         if foundation:
@@ -340,7 +317,8 @@ class World:
                 if i%3==0 and road_id not in ('arrival-road','market-street','east-high-street'):
                     self.place(name+'-car','parked-car',x+dx/length*10.5,y+dy/length*10.5,yaw)
             else:
-                self.place(name+'-rear-bin','bin',x+nx*7,y+ny*7,yaw)
+                rear=max(7,self.library[asset][2][1][2]+1)
+                self.place(name+'-rear-bin','bin',x+nx*rear,y+ny*rear,yaw)
                 half_width=(self.library[asset][2][1][0]-self.library[asset][2][0][0])/2+.6
                 court=Polygon([(p.x+dx/length*a+nx*b,p.y+dy/length*a+ny*b)
                     for a,b in [(-half_width,6.9),(half_width,6.9),(half_width,18),(-half_width,18)]])
@@ -379,6 +357,9 @@ class World:
             last=r['to'] if forward else r['from']
             coords=list(self.routes[key].coords)
             line=LineString(coords if forward else coords[::-1]);length+=line.length
+            # Optional branches share gates outside the whole split/merge. A
+            # recommendation never demands a branch-only road or track gate.
+            if any(key in branch['base_roads'] for branch in self.shortcuts):continue
             distances=[100,145] if hop==0 else []
             distances+=list(range(195 if hop==0 else 35,int(line.length-10),75))
             distances.append(line.length-12)
@@ -390,13 +371,21 @@ class World:
         if len(points)>60:
             tail=points[2:];points=points[:2]+[tail[round(i*(len(tail)-1)/57)] for i in range(58)]
         start=getattr(self,'spawn',dict(x_cm=22000,y_cm=48000,surface_id='arrival-road',heading_radians=-math.pi/2))
+        distance=round(length-112,1)
+        low,high={'intro':(600,900),'tour':(1400,2000),'technical':(1000,1500)}[identity]
+        if not low<=distance<=high:raise ValueError(f'{self.theme} {identity}: {distance}m outside {low}–{high}m')
         return dict(id=identity,name=name,waypoints=points,start=copy.deepcopy(start),mode='sprint',laps=1,
-            checkpoint_radius_cm=400,length_m=round(length-100,1))
+            checkpoint_radius_cm=400,length_m=distance,road_walk=walk,
+            optional_branches=[b['id'] for b in self.shortcuts if set(b['base_roads'])<=set(s.lstrip('-') for s in walk)])
 
     def validate(self):
         errors=[];roads=self.doc['roads'];nodes={n['id'] for n in self.doc['nodes']};reached={roads[0]['from']}
         while True:
             more={n for r in roads if r['from'] in reached or r['to'] in reached for n in [r['from'],r['to']]}
+            if self.track_source:
+                entry=next(r for r in roads if r['id']=='shortcut-entry')['to']
+                exit_node=next(r for r in roads if r['id']=='shortcut-exit')['from']
+                if entry in reached or exit_node in reached:more|={entry,exit_node}
             if more<=reached:break
             reached|=more
         if nodes!=reached:errors.append('Disconnected road graph')
@@ -453,7 +442,7 @@ def build(theme,kit):
     bounds={r['id']:b for r,_,b in world.library.values()}
     top=max((p['position'][1]/100+bounds[p['asset_id']][1][1] for p in world.doc['placements']),default=0)
     meta['display_height_range_m']=[float(heights.min())/100-5,max(float(heights.max())/100+35,top+5)]
-    sources=[Path(__file__),Path(__file__).with_name(RECIPES[theme]),kit/'scripts/authored_assets.py',kit/'scripts/world_geometry.py']
+    sources=[Path(__file__),Path(__file__).with_name(RECIPES[theme]),Path(__file__).with_name('compact_worlds.py'),kit/'scripts/authored_assets.py',kit/'scripts/world_geometry.py']
     if theme in ('neon-harbor','machine-factory'):sources.append(kit/'scripts/harbor_assets.py')
     if theme=='deep-forest':sources.append(kit/'scripts/forest_assets.py')
     if theme=='red-canyon':sources.append(kit/'scripts/canyon_assets.py')
@@ -481,6 +470,18 @@ def publish(destination,theme,kit,cli):
         for r in world.doc['roads']:
             r['design']['shoulder_cm']=round(world.shoulders[r['id']]*100)
         (pending/'document.json').write_bytes(canonical(world.doc))
+        if world.track_source is not None or world.attachments:
+            (pending/'track-source.json').write_bytes(canonical(world.track_source))
+            (pending/'surface-attachments.json').write_bytes(canonical(world.attachments))
+            subprocess.run([str(cli.resolve()),'compose-world',str(pending/'document.json'),str(pending/'track-source.json'),
+                str(pending/'surface-attachments.json'),str(pending/'composed.json')],check=True)
+            (pending/'composed.json').replace(pending/'document.json')
+            world.doc=json.loads((pending/'document.json').read_bytes())
+            # Runtime probes address actual execution surfaces, not editable
+            # source references. Persist the compiler's mapping for branch QA.
+            assembly=world.doc.get('assembled_track')
+            if assembly:
+                meta['track_surfaces']={item['id']:'assembled-road-'+str(i) for i,item in enumerate(assembly['authoring']['instances'])}
         meta['validation'].update(world.validate())
         (pending/'region.json').write_bytes(canonical(meta))
         for path,data in world.payloads.items():

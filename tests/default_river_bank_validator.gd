@@ -29,10 +29,10 @@ func run() -> void:
 		var a := Vector2(water.polygon[index][0],water.polygon[index][1])
 		var raw: Array=water.polygon[(index+1)%water.polygon.size()]
 		var b:=Vector2(raw[0],raw[1])
-		if maxf(a.x,b.x)<=200.0 or minf(a.x,b.x)>=111800.0: continue # Clipped end caps span the bed, not a bank.
-		samples.append(a.lerp(b,.5))
-		for x in [65000.0,96500.0]:
-			if x>minf(a.x,b.x) and x<maxf(a.x,b.x): samples.append(a.lerp(b,(x-a.x)/(b.x-a.x)))
+		if is_equal_approx(a.x,b.x): continue # Clipped end caps span the bed, not a bank.
+		# Sample every bank cell and each bridge crossing on the current layout.
+		for step in range(1,ceili(a.distance_to(b)/800.0)):
+			samples.append(a.lerp(b,float(step)/ceili(a.distance_to(b)/800.0)))
 	var cache := {}; var peak := 0
 	for point: Vector2 in samples:
 		var cell:=Vector2i(floori(point.x/3200),floori(point.y/3200))

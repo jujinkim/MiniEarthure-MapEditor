@@ -1,0 +1,1 @@
+[{"height_cm":80,"id":"scenic-action","kind":"ramp_low","panel_alignment":"center","panel_width_percent":50,"side":1,"surface":{"station_cm":6000,"surface_id":"track:scenic-shortcut"}},{"height_cm":80,"id":"arrival-boost","kind":"acceleration_panel","panel_alignment":"right","panel_width_percent":50,"side":1,"surface":{"station_cm":14500,"surface_id":"arrival-road"}}]

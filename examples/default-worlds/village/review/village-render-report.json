@@ -1,429 +1,5474 @@
 [
-  {
-    "attachment": {
-      "advance_usec": 155831,
-      "phase_peak_usec": {
-        "environment_preparation": 9,
-        "instance_upload": 640,
-        "mesh_upload": 1791,
-        "multimesh_setup": 63,
-        "template_preparation": 1444,
-        "water_upload": 6
-      },
-      "phase_usec": {
-        "environment_preparation": 221,
-        "instance_upload": 16702,
-        "mesh_upload": 20315,
-        "multimesh_setup": 4871,
-        "template_preparation": 113712,
-        "water_upload": 10
-      },
-      "release_usec": 0,
-      "steps": 1282
-    },
-    "cache": {
-      "bytes": 80365312,
-      "entries": 4,
-      "hits": 85,
-      "import_usec": 48201,
-      "imports": 63,
-      "peak_import_usec": 1436,
-      "preparation_peak_usec": {
-        "import": 1436,
-        "lod": 1392,
-        "materials": 1374,
-        "mipmap_upload": 501,
-        "texture_load": 6822
-      },
-      "preparation_usec": {
-        "import": 48201,
-        "lod": 33301,
-        "materials": 28127,
-        "mipmap_upload": 4761,
-        "texture_load": 62995
-      }
-    },
-    "cell_prepare_p95_ms": 76.166,
-    "cell_prepare_p99_ms": 286.703,
-    "device": "Apple M1",
-    "far_cells": 130,
-    "far_display_triangles": 165801,
-    "frame_p95_ms": 17.962,
-    "frame_p99_ms": 18.411,
-    "image": "village-main-street.png",
-    "largest_far_cell_bytes": 3989632,
-    "near_cells": 44,
-    "near_collision_triangles": 55664,
-    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
-    "preparation_ms": 4403,
-    "render": {
-      "draw_calls": 1657,
-      "objects": 1657,
-      "primitives": 144078
-    },
-    "resolution": [
-      1440,
-      900
-    ],
-    "shared_cache_bytes": 80365312,
-    "static_memory_bytes": 71726700.0,
-    "video_memory_bytes": 74247807.0,
-    "view": {
-      "name": "main-street",
-      "position_m": [
-        425.0,
-        10.7,
-        482.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        502.0,
-        10.8497976618324,
-        463.0
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
-    "attachment": {
-      "advance_usec": 209277,
-      "phase_peak_usec": {
-        "environment_preparation": 9,
-        "instance_upload": 640,
-        "mesh_upload": 1791,
-        "multimesh_setup": 63,
-        "template_preparation": 1444,
-        "water_upload": 33
-      },
-      "phase_usec": {
-        "environment_preparation": 395,
-        "instance_upload": 37302,
-        "mesh_upload": 32414,
-        "multimesh_setup": 6796,
-        "template_preparation": 132254,
-        "water_upload": 116
-      },
-      "release_usec": 407,
-      "steps": 1989
-    },
-    "cache": {
-      "bytes": 113490944,
-      "entries": 13,
-      "hits": 45,
-      "import_usec": 9662,
-      "imports": 13,
-      "peak_import_usec": 1192,
-      "preparation_peak_usec": {
-        "import": 1192,
-        "lod": 1248,
-        "materials": 283,
-        "mipmap_upload": 492,
-        "texture_load": 6951
-      },
-      "preparation_usec": {
-        "import": 9662,
-        "lod": 5757,
-        "materials": 1976,
-        "mipmap_upload": 4734,
-        "texture_load": 63017
-      }
-    },
-    "cell_prepare_p95_ms": 54.344,
-    "cell_prepare_p99_ms": 190.408,
-    "device": "Apple M1",
-    "far_cells": 126,
-    "far_display_triangles": 183918,
-    "frame_p95_ms": 17.986,
-    "frame_p99_ms": 21.051,
-    "image": "village-farm-road.png",
-    "largest_far_cell_bytes": 3989632,
-    "near_cells": 43,
-    "near_collision_triangles": 35209,
-    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
-    "preparation_ms": 3178,
-    "render": {
-      "draw_calls": 1180,
-      "objects": 1180,
-      "primitives": 260027
-    },
-    "resolution": [
-      1440,
-      900
-    ],
-    "shared_cache_bytes": 113490944,
-    "static_memory_bytes": 68199626.0,
-    "video_memory_bytes": 72382447.0,
-    "view": {
-      "name": "farm-road",
-      "position_m": [
-        918.376973235963,
-        10.7,
-        602.888979617196
-      ],
-      "quality": 2.0,
-      "target_m": [
-        823.44056807587,
-        11.0,
-        558.691318759041
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
-    "attachment": {
-      "advance_usec": 245380,
-      "phase_peak_usec": {
-        "environment_preparation": 9,
-        "instance_upload": 640,
-        "mesh_upload": 1852,
-        "multimesh_setup": 63,
-        "template_preparation": 1444,
-        "water_upload": 66
-      },
-      "phase_usec": {
-        "environment_preparation": 565,
-        "instance_upload": 45899,
-        "mesh_upload": 42452,
-        "multimesh_setup": 11363,
-        "template_preparation": 144566,
-        "water_upload": 535
-      },
-      "release_usec": 702,
-      "steps": 2869
-    },
-    "cache": {
-      "bytes": 85990912,
-      "entries": 11,
-      "hits": 135,
-      "import_usec": 6354,
-      "imports": 11,
-      "peak_import_usec": 701,
-      "preparation_peak_usec": {
-        "import": 701,
-        "lod": 420,
-        "materials": 205,
-        "mipmap_upload": 485,
-        "texture_load": 6816
-      },
-      "preparation_usec": {
-        "import": 6354,
-        "lod": 2714,
-        "materials": 1479,
-        "mipmap_upload": 4706,
-        "texture_load": 62846
-      }
-    },
-    "cell_prepare_p95_ms": 18.166,
-    "cell_prepare_p99_ms": 236.787,
-    "device": "Apple M1",
-    "far_cells": 110,
-    "far_display_triangles": 137981,
-    "frame_p95_ms": 19.03,
-    "frame_p99_ms": 21.192,
-    "image": "village-nature-road.png",
-    "largest_far_cell_bytes": 3965888,
-    "near_cells": 45,
-    "near_collision_triangles": 34810,
-    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
-    "preparation_ms": 2223,
-    "render": {
-      "draw_calls": 1607,
-      "objects": 1607,
-      "primitives": 177947
-    },
-    "resolution": [
-      1440,
-      900
-    ],
-    "shared_cache_bytes": 85990912,
-    "static_memory_bytes": 68067562.0,
-    "video_memory_bytes": 67755363.0,
-    "view": {
-      "name": "nature-road",
-      "position_m": [
-        702.360641272958,
-        13.2440752503424,
-        199.686401430768
-      ],
-      "quality": 2.0,
-      "target_m": [
-        778.211433466793,
-        20.3653988041477,
-        191.442917700809
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
-    "attachment": {
-      "advance_usec": 292142,
-      "phase_peak_usec": {
-        "environment_preparation": 9,
-        "instance_upload": 640,
-        "mesh_upload": 1852,
-        "multimesh_setup": 63,
-        "template_preparation": 1444,
-        "water_upload": 66
-      },
-      "phase_usec": {
-        "environment_preparation": 735,
-        "instance_upload": 52107,
-        "mesh_upload": 55841,
-        "multimesh_setup": 15066,
-        "template_preparation": 167296,
-        "water_upload": 1097
-      },
-      "release_usec": 1094,
-      "steps": 3681
-    },
-    "cache": {
-      "bytes": 116148224,
-      "entries": 17,
-      "hits": 93,
-      "import_usec": 11669,
-      "imports": 17,
-      "peak_import_usec": 1366,
-      "preparation_peak_usec": {
-        "import": 1366,
-        "lod": 1297,
-        "materials": 294,
-        "mipmap_upload": 512,
-        "texture_load": 6739
-      },
-      "preparation_usec": {
-        "import": 11669,
-        "lod": 6525,
-        "materials": 2793,
-        "mipmap_upload": 4711,
-        "texture_load": 62588
-      }
-    },
-    "cell_prepare_p95_ms": 29.201,
-    "cell_prepare_p99_ms": 319.496,
-    "device": "Apple M1",
-    "far_cells": 122,
-    "far_display_triangles": 153099,
-    "frame_p95_ms": 17.679,
-    "frame_p99_ms": 19.558,
-    "image": "village-distant.png",
-    "largest_far_cell_bytes": 3965888,
-    "near_cells": 44,
-    "near_collision_triangles": 55654,
-    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
-    "preparation_ms": 2904,
-    "render": {
-      "draw_calls": 1236,
-      "objects": 1236,
-      "primitives": 172004
-    },
-    "resolution": [
-      1440,
-      900
-    ],
-    "shared_cache_bytes": 116148224,
-    "static_memory_bytes": 69281062.0,
-    "video_memory_bytes": 71297199.0,
-    "view": {
-      "name": "distant",
-      "position_m": [
-        653.0,
-        12.7,
-        287.0
-      ],
-      "quality": 2.0,
-      "target_m": [
-        842.0,
-        8.0,
-        250.62070321641
-      ],
-      "view_distance_m": 384.0
-    }
-  },
-  {
-    "attachment": {
-      "advance_usec": 552243,
-      "phase_peak_usec": {
-        "environment_preparation": 9,
-        "instance_upload": 640,
-        "mesh_upload": 1852,
-        "multimesh_setup": 63,
-        "template_preparation": 1938,
-        "water_upload": 66
-      },
-      "phase_usec": {
-        "environment_preparation": 1147,
-        "instance_upload": 86213,
-        "mesh_upload": 104801,
-        "multimesh_setup": 23137,
-        "template_preparation": 335848,
-        "water_upload": 1097
-      },
-      "release_usec": 1455,
-      "steps": 5880
-    },
-    "cache": {
-      "bytes": 126892032,
-      "entries": 15,
-      "hits": 152,
-      "import_usec": 65809,
-      "imports": 84,
-      "peak_import_usec": 1430,
-      "preparation_peak_usec": {
-        "import": 1430,
-        "lod": 1390,
-        "materials": 1930,
-        "mipmap_upload": 504,
-        "texture_load": 6741
-      },
-      "preparation_usec": {
-        "import": 65809,
-        "lod": 45890,
-        "materials": 51004,
-        "mipmap_upload": 4730,
-        "texture_load": 62771
-      }
-    },
-    "cell_prepare_p95_ms": 71.349,
-    "cell_prepare_p99_ms": 190.081,
-    "device": "Apple M1",
-    "far_cells": 158,
-    "far_display_triangles": 195912,
-    "frame_p95_ms": 36.772,
-    "frame_p99_ms": 37.383,
-    "image": "village-overview.png",
-    "largest_far_cell_bytes": 3989632,
-    "near_cells": 97,
-    "near_collision_triangles": 112355,
-    "package_sha256": "d7f3cc09ce84f5275a8e41d008b41b6eca65a2e91c65e6a1ae3b26bc7f6c2ecc",
-    "preparation_ms": 5464,
-    "render": {
-      "draw_calls": 5486,
-      "objects": 5486,
-      "primitives": 361850
-    },
-    "resolution": [
-      1440,
-      900
-    ],
-    "shared_cache_bytes": 126892032,
-    "static_memory_bytes": 80140337.0,
-    "video_memory_bytes": 82393071.0,
-    "view": {
-      "name": "overview",
-      "position_m": [
-        500.0,
-        130.0,
-        550.0
-      ],
-      "projection": "orthogonal",
-      "quality": 2.0,
-      "size_m": 300.0,
-      "target_m": [
-        500.0,
-        9.0,
-        480.0
-      ],
-      "view_distance_m": 384.0
-    }
-  }
+	{
+		"assessment": {
+			"driving": "not_measured",
+			"fixed_scene": "pass",
+			"p95_limit_ms": 16.7,
+			"p95_pass": true,
+			"p99_limit_ms": 33.3,
+			"p99_pass": true
+		},
+		"attachment": {
+			"advance_usec": 141149,
+			"phase_peak_usec": {
+				"environment_preparation": 11,
+				"instance_upload": 50,
+				"mesh_upload": 2525,
+				"multimesh_setup": 86,
+				"template_preparation": 1508
+			},
+			"phase_usec": {
+				"environment_preparation": 303,
+				"instance_upload": 4117,
+				"mesh_upload": 25446,
+				"multimesh_setup": 5310,
+				"template_preparation": 105973
+			},
+			"release_usec": 0,
+			"steps": 1220
+		},
+		"cache": {
+			"bytes": 196751360,
+			"entries": 24,
+			"hits": 86,
+			"import_usec": 21562,
+			"imports": 24,
+			"peak_import_usec": 1499,
+			"preparation_peak_usec": {
+				"import": 1499,
+				"instance_parts": 22,
+				"lod": 10,
+				"lod_generate": 1259,
+				"lod_get_mesh": 340,
+				"lod_surface": 840,
+				"material_surface": 32,
+				"materials": 3,
+				"mipmap_upload": 1117,
+				"occluder": 292,
+				"texture_load": 12210
+			},
+			"preparation_usec": {
+				"import": 21562,
+				"instance_parts": 428,
+				"lod": 259,
+				"lod_generate": 13796,
+				"lod_get_mesh": 4474,
+				"lod_surface": 55565,
+				"material_surface": 1920,
+				"materials": 45,
+				"mipmap_upload": 4837,
+				"occluder": 2872,
+				"texture_load": 84286
+			}
+		},
+		"cache_activity": {
+			"hits": 86,
+			"imports": 24
+		},
+		"cache_limit_bytes": 536870912,
+		"cache_policy": "cold_scene",
+		"cell_prepare_p95_ms": 31.731,
+		"cell_prepare_p99_ms": 57.428,
+		"consumer_memory": {
+			"display_reserved_bytes": 499920896,
+			"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+		},
+		"device": "Apple M1 (Apple7)",
+		"engine_process_cpu": {
+			"p95_ms": null,
+			"p99_ms": null,
+			"reason": "requires --engine-profiler and one profiler callback per measured frame",
+			"samples": 0,
+			"status": "unavailable"
+		},
+		"environment": {
+			"automatic_quality": false,
+			"cpu": "Apple M1",
+			"device": "Apple M1 (Apple7)",
+			"directional_shadow_size": 2048,
+			"display": "macOS",
+			"driver": "metal",
+			"engine": "4.7.2-stable (official)",
+			"internal_render_size": [
+				1440,
+				900
+			],
+			"max_fps": 0,
+			"occlusion": true,
+			"os": "macOS",
+			"positional_shadow_size": 1024,
+			"renderer": "mobile",
+			"scale_3d": 1.0,
+			"screen_size": [
+				2880,
+				1800
+			],
+			"viewport_size": [
+				1440,
+				900
+			],
+			"vsync_mode": 0,
+			"window_size": [
+				1440,
+				900
+			]
+		},
+		"far_cells": 93,
+		"far_display_triangles": 104473,
+		"frame_interval": {
+			"max_ms": 9.334,
+			"p50_ms": 8.1,
+			"p95_ms": 9.262,
+			"p99_ms": 9.334,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"frame_p95_ms": 9.262,
+		"frame_p99_ms": 9.334,
+		"image": "/tmp/miniearthure-compact-worlds-20261014/images-v6/village/village-main-street.png",
+		"largest_far_cell_bytes": 3547904,
+		"measured_frames": 60,
+		"memory_before": {
+			"nodes": 7.0,
+			"resources": 73.0,
+			"static_memory_bytes": 80770511.0,
+			"video_memory_bytes": 25608192.0
+		},
+		"near_cells": 54,
+		"near_collision_triangles": 49572,
+		"nodes": 771.0,
+		"package_sha256": "cbf2dbc344a9c0e620126368940c590e73207e05ef137e7be41a37486e9fffe3",
+		"preparation": "ready",
+		"preparation_ms": 1691,
+		"preparation_stages": {
+			"cache/import": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1499,
+				"samples": 24,
+				"total_usec": 21562
+			},
+			"cache/instance_parts": {
+				"peak_context": {
+					"asset_id": "authored-home-0",
+					"cell": [
+						9,
+						8
+					],
+					"representation": "near"
+				},
+				"peak_usec": 22,
+				"samples": 24,
+				"total_usec": 428
+			},
+			"cache/lod": {
+				"peak_context": {
+					"asset_id": "authored-shrub",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 5
+				},
+				"peak_usec": 10,
+				"samples": 60,
+				"total_usec": 259
+			},
+			"cache/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 1259,
+				"samples": 24,
+				"total_usec": 13796
+			},
+			"cache/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 340,
+				"samples": 24,
+				"total_usec": 4474
+			},
+			"cache/lod_surface": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 840,
+				"samples": 141,
+				"total_usec": 55565
+			},
+			"cache/material_surface": {
+				"peak_context": {
+					"asset_id": "authored-grass",
+					"cell": [
+						7,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 1
+				},
+				"peak_usec": 32,
+				"samples": 141,
+				"total_usec": 1920
+			},
+			"cache/materials": {
+				"peak_context": {
+					"asset_id": "authored-stone-wall",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 3
+				},
+				"peak_usec": 3,
+				"samples": 24,
+				"total_usec": 45
+			},
+			"cache/mipmap_upload": {
+				"peak_context": {
+					"cell": [
+						11,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 1117,
+				"samples": 10,
+				"total_usec": 4837
+			},
+			"cache/occluder": {
+				"peak_context": {
+					"asset_id": "authored-market-hall",
+					"cell": [
+						5,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 292,
+				"samples": 24,
+				"total_usec": 2872
+			},
+			"cache/texture_load": {
+				"peak_context": {
+					"cell": [
+						11,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 12210,
+				"samples": 10,
+				"total_usec": 84286
+			},
+			"environment_update": {
+				"peak_context": {},
+				"peak_usec": 321,
+				"samples": 1,
+				"total_usec": 321
+			},
+			"far/advance": {
+				"peak_context": {
+					"cell": [
+						11,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 12218,
+				"samples": 478,
+				"total_usec": 137763
+			},
+			"far/begin": {
+				"peak_context": {
+					"cell": [
+						11,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 1545,
+				"samples": 93,
+				"total_usec": 5931
+			},
+			"far/generation": {
+				"peak_context": {
+					"cell": [
+						8,
+						4
+					],
+					"representation": "far"
+				},
+				"peak_usec": 53652,
+				"samples": 93,
+				"total_usec": 610823
+			},
+			"mesh/lod_add_surface": {
+				"peak_context": {
+					"asset_id": "authored-planter",
+					"cell": [
+						5,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 3
+				},
+				"peak_usec": 6,
+				"samples": 141,
+				"total_usec": 243
+			},
+			"mesh/lod_arrays": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 820,
+				"samples": 141,
+				"total_usec": 53867
+			},
+			"mesh/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 1251,
+				"samples": 24,
+				"total_usec": 13671
+			},
+			"mesh/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 286,
+				"samples": 24,
+				"total_usec": 3554
+			},
+			"mesh/material_bind": {
+				"peak_context": {
+					"asset_id": "authored-parked-car",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 5
+				},
+				"peak_usec": 10,
+				"samples": 141,
+				"total_usec": 417
+			},
+			"mesh/material_finalize": {
+				"peak_context": {
+					"asset_id": "authored-home-0",
+					"cell": [
+						9,
+						8
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 9,
+					"surfaces": 10
+				},
+				"peak_usec": 4,
+				"samples": 24,
+				"total_usec": 57
+			},
+			"mesh/material_source_release": {
+				"peak_context": {
+					"asset_id": "authored-shrub",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 2,
+					"surfaces": 5
+				},
+				"peak_usec": 1,
+				"samples": 141,
+				"total_usec": 24
+			},
+			"mesh/material_style": {
+				"peak_context": {
+					"asset_id": "authored-parked-car",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 5
+				},
+				"peak_usec": 19,
+				"samples": 141,
+				"total_usec": 1110
+			},
+			"mesh/material_track": {
+				"peak_context": {
+					"asset_id": "authored-grass",
+					"cell": [
+						7,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 1
+				},
+				"peak_usec": 1,
+				"samples": 141,
+				"total_usec": 46
+			},
+			"mesh/occluder_cached_arrays": {
+				"peak_context": {
+					"asset_id": "authored-tree-4",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 109,
+				"total_usec": 46
+			},
+			"near/batch_preparation": {
+				"peak_context": {
+					"cell": [
+						7,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 9498,
+				"samples": 54,
+				"total_usec": 199377
+			},
+			"near/begin": {
+				"peak_context": {
+					"cell": [
+						7,
+						6
+					],
+					"representation": "near"
+				},
+				"peak_usec": 234,
+				"samples": 54,
+				"total_usec": 6065
+			},
+			"near/environment_preparation": {
+				"peak_context": {
+					"cell": [
+						7,
+						11
+					],
+					"representation": "near"
+				},
+				"peak_usec": 14,
+				"samples": 54,
+				"total_usec": 448
+			},
+			"near/generation": {
+				"peak_context": {
+					"cell": [
+						7,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 24333,
+				"samples": 54,
+				"total_usec": 430297
+			},
+			"near/instance_upload": {
+				"peak_context": {
+					"cell": [
+						7,
+						6
+					],
+					"representation": "near"
+				},
+				"peak_usec": 52,
+				"samples": 226,
+				"total_usec": 4371
+			},
+			"near/mesh_upload": {
+				"peak_context": {
+					"cell": [
+						7,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 2528,
+				"samples": 222,
+				"total_usec": 25766
+			},
+			"near/multimesh_setup": {
+				"peak_context": {
+					"cell": [
+						9,
+						8
+					],
+					"representation": "near"
+				},
+				"peak_usec": 88,
+				"samples": 110,
+				"total_usec": 5454
+			},
+			"near/presentation": {
+				"peak_context": {
+					"cell": [
+						7,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 3905,
+				"samples": 54,
+				"total_usec": 69147
+			},
+			"near/template_preparation": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1510,
+				"samples": 608,
+				"total_usec": 106819
+			},
+			"release/far": {
+				"peak_context": {},
+				"peak_usec": 29,
+				"samples": 93,
+				"total_usec": 394
+			},
+			"release/near": {
+				"peak_context": {},
+				"peak_usec": 31,
+				"samples": 54,
+				"total_usec": 419
+			},
+			"release/scene_cache": {
+				"peak_context": {
+					"keep_cache": false
+				},
+				"peak_usec": 256,
+				"samples": 1,
+				"total_usec": 256
+			}
+		},
+		"quality": {
+			"decoration_distance": 192.0,
+			"detail_distance": 160.0,
+			"level": 2,
+			"light_count": 8,
+			"lod_bias": 1.0,
+			"material_detail": 2,
+			"occlusion": true,
+			"particles": 768,
+			"scale": 1.0,
+			"shadow_distance": 160.0,
+			"sky": 2,
+			"surface_effect_distance": 160.0,
+			"texture_size": 512,
+			"vegetation_motion": 1.0,
+			"water": 2,
+			"weather_amount": 1.0
+		},
+		"release": {
+			"cache_bytes": 0,
+			"cache_retained_for_revisit": false,
+			"consumer_memory": {
+				"display_reserved_bytes": 303169536,
+				"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+			},
+			"live_scene_resources": 0,
+			"memory": {
+				"nodes": 7.0,
+				"resources": 73.0,
+				"static_memory_bytes": 92860160.0,
+				"video_memory_bytes": 81657856.0
+			}
+		},
+		"render": {
+			"draw_calls": 326,
+			"objects": 326,
+			"primitives": 124890
+		},
+		"render_setup_cpu": {
+			"max_ms": 0.021,
+			"p50_ms": 0.014,
+			"p95_ms": 0.019,
+			"p99_ms": 0.021,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"repeat": 1,
+		"resolution": [
+			1440,
+			900
+		],
+		"resources": 73.0,
+		"schema_version": 1,
+		"scope": "client_fixed_scene",
+		"shared_cache_bytes": 196751360,
+		"static_memory_bytes": 104988568.0,
+		"timing_scopes": {
+			"attachment": "process_lifetime",
+			"cache": "cache_lifetime",
+			"preparation_stages": "this_view"
+		},
+		"video_memory_bytes": 115474432.0,
+		"view": {
+			"fov": 68.0,
+			"name": "main-street",
+			"position_m": [
+				140.0,
+				10.7,
+				350.0
+			],
+			"quality": 2,
+			"target_m": [
+				215.0,
+				11.0,
+				350.0
+			],
+			"time_minutes": 840.0,
+			"view_distance_m": 384.0
+		},
+		"viewport_render_cpu": {
+			"max_ms": 1.02799999713898,
+			"p50_ms": 0.794000029563904,
+			"p95_ms": 0.885999977588654,
+			"p99_ms": 1.02799999713898,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"viewport_render_gpu": {
+			"max_ms": null,
+			"p50_ms": null,
+			"p95_ms": null,
+			"p99_ms": null,
+			"positive_samples": 0,
+			"samples": 60,
+			"status": "unavailable"
+		},
+		"warmup_frames": 20
+	},
+	{
+		"assessment": {
+			"driving": "not_measured",
+			"fixed_scene": "pass",
+			"p95_limit_ms": 16.7,
+			"p95_pass": true,
+			"p99_limit_ms": 33.3,
+			"p99_pass": true
+		},
+		"attachment": {
+			"advance_usec": 200102,
+			"phase_peak_usec": {
+				"environment_preparation": 11,
+				"instance_upload": 50,
+				"mesh_upload": 5029,
+				"multimesh_setup": 86,
+				"template_preparation": 2355
+			},
+			"phase_usec": {
+				"environment_preparation": 561,
+				"instance_upload": 5828,
+				"mesh_upload": 45731,
+				"multimesh_setup": 7220,
+				"template_preparation": 140762
+			},
+			"release_usec": 396,
+			"steps": 1836
+		},
+		"cache": {
+			"bytes": 97619456,
+			"entries": 10,
+			"hits": 31,
+			"import_usec": 6708,
+			"imports": 10,
+			"peak_import_usec": 1432,
+			"preparation_peak_usec": {
+				"import": 1432,
+				"instance_parts": 19,
+				"lod": 9,
+				"lod_generate": 1249,
+				"lod_get_mesh": 246,
+				"lod_surface": 2346,
+				"material_surface": 30,
+				"materials": 2,
+				"mipmap_upload": 320,
+				"occluder": 196,
+				"texture_load": 7249
+			},
+			"preparation_usec": {
+				"import": 6708,
+				"instance_parts": 158,
+				"lod": 102,
+				"lod_generate": 3516,
+				"lod_get_mesh": 1330,
+				"lod_surface": 19696,
+				"material_surface": 657,
+				"materials": 20,
+				"mipmap_upload": 2865,
+				"occluder": 736,
+				"texture_load": 70890
+			}
+		},
+		"cache_activity": {
+			"hits": 31,
+			"imports": 10
+		},
+		"cache_limit_bytes": 536870912,
+		"cache_policy": "cold_scene",
+		"cell_prepare_p95_ms": 23.269,
+		"cell_prepare_p99_ms": 70.763,
+		"consumer_memory": {
+			"display_reserved_bytes": 402886144,
+			"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+		},
+		"device": "Apple M1 (Apple7)",
+		"engine_process_cpu": {
+			"p95_ms": null,
+			"p99_ms": null,
+			"reason": "requires --engine-profiler and one profiler callback per measured frame",
+			"samples": 0,
+			"status": "unavailable"
+		},
+		"environment": {
+			"automatic_quality": false,
+			"cpu": "Apple M1",
+			"device": "Apple M1 (Apple7)",
+			"directional_shadow_size": 2048,
+			"display": "macOS",
+			"driver": "metal",
+			"engine": "4.7.2-stable (official)",
+			"internal_render_size": [
+				1440,
+				900
+			],
+			"max_fps": 0,
+			"occlusion": true,
+			"os": "macOS",
+			"positional_shadow_size": 1024,
+			"renderer": "mobile",
+			"scale_3d": 1.0,
+			"screen_size": [
+				2880,
+				1800
+			],
+			"viewport_size": [
+				1440,
+				900
+			],
+			"vsync_mode": 0,
+			"window_size": [
+				1440,
+				900
+			]
+		},
+		"far_cells": 57,
+		"far_display_triangles": 68317,
+		"frame_interval": {
+			"max_ms": 8.976,
+			"p50_ms": 8.598,
+			"p95_ms": 8.877,
+			"p99_ms": 8.976,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"frame_p95_ms": 8.877,
+		"frame_p99_ms": 8.976,
+		"image": "/tmp/miniearthure-compact-worlds-20261014/images-v6/village/village-farm-road.png",
+		"largest_far_cell_bytes": 4451520,
+		"measured_frames": 60,
+		"memory_before": {
+			"nodes": 7.0,
+			"resources": 73.0,
+			"static_memory_bytes": 92101228.0,
+			"video_memory_bytes": 81657856.0
+		},
+		"near_cells": 51,
+		"near_collision_triangles": 38602,
+		"nodes": 498.0,
+		"package_sha256": "cbf2dbc344a9c0e620126368940c590e73207e05ef137e7be41a37486e9fffe3",
+		"preparation": "ready",
+		"preparation_ms": 1063,
+		"preparation_stages": {
+			"cache/import": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1432,
+				"samples": 10,
+				"total_usec": 6708
+			},
+			"cache/instance_parts": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"representation": "near"
+				},
+				"peak_usec": 19,
+				"samples": 10,
+				"total_usec": 158
+			},
+			"cache/lod": {
+				"peak_context": {
+					"asset_id": "authored-shrub",
+					"cell": [
+						14,
+						11
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 5
+				},
+				"peak_usec": 9,
+				"samples": 23,
+				"total_usec": 102
+			},
+			"cache/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 1249,
+				"samples": 10,
+				"total_usec": 3516
+			},
+			"cache/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 246,
+				"samples": 10,
+				"total_usec": 1330
+			},
+			"cache/lod_surface": {
+				"peak_context": {
+					"asset_id": "authored-shed",
+					"cell": [
+						14,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 4
+				},
+				"peak_usec": 2346,
+				"samples": 48,
+				"total_usec": 19696
+			},
+			"cache/material_surface": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						14,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 30,
+				"samples": 48,
+				"total_usec": 657
+			},
+			"cache/materials": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						14,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 2,
+				"samples": 10,
+				"total_usec": 20
+			},
+			"cache/mipmap_upload": {
+				"peak_context": {
+					"cell": [
+						18,
+						4
+					],
+					"representation": "far"
+				},
+				"peak_usec": 320,
+				"samples": 10,
+				"total_usec": 2865
+			},
+			"cache/occluder": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 196,
+				"samples": 10,
+				"total_usec": 736
+			},
+			"cache/texture_load": {
+				"peak_context": {
+					"cell": [
+						18,
+						4
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7249,
+				"samples": 10,
+				"total_usec": 70890
+			},
+			"environment_update": {
+				"peak_context": {},
+				"peak_usec": 188,
+				"samples": 1,
+				"total_usec": 188
+			},
+			"far/advance": {
+				"peak_context": {
+					"cell": [
+						18,
+						4
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7558,
+				"samples": 303,
+				"total_usec": 103805
+			},
+			"far/begin": {
+				"peak_context": {
+					"cell": [
+						17,
+						9
+					],
+					"representation": "far"
+				},
+				"peak_usec": 72,
+				"samples": 57,
+				"total_usec": 2198
+			},
+			"far/generation": {
+				"peak_context": {
+					"cell": [
+						17,
+						7
+					],
+					"representation": "far"
+				},
+				"peak_usec": 67909,
+				"samples": 57,
+				"total_usec": 365912
+			},
+			"mesh/lod_add_surface": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						14,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 4,
+				"samples": 48,
+				"total_usec": 80
+			},
+			"mesh/lod_arrays": {
+				"peak_context": {
+					"asset_id": "authored-shed",
+					"cell": [
+						14,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 4
+				},
+				"peak_usec": 2326,
+				"samples": 48,
+				"total_usec": 19149
+			},
+			"mesh/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 1244,
+				"samples": 10,
+				"total_usec": 3474
+			},
+			"mesh/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 205,
+				"samples": 10,
+				"total_usec": 1012
+			},
+			"mesh/material_bind": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						14,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 9,
+				"samples": 48,
+				"total_usec": 131
+			},
+			"mesh/material_finalize": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						14,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 5,
+					"surfaces": 6
+				},
+				"peak_usec": 3,
+				"samples": 10,
+				"total_usec": 22
+			},
+			"mesh/material_source_release": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						14,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 4,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 48,
+				"total_usec": 7
+			},
+			"mesh/material_style": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						14,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 19,
+				"samples": 48,
+				"total_usec": 374
+			},
+			"mesh/material_track": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						14,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 2,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 48,
+				"total_usec": 14
+			},
+			"mesh/occluder_cached_arrays": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						14,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 27,
+				"total_usec": 12
+			},
+			"near/batch_preparation": {
+				"peak_context": {
+					"cell": [
+						14,
+						11
+					],
+					"representation": "near"
+				},
+				"peak_usec": 7707,
+				"samples": 51,
+				"total_usec": 161960
+			},
+			"near/begin": {
+				"peak_context": {
+					"cell": [
+						14,
+						13
+					],
+					"representation": "near"
+				},
+				"peak_usec": 154,
+				"samples": 51,
+				"total_usec": 4293
+			},
+			"near/environment_preparation": {
+				"peak_context": {
+					"cell": [
+						12,
+						14
+					],
+					"representation": "near"
+				},
+				"peak_usec": 13,
+				"samples": 51,
+				"total_usec": 391
+			},
+			"near/generation": {
+				"peak_context": {
+					"cell": [
+						8,
+						11
+					],
+					"representation": "near"
+				},
+				"peak_usec": 13628,
+				"samples": 51,
+				"total_usec": 282723
+			},
+			"near/instance_upload": {
+				"peak_context": {
+					"cell": [
+						14,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 48,
+				"samples": 101,
+				"total_usec": 1826
+			},
+			"near/mesh_upload": {
+				"peak_context": {
+					"cell": [
+						11,
+						8
+					],
+					"representation": "near"
+				},
+				"peak_usec": 5031,
+				"samples": 196,
+				"total_usec": 20563
+			},
+			"near/multimesh_setup": {
+				"peak_context": {
+					"cell": [
+						14,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 76,
+				"samples": 41,
+				"total_usec": 1965
+			},
+			"near/presentation": {
+				"peak_context": {
+					"cell": [
+						8,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 2301,
+				"samples": 51,
+				"total_usec": 56388
+			},
+			"near/template_preparation": {
+				"peak_context": {
+					"asset_id": "authored-shed",
+					"cell": [
+						14,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 4
+				},
+				"peak_usec": 2357,
+				"samples": 227,
+				"total_usec": 35095
+			},
+			"release/far": {
+				"peak_context": {},
+				"peak_usec": 22,
+				"samples": 57,
+				"total_usec": 238
+			},
+			"release/near": {
+				"peak_context": {},
+				"peak_usec": 18,
+				"samples": 51,
+				"total_usec": 316
+			},
+			"release/scene_cache": {
+				"peak_context": {
+					"keep_cache": false
+				},
+				"peak_usec": 118,
+				"samples": 1,
+				"total_usec": 118
+			}
+		},
+		"quality": {
+			"decoration_distance": 192.0,
+			"detail_distance": 160.0,
+			"level": 2,
+			"light_count": 8,
+			"lod_bias": 1.0,
+			"material_detail": 2,
+			"occlusion": true,
+			"particles": 768,
+			"scale": 1.0,
+			"shadow_distance": 160.0,
+			"sky": 2,
+			"surface_effect_distance": 160.0,
+			"texture_size": 512,
+			"vegetation_motion": 1.0,
+			"water": 2,
+			"weather_amount": 1.0
+		},
+		"release": {
+			"cache_bytes": 0,
+			"cache_retained_for_revisit": false,
+			"consumer_memory": {
+				"display_reserved_bytes": 303169536,
+				"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+			},
+			"live_scene_resources": 0,
+			"memory": {
+				"nodes": 7.0,
+				"resources": 73.0,
+				"static_memory_bytes": 92840856.0,
+				"video_memory_bytes": 81657856.0
+			}
+		},
+		"render": {
+			"draw_calls": 273,
+			"objects": 273,
+			"primitives": 96079
+		},
+		"render_setup_cpu": {
+			"max_ms": 0.042,
+			"p50_ms": 0.012,
+			"p95_ms": 0.015,
+			"p99_ms": 0.042,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"repeat": 1,
+		"resolution": [
+			1440,
+			900
+		],
+		"resources": 73.0,
+		"schema_version": 1,
+		"scope": "client_fixed_scene",
+		"shared_cache_bytes": 97619456,
+		"static_memory_bytes": 100835398.0,
+		"timing_scopes": {
+			"attachment": "process_lifetime",
+			"cache": "cache_lifetime",
+			"preparation_stages": "this_view"
+		},
+		"video_memory_bytes": 108806144.0,
+		"view": {
+			"fov": 68.0,
+			"name": "farm-road",
+			"position_m": [
+				282.253415131715,
+				10.7,
+				369.372448004125
+			],
+			"quality": 2,
+			"target_m": [
+				341.180526282398,
+				11.0,
+				387.921490320451
+			],
+			"time_minutes": 840.0,
+			"view_distance_m": 384.0
+		},
+		"viewport_render_cpu": {
+			"max_ms": 0.71399998664856,
+			"p50_ms": 0.574999988079071,
+			"p95_ms": 0.657999992370605,
+			"p99_ms": 0.71399998664856,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"viewport_render_gpu": {
+			"max_ms": null,
+			"p50_ms": null,
+			"p95_ms": null,
+			"p99_ms": null,
+			"positive_samples": 0,
+			"samples": 60,
+			"status": "unavailable"
+		},
+		"warmup_frames": 20
+	},
+	{
+		"assessment": {
+			"driving": "not_measured",
+			"fixed_scene": "pass",
+			"p95_limit_ms": 16.7,
+			"p95_pass": true,
+			"p99_limit_ms": 33.3,
+			"p99_pass": true
+		},
+		"attachment": {
+			"advance_usec": 306680,
+			"phase_peak_usec": {
+				"environment_preparation": 11,
+				"instance_upload": 50,
+				"mesh_upload": 5029,
+				"multimesh_setup": 86,
+				"template_preparation": 2355,
+				"water_upload": 56
+			},
+			"phase_usec": {
+				"environment_preparation": 854,
+				"instance_upload": 10312,
+				"mesh_upload": 71076,
+				"multimesh_setup": 12237,
+				"template_preparation": 211786,
+				"water_upload": 415
+			},
+			"release_usec": 683,
+			"steps": 3009
+		},
+		"cache": {
+			"bytes": 141942784,
+			"entries": 20,
+			"hits": 93,
+			"import_usec": 14444,
+			"imports": 20,
+			"peak_import_usec": 1431,
+			"preparation_peak_usec": {
+				"import": 1431,
+				"instance_parts": 22,
+				"lod": 9,
+				"lod_generate": 1258,
+				"lod_get_mesh": 275,
+				"lod_surface": 839,
+				"material_surface": 24,
+				"materials": 3,
+				"mipmap_upload": 380,
+				"occluder": 232,
+				"texture_load": 7700
+			},
+			"preparation_usec": {
+				"import": 14444,
+				"instance_parts": 325,
+				"lod": 193,
+				"lod_generate": 8291,
+				"lod_get_mesh": 2878,
+				"lod_surface": 37684,
+				"material_surface": 1400,
+				"materials": 41,
+				"mipmap_upload": 3079,
+				"occluder": 1773,
+				"texture_load": 72583
+			}
+		},
+		"cache_activity": {
+			"hits": 93,
+			"imports": 20
+		},
+		"cache_limit_bytes": 536870912,
+		"cache_policy": "cold_scene",
+		"cell_prepare_p95_ms": 35.489,
+		"cell_prepare_p99_ms": 86.396,
+		"consumer_memory": {
+			"display_reserved_bytes": 447209472,
+			"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+		},
+		"device": "Apple M1 (Apple7)",
+		"engine_process_cpu": {
+			"p95_ms": null,
+			"p99_ms": null,
+			"reason": "requires --engine-profiler and one profiler callback per measured frame",
+			"samples": 0,
+			"status": "unavailable"
+		},
+		"environment": {
+			"automatic_quality": false,
+			"cpu": "Apple M1",
+			"device": "Apple M1 (Apple7)",
+			"directional_shadow_size": 2048,
+			"display": "macOS",
+			"driver": "metal",
+			"engine": "4.7.2-stable (official)",
+			"internal_render_size": [
+				1440,
+				900
+			],
+			"max_fps": 0,
+			"occlusion": true,
+			"os": "macOS",
+			"positional_shadow_size": 1024,
+			"renderer": "mobile",
+			"scale_3d": 1.0,
+			"screen_size": [
+				2880,
+				1800
+			],
+			"viewport_size": [
+				1440,
+				900
+			],
+			"vsync_mode": 0,
+			"window_size": [
+				1440,
+				900
+			]
+		},
+		"far_cells": 78,
+		"far_display_triangles": 70242,
+		"frame_interval": {
+			"max_ms": 9.455,
+			"p50_ms": 8.027,
+			"p95_ms": 9.287,
+			"p99_ms": 9.455,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"frame_p95_ms": 9.287,
+		"frame_p99_ms": 9.455,
+		"image": "/tmp/miniearthure-compact-worlds-20261014/images-v6/village/village-nature-road.png",
+		"largest_far_cell_bytes": 1526528,
+		"measured_frames": 60,
+		"memory_before": {
+			"nodes": 7.0,
+			"resources": 73.0,
+			"static_memory_bytes": 92371144.0,
+			"video_memory_bytes": 81657856.0
+		},
+		"near_cells": 55,
+		"near_collision_triangles": 66623,
+		"nodes": 711.0,
+		"package_sha256": "cbf2dbc344a9c0e620126368940c590e73207e05ef137e7be41a37486e9fffe3",
+		"preparation": "ready",
+		"preparation_ms": 1465,
+		"preparation_stages": {
+			"cache/import": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1431,
+				"samples": 20,
+				"total_usec": 14444
+			},
+			"cache/instance_parts": {
+				"peak_context": {
+					"asset_id": "authored-home-5",
+					"cell": [
+						4,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 22,
+				"samples": 20,
+				"total_usec": 325
+			},
+			"cache/lod": {
+				"peak_context": {
+					"asset_id": "authored-tree-0",
+					"cell": [
+						3,
+						1
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 9,
+				"samples": 49,
+				"total_usec": 193
+			},
+			"cache/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 1258,
+				"samples": 20,
+				"total_usec": 8291
+			},
+			"cache/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 275,
+				"samples": 20,
+				"total_usec": 2878
+			},
+			"cache/lod_surface": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						3,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 2
+				},
+				"peak_usec": 839,
+				"samples": 104,
+				"total_usec": 37684
+			},
+			"cache/material_surface": {
+				"peak_context": {
+					"asset_id": "authored-home-5",
+					"cell": [
+						4,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 24,
+				"samples": 104,
+				"total_usec": 1400
+			},
+			"cache/materials": {
+				"peak_context": {
+					"asset_id": "authored-home-5",
+					"cell": [
+						4,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 3,
+				"samples": 20,
+				"total_usec": 41
+			},
+			"cache/mipmap_upload": {
+				"peak_context": {
+					"cell": [
+						0,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 380,
+				"samples": 10,
+				"total_usec": 3079
+			},
+			"cache/occluder": {
+				"peak_context": {
+					"asset_id": "authored-home-5",
+					"cell": [
+						4,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 232,
+				"samples": 20,
+				"total_usec": 1773
+			},
+			"cache/texture_load": {
+				"peak_context": {
+					"cell": [
+						0,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7700,
+				"samples": 10,
+				"total_usec": 72583
+			},
+			"environment_update": {
+				"peak_context": {},
+				"peak_usec": 219,
+				"samples": 1,
+				"total_usec": 219
+			},
+			"far/advance": {
+				"peak_context": {
+					"cell": [
+						0,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7708,
+				"samples": 356,
+				"total_usec": 107344
+			},
+			"far/begin": {
+				"peak_context": {
+					"cell": [
+						7,
+						13
+					],
+					"representation": "far"
+				},
+				"peak_usec": 72,
+				"samples": 78,
+				"total_usec": 2883
+			},
+			"far/generation": {
+				"peak_context": {
+					"cell": [
+						2,
+						10
+					],
+					"representation": "far"
+				},
+				"peak_usec": 19091,
+				"samples": 78,
+				"total_usec": 384902
+			},
+			"mesh/lod_add_surface": {
+				"peak_context": {
+					"asset_id": "authored-bridge-support-high",
+					"cell": [
+						8,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 1
+				},
+				"peak_usec": 4,
+				"samples": 104,
+				"total_usec": 157
+			},
+			"mesh/lod_arrays": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						3,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 2
+				},
+				"peak_usec": 818,
+				"samples": 104,
+				"total_usec": 36585
+			},
+			"mesh/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 1252,
+				"samples": 20,
+				"total_usec": 8202
+			},
+			"mesh/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 228,
+				"samples": 20,
+				"total_usec": 2245
+			},
+			"mesh/material_bind": {
+				"peak_context": {
+					"asset_id": "authored-home-5",
+					"cell": [
+						4,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 8,
+				"samples": 104,
+				"total_usec": 292
+			},
+			"mesh/material_finalize": {
+				"peak_context": {
+					"asset_id": "authored-tree-0",
+					"cell": [
+						3,
+						1
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 5,
+					"surfaces": 6
+				},
+				"peak_usec": 3,
+				"samples": 20,
+				"total_usec": 44
+			},
+			"mesh/material_source_release": {
+				"peak_context": {
+					"asset_id": "authored-tree-1",
+					"cell": [
+						3,
+						1
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 2,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 104,
+				"total_usec": 14
+			},
+			"mesh/material_style": {
+				"peak_context": {
+					"asset_id": "authored-home-5",
+					"cell": [
+						4,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 18,
+				"samples": 104,
+				"total_usec": 807
+			},
+			"mesh/material_track": {
+				"peak_context": {
+					"asset_id": "authored-tree-0",
+					"cell": [
+						3,
+						1
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 4,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 104,
+				"total_usec": 36
+			},
+			"mesh/occluder_cached_arrays": {
+				"peak_context": {
+					"asset_id": "authored-tree-0",
+					"cell": [
+						3,
+						1
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 67,
+				"total_usec": 31
+			},
+			"near/batch_preparation": {
+				"peak_context": {
+					"cell": [
+						8,
+						4
+					],
+					"representation": "near"
+				},
+				"peak_usec": 28959,
+				"samples": 55,
+				"total_usec": 257358
+			},
+			"near/begin": {
+				"peak_context": {
+					"cell": [
+						3,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 239,
+				"samples": 55,
+				"total_usec": 6069
+			},
+			"near/environment_preparation": {
+				"peak_context": {
+					"cell": [
+						3,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 11,
+				"samples": 55,
+				"total_usec": 442
+			},
+			"near/generation": {
+				"peak_context": {
+					"cell": [
+						8,
+						4
+					],
+					"representation": "near"
+				},
+				"peak_usec": 64378,
+				"samples": 55,
+				"total_usec": 495261
+			},
+			"near/instance_upload": {
+				"peak_context": {
+					"cell": [
+						4,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 48,
+				"samples": 257,
+				"total_usec": 4770
+			},
+			"near/mesh_upload": {
+				"peak_context": {
+					"cell": [
+						9,
+						3
+					],
+					"representation": "near"
+				},
+				"peak_usec": 4888,
+				"samples": 239,
+				"total_usec": 25669
+			},
+			"near/multimesh_setup": {
+				"peak_context": {
+					"cell": [
+						4,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 83,
+				"samples": 113,
+				"total_usec": 5168
+			},
+			"near/presentation": {
+				"peak_context": {
+					"cell": [
+						8,
+						4
+					],
+					"representation": "near"
+				},
+				"peak_usec": 3104,
+				"samples": 55,
+				"total_usec": 62337
+			},
+			"near/template_preparation": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1441,
+				"samples": 501,
+				"total_usec": 71674
+			},
+			"near/water_upload": {
+				"peak_context": {
+					"cell": [
+						9,
+						4
+					],
+					"representation": "near"
+				},
+				"peak_usec": 58,
+				"samples": 8,
+				"total_usec": 428
+			},
+			"release/far": {
+				"peak_context": {},
+				"peak_usec": 28,
+				"samples": 78,
+				"total_usec": 292
+			},
+			"release/near": {
+				"peak_context": {},
+				"peak_usec": 30,
+				"samples": 55,
+				"total_usec": 438
+			},
+			"release/scene_cache": {
+				"peak_context": {
+					"keep_cache": false
+				},
+				"peak_usec": 213,
+				"samples": 1,
+				"total_usec": 213
+			}
+		},
+		"quality": {
+			"decoration_distance": 192.0,
+			"detail_distance": 160.0,
+			"level": 2,
+			"light_count": 8,
+			"lod_bias": 1.0,
+			"material_detail": 2,
+			"occlusion": true,
+			"particles": 768,
+			"scale": 1.0,
+			"shadow_distance": 160.0,
+			"sky": 2,
+			"surface_effect_distance": 160.0,
+			"texture_size": 512,
+			"vegetation_motion": 1.0,
+			"water": 2,
+			"weather_amount": 1.0
+		},
+		"release": {
+			"cache_bytes": 0,
+			"cache_retained_for_revisit": false,
+			"consumer_memory": {
+				"display_reserved_bytes": 303169536,
+				"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+			},
+			"live_scene_resources": 0,
+			"memory": {
+				"nodes": 7.0,
+				"resources": 73.0,
+				"static_memory_bytes": 93259980.0,
+				"video_memory_bytes": 81657856.0
+			}
+		},
+		"render": {
+			"draw_calls": 364,
+			"objects": 364,
+			"primitives": 139904
+		},
+		"render_setup_cpu": {
+			"max_ms": 0.02,
+			"p50_ms": 0.013,
+			"p95_ms": 0.018,
+			"p99_ms": 0.02,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"repeat": 1,
+		"resolution": [
+			1440,
+			900
+		],
+		"resources": 73.0,
+		"schema_version": 1,
+		"scope": "client_fixed_scene",
+		"shared_cache_bytes": 141942784,
+		"static_memory_bytes": 103861010.0,
+		"timing_scopes": {
+			"attachment": "process_lifetime",
+			"cache": "cache_lifetime",
+			"preparation_stages": "this_view"
+		},
+		"video_memory_bytes": 111935488.0,
+		"view": {
+			"fov": 68.0,
+			"name": "nature-road",
+			"position_m": [
+				297.683004286154,
+				12.7,
+				129.66540382716
+			],
+			"quality": 2,
+			"target_m": [
+				242.381775049603,
+				13.0,
+				163.823454346744
+			],
+			"time_minutes": 840.0,
+			"view_distance_m": 384.0
+		},
+		"viewport_render_cpu": {
+			"max_ms": 0.962999999523163,
+			"p50_ms": 0.788999974727631,
+			"p95_ms": 0.912999987602234,
+			"p99_ms": 0.962999999523163,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"viewport_render_gpu": {
+			"max_ms": null,
+			"p50_ms": null,
+			"p95_ms": null,
+			"p99_ms": null,
+			"positive_samples": 0,
+			"samples": 60,
+			"status": "unavailable"
+		},
+		"warmup_frames": 20
+	},
+	{
+		"assessment": {
+			"driving": "not_measured",
+			"fixed_scene": "pass",
+			"p95_limit_ms": 16.7,
+			"p95_pass": true,
+			"p99_limit_ms": 33.3,
+			"p99_pass": true
+		},
+		"attachment": {
+			"advance_usec": 355992,
+			"phase_peak_usec": {
+				"environment_preparation": 11,
+				"instance_upload": 50,
+				"mesh_upload": 5029,
+				"multimesh_setup": 90,
+				"template_preparation": 2355,
+				"water_upload": 56
+			},
+			"phase_usec": {
+				"environment_preparation": 1070,
+				"instance_upload": 13130,
+				"mesh_upload": 86464,
+				"multimesh_setup": 15612,
+				"template_preparation": 239012,
+				"water_upload": 704
+			},
+			"release_usec": 1088,
+			"steps": 3618
+		},
+		"cache": {
+			"bytes": 81473792,
+			"entries": 8,
+			"hits": 67,
+			"import_usec": 5155,
+			"imports": 8,
+			"peak_import_usec": 866,
+			"preparation_peak_usec": {
+				"import": 866,
+				"instance_parts": 21,
+				"lod": 10,
+				"lod_generate": 379,
+				"lod_get_mesh": 198,
+				"lod_surface": 889,
+				"material_surface": 33,
+				"materials": 3,
+				"mipmap_upload": 331,
+				"occluder": 77,
+				"texture_load": 7507
+			},
+			"preparation_usec": {
+				"import": 5155,
+				"instance_parts": 134,
+				"lod": 87,
+				"lod_generate": 1923,
+				"lod_get_mesh": 1076,
+				"lod_surface": 15976,
+				"material_surface": 562,
+				"materials": 17,
+				"mipmap_upload": 3160,
+				"occluder": 370,
+				"texture_load": 73696
+			}
+		},
+		"cache_activity": {
+			"hits": 67,
+			"imports": 8
+		},
+		"cache_limit_bytes": 536870912,
+		"cache_policy": "cold_scene",
+		"cell_prepare_p95_ms": 19.154,
+		"cell_prepare_p99_ms": 52.183,
+		"consumer_memory": {
+			"display_reserved_bytes": 386740480,
+			"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+		},
+		"device": "Apple M1 (Apple7)",
+		"engine_process_cpu": {
+			"p95_ms": null,
+			"p99_ms": null,
+			"reason": "requires --engine-profiler and one profiler callback per measured frame",
+			"samples": 0,
+			"status": "unavailable"
+		},
+		"environment": {
+			"automatic_quality": false,
+			"cpu": "Apple M1",
+			"device": "Apple M1 (Apple7)",
+			"directional_shadow_size": 2048,
+			"display": "macOS",
+			"driver": "metal",
+			"engine": "4.7.2-stable (official)",
+			"internal_render_size": [
+				1440,
+				900
+			],
+			"max_fps": 0,
+			"occlusion": true,
+			"os": "macOS",
+			"positional_shadow_size": 1024,
+			"renderer": "mobile",
+			"scale_3d": 1.0,
+			"screen_size": [
+				2880,
+				1800
+			],
+			"viewport_size": [
+				1440,
+				900
+			],
+			"vsync_mode": 0,
+			"window_size": [
+				1440,
+				900
+			]
+		},
+		"far_cells": 79,
+		"far_display_triangles": 100982,
+		"frame_interval": {
+			"max_ms": 9.264,
+			"p50_ms": 7.907,
+			"p95_ms": 9.136,
+			"p99_ms": 9.264,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"frame_p95_ms": 9.136,
+		"frame_p99_ms": 9.264,
+		"image": "/tmp/miniearthure-compact-worlds-20261014/images-v6/village/village-distant.png",
+		"largest_far_cell_bytes": 3547904,
+		"measured_frames": 60,
+		"memory_before": {
+			"nodes": 7.0,
+			"resources": 73.0,
+			"static_memory_bytes": 92548768.0,
+			"video_memory_bytes": 81657856.0
+		},
+		"near_cells": 45,
+		"near_collision_triangles": 30268,
+		"nodes": 622.0,
+		"package_sha256": "cbf2dbc344a9c0e620126368940c590e73207e05ef137e7be41a37486e9fffe3",
+		"preparation": "ready",
+		"preparation_ms": 1074,
+		"preparation_stages": {
+			"cache/import": {
+				"peak_context": {
+					"asset_id": "authored-tree-0",
+					"cell": [
+						10,
+						0
+					],
+					"representation": "near"
+				},
+				"peak_usec": 866,
+				"samples": 8,
+				"total_usec": 5155
+			},
+			"cache/instance_parts": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"representation": "near"
+				},
+				"peak_usec": 21,
+				"samples": 8,
+				"total_usec": 134
+			},
+			"cache/lod": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 10,
+				"samples": 20,
+				"total_usec": 87
+			},
+			"cache/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 379,
+				"samples": 8,
+				"total_usec": 1923
+			},
+			"cache/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 198,
+				"samples": 8,
+				"total_usec": 1076
+			},
+			"cache/lod_surface": {
+				"peak_context": {
+					"asset_id": "authored-tree-4",
+					"cell": [
+						12,
+						2
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 889,
+				"samples": 38,
+				"total_usec": 15976
+			},
+			"cache/material_surface": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 33,
+				"samples": 38,
+				"total_usec": 562
+			},
+			"cache/materials": {
+				"peak_context": {
+					"asset_id": "authored-tree-4",
+					"cell": [
+						12,
+						2
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 3,
+				"samples": 8,
+				"total_usec": 17
+			},
+			"cache/mipmap_upload": {
+				"peak_context": {
+					"cell": [
+						4,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 331,
+				"samples": 10,
+				"total_usec": 3160
+			},
+			"cache/occluder": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						10,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 2
+				},
+				"peak_usec": 77,
+				"samples": 8,
+				"total_usec": 370
+			},
+			"cache/texture_load": {
+				"peak_context": {
+					"cell": [
+						4,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7507,
+				"samples": 10,
+				"total_usec": 73696
+			},
+			"environment_update": {
+				"peak_context": {},
+				"peak_usec": 194,
+				"samples": 1,
+				"total_usec": 194
+			},
+			"far/advance": {
+				"peak_context": {
+					"cell": [
+						4,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7670,
+				"samples": 442,
+				"total_usec": 118523
+			},
+			"far/begin": {
+				"peak_context": {
+					"cell": [
+						7,
+						11
+					],
+					"representation": "far"
+				},
+				"peak_usec": 89,
+				"samples": 79,
+				"total_usec": 3305
+			},
+			"far/generation": {
+				"peak_context": {
+					"cell": [
+						8,
+						4
+					],
+					"representation": "far"
+				},
+				"peak_usec": 49854,
+				"samples": 79,
+				"total_usec": 471385
+			},
+			"mesh/lod_add_surface": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 3,
+				"samples": 38,
+				"total_usec": 71
+			},
+			"mesh/lod_arrays": {
+				"peak_context": {
+					"asset_id": "authored-tree-4",
+					"cell": [
+						12,
+						2
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 868,
+				"samples": 38,
+				"total_usec": 15484
+			},
+			"mesh/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 372,
+				"samples": 8,
+				"total_usec": 1887
+			},
+			"mesh/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 148,
+				"samples": 8,
+				"total_usec": 793
+			},
+			"mesh/material_bind": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 12,
+				"samples": 38,
+				"total_usec": 123
+			},
+			"mesh/material_finalize": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 5,
+					"surfaces": 6
+				},
+				"peak_usec": 4,
+				"samples": 8,
+				"total_usec": 18
+			},
+			"mesh/material_source_release": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 38,
+				"total_usec": 12
+			},
+			"mesh/material_style": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 24,
+				"samples": 38,
+				"total_usec": 328
+			},
+			"mesh/material_track": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 1,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 38,
+				"total_usec": 13
+			},
+			"mesh/occluder_cached_arrays": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						10,
+						0
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 7,
+				"total_usec": 6
+			},
+			"near/batch_preparation": {
+				"peak_context": {
+					"cell": [
+						10,
+						3
+					],
+					"representation": "near"
+				},
+				"peak_usec": 12891,
+				"samples": 45,
+				"total_usec": 126737
+			},
+			"near/begin": {
+				"peak_context": {
+					"cell": [
+						11,
+						0
+					],
+					"representation": "near"
+				},
+				"peak_usec": 188,
+				"samples": 45,
+				"total_usec": 4064
+			},
+			"near/environment_preparation": {
+				"peak_context": {
+					"cell": [
+						10,
+						0
+					],
+					"representation": "near"
+				},
+				"peak_usec": 10,
+				"samples": 45,
+				"total_usec": 316
+			},
+			"near/generation": {
+				"peak_context": {
+					"cell": [
+						10,
+						3
+					],
+					"representation": "near"
+				},
+				"peak_usec": 29987,
+				"samples": 45,
+				"total_usec": 229120
+			},
+			"near/instance_upload": {
+				"peak_context": {
+					"cell": [
+						10,
+						0
+					],
+					"representation": "near"
+				},
+				"peak_usec": 52,
+				"samples": 141,
+				"total_usec": 2973
+			},
+			"near/mesh_upload": {
+				"peak_context": {
+					"cell": [
+						10,
+						2
+					],
+					"representation": "near"
+				},
+				"peak_usec": 4746,
+				"samples": 119,
+				"total_usec": 15542
+			},
+			"near/multimesh_setup": {
+				"peak_context": {
+					"cell": [
+						10,
+						0
+					],
+					"representation": "near"
+				},
+				"peak_usec": 92,
+				"samples": 75,
+				"total_usec": 3471
+			},
+			"near/presentation": {
+				"peak_context": {
+					"cell": [
+						10,
+						3
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1951,
+				"samples": 45,
+				"total_usec": 38015
+			},
+			"near/template_preparation": {
+				"peak_context": {
+					"asset_id": "authored-tree-4",
+					"cell": [
+						12,
+						2
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 900,
+				"samples": 223,
+				"total_usec": 27516
+			},
+			"near/water_upload": {
+				"peak_context": {
+					"cell": [
+						15,
+						4
+					],
+					"representation": "near"
+				},
+				"peak_usec": 51,
+				"samples": 6,
+				"total_usec": 299
+			},
+			"release/far": {
+				"peak_context": {},
+				"peak_usec": 26,
+				"samples": 79,
+				"total_usec": 320
+			},
+			"release/near": {
+				"peak_context": {},
+				"peak_usec": 29,
+				"samples": 45,
+				"total_usec": 317
+			},
+			"release/scene_cache": {
+				"peak_context": {
+					"keep_cache": false
+				},
+				"peak_usec": 125,
+				"samples": 1,
+				"total_usec": 125
+			}
+		},
+		"quality": {
+			"decoration_distance": 192.0,
+			"detail_distance": 160.0,
+			"level": 2,
+			"light_count": 8,
+			"lod_bias": 1.0,
+			"material_detail": 2,
+			"occlusion": true,
+			"particles": 768,
+			"scale": 1.0,
+			"shadow_distance": 160.0,
+			"sky": 2,
+			"surface_effect_distance": 160.0,
+			"texture_size": 512,
+			"vegetation_motion": 1.0,
+			"water": 2,
+			"weather_amount": 1.0
+		},
+		"release": {
+			"cache_bytes": 0,
+			"cache_retained_for_revisit": false,
+			"consumer_memory": {
+				"display_reserved_bytes": 303169536,
+				"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+			},
+			"live_scene_resources": 0,
+			"memory": {
+				"nodes": 7.0,
+				"resources": 73.0,
+				"static_memory_bytes": 93203088.0,
+				"video_memory_bytes": 81526784.0
+			}
+		},
+		"render": {
+			"draw_calls": 344,
+			"objects": 344,
+			"primitives": 132440
+		},
+		"render_setup_cpu": {
+			"max_ms": 0.023,
+			"p50_ms": 0.015,
+			"p95_ms": 0.019,
+			"p99_ms": 0.023,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"repeat": 1,
+		"resolution": [
+			1440,
+			900
+		],
+		"resources": 73.0,
+		"schema_version": 1,
+		"scope": "client_fixed_scene",
+		"shared_cache_bytes": 81473792,
+		"static_memory_bytes": 101278494.0,
+		"timing_scopes": {
+			"attachment": "process_lifetime",
+			"cache": "cache_lifetime",
+			"preparation_stages": "this_view"
+		},
+		"video_memory_bytes": 111886336.0,
+		"view": {
+			"fov": 68.0,
+			"name": "distant",
+			"position_m": [
+				514.0,
+				12.7,
+				85.0
+			],
+			"quality": 2,
+			"target_m": [
+				419.0,
+				13.0,
+				85.0
+			],
+			"time_minutes": 840.0,
+			"view_distance_m": 384.0
+		},
+		"viewport_render_cpu": {
+			"max_ms": 0.916999995708466,
+			"p50_ms": 0.725000023841858,
+			"p95_ms": 0.795000016689301,
+			"p99_ms": 0.916999995708466,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"viewport_render_gpu": {
+			"max_ms": null,
+			"p50_ms": null,
+			"p95_ms": null,
+			"p99_ms": null,
+			"positive_samples": 0,
+			"samples": 60,
+			"status": "unavailable"
+		},
+		"warmup_frames": 20
+	},
+	{
+		"assessment": {
+			"driving": "not_measured",
+			"fixed_scene": "pass",
+			"p95_limit_ms": 16.7,
+			"p95_pass": true,
+			"p99_limit_ms": 33.3,
+			"p99_pass": true
+		},
+		"attachment": {
+			"advance_usec": 440175,
+			"phase_peak_usec": {
+				"environment_preparation": 11,
+				"instance_upload": 50,
+				"mesh_upload": 5029,
+				"multimesh_setup": 90,
+				"template_preparation": 2355,
+				"water_upload": 56
+			},
+			"phase_usec": {
+				"environment_preparation": 1339,
+				"instance_upload": 15161,
+				"mesh_upload": 109517,
+				"multimesh_setup": 18019,
+				"template_preparation": 295435,
+				"water_upload": 704
+			},
+			"release_usec": 1383,
+			"steps": 4405
+		},
+		"cache": {
+			"bytes": 118663424,
+			"entries": 15,
+			"hits": 35,
+			"import_usec": 10629,
+			"imports": 15,
+			"peak_import_usec": 1496,
+			"preparation_peak_usec": {
+				"import": 1496,
+				"instance_parts": 22,
+				"lod": 9,
+				"lod_generate": 1272,
+				"lod_get_mesh": 305,
+				"lod_surface": 874,
+				"material_surface": 27,
+				"materials": 3,
+				"mipmap_upload": 301,
+				"occluder": 212,
+				"texture_load": 7313
+			},
+			"preparation_usec": {
+				"import": 10629,
+				"instance_parts": 239,
+				"lod": 151,
+				"lod_generate": 5823,
+				"lod_get_mesh": 2119,
+				"lod_surface": 32428,
+				"material_surface": 1064,
+				"materials": 30,
+				"mipmap_upload": 2900,
+				"occluder": 1256,
+				"texture_load": 71115
+			}
+		},
+		"cache_activity": {
+			"hits": 35,
+			"imports": 15
+		},
+		"cache_limit_bytes": 536870912,
+		"cache_policy": "cold_scene",
+		"cell_prepare_p95_ms": 22.438,
+		"cell_prepare_p99_ms": 68.954,
+		"consumer_memory": {
+			"display_reserved_bytes": 423930112,
+			"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+		},
+		"device": "Apple M1 (Apple7)",
+		"engine_process_cpu": {
+			"p95_ms": null,
+			"p99_ms": null,
+			"reason": "requires --engine-profiler and one profiler callback per measured frame",
+			"samples": 0,
+			"status": "unavailable"
+		},
+		"environment": {
+			"automatic_quality": false,
+			"cpu": "Apple M1",
+			"device": "Apple M1 (Apple7)",
+			"directional_shadow_size": 2048,
+			"display": "macOS",
+			"driver": "metal",
+			"engine": "4.7.2-stable (official)",
+			"internal_render_size": [
+				1440,
+				900
+			],
+			"max_fps": 0,
+			"occlusion": true,
+			"os": "macOS",
+			"positional_shadow_size": 1024,
+			"renderer": "mobile",
+			"scale_3d": 1.0,
+			"screen_size": [
+				2880,
+				1800
+			],
+			"viewport_size": [
+				1440,
+				900
+			],
+			"vsync_mode": 0,
+			"window_size": [
+				1440,
+				900
+			]
+		},
+		"far_cells": 83,
+		"far_display_triangles": 97633,
+		"frame_interval": {
+			"max_ms": 9.019,
+			"p50_ms": 8.742,
+			"p95_ms": 8.982,
+			"p99_ms": 9.019,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"frame_p95_ms": 8.982,
+		"frame_p99_ms": 9.019,
+		"image": "/tmp/miniearthure-compact-worlds-20261014/images-v6/village/village-special-branch.png",
+		"largest_far_cell_bytes": 4451520,
+		"measured_frames": 60,
+		"memory_before": {
+			"nodes": 7.0,
+			"resources": 73.0,
+			"static_memory_bytes": 92615248.0,
+			"video_memory_bytes": 81526784.0
+		},
+		"near_cells": 55,
+		"near_collision_triangles": 43656,
+		"nodes": 645.0,
+		"package_sha256": "cbf2dbc344a9c0e620126368940c590e73207e05ef137e7be41a37486e9fffe3",
+		"preparation": "ready",
+		"preparation_ms": 1295,
+		"preparation_stages": {
+			"cache/import": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1496,
+				"samples": 15,
+				"total_usec": 10629
+			},
+			"cache/instance_parts": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"representation": "near"
+				},
+				"peak_usec": 22,
+				"samples": 15,
+				"total_usec": 239
+			},
+			"cache/lod": {
+				"peak_context": {
+					"asset_id": "authored-grass",
+					"cell": [
+						8,
+						12
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 1
+				},
+				"peak_usec": 9,
+				"samples": 36,
+				"total_usec": 151
+			},
+			"cache/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 1272,
+				"samples": 15,
+				"total_usec": 5823
+			},
+			"cache/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 305,
+				"samples": 15,
+				"total_usec": 2119
+			},
+			"cache/lod_surface": {
+				"peak_context": {
+					"asset_id": "authored-grass",
+					"cell": [
+						8,
+						12
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 1
+				},
+				"peak_usec": 874,
+				"samples": 78,
+				"total_usec": 32428
+			},
+			"cache/material_surface": {
+				"peak_context": {
+					"asset_id": "authored-home-0",
+					"cell": [
+						9,
+						8
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 10
+				},
+				"peak_usec": 27,
+				"samples": 78,
+				"total_usec": 1064
+			},
+			"cache/materials": {
+				"peak_context": {
+					"asset_id": "authored-tractor",
+					"cell": [
+						14,
+						12
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 4
+				},
+				"peak_usec": 3,
+				"samples": 15,
+				"total_usec": 30
+			},
+			"cache/mipmap_upload": {
+				"peak_context": {
+					"cell": [
+						15,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 301,
+				"samples": 10,
+				"total_usec": 2900
+			},
+			"cache/occluder": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 212,
+				"samples": 15,
+				"total_usec": 1256
+			},
+			"cache/texture_load": {
+				"peak_context": {
+					"cell": [
+						15,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7313,
+				"samples": 10,
+				"total_usec": 71115
+			},
+			"environment_update": {
+				"peak_context": {},
+				"peak_usec": 223,
+				"samples": 1,
+				"total_usec": 223
+			},
+			"far/advance": {
+				"peak_context": {
+					"cell": [
+						15,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7600,
+				"samples": 438,
+				"total_usec": 112536
+			},
+			"far/begin": {
+				"peak_context": {
+					"cell": [
+						17,
+						10
+					],
+					"representation": "far"
+				},
+				"peak_usec": 70,
+				"samples": 83,
+				"total_usec": 2804
+			},
+			"far/generation": {
+				"peak_context": {
+					"cell": [
+						17,
+						7
+					],
+					"representation": "far"
+				},
+				"peak_usec": 66090,
+				"samples": 83,
+				"total_usec": 476758
+			},
+			"mesh/lod_add_surface": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 3,
+					"surfaces": 9
+				},
+				"peak_usec": 4,
+				"samples": 78,
+				"total_usec": 123
+			},
+			"mesh/lod_arrays": {
+				"peak_context": {
+					"asset_id": "authored-grass",
+					"cell": [
+						8,
+						12
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 1
+				},
+				"peak_usec": 852,
+				"samples": 78,
+				"total_usec": 31576
+			},
+			"mesh/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 1261,
+				"samples": 15,
+				"total_usec": 5751
+			},
+			"mesh/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 253,
+				"samples": 15,
+				"total_usec": 1653
+			},
+			"mesh/material_bind": {
+				"peak_context": {
+					"asset_id": "authored-home-0",
+					"cell": [
+						9,
+						8
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 10
+				},
+				"peak_usec": 9,
+				"samples": 78,
+				"total_usec": 216
+			},
+			"mesh/material_finalize": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 8,
+					"surfaces": 9
+				},
+				"peak_usec": 4,
+				"samples": 15,
+				"total_usec": 28
+			},
+			"mesh/material_source_release": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						11,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 4,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 78,
+				"total_usec": 19
+			},
+			"mesh/material_style": {
+				"peak_context": {
+					"asset_id": "authored-home-0",
+					"cell": [
+						9,
+						8
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 10
+				},
+				"peak_usec": 19,
+				"samples": 78,
+				"total_usec": 608
+			},
+			"mesh/material_track": {
+				"peak_context": {
+					"asset_id": "authored-tree-4",
+					"cell": [
+						11,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 78,
+				"total_usec": 26
+			},
+			"mesh/occluder_cached_arrays": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						11,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 52,
+				"total_usec": 25
+			},
+			"near/batch_preparation": {
+				"peak_context": {
+					"cell": [
+						14,
+						11
+					],
+					"representation": "near"
+				},
+				"peak_usec": 7726,
+				"samples": 55,
+				"total_usec": 180121
+			},
+			"near/begin": {
+				"peak_context": {
+					"cell": [
+						9,
+						8
+					],
+					"representation": "near"
+				},
+				"peak_usec": 222,
+				"samples": 55,
+				"total_usec": 4777
+			},
+			"near/environment_preparation": {
+				"peak_context": {
+					"cell": [
+						11,
+						8
+					],
+					"representation": "near"
+				},
+				"peak_usec": 10,
+				"samples": 55,
+				"total_usec": 415
+			},
+			"near/generation": {
+				"peak_context": {
+					"cell": [
+						7,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 13328,
+				"samples": 55,
+				"total_usec": 332295
+			},
+			"near/instance_upload": {
+				"peak_context": {
+					"cell": [
+						12,
+						13
+					],
+					"representation": "near"
+				},
+				"peak_usec": 48,
+				"samples": 119,
+				"total_usec": 2171
+			},
+			"near/mesh_upload": {
+				"peak_context": {
+					"cell": [
+						10,
+						7
+					],
+					"representation": "near"
+				},
+				"peak_usec": 4978,
+				"samples": 222,
+				"total_usec": 23348
+			},
+			"near/multimesh_setup": {
+				"peak_context": {
+					"cell": [
+						12,
+						13
+					],
+					"representation": "near"
+				},
+				"peak_usec": 86,
+				"samples": 50,
+				"total_usec": 2475
+			},
+			"near/presentation": {
+				"peak_context": {
+					"cell": [
+						8,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 2266,
+				"samples": 55,
+				"total_usec": 66370
+			},
+			"near/template_preparation": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						12,
+						13
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1506,
+				"samples": 341,
+				"total_usec": 56870
+			},
+			"release/far": {
+				"peak_context": {},
+				"peak_usec": 26,
+				"samples": 83,
+				"total_usec": 397
+			},
+			"release/near": {
+				"peak_context": {},
+				"peak_usec": 31,
+				"samples": 55,
+				"total_usec": 384
+			},
+			"release/scene_cache": {
+				"peak_context": {
+					"keep_cache": false
+				},
+				"peak_usec": 177,
+				"samples": 1,
+				"total_usec": 177
+			}
+		},
+		"quality": {
+			"decoration_distance": 192.0,
+			"detail_distance": 160.0,
+			"level": 2,
+			"light_count": 8,
+			"lod_bias": 1.0,
+			"material_detail": 2,
+			"occlusion": true,
+			"particles": 768,
+			"scale": 1.0,
+			"shadow_distance": 160.0,
+			"sky": 2,
+			"surface_effect_distance": 160.0,
+			"texture_size": 512,
+			"vegetation_motion": 1.0,
+			"water": 2,
+			"weather_amount": 1.0
+		},
+		"release": {
+			"cache_bytes": 0,
+			"cache_retained_for_revisit": false,
+			"consumer_memory": {
+				"display_reserved_bytes": 303169536,
+				"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+			},
+			"live_scene_resources": 0,
+			"memory": {
+				"nodes": 7.0,
+				"resources": 73.0,
+				"static_memory_bytes": 93318068.0,
+				"video_memory_bytes": 81788928.0
+			}
+		},
+		"render": {
+			"draw_calls": 352,
+			"objects": 352,
+			"primitives": 129008
+		},
+		"render_setup_cpu": {
+			"max_ms": 0.021,
+			"p50_ms": 0.014,
+			"p95_ms": 0.019,
+			"p99_ms": 0.021,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"repeat": 1,
+		"resolution": [
+			1440,
+			900
+		],
+		"resources": 73.0,
+		"schema_version": 1,
+		"scope": "client_fixed_scene",
+		"shared_cache_bytes": 118663424,
+		"static_memory_bytes": 103565520.0,
+		"timing_scopes": {
+			"attachment": "process_lifetime",
+			"cache": "cache_lifetime",
+			"preparation_stages": "this_view"
+		},
+		"video_memory_bytes": 113229824.0,
+		"view": {
+			"fov": 68.0,
+			"name": "special-branch",
+			"position_m": [
+				272.0,
+				10.7,
+				350.0
+			],
+			"quality": 2,
+			"target_m": [
+				408.0,
+				11.0,
+				350.0
+			],
+			"time_minutes": 840.0,
+			"view_distance_m": 384.0
+		},
+		"viewport_render_cpu": {
+			"max_ms": 0.765999972820282,
+			"p50_ms": 0.666000008583069,
+			"p95_ms": 0.707000017166138,
+			"p99_ms": 0.765999972820282,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"viewport_render_gpu": {
+			"max_ms": null,
+			"p50_ms": null,
+			"p95_ms": null,
+			"p99_ms": null,
+			"positive_samples": 0,
+			"samples": 60,
+			"status": "unavailable"
+		},
+		"warmup_frames": 20
+	},
+	{
+		"assessment": {
+			"driving": "not_measured",
+			"fixed_scene": "pass",
+			"p95_limit_ms": 16.7,
+			"p95_pass": true,
+			"p99_limit_ms": 33.3,
+			"p99_pass": true
+		},
+		"attachment": {
+			"advance_usec": 582933,
+			"phase_peak_usec": {
+				"environment_preparation": 11,
+				"instance_upload": 50,
+				"mesh_upload": 5029,
+				"multimesh_setup": 90,
+				"template_preparation": 2355,
+				"water_upload": 57
+			},
+			"phase_usec": {
+				"environment_preparation": 1614,
+				"instance_upload": 20392,
+				"mesh_upload": 133993,
+				"multimesh_setup": 23759,
+				"template_preparation": 402309,
+				"water_upload": 866
+			},
+			"release_usec": 1738,
+			"steps": 5802
+		},
+		"cache": {
+			"bytes": 198809088,
+			"entries": 25,
+			"hits": 111,
+			"import_usec": 20881,
+			"imports": 25,
+			"peak_import_usec": 1458,
+			"preparation_peak_usec": {
+				"import": 1458,
+				"instance_parts": 19,
+				"lod": 9,
+				"lod_generate": 1241,
+				"lod_get_mesh": 254,
+				"lod_surface": 822,
+				"material_surface": 23,
+				"materials": 3,
+				"mipmap_upload": 320,
+				"occluder": 275,
+				"texture_load": 7334
+			},
+			"preparation_usec": {
+				"import": 20881,
+				"instance_parts": 387,
+				"lod": 240,
+				"lod_generate": 13642,
+				"lod_get_mesh": 3856,
+				"lod_surface": 58061,
+				"material_surface": 1846,
+				"materials": 48,
+				"mipmap_upload": 2958,
+				"occluder": 2815,
+				"texture_load": 72028
+			}
+		},
+		"cache_activity": {
+			"hits": 111,
+			"imports": 25
+		},
+		"cache_limit_bytes": 536870912,
+		"cache_policy": "cold_scene",
+		"cell_prepare_p95_ms": 29.486,
+		"cell_prepare_p99_ms": 53.195,
+		"consumer_memory": {
+			"display_reserved_bytes": 504075776,
+			"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+		},
+		"device": "Apple M1 (Apple7)",
+		"engine_process_cpu": {
+			"p95_ms": null,
+			"p99_ms": null,
+			"reason": "requires --engine-profiler and one profiler callback per measured frame",
+			"samples": 0,
+			"status": "unavailable"
+		},
+		"environment": {
+			"automatic_quality": false,
+			"cpu": "Apple M1",
+			"device": "Apple M1 (Apple7)",
+			"directional_shadow_size": 2048,
+			"display": "macOS",
+			"driver": "metal",
+			"engine": "4.7.2-stable (official)",
+			"internal_render_size": [
+				1440,
+				900
+			],
+			"max_fps": 0,
+			"occlusion": true,
+			"os": "macOS",
+			"positional_shadow_size": 1024,
+			"renderer": "mobile",
+			"scale_3d": 1.0,
+			"screen_size": [
+				2880,
+				1800
+			],
+			"viewport_size": [
+				1440,
+				900
+			],
+			"vsync_mode": 0,
+			"window_size": [
+				1440,
+				900
+			]
+		},
+		"far_cells": 88,
+		"far_display_triangles": 87086,
+		"frame_interval": {
+			"max_ms": 9.869,
+			"p50_ms": 8.263,
+			"p95_ms": 9.44,
+			"p99_ms": 9.869,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"frame_p95_ms": 9.44,
+		"frame_p99_ms": 9.869,
+		"image": "/tmp/miniearthure-compact-worlds-20261014/images-v6/village/village-landmark.png",
+		"largest_far_cell_bytes": 3547904,
+		"measured_frames": 60,
+		"memory_before": {
+			"nodes": 7.0,
+			"resources": 73.0,
+			"static_memory_bytes": 92688996.0,
+			"video_memory_bytes": 81788928.0
+		},
+		"near_cells": 57,
+		"near_collision_triangles": 57082,
+		"nodes": 832.0,
+		"package_sha256": "cbf2dbc344a9c0e620126368940c590e73207e05ef137e7be41a37486e9fffe3",
+		"preparation": "ready",
+		"preparation_ms": 1393,
+		"preparation_stages": {
+			"cache/import": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1458,
+				"samples": 25,
+				"total_usec": 20881
+			},
+			"cache/instance_parts": {
+				"peak_context": {
+					"asset_id": "authored-home-0",
+					"cell": [
+						9,
+						8
+					],
+					"representation": "near"
+				},
+				"peak_usec": 19,
+				"samples": 25,
+				"total_usec": 387
+			},
+			"cache/lod": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						4,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 2
+				},
+				"peak_usec": 9,
+				"samples": 63,
+				"total_usec": 240
+			},
+			"cache/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 1241,
+				"samples": 25,
+				"total_usec": 13642
+			},
+			"cache/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 254,
+				"samples": 25,
+				"total_usec": 3856
+			},
+			"cache/lod_surface": {
+				"peak_context": {
+					"asset_id": "authored-shrub",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 5
+				},
+				"peak_usec": 822,
+				"samples": 143,
+				"total_usec": 58061
+			},
+			"cache/material_surface": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						4,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 2
+				},
+				"peak_usec": 23,
+				"samples": 143,
+				"total_usec": 1846
+			},
+			"cache/materials": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						4,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 2
+				},
+				"peak_usec": 3,
+				"samples": 25,
+				"total_usec": 48
+			},
+			"cache/mipmap_upload": {
+				"peak_context": {
+					"cell": [
+						0,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 320,
+				"samples": 10,
+				"total_usec": 2958
+			},
+			"cache/occluder": {
+				"peak_context": {
+					"asset_id": "authored-market-hall",
+					"cell": [
+						5,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 275,
+				"samples": 25,
+				"total_usec": 2815
+			},
+			"cache/texture_load": {
+				"peak_context": {
+					"cell": [
+						0,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7334,
+				"samples": 10,
+				"total_usec": 72028
+			},
+			"environment_update": {
+				"peak_context": {},
+				"peak_usec": 189,
+				"samples": 1,
+				"total_usec": 189
+			},
+			"far/advance": {
+				"peak_context": {
+					"cell": [
+						0,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7648,
+				"samples": 452,
+				"total_usec": 113269
+			},
+			"far/begin": {
+				"peak_context": {
+					"cell": [
+						11,
+						2
+					],
+					"representation": "far"
+				},
+				"peak_usec": 68,
+				"samples": 88,
+				"total_usec": 2920
+			},
+			"far/generation": {
+				"peak_context": {
+					"cell": [
+						8,
+						4
+					],
+					"representation": "far"
+				},
+				"peak_usec": 50770,
+				"samples": 88,
+				"total_usec": 379311
+			},
+			"mesh/lod_add_surface": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						4,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 2
+				},
+				"peak_usec": 3,
+				"samples": 143,
+				"total_usec": 203
+			},
+			"mesh/lod_arrays": {
+				"peak_context": {
+					"asset_id": "authored-shrub",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 5
+				},
+				"peak_usec": 804,
+				"samples": 143,
+				"total_usec": 56583
+			},
+			"mesh/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 1235,
+				"samples": 25,
+				"total_usec": 13540
+			},
+			"mesh/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 212,
+				"samples": 25,
+				"total_usec": 3101
+			},
+			"mesh/material_bind": {
+				"peak_context": {
+					"asset_id": "authored-home-5",
+					"cell": [
+						4,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 7,
+				"samples": 143,
+				"total_usec": 352
+			},
+			"mesh/material_finalize": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 7,
+					"surfaces": 8
+				},
+				"peak_usec": 3,
+				"samples": 25,
+				"total_usec": 48
+			},
+			"mesh/material_source_release": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						4,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 2
+				},
+				"peak_usec": 1,
+				"samples": 143,
+				"total_usec": 24
+			},
+			"mesh/material_style": {
+				"peak_context": {
+					"asset_id": "authored-home-5",
+					"cell": [
+						4,
+						5
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 15,
+				"samples": 143,
+				"total_usec": 1046
+			},
+			"mesh/material_track": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						4,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 2
+				},
+				"peak_usec": 1,
+				"samples": 143,
+				"total_usec": 41
+			},
+			"mesh/occluder_cached_arrays": {
+				"peak_context": {
+					"asset_id": "authored-reeds",
+					"cell": [
+						4,
+						4
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 2
+				},
+				"peak_usec": 1,
+				"samples": 111,
+				"total_usec": 46
+			},
+			"near/batch_preparation": {
+				"peak_context": {
+					"cell": [
+						7,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 9511,
+				"samples": 57,
+				"total_usec": 221771
+			},
+			"near/begin": {
+				"peak_context": {
+					"cell": [
+						3,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 190,
+				"samples": 57,
+				"total_usec": 6020
+			},
+			"near/environment_preparation": {
+				"peak_context": {
+					"cell": [
+						4,
+						8
+					],
+					"representation": "near"
+				},
+				"peak_usec": 10,
+				"samples": 57,
+				"total_usec": 408
+			},
+			"near/generation": {
+				"peak_context": {
+					"cell": [
+						7,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 21516,
+				"samples": 57,
+				"total_usec": 411897
+			},
+			"near/instance_upload": {
+				"peak_context": {
+					"cell": [
+						4,
+						8
+					],
+					"representation": "near"
+				},
+				"peak_usec": 51,
+				"samples": 310,
+				"total_usec": 5565
+			},
+			"near/mesh_upload": {
+				"peak_context": {
+					"cell": [
+						3,
+						5
+					],
+					"representation": "near"
+				},
+				"peak_usec": 4879,
+				"samples": 244,
+				"total_usec": 24807
+			},
+			"near/multimesh_setup": {
+				"peak_context": {
+					"cell": [
+						9,
+						8
+					],
+					"representation": "near"
+				},
+				"peak_usec": 78,
+				"samples": 136,
+				"total_usec": 5915
+			},
+			"near/presentation": {
+				"peak_context": {
+					"cell": [
+						8,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 2264,
+				"samples": 57,
+				"total_usec": 72904
+			},
+			"near/template_preparation": {
+				"peak_context": {
+					"asset_id": "authored-home-4",
+					"cell": [
+						7,
+						9
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1467,
+				"samples": 647,
+				"total_usec": 107690
+			},
+			"near/water_upload": {
+				"peak_context": {
+					"cell": [
+						5,
+						4
+					],
+					"representation": "near"
+				},
+				"peak_usec": 59,
+				"samples": 3,
+				"total_usec": 168
+			},
+			"release/far": {
+				"peak_context": {},
+				"peak_usec": 28,
+				"samples": 88,
+				"total_usec": 400
+			},
+			"release/near": {
+				"peak_context": {},
+				"peak_usec": 23,
+				"samples": 57,
+				"total_usec": 465
+			},
+			"release/scene_cache": {
+				"peak_context": {
+					"keep_cache": false
+				},
+				"peak_usec": 272,
+				"samples": 1,
+				"total_usec": 272
+			}
+		},
+		"quality": {
+			"decoration_distance": 192.0,
+			"detail_distance": 160.0,
+			"level": 2,
+			"light_count": 8,
+			"lod_bias": 1.0,
+			"material_detail": 2,
+			"occlusion": true,
+			"particles": 768,
+			"scale": 1.0,
+			"shadow_distance": 160.0,
+			"sky": 2,
+			"surface_effect_distance": 160.0,
+			"texture_size": 512,
+			"vegetation_motion": 1.0,
+			"water": 2,
+			"weather_amount": 1.0
+		},
+		"release": {
+			"cache_bytes": 0,
+			"cache_retained_for_revisit": false,
+			"consumer_memory": {
+				"display_reserved_bytes": 303169536,
+				"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+			},
+			"live_scene_resources": 0,
+			"memory": {
+				"nodes": 7.0,
+				"resources": 73.0,
+				"static_memory_bytes": 94043617.0,
+				"video_memory_bytes": 82182144.0
+			}
+		},
+		"render": {
+			"draw_calls": 408,
+			"objects": 408,
+			"primitives": 159866
+		},
+		"render_setup_cpu": {
+			"max_ms": 0.022,
+			"p50_ms": 0.014,
+			"p95_ms": 0.02,
+			"p99_ms": 0.022,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"repeat": 1,
+		"resolution": [
+			1440,
+			900
+		],
+		"resources": 73.0,
+		"schema_version": 1,
+		"scope": "client_fixed_scene",
+		"shared_cache_bytes": 198809088,
+		"static_memory_bytes": 106667745.0,
+		"timing_scopes": {
+			"attachment": "process_lifetime",
+			"cache": "cache_lifetime",
+			"preparation_stages": "this_view"
+		},
+		"video_memory_bytes": 114163712.0,
+		"view": {
+			"fov": 68.0,
+			"name": "landmark",
+			"position_m": [
+				182.0,
+				10.7,
+				350.0
+			],
+			"quality": 2,
+			"target_m": [
+				190.0,
+				12.0,
+				294.0
+			],
+			"time_minutes": 840.0,
+			"view_distance_m": 384.0
+		},
+		"viewport_render_cpu": {
+			"max_ms": 1.06500005722046,
+			"p50_ms": 0.973999977111816,
+			"p95_ms": 1.03699994087219,
+			"p99_ms": 1.06500005722046,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"viewport_render_gpu": {
+			"max_ms": null,
+			"p50_ms": null,
+			"p95_ms": null,
+			"p99_ms": null,
+			"positive_samples": 0,
+			"samples": 60,
+			"status": "unavailable"
+		},
+		"warmup_frames": 20
+	},
+	{
+		"assessment": {
+			"driving": "not_measured",
+			"fixed_scene": "pass",
+			"p95_limit_ms": 16.7,
+			"p95_pass": true,
+			"p99_limit_ms": 33.3,
+			"p99_pass": true
+		},
+		"attachment": {
+			"advance_usec": 720551,
+			"phase_peak_usec": {
+				"environment_preparation": 11,
+				"instance_upload": 52,
+				"mesh_upload": 5222,
+				"multimesh_setup": 90,
+				"template_preparation": 2355,
+				"water_upload": 57
+			},
+			"phase_usec": {
+				"environment_preparation": 1890,
+				"instance_upload": 24631,
+				"mesh_upload": 156381,
+				"multimesh_setup": 28870,
+				"template_preparation": 507913,
+				"water_upload": 866
+			},
+			"release_usec": 2173,
+			"steps": 7020
+		},
+		"cache": {
+			"bytes": 196751360,
+			"entries": 24,
+			"hits": 88,
+			"import_usec": 21093,
+			"imports": 24,
+			"peak_import_usec": 1576,
+			"preparation_peak_usec": {
+				"import": 1576,
+				"instance_parts": 22,
+				"lod": 11,
+				"lod_generate": 1251,
+				"lod_get_mesh": 312,
+				"lod_surface": 822,
+				"material_surface": 28,
+				"materials": 3,
+				"mipmap_upload": 288,
+				"occluder": 278,
+				"texture_load": 7378
+			},
+			"preparation_usec": {
+				"import": 21093,
+				"instance_parts": 404,
+				"lod": 244,
+				"lod_generate": 13668,
+				"lod_get_mesh": 4064,
+				"lod_surface": 56515,
+				"material_surface": 1877,
+				"materials": 49,
+				"mipmap_upload": 2761,
+				"occluder": 2820,
+				"texture_load": 72416
+			}
+		},
+		"cache_activity": {
+			"hits": 88,
+			"imports": 24
+		},
+		"cache_limit_bytes": 536870912,
+		"cache_policy": "cold_scene",
+		"cell_prepare_p95_ms": 29.356,
+		"cell_prepare_p99_ms": 53.076,
+		"consumer_memory": {
+			"display_reserved_bytes": 502018048,
+			"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+		},
+		"device": "Apple M1 (Apple7)",
+		"engine_process_cpu": {
+			"p95_ms": null,
+			"p99_ms": null,
+			"reason": "requires --engine-profiler and one profiler callback per measured frame",
+			"samples": 0,
+			"status": "unavailable"
+		},
+		"environment": {
+			"automatic_quality": false,
+			"cpu": "Apple M1",
+			"device": "Apple M1 (Apple7)",
+			"directional_shadow_size": 2048,
+			"display": "macOS",
+			"driver": "metal",
+			"engine": "4.7.2-stable (official)",
+			"internal_render_size": [
+				1440,
+				900
+			],
+			"max_fps": 0,
+			"occlusion": true,
+			"os": "macOS",
+			"positional_shadow_size": 1024,
+			"renderer": "mobile",
+			"scale_3d": 1.0,
+			"screen_size": [
+				2880,
+				1800
+			],
+			"viewport_size": [
+				1440,
+				900
+			],
+			"vsync_mode": 0,
+			"window_size": [
+				1440,
+				900
+			]
+		},
+		"far_cells": 92,
+		"far_display_triangles": 104541,
+		"frame_interval": {
+			"max_ms": 9.299,
+			"p50_ms": 7.992,
+			"p95_ms": 9.213,
+			"p99_ms": 9.299,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"frame_p95_ms": 9.213,
+		"frame_p99_ms": 9.299,
+		"image": "/tmp/miniearthure-compact-worlds-20261014/images-v6/village/village-entry.png",
+		"largest_far_cell_bytes": 3547904,
+		"measured_frames": 60,
+		"memory_before": {
+			"nodes": 7.0,
+			"resources": 73.0,
+			"static_memory_bytes": 93232509.0,
+			"video_memory_bytes": 82182144.0
+		},
+		"near_cells": 54,
+		"near_collision_triangles": 46313,
+		"nodes": 758.0,
+		"package_sha256": "cbf2dbc344a9c0e620126368940c590e73207e05ef137e7be41a37486e9fffe3",
+		"preparation": "ready",
+		"preparation_ms": 1417,
+		"preparation_stages": {
+			"cache/import": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1576,
+				"samples": 24,
+				"total_usec": 21093
+			},
+			"cache/instance_parts": {
+				"peak_context": {
+					"asset_id": "authored-shop-0",
+					"cell": [
+						2,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 22,
+				"samples": 24,
+				"total_usec": 404
+			},
+			"cache/lod": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 11,
+				"samples": 59,
+				"total_usec": 244
+			},
+			"cache/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 1251,
+				"samples": 24,
+				"total_usec": 13668
+			},
+			"cache/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 312,
+				"samples": 24,
+				"total_usec": 4064
+			},
+			"cache/lod_surface": {
+				"peak_context": {
+					"asset_id": "authored-timber-fence",
+					"cell": [
+						7,
+						7
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 1
+				},
+				"peak_usec": 822,
+				"samples": 141,
+				"total_usec": 56515
+			},
+			"cache/material_surface": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 28,
+				"samples": 141,
+				"total_usec": 1877
+			},
+			"cache/materials": {
+				"peak_context": {
+					"asset_id": "authored-home-1",
+					"cell": [
+						8,
+						7
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 9
+				},
+				"peak_usec": 3,
+				"samples": 24,
+				"total_usec": 49
+			},
+			"cache/mipmap_upload": {
+				"peak_context": {
+					"cell": [
+						10,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 288,
+				"samples": 10,
+				"total_usec": 2761
+			},
+			"cache/occluder": {
+				"peak_context": {
+					"asset_id": "authored-market-hall",
+					"cell": [
+						5,
+						9
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 6
+				},
+				"peak_usec": 278,
+				"samples": 24,
+				"total_usec": 2820
+			},
+			"cache/texture_load": {
+				"peak_context": {
+					"cell": [
+						10,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7378,
+				"samples": 10,
+				"total_usec": 72416
+			},
+			"environment_update": {
+				"peak_context": {},
+				"peak_usec": 252,
+				"samples": 1,
+				"total_usec": 252
+			},
+			"far/advance": {
+				"peak_context": {
+					"cell": [
+						10,
+						1
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7625,
+				"samples": 473,
+				"total_usec": 119018
+			},
+			"far/begin": {
+				"peak_context": {
+					"cell": [
+						12,
+						11
+					],
+					"representation": "far"
+				},
+				"peak_usec": 74,
+				"samples": 92,
+				"total_usec": 3494
+			},
+			"far/generation": {
+				"peak_context": {
+					"cell": [
+						8,
+						4
+					],
+					"representation": "far"
+				},
+				"peak_usec": 50707,
+				"samples": 92,
+				"total_usec": 492789
+			},
+			"mesh/lod_add_surface": {
+				"peak_context": {
+					"asset_id": "authored-tree-2",
+					"cell": [
+						7,
+						7
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 3,
+				"samples": 141,
+				"total_usec": 209
+			},
+			"mesh/lod_arrays": {
+				"peak_context": {
+					"asset_id": "authored-timber-fence",
+					"cell": [
+						7,
+						7
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 1
+				},
+				"peak_usec": 805,
+				"samples": 141,
+				"total_usec": 55032
+			},
+			"mesh/lod_generate": {
+				"peak_context": {
+					"asset_id": "authored-shop-2",
+					"cell": [
+						3,
+						11
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 1244,
+				"samples": 24,
+				"total_usec": 13556
+			},
+			"mesh/lod_get_mesh": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surfaces": 8
+				},
+				"peak_usec": 254,
+				"samples": 24,
+				"total_usec": 3242
+			},
+			"mesh/material_bind": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 10,
+				"samples": 141,
+				"total_usec": 380
+			},
+			"mesh/material_finalize": {
+				"peak_context": {
+					"asset_id": "authored-home-1",
+					"cell": [
+						8,
+						7
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 8,
+					"surfaces": 9
+				},
+				"peak_usec": 3,
+				"samples": 24,
+				"total_usec": 49
+			},
+			"mesh/material_source_release": {
+				"peak_context": {
+					"asset_id": "authored-tree-4",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 2,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 141,
+				"total_usec": 36
+			},
+			"mesh/material_style": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 8
+				},
+				"peak_usec": 20,
+				"samples": 141,
+				"total_usec": 1082
+			},
+			"mesh/material_track": {
+				"peak_context": {
+					"asset_id": "authored-shrub",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 4,
+					"surfaces": 5
+				},
+				"peak_usec": 1,
+				"samples": 141,
+				"total_usec": 56
+			},
+			"mesh/occluder_cached_arrays": {
+				"peak_context": {
+					"asset_id": "authored-tree-4",
+					"cell": [
+						7,
+						6
+					],
+					"mesh": "Mesh",
+					"representation": "near",
+					"surface": 0,
+					"surfaces": 6
+				},
+				"peak_usec": 1,
+				"samples": 109,
+				"total_usec": 39
+			},
+			"near/batch_preparation": {
+				"peak_context": {
+					"cell": [
+						7,
+						6
+					],
+					"representation": "near"
+				},
+				"peak_usec": 7848,
+				"samples": 54,
+				"total_usec": 189374
+			},
+			"near/begin": {
+				"peak_context": {
+					"cell": [
+						8,
+						7
+					],
+					"representation": "near"
+				},
+				"peak_usec": 216,
+				"samples": 54,
+				"total_usec": 5878
+			},
+			"near/environment_preparation": {
+				"peak_context": {
+					"cell": [
+						9,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 10,
+				"samples": 54,
+				"total_usec": 413
+			},
+			"near/generation": {
+				"peak_context": {
+					"cell": [
+						2,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 18895,
+				"samples": 54,
+				"total_usec": 353969
+			},
+			"near/instance_upload": {
+				"peak_context": {
+					"cell": [
+						2,
+						11
+					],
+					"representation": "near"
+				},
+				"peak_usec": 54,
+				"samples": 238,
+				"total_usec": 4511
+			},
+			"near/mesh_upload": {
+				"peak_context": {
+					"cell": [
+						6,
+						6
+					],
+					"representation": "near"
+				},
+				"peak_usec": 5224,
+				"samples": 204,
+				"total_usec": 22674
+			},
+			"near/multimesh_setup": {
+				"peak_context": {
+					"cell": [
+						3,
+						11
+					],
+					"representation": "near"
+				},
+				"peak_usec": 89,
+				"samples": 112,
+				"total_usec": 5248
+			},
+			"near/presentation": {
+				"peak_context": {
+					"cell": [
+						8,
+						11
+					],
+					"representation": "near"
+				},
+				"peak_usec": 2396,
+				"samples": 54,
+				"total_usec": 58608
+			},
+			"near/template_preparation": {
+				"peak_context": {
+					"asset_id": "authored-shop-1",
+					"cell": [
+						4,
+						10
+					],
+					"representation": "near"
+				},
+				"peak_usec": 1589,
+				"samples": 610,
+				"total_usec": 106400
+			},
+			"release/far": {
+				"peak_context": {},
+				"peak_usec": 26,
+				"samples": 92,
+				"total_usec": 418
+			},
+			"release/near": {
+				"peak_context": {},
+				"peak_usec": 29,
+				"samples": 54,
+				"total_usec": 459
+			},
+			"release/scene_cache": {
+				"peak_context": {
+					"keep_cache": false
+				},
+				"peak_usec": 264,
+				"samples": 1,
+				"total_usec": 264
+			}
+		},
+		"quality": {
+			"decoration_distance": 192.0,
+			"detail_distance": 160.0,
+			"level": 2,
+			"light_count": 8,
+			"lod_bias": 1.0,
+			"material_detail": 2,
+			"occlusion": true,
+			"particles": 768,
+			"scale": 1.0,
+			"shadow_distance": 160.0,
+			"sky": 2,
+			"surface_effect_distance": 160.0,
+			"texture_size": 512,
+			"vegetation_motion": 1.0,
+			"water": 2,
+			"weather_amount": 1.0
+		},
+		"release": {
+			"cache_bytes": 0,
+			"cache_retained_for_revisit": false,
+			"consumer_memory": {
+				"display_reserved_bytes": 303169536,
+				"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+			},
+			"live_scene_resources": 0,
+			"memory": {
+				"nodes": 7.0,
+				"resources": 73.0,
+				"static_memory_bytes": 94053261.0,
+				"video_memory_bytes": 81920000.0
+			}
+		},
+		"render": {
+			"draw_calls": 273,
+			"objects": 273,
+			"primitives": 108145
+		},
+		"render_setup_cpu": {
+			"max_ms": 0.025,
+			"p50_ms": 0.014,
+			"p95_ms": 0.02,
+			"p99_ms": 0.025,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"repeat": 1,
+		"resolution": [
+			1440,
+			900
+		],
+		"resources": 73.0,
+		"schema_version": 1,
+		"scope": "client_fixed_scene",
+		"shared_cache_bytes": 196751360,
+		"static_memory_bytes": 105871749.0,
+		"timing_scopes": {
+			"attachment": "process_lifetime",
+			"cache": "cache_lifetime",
+			"preparation_stages": "this_view"
+		},
+		"video_memory_bytes": 115376128.0,
+		"view": {
+			"fov": 68.0,
+			"name": "entry",
+			"position_m": [
+				115.0,
+				10.7,
+				350.0
+			],
+			"quality": 2,
+			"target_m": [
+				190.0,
+				11.0,
+				350.0
+			],
+			"time_minutes": 840.0,
+			"view_distance_m": 384.0
+		},
+		"viewport_render_cpu": {
+			"max_ms": 0.968999981880188,
+			"p50_ms": 0.833999991416931,
+			"p95_ms": 0.921000003814697,
+			"p99_ms": 0.968999981880188,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"viewport_render_gpu": {
+			"max_ms": null,
+			"p50_ms": null,
+			"p95_ms": null,
+			"p99_ms": null,
+			"positive_samples": 0,
+			"samples": 60,
+			"status": "unavailable"
+		},
+		"warmup_frames": 20
+	},
+	{
+		"assessment": {
+			"driving": "not_measured",
+			"fixed_scene": "pass",
+			"p95_limit_ms": 16.7,
+			"p95_pass": true,
+			"p99_limit_ms": 33.3,
+			"p99_pass": true
+		},
+		"attachment": {
+			"advance_usec": 720551,
+			"phase_peak_usec": {
+				"environment_preparation": 11,
+				"instance_upload": 52,
+				"mesh_upload": 5222,
+				"multimesh_setup": 90,
+				"template_preparation": 2355,
+				"water_upload": 57
+			},
+			"phase_usec": {
+				"environment_preparation": 1890,
+				"instance_upload": 24631,
+				"mesh_upload": 156381,
+				"multimesh_setup": 28870,
+				"template_preparation": 507913,
+				"water_upload": 866
+			},
+			"release_usec": 2605,
+			"steps": 7020
+		},
+		"cache": {
+			"bytes": 63963136,
+			"entries": 0,
+			"hits": 0,
+			"import_usec": 0,
+			"imports": 0,
+			"peak_import_usec": 0,
+			"preparation_peak_usec": {
+				"mipmap_upload": 287,
+				"texture_load": 7473
+			},
+			"preparation_usec": {
+				"mipmap_upload": 2778,
+				"texture_load": 71870
+			}
+		},
+		"cache_activity": {
+			"hits": 0,
+			"imports": 0
+		},
+		"cache_limit_bytes": 536870912,
+		"cache_policy": "cold_scene",
+		"cell_prepare_p95_ms": 12.758,
+		"cell_prepare_p99_ms": 52.912,
+		"consumer_memory": {
+			"display_reserved_bytes": 369229824,
+			"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+		},
+		"device": "Apple M1 (Apple7)",
+		"engine_process_cpu": {
+			"p95_ms": null,
+			"p99_ms": null,
+			"reason": "requires --engine-profiler and one profiler callback per measured frame",
+			"samples": 0,
+			"status": "unavailable"
+		},
+		"environment": {
+			"automatic_quality": false,
+			"cpu": "Apple M1",
+			"device": "Apple M1 (Apple7)",
+			"directional_shadow_size": 2048,
+			"display": "macOS",
+			"driver": "metal",
+			"engine": "4.7.2-stable (official)",
+			"internal_render_size": [
+				1440,
+				900
+			],
+			"max_fps": 0,
+			"occlusion": true,
+			"os": "macOS",
+			"positional_shadow_size": 1024,
+			"renderer": "mobile",
+			"scale_3d": 1.0,
+			"screen_size": [
+				2880,
+				1800
+			],
+			"viewport_size": [
+				1440,
+				900
+			],
+			"vsync_mode": 0,
+			"window_size": [
+				1440,
+				900
+			]
+		},
+		"far_cells": 320,
+		"far_display_triangles": 338391,
+		"frame_interval": {
+			"max_ms": 9.237,
+			"p50_ms": 7.889,
+			"p95_ms": 9.144,
+			"p99_ms": 9.237,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"frame_p95_ms": 9.144,
+		"frame_p99_ms": 9.237,
+		"image": "/tmp/miniearthure-compact-worlds-20261014/images-v6/village/village-overview.png",
+		"largest_far_cell_bytes": 4451520,
+		"measured_frames": 60,
+		"memory_before": {
+			"nodes": 7.0,
+			"resources": 73.0,
+			"static_memory_bytes": 93307309.0,
+			"video_memory_bytes": 81920000.0
+		},
+		"near_cells": 0,
+		"near_collision_triangles": 0,
+		"nodes": 1246.0,
+		"package_sha256": "cbf2dbc344a9c0e620126368940c590e73207e05ef137e7be41a37486e9fffe3",
+		"preparation": "ready",
+		"preparation_ms": 1783,
+		"preparation_stages": {
+			"cache/mipmap_upload": {
+				"peak_context": {
+					"cell": [
+						0,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 287,
+				"samples": 10,
+				"total_usec": 2778
+			},
+			"cache/texture_load": {
+				"peak_context": {
+					"cell": [
+						0,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7473,
+				"samples": 10,
+				"total_usec": 71870
+			},
+			"environment_update": {
+				"peak_context": {},
+				"peak_usec": 297,
+				"samples": 1,
+				"total_usec": 297
+			},
+			"far/advance": {
+				"peak_context": {
+					"cell": [
+						0,
+						0
+					],
+					"representation": "far"
+				},
+				"peak_usec": 7480,
+				"samples": 1561,
+				"total_usec": 206513
+			},
+			"far/begin": {
+				"peak_context": {
+					"cell": [
+						10,
+						3
+					],
+					"representation": "far"
+				},
+				"peak_usec": 81,
+				"samples": 320,
+				"total_usec": 9430
+			},
+			"far/generation": {
+				"peak_context": {
+					"cell": [
+						17,
+						7
+					],
+					"representation": "far"
+				},
+				"peak_usec": 66066,
+				"samples": 320,
+				"total_usec": 1527582
+			},
+			"release/far": {
+				"peak_context": {},
+				"peak_usec": 23,
+				"samples": 320,
+				"total_usec": 1117
+			},
+			"release/scene_cache": {
+				"peak_context": {
+					"keep_cache": false
+				},
+				"peak_usec": 7,
+				"samples": 1,
+				"total_usec": 7
+			}
+		},
+		"quality": {
+			"decoration_distance": 192.0,
+			"detail_distance": 160.0,
+			"level": 2,
+			"light_count": 8,
+			"lod_bias": 1.0,
+			"material_detail": 2,
+			"occlusion": true,
+			"particles": 768,
+			"scale": 1.0,
+			"shadow_distance": 160.0,
+			"sky": 2,
+			"surface_effect_distance": 160.0,
+			"texture_size": 512,
+			"vegetation_motion": 1.0,
+			"water": 2,
+			"weather_amount": 1.0
+		},
+		"release": {
+			"cache_bytes": 0,
+			"cache_retained_for_revisit": false,
+			"consumer_memory": {
+				"display_reserved_bytes": 303169536,
+				"window_and_shadow_lifetime": "viewport-owned reservations survive scene release"
+			},
+			"live_scene_resources": 0,
+			"memory": {
+				"nodes": 7.0,
+				"resources": 73.0,
+				"static_memory_bytes": 95049845.0,
+				"video_memory_bytes": 81788928.0
+			}
+		},
+		"render": {
+			"draw_calls": 785,
+			"objects": 785,
+			"primitives": 329217
+		},
+		"render_setup_cpu": {
+			"max_ms": 0.026,
+			"p50_ms": 0.016,
+			"p95_ms": 0.022,
+			"p99_ms": 0.026,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"repeat": 1,
+		"resolution": [
+			1440,
+			900
+		],
+		"resources": 73.0,
+		"schema_version": 1,
+		"scope": "client_fixed_scene",
+		"shared_cache_bytes": 63963136,
+		"static_memory_bytes": 109206923.0,
+		"timing_scopes": {
+			"attachment": "process_lifetime",
+			"cache": "cache_lifetime",
+			"preparation_stages": "this_view"
+		},
+		"video_memory_bytes": 139247616.0,
+		"view": {
+			"force_distant": true,
+			"name": "overview",
+			"position_m": [
+				320.0,
+				608.755210216326,
+				416.0
+			],
+			"projection": "orthogonal",
+			"quality": 2,
+			"size_m": 552.96,
+			"target_m": [
+				320.0,
+				8.75521021632557,
+				256.0
+			],
+			"time_minutes": 840.0,
+			"view_distance_m": 1519.5999023914
+		},
+		"viewport_render_cpu": {
+			"max_ms": 0.950999975204468,
+			"p50_ms": 0.804000020027161,
+			"p95_ms": 0.930000007152557,
+			"p99_ms": 0.950999975204468,
+			"positive_samples": 60,
+			"samples": 60,
+			"status": "available"
+		},
+		"viewport_render_gpu": {
+			"max_ms": null,
+			"p50_ms": null,
+			"p95_ms": null,
+			"p99_ms": null,
+			"positive_samples": 0,
+			"samples": 60,
+			"status": "unavailable"
+		},
+		"warmup_frames": 20
+	}
 ]
