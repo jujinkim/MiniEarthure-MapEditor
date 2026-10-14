@@ -28,6 +28,11 @@ Korean and Japanese names and the stable IDs are searchable; their SVGs carry a
 vector-stroked "12" or "18" badge. Newly compiled vertical loops are 10.5 m high
 with a 5.25 m radius; their ribbon and the spiral-turn dimensions are unchanged.
 
+The palette also offers banked hairpins, spiral pipes and spatial S roads.
+Templates append double jumps, three-ring sequences or optional grind shortcuts
+at the selected base-route endpoint. Each expansion is one Undo/Redo operation;
+its roads, actions, branches and grind lines remain independently editable.
+
 Choose a base/alternative route, append/remove roads or reorder them, and pick
 samples for start, finish and intermediate checkpoints. Add jump/acceleration/
 booster/ring actions with an optional landing road; obstacles attach at a station.
@@ -45,8 +50,7 @@ a separate track.
 Seed Track creates a new unsaved document through MapKit's cancellable worker.
 Save/discard/Cancel protects the previous document; document and request epochs
 reject obsolete results. The dialog offers driving/gimmick/action toggles (all on by
-default; all off disables Generate), seed, circuit/sprint, easy/normal/hard,
-time of day and a 60/90/120-second target. No category guarantees any member. The
+default; all off disables Generate), seed, circuit/sprint and a 60/90/120-second target. No category guarantees any member. The
 base route must meet MapKit's ±10% reference-time bound at 900 cm/s; actual time
 depends on vehicle and input. New panels pick a random seed; reopening restores the
 saved settings, source, placements and fingerprints.
@@ -54,11 +58,14 @@ saved settings, source, placements and fingerprints.
 Progress shows a translated stage and the shared circular percentage; search and
 preparation stay indeterminate. Generate is disabled while busy. Cancel, dialog
 close, document change or a newer request discard late results and keep the last
-valid document. The ring honours reduced motion.
+valid document and preview environment. Successful adoption initializes preview
+time/weather from the shared MapKit seed query. Preview controls change them
+without editing the source or package; opening/closing the generator retains
+overrides until a new result is adopted. The ring honours reduced motion.
 
 The first geometry edit converts the seeded result to authoring source and keeps its
 seed settings and MapKit's
-[`grounded_supports` policy](https://github.com/jujinkim/MiniEarthure-MapKit/blob/main/docs/ASSEMBLED_TRACKS.md#grounded-supports);
+[`grounded_supports` policy](https://github.com/jujinkim/MiniEarthure-MapKit/blob/main/docs/TRACK_GEOMETRY.md#grounded-supports);
 the draft preview shows the same floor and support columns as execution. New manual
 and imported maps do not enable that policy.
 
@@ -94,7 +101,7 @@ existing history budget; it does not recompile a narrow original.
 ## Validation
 
 `track_workbench_validator`, `assembled_track_validator`,
-`extra_wide_track_validator`, `grind_line_validator` and `pipe_edit_validator`
+`seed_track_validator`, `extra_wide_track_validator`, `grind_line_validator` and `pipe_edit_validator`
 cover placement, snapping, generation settings, cancellation and stale results,
 Undo/Redo and save/reopen. Detailed pointer editing, long sessions, driving and
 devices are user checks.

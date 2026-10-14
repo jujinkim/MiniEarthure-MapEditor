@@ -16,7 +16,7 @@ ranges and colours; empty bindings add nothing. Invalid metadata never mutates t
 document.
 
 The 3D preview uses the same MapKit materials and sky; preview hour/weather does not
-change source data. Generation, environment start and preview share six localized
+change source data. Environment start and preview share six localized
 time presets (09:00/12:00/17:00/18:00/21:00/06:00). Existing non-preset times stay
 exact until a new selection; opening a picker never rounds them. Session weather is
 not written into packages. `examples/driving-school-atmosphere` and

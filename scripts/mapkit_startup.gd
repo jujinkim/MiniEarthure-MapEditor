@@ -2,7 +2,7 @@ extends RefCounted
 ## Source launch from Client does not run Godot's import scan. Register the
 ## installed extension before any document store or private worker is created.
 const EXTENSION := "res://addons/mapkit/mapkit.gdextension"
-const REQUIRED_METHODS := ["validate_document", "track_catalogue", "track_authoring_source", "compile_track_source", "track_instance", "snap_track_instance", "generate_track"]
+const REQUIRED_METHODS := ["validate_document", "track_catalogue", "track_authoring_source", "compile_track_source", "track_instance", "snap_track_instance", "generate_track", "track_seed_defaults", "append_track_template"]
 
 static func ensure_loaded() -> String:
 	if not GDExtensionManager.is_extension_loaded(EXTENSION):

@@ -2029,6 +2029,19 @@
     "Imported OSM coordinate frames differ.": "Imported OSM coordinate frames differ.",
     "Building grounding exceeds one million terrain samples.": "Building grounding exceeds one million terrain samples.",
     "\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n": "\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n",
-    "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n"
+    "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n",
+    "Templates": "Templates",
+    "Append an editable template at the selected base-route endpoint as one undoable operation.": "Append an editable template at the selected base-route endpoint as one undoable operation.",
+    "Banked Hairpin": "Banked Hairpin",
+    "Banked Hairpin Left": "Banked Hairpin Left",
+    "Cylinder Spiral Right Up": "Cylinder Spiral Right Up",
+    "Cylinder Spiral Right Down": "Cylinder Spiral Right Down",
+    "Cylinder Spiral Left Up": "Cylinder Spiral Left Up",
+    "Cylinder Spiral Left Down": "Cylinder Spiral Left Down",
+    "Spatial S": "Spatial S",
+    "Spatial S Left": "Spatial S Left",
+    "Double Jump": "Double Jump",
+    "Air Ring Chain": "Air Ring Chain",
+    "Grind Shortcut": "Grind Shortcut"
   }
 }

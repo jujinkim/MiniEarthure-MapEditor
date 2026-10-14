@@ -83,6 +83,8 @@ var snap_toggle: CheckButton
 var snap_size: SpinBox
 var view_settings := ConfigFile.new()
 var viewport: SubViewport
+var preview_time: OptionButton
+var preview_weather: OptionButton
 var environment_preview := preload("./environment_preview.gd").new()
 var generation_panel: AcceptDialog
 var environment_renderer: Node3D
@@ -433,10 +435,12 @@ func _build_ui() -> void:
 	environment_renderer.configure(world_environment.environment,sun,true)
 	preview_world.add_child(environment_renderer)
 	var time := preload("./time_of_day_picker.gd").new()
+	preview_time=time
 	time.value = 12
 	controls.add_child(time)
 	time.value_changed.connect(func(value: float): environment_preview.seconds = value*3600.0)
 	var weather := OptionButton.new()
+	preview_weather=weather
 	for value in [I18N.t("Clear"),I18N.t("Cloudy"),I18N.t("Rain"),I18N.t("Snow")]: weather.add_item(value)
 	controls.add_child(weather)
 	weather.item_selected.connect(func(index: int):
@@ -1929,6 +1933,7 @@ func _open_track_generator() -> void:
 			if not result.ok: _status(I18N.error(result.error)); track_panel.note.text=I18N.error(result.error); return
 			var failure: String = store.open_generated(result.data.document,result.data.get("preview",{}))
 			if failure != "": _status(I18N.diagnostic(failure)); return
+			_apply_track_seed_environment(result.data.seed_defaults)
 			_clear_preview_cache()
 			track_panel.show_result(result.data.document.assembled_track)
 			_status(track_panel.note.text)
@@ -1963,6 +1968,13 @@ func _open_track_generator() -> void:
 		if store.document.get("assembled_track") is Dictionary:
 			track_panel.restore(store.document.assembled_track.settings)
 	track_dialog.popup_centered(Vector2i(500,600))
+
+func _apply_track_seed_environment(value: Dictionary) -> void:
+	preview_time.value=float(value.time_minutes)/60.0
+	environment_preview.seconds=float(value.time_minutes)*60.0
+	var index: int=["clear","cloudy","rain","snow"].find(value.weather)
+	preview_weather.select(index)
+	preview_weather.item_selected.emit(index)
 
 func _cancel_track_generation() -> void:
 	track_request=-1

@@ -5,9 +5,6 @@ signal cancelled
 var seed_input: LineEdit
 var circuit: CheckButton
 var duration: OptionButton
-var difficulty: OptionButton
-const TIME_PICKER := preload("./time_of_day_picker.gd")
-var time_input: TIME_PICKER
 var selections := {}
 var _defaults := {}
 var _duration_options := {}
@@ -57,13 +54,6 @@ func _ready() -> void:
 	_refresh_duration(int(_defaults.duration_seconds))
 	circuit.toggled.connect(func(_value: bool): _refresh_duration(duration.get_selected_id()))
 	form.add_child(duration)
-	difficulty = OptionButton.new()
-	for title in [I18N.t("Easy"),I18N.t("Normal"),I18N.t("Hard")]: difficulty.add_item(title)
-	difficulty.select(["easy","normal","hard"].find(_defaults.difficulty))
-	form.add_child(difficulty)
-	time_input = TIME_PICKER.new()
-	time_input.value = float(_defaults.time_minutes)/60.0
-	form.add_child(time_input)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	form.add_child(grid)
@@ -102,15 +92,18 @@ func settings() -> Dictionary:
 	for id: String in selections:
 		if selections[id].button_pressed: enabled.append(id)
 	return {"seed":int(seed_input.text),"circuit":circuit.button_pressed,"duration_seconds":duration.get_selected_id(),
-		"difficulty":["easy","normal","hard"][difficulty.selected],"time_minutes":roundi(time_input.value*60.0),"categories":enabled}
+		"difficulty":_defaults.difficulty,"time_minutes":seed_defaults().get("time_minutes",_defaults.time_minutes),"categories":enabled}
+
+func seed_defaults() -> Dictionary:
+	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
+	var result: Dictionary = JSON.parse_string(bridge.track_seed_defaults(int(seed_input.text)))
+	return result.get("data",{})
 
 func restore(value: Dictionary) -> void:
 	if not catalogue_ready: return
 	seed_input.text = str(int(value.seed))
 	circuit.button_pressed = value.circuit
 	_refresh_duration(int(value.duration_seconds))
-	difficulty.select(["easy","normal","hard"].find(value.difficulty))
-	time_input.value = float(value.time_minutes)/60.0
 	for id: String in selections: selections[id].button_pressed = id in value.categories
 	_update_enabled()
 

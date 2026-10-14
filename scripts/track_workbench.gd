@@ -65,6 +65,10 @@ func build(owner: Control) -> void:
 		var id: String = "track.piece." + entry.id
 		editor.commands.register("Track", piece_name(entry.id), add_piece.bind(entry.id), "", {"id":id, "context":"track", "description":"Preview this road piece; click in 3D to place. Repeat with the same tool.", "icon":"piece_" + entry.id, "menu":false})
 		entries.append({"id":id, "group":str(entry.category).capitalize(), "section":"Road pieces"})
+	for entry: Dictionary in catalogue.templates:
+		var id: String = "track.template." + entry.id
+		editor.commands.register("Track", piece_name(entry.id), append_template.bind(entry.id), "", {"id":id,"context":"track","description":"Append an editable template at the selected base-route endpoint as one undoable operation.","icon":"route","menu":false})
+		entries.append({"id":id,"group":str(entry.category).capitalize(),"section":"Templates"})
 	for kind: String in catalogue.obstacle_kinds:
 		var id := "track.obstacle." + kind
 		editor.commands.register("Track", piece_name(kind) + " obstacle", add_obstacle.bind(kind), "", {"id":id, "context":"track", "icon":"obstacle", "description":"Point at a road surface, then click to attach an obstacle.", "menu":false})
@@ -412,6 +416,16 @@ func set_panel_layout(index: int, width: int, alignment: String) -> bool:
 	next.actions[index].panel_width_percent = width
 	next.actions[index].panel_alignment = alignment
 	return _commit(next)
+
+func append_template(id: String) -> bool:
+	if editor.store.editing_locked() or editor.busy: return false
+	cancel_interaction()
+	var anchor: String = source.instances[selected].id if selected>=0 else ""
+	var result: Dictionary = JSON.parse_string(editor.store.bridge.append_track_template(JSON.stringify(source),id,anchor,"t"+Crypto.new().generate_random_bytes(4).hex_encode()))
+	if not result.ok:
+		editor._status(I18N.error(result.error))
+		return false
+	return _commit(result.data,source.instances.size())
 
 func _shortcut_example() -> void:
 	cancel_interaction()

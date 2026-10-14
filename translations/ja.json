@@ -2029,6 +2029,19 @@
     "Imported OSM coordinate frames differ.": "取り込んだOSMの座標系が異なります。",
     "Building grounding exceeds one million terrain samples.": "建物底面の推定が地形サンプル100万点を超えています。",
     "\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n": "\n建物底面の推定: %d件変更、DEM境界をまたぐ%d件は維持。外周サンプルの最低高度です。DSMには屋根と樹木を含みます。建物自体の高さは維持し、地形と底面を一度に元に戻します。\n",
-    "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "複雑なポリゴンは原資料 %.2fm（マップ %.2fm）の間隔で分割します。原資料IDと中庭情報は保持されます。\n"
+    "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "複雑なポリゴンは原資料 %.2fm（マップ %.2fm）の間隔で分割します。原資料IDと中庭情報は保持されます。\n",
+    "Templates": "テンプレート",
+    "Append an editable template at the selected base-route endpoint as one undoable operation.": "選択した本線の終点に編集可能なテンプレートを追加します。1回で元に戻せます。",
+    "Banked Hairpin": "バンクヘアピン",
+    "Banked Hairpin Left": "バンクヘアピン・左",
+    "Cylinder Spiral Right Up": "らせんパイプ・右回り上昇",
+    "Cylinder Spiral Right Down": "らせんパイプ・右回り下降",
+    "Cylinder Spiral Left Up": "らせんパイプ・左回り上昇",
+    "Cylinder Spiral Left Down": "らせんパイプ・左回り下降",
+    "Spatial S": "立体S字道路",
+    "Spatial S Left": "立体S字道路・左",
+    "Double Jump": "連続ジャンプ",
+    "Air Ring Chain": "連続空中リング",
+    "Grind Shortcut": "グラインドショートカット"
   }
 }

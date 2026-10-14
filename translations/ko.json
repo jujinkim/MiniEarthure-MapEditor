@@ -2029,6 +2029,19 @@
     "Imported OSM coordinate frames differ.": "가져온 OSM의 좌표 기준이 서로 다릅니다.",
     "Building grounding exceeds one million terrain samples.": "건물 바닥 높이 추정이 지형 샘플 100만 개를 초과합니다.",
     "\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n": "\n건물 바닥 높이 추정: %d개 변경, DEM 범위를 걸치는 %d개 유지. 외곽 샘플의 최저 높이이며 DSM에는 지붕과 수목이 포함됩니다. 건물 자체 높이는 유지합니다. 지형과 건물 바닥을 함께 한 번에 실행 취소합니다.\n",
-    "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "복잡한 다각형은 원본 %.2fm(맵 %.2fm) 간격을 두고 분할합니다. 원본 ID와 중정 정보는 보존됩니다.\n"
+    "Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n": "복잡한 다각형은 원본 %.2fm(맵 %.2fm) 간격을 두고 분할합니다. 원본 ID와 중정 정보는 보존됩니다.\n",
+    "Templates": "템플릿",
+    "Append an editable template at the selected base-route endpoint as one undoable operation.": "선택한 본선 끝에 편집 가능한 템플릿을 추가합니다. 한 번에 실행 취소할 수 있습니다.",
+    "Banked Hairpin": "기울어진 헤어핀",
+    "Banked Hairpin Left": "기울어진 헤어핀 · 왼쪽",
+    "Cylinder Spiral Right Up": "나선형 파이프 · 우회전 상승",
+    "Cylinder Spiral Right Down": "나선형 파이프 · 우회전 하강",
+    "Cylinder Spiral Left Up": "나선형 파이프 · 좌회전 상승",
+    "Cylinder Spiral Left Down": "나선형 파이프 · 좌회전 하강",
+    "Spatial S": "입체 S자 도로",
+    "Spatial S Left": "입체 S자 도로 · 왼쪽",
+    "Double Jump": "연속 점프",
+    "Air Ring Chain": "연속 공중 링",
+    "Grind Shortcut": "그라인드 지름길"
   }
 }
