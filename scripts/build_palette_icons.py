@@ -16,7 +16,7 @@ for preset, samples in frames.items():
                -s['position_cm'][1] * .9 - s['position_cm'][2] * .68)
               for s in samples]
     ribbon = []
-    if '_extra_wide' in preset:
+    if '_extra_wide' in preset or '_ultra_wide' in preset:
         sides = [[], []]
         for s in samples:
             n, f = s['normal'], s['forward']
@@ -50,6 +50,8 @@ for preset, samples in frames.items():
 </svg>
 '''
     if ribbon:
+        digit = ('M27 24.3C25 24.3 25 26.7 27 26.7C29 26.7 29 24.3 27 24.3M27 26.7C24.8 26.7 24.8 29.5 27 29.5C29.2 29.5 29.2 26.7 27 26.7'
+                 if '_ultra_wide' in preset else 'M25.5 25.4C25.5 23.8 28.5 23.8 28.5 25.4C28.5 26.2 27 27.1 25.5 29H29')
         outline = 'M'+'L'.join(f'{(x-center[0])*scale+16:.2f},{(y-center[1])*scale+16:.2f}' for x,y in ribbon)+'Z'
         svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
 <path d="{outline}" fill="#99c8ed" stroke="#344f73" stroke-width="1.2" stroke-linejoin="round"/>
@@ -57,7 +59,7 @@ for preset, samples in frames.items():
 <circle cx="{xy[0][0]:.2f}" cy="{xy[0][1]:.2f}" r="1.8" fill="#df704b" stroke="#344f73" stroke-width=".7"/>
 <path d="{arrow_path}" fill="none" stroke="#344f73" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <rect x="19" y="23" width="12" height="8" rx="2" fill="#ffffff" stroke="#344f73" stroke-width=".7"/>
-<path d="M21.5 25.3L23 24.5V29.5M25.5 25.4C25.5 23.8 28.5 23.8 28.5 25.4C28.5 26.2 27 27.1 25.5 29H29" fill="none" stroke="#344f73" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M21.5 25.3L23 24.5V29.5{digit}" fill="none" stroke="#344f73" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 '''
     (output / f'piece_{preset}.svg').write_text(svg)

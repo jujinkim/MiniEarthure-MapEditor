@@ -3,7 +3,7 @@ const EDITOR := preload("res://scripts/editor_main.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const STYLE := preload("res://scripts/workbench_style.gd")
 const I18N := preload("res://scripts/locale_text.gd")
-const PRESETS := ["straight_extra_wide", "gentle90_extra_wide", "gentle90_extra_wide_left", "right90_extra_wide", "right90_extra_wide_left"]
+const PRESETS := ["straight_extra_wide", "gentle90_extra_wide", "gentle90_extra_wide_left", "right90_extra_wide", "right90_extra_wide_left", "straight_ultra_wide", "gentle90_ultra_wide", "gentle90_ultra_wide_left", "right90_ultra_wide", "right90_ultra_wide_left"]
 var failures: Array[String] = []
 func _initialize() -> void: run.call_deferred()
 func check(value: bool, label: String) -> void:
@@ -17,6 +17,7 @@ func run() -> void:
 	var bench: Node = ui.track_workbench
 	var icon_hashes := {}
 	for preset in PRESETS:
+		var body_width := 1800 if "ultra_wide" in preset else 1200
 		var label: String = bench.piece_name(preset)
 		for code in ["en", "ko", "ja"]:
 			TranslationServer.set_locale(code)
@@ -33,11 +34,11 @@ func run() -> void:
 		check(icon != null and not icon.get_image().is_invisible(), "visible SVG " + preset)
 		var digest := icon.get_image().get_data().hex_encode().sha256_text()
 		check(not icon_hashes.has(digest), "distinct SVG " + preset); icon_hashes[digest] = true
-		check(digest != STYLE.icon("piece_"+preset.replace("_extra_wide", "")).get_image().get_data().hex_encode().sha256_text(), "extra-wide icon differs from ordinary " + preset)
+		check(digest != STYLE.icon("piece_"+preset.replace("_extra_wide", "").replace("_ultra_wide", "")).get_image().get_data().hex_encode().sha256_text(), "extra-wide icon differs from ordinary " + preset)
 		var before: Dictionary = ui.store.document.duplicate(true)
 		var history: Array = ui.store.undo_stack.duplicate(true)
 		bench.add_piece(preset)
-		check(bench.placement.width_cm == 1200, "12m initial preview " + preset)
+		check(bench.placement.width_cm == body_width, "catalogue initial preview " + preset)
 		check(bench.placement.preview_at(Vector3(200*PRESETS.find(preset),0,0)), "preview " + preset)
 		var serial: int = bench.placement.serial
 		bench.cancel_interaction()
@@ -46,8 +47,8 @@ func run() -> void:
 		check(bench.placement.preview_at(Vector3(200*PRESETS.find(preset),0,0)) and bench.placement.commit(), "placement " + preset)
 		await settle(ui)
 		bench.placement.cancel(); bench.select_piece(bench.source.instances.size()-1); bench._properties()
-		check(bench.width.item_count == 1 and bench.width.get_selected_id() == 1200, "fixed body width control " + preset)
-		check(bench.port_widths.all(func(s): return s.min_value == 4 and s.max_value == 12 and s.value == 12), "12m default ports and 4–12m range " + preset)
+		check(bench.width.item_count == 1 and bench.width.get_selected_id() == body_width, "fixed body width control " + preset)
+		check(bench.port_widths.all(func(s): return s.min_value == 4 and s.max_value == 18 and s.value == body_width/100.0), "default ports and 4–18m range " + preset)
 		var after: Dictionary = ui.store.document.duplicate(true)
 		ui._history(false); await settle(ui); check(ui.store.document == before, "Undo " + preset)
 		ui._history(true); await settle(ui); check(ui.store.document == after, "Redo " + preset)
@@ -58,11 +59,11 @@ func run() -> void:
 		check(bench.placement.preview_at(end) and bench.placement.candidate.snap >= 0 and bench.placement.commit(), "connected ordinary continuation " + preset)
 		await settle(ui); bench.placement.cancel()
 		var connected: Dictionary = bench.source.instances.back()
-		check(connected.entry_width_cm == 1200 and connected.exit_width_cm == 400, "connected width transition " + preset)
+		check(connected.entry_width_cm == body_width and connected.exit_width_cm == 400, "connected width transition " + preset)
 	var path := ProjectSettings.globalize_path("user://extra-wide-project")
-	check(ui.store.save_project(path) == "", "save five extra-wide presets")
+	check(ui.store.save_project(path) == "", "save both wide preset families")
 	var reopened := STORE.new()
-	check(reopened.open_project(path) == "", "reopen five extra-wide presets")
+	check(reopened.open_project(path) == "", "reopen both wide preset families")
 	check(reopened.document.assembled_track == JSON.parse_string(JSON.stringify(ui.store.document.assembled_track)), "reopen preserves source, graph and geometry")
 	ui.store.dirty = false; ui.queue_free(); await process_frame; await process_frame
 	print("extra_wide_track_validator: ", "PASS" if failures.is_empty() else failures)

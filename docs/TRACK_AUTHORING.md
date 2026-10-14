@@ -20,10 +20,13 @@ Bézier connection, control points and entry/exit widths are source edits; MapKi
 rebuilds and tessellates all geometry.
 
 The Driving palette includes five extra-wide presets with a fixed 12 m body
-(`straight_extra_wide`, `gentle90_extra_wide[_left]`, `right90_extra_wide[_left]`).
-Entry/exit controls allow 4–12 m with ordinary width transitions. English,
+(`straight_extra_wide`, `gentle90_extra_wide[_left]`, `right90_extra_wide[_left]`)
+and five ultra-wide 18 m presets (`straight_ultra_wide`,
+`gentle90_ultra_wide[_left]`, `right90_ultra_wide[_left]`). Entry/exit controls
+read the catalogue limits and allow 4–18 m on ordinary roads and transitions. English,
 Korean and Japanese names and the stable IDs are searchable; their SVGs carry a
-vector-stroked "12" badge.
+vector-stroked "12" or "18" badge. Newly compiled vertical loops are 10.5 m high
+with a 5.25 m radius; their ribbon and the spiral-turn dimensions are unchanged.
 
 Choose a base/alternative route, append/remove roads or reorder them, and pick
 samples for start, finish and intermediate checkpoints. Add jump/acceleration/
@@ -78,7 +81,8 @@ existing actions offer 25/50/75/100% and Left/Center/Right
 
 ## Pipes and rings
 
-MapKit supplies minimum widths and defaults: roads use 4/6/8/12 m,
+MapKit supplies width/port limits and defaults: roads use 4/6/8/12 m and dedicated
+18 m presets,
 manual placement defaults to 4 m, and ports and loop ribbons start at 4 m.
 Manual and generated pipes use 4/6 m bores; standalone cylinders default to a
 4 m bore and 16 m length. Geometry edits use the same shared validation. New rings use a 3 m opening and 100% strength. Explicit stored sizes,

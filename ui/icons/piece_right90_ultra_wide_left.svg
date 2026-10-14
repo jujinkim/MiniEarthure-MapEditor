@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+<path d="M12.83,22.74L12.75,22.61L12.65,22.48L12.46,22.26L12.23,22.06L11.96,21.87L11.69,21.72L11.38,21.59L11.07,21.48L10.77,21.42L10.60,21.40L10.43,21.40L4.00,9.26L5.69,9.32L7.43,9.51L10.48,10.14L13.56,11.13L16.57,12.44L19.41,14.04L22.03,15.89L24.35,17.94L26.28,20.11L27.22,21.42L28.00,22.74Z" fill="#99c8ed" stroke="#344f73" stroke-width="1.2" stroke-linejoin="round"/>
+<path d="M20.41,22.74L19.99,22.02L19.47,21.29L18.41,20.10L17.13,18.97L15.69,17.96L14.13,17.08L12.47,16.36L10.77,15.81L9.10,15.47L8.14,15.36L7.21,15.33" fill="none" stroke="#ffffff" stroke-width=".8" stroke-dasharray="2 1"/>
+<circle cx="20.41" cy="22.74" r="1.8" fill="#df704b" stroke="#344f73" stroke-width=".7"/>
+<path d="M10.91,17.85L7.21,15.33L11.45,13.88" fill="none" stroke="#344f73" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="19" y="23" width="12" height="8" rx="2" fill="#ffffff" stroke="#344f73" stroke-width=".7"/>
+<path d="M21.5 25.3L23 24.5V29.5M27 24.3C25 24.3 25 26.7 27 26.7C29 26.7 29 24.3 27 24.3M27 26.7C24.8 26.7 24.8 29.5 27 29.5C29.2 29.5 29.2 26.7 27 26.7" fill="none" stroke="#344f73" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
