@@ -21,7 +21,8 @@ changes require fresh hashes and sealing; human completion remains unverified.
 coordinates. Irregular species/age clusters fill declared habitat polygons only;
 road margins, water and optional branch corridors exclude scenery. Vehicles,
 models and road widths retain their actual scale. Frontages use the model's depth
-for service props. Paired primary/distant models belong to MapKit; solid landmarks
+for service props. Paired primary/distant models use MapKit window reveals, roof/structural thickness
+and asymmetric vegetation/rock silhouettes; solid landmarks
 and boundaries remain visible on Low. General **New region** is independent.
 
 Terrain uses one integer 2 m grid sliced into 32 m execution cells. Roads own their
