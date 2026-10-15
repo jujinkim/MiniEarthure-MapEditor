@@ -178,7 +178,7 @@ func input(event: InputEvent) -> bool:
 			if update(event.position): commit()
 			return true
 		selected = pick(event.position)
-		editor.canvas.selected = [] if selected.is_empty() else [selected.key]
+		editor.canvas.selected.assign([] if selected.is_empty() else [selected.key])
 		editor._selection(editor.canvas.selected)
 		if not selected.is_empty():
 			binding = token(); start = selected.record.duplicate(true); candidate = start.duplicate(true)
