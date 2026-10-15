@@ -138,20 +138,6 @@ def shortcut(w,entry,exit,level,kind='ramp_low',rise=0):
     length=float(np.linalg.norm(delta))
     controls=[[0,round(y*100),round(t*length*100)] for t,y in
         [(0,0),(.12,0),(.22,rise),(.33,rise),(.44,rise),(.56,rise),(.67,rise),(.78,rise),(.88,0),(1,0)]]
-    rail_station=None
-    if kind=='grind_rail':
-        # Existing rail attachment is a chord across a supported corner. Four
-        # 8 m quarter turns provide that real corner and return to the exit axis.
-        start=length/2-20;k=8*.55228475
-        spans=[[(0,0,0),(0,0,start/3),(0,rise,start*2/3),(0,rise,start)],
-            [(0,rise,start),(0,rise,start+k),(8-k,rise,start+8),(8,rise,start+8)],
-            [(8,rise,start+8),(8+k,rise,start+8),(16,rise,start+16-k),(16,rise,start+16)],
-            [(16,rise,start+16),(16,rise,start+18),(16,rise,start+22),(16,rise,start+24)],
-            [(16,rise,start+24),(16,rise,start+24+k),(8+k,rise,start+32),(8,rise,start+32)],
-            [(8,rise,start+32),(8-k,rise,start+32),(0,rise,start+40-k),(0,rise,start+40)],
-            [(0,rise,start+40),(0,rise,length-(length-start-40)*2/3),(0,0,length-(length-start-40)/3),(0,0,length)]]
-        controls=[[round(v*100) for v in p] for i,span in enumerate(spans) for p in (span if i==0 else span[1:])]
-        rail_station=round((start+6.3)*100)
     w.track_source=dict(original_seed=None,grounded_supports=False,
         settings=dict(seed=13,circuit=False,duration_seconds=60,difficulty='normal',categories=['driving'],time_minutes=840),
         terrain_integration=True,terrain_policies={'scenic-shortcut':'auto_fit' if not rise else 'elevated'},
@@ -163,8 +149,49 @@ def shortcut(w,entry,exit,level,kind='ramp_low',rise=0):
     w.shortcuts.append(dict(id='scenic-shortcut',base_roads=['south-road'],clearance=clearance,
         entry_m=list(approach),merge_m=list(runout),surface='track:scenic-shortcut',kind=kind,
         landing_runway_m=18,underpass_clearance_m=None))
-    w.attachments.append(dict(id='scenic-action',surface=dict(surface_id='track:scenic-shortcut',station_cm=rail_station or round(length*50)),
+    w.attachments.append(dict(id='scenic-action',surface=dict(surface_id='track:scenic-shortcut',station_cm=round(length*50)),
         kind=kind,height_cm=80,panel_width_percent=50,panel_alignment='center',side=1))
+    if kind=='grind_rail':
+        # The rail is the direct branch across the broad ordinary bend, with
+        # supported runways on both ends and no road deck under the span.
+        rise=max(.4,rise);runway=max(12,rise*7)
+        span=length-2*runway
+        if span<6:raise ValueError('Rail shortcut needs two supported runways')
+        def instance(name,preset,distance,height):
+            return dict(id=name,preset=preset,position_cm=[0,0,0],rotation_mdeg=[0,0,0],
+                width_cm=800,entry_width_cm=800,exit_width_cm=800,
+                control_points=[[0,0,0],[0,0,round(distance*100/3)],
+                    [0,round(height*100),round(distance*200/3)],[0,round(height*100),round(distance*100)]])
+        source=w.track_source
+        source['instances']=[instance('scenic-shortcut','free_curve',runway,rise),
+            instance('shortcut-rail','flight_curve',span,0),instance('shortcut-landing','free_curve',runway,-rise)]
+        source['connections']=[dict(from_='scenic-shortcut',to='shortcut-rail'),dict(from_='shortcut-rail',to='shortcut-landing')]
+        source['connections']=[{'from':c['from_'],'to':c['to']} for c in source['connections']]
+        source['terrain_policies']={i['id']:'elevated' for i in source['instances']}
+        start=a+direction*runway;end=b-direction*runway;center=(start+end)/2
+        position=[round(center[0]*100),round((level+rise-.4)*100),round(center[1]*100)]
+        half=round(span*50)
+        vertices=[[x,y,z] for x,y,z in [(-20,0,-half),(20,0,-half),(20,40,-half),(-20,40,-half),
+            (-20,0,half),(20,0,half),(20,40,half),(-20,40,half)]]
+        faces=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[3,7,6],[3,6,2],[0,4,7],[0,7,3],[1,2,6],[1,6,5]]
+        radius=half+100
+        source['structures']=[dict(id='authored-shortcut-rail',position=position,
+            rotation_mdeg=[0,round(math.degrees(math.atan2(direction[0],direction[1]))*1000),0],scale_per_mille=[1000]*3,
+            parts=[dict(vertices=vertices,faces=faces)],surface='concrete',color=[255,200,40,255],
+            motion=dict(kind='static',delta_cm=[0]*3,axis=1,period_ms=4000,phase_ms=0,impulse_cmps=[0]*3,cooldown_ms=1500),
+            safety_min_cm=[v-radius for v in position],safety_max_cm=[v+radius for v in position])]
+        source['grind_lines']=[dict(id='shortcut-rail',control_points=[[round(p[0]*100),round((level+rise)*100),round(p[1]*100)] for p in (start,end)],
+            up=[0,1000000,0],capture_width_cm=40,start_connections=[],end_connections=[])]
+        w.attachments=[v for v in w.attachments if v['id']!='scenic-action']
+        branch=w.shortcuts[-1]
+        # The Bezier control-polygon length bounds each sloping runway from
+        # above. Include vertical travel and both ordinary-road approaches.
+        branch_length=span+36+sum(sum(math.dist(a,b)/100 for a,b in zip(i['control_points'],i['control_points'][1:]))
+            for i in (source['instances'][0],source['instances'][2]))
+        branch.update(exit_surface='track:shortcut-landing',rail_id='shortcut-rail',landing_runway_m=runway+18,
+            shortcut_length_m=branch_length,main_length_m=w.routes['south-road'].length)
+        if branch['shortcut_length_m']>branch['main_length_m']*.8 or branch['main_length_m']-branch['shortcut_length_m']<5:
+            raise ValueError('Rail shortcut must save 20% and 5 m including approach/exit')
     # Show a common boost on ordinary road as well as the attached track object.
     w.attachments.append(dict(id='arrival-boost',surface=dict(surface_id='arrival-road',station_cm=14500),
         kind='acceleration_panel',height_cm=80,panel_width_percent=50,panel_alignment='right',side=1))
@@ -180,8 +207,10 @@ def split_south(w,entry,exit,level,kind='ramp_low',rise=0):
     w.doc['roads'].remove(road);w.routes.pop('south-road');w.shoulders.pop('south-road')
     # The bypass bows outward; its travel is always ordinary asphalt.
     normal=np.array([-direction[1],direction[0]])
-    middle=tuple((a+b)/2+normal*38)
-    w.path('south-road',[fork,tuple(a+normal*30),middle,tuple(b+normal*30),merge],7.5,level=level,shoulder_m=6)
+    bow=85 if kind=='grind_rail' else 38
+    shoulder=70 if kind=='grind_rail' else 30
+    middle=tuple((a+b)/2+normal*bow)
+    w.path('south-road',[fork,tuple(a+normal*shoulder),middle,tuple(b+normal*shoulder),merge],7.5,level=level,shoulder_m=6)
     w.path('south-entry',[original[0],fork],7.5,level=level,shoulder_m=6)
     w.path('south-exit',[merge,original[-1]],7.5,level=level,shoulder_m=6)
     shortcut(w,entry,exit,level,kind,rise)

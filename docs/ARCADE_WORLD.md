@@ -1,6 +1,8 @@
 # Authored default worlds
 
-`examples/default-worlds` contains seven compact, original v1 worlds. Each has
+`examples/default-worlds` contains the seven compact, original v1 worlds; current
+Harbor/Factory sources live in `examples/default-worlds-rails`, preserving prior
+sources. Each has
 free roam and three recommended ordinary-road courses: **intro 600–900 m**, **tour
 1,400–2,000 m**, **technical 1,000–1,500 m**. These are geometric distances from the
 first gate to the finish, not completion-time promises. Map and course content
@@ -39,7 +41,11 @@ Undo/Redo and save/reopen keep the source. Original heightmaps remain immutable.
 See [road editing](TRACK_EDIT_PERFORMANCE.md) and [v1 contracts](CURRENT_V1.md).
 
 Each special lane has an ordinary fork/merge, a separate continuous road bypass,
-a connected track entry and an aligned exit/runout. Course gates lie outside the
+a connected track entry and an aligned exit/runout. Harbor and Factory rails span
+broad ordinary bends: supported entry/landing runways join a continuous beam,
+whose top matches the explicit grind line. The whole branch including approaches
+saves at least 20% and 5 m. Terrain, scenery, road clearance and shared gates are
+checked before sealing. Course gates lie outside the
 whole branch; no route requires a ramp, jump or rail. The authoring tool submits
 ordinary IDs and `track:<instance>` references to MapKit's existing v1 resolver.
 `mapkit compose-world DOCUMENT.json SOURCE.json ATTACHMENTS.json NEW.json` applies

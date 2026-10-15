@@ -55,7 +55,8 @@ class CompactWorlds(unittest.TestCase):
                     last=b
                 for branch in meta['optional_branches']:
                     self.assertFalse(set(branch['base_roads']) & {p['surface_id'] for p in route['waypoints']},'branch-only gate would force the bypass')
-            self.assertEqual({a['surface']['surface_id'] for a in world.attachments},{'arrival-road','track:scenic-shortcut'})
+            self.assertEqual({a['surface']['surface_id'] for a in world.attachments},
+                {'arrival-road'} if theme in ('neon-harbor','machine-factory') else {'arrival-road','track:scenic-shortcut'})
             self.assertGreaterEqual(meta['optional_branches'][0]['landing_runway_m'],6)
             self.assertTrue(world.track_source['road_connections'])
 
@@ -102,5 +103,29 @@ class CompactWorlds(unittest.TestCase):
                 if placement['id'].startswith(prefixes):
                     x,z,y=[v/100 for v in placement['position']]
                     self.assertLess(abs(z-float(world.height(x,y))),.025,(theme,placement['id']))
+
+class RailWorlds(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls): cls.worlds={name:build(name,KIT) for name in ('neon-harbor','machine-factory')}
+
+    def test_curve_shortcuts_and_clear_corridor(self):
+        for theme,(world,meta) in self.worlds.items():
+            branch=world.shortcuts[0];line=world.track_source['grind_lines'][0]
+            self.assertLessEqual(branch['shortcut_length_m'],branch['main_length_m']*.8)
+            self.assertGreaterEqual(branch['main_length_m']-branch['shortcut_length_m'],5)
+            self.assertGreaterEqual(branch['landing_runway_m'],18)
+            for r in meta['routes']:
+                low,high={'intro':(600,900),'tour':(1400,2000),'technical':(1000,1500)}[r['id']]
+                self.assertTrue(low<=r['length_m']<=high,(theme,r['id'],r['length_m']))
+                self.assertFalse(set(branch['base_roads']) & {p['surface_id'] for p in r['waypoints']})
+            for a,b in zip(line['control_points'],line['control_points'][1:]):
+                for t in np.linspace(0,1,100):
+                    p=np.array(a)+(np.array(b)-a)*t
+                    self.assertLessEqual(world.height(p[0]/100,p[2]/100),p[1]/100-.4+.01)
+            for name,shape in world.obstacles:
+                self.assertFalse(shape.intersects(branch['clearance']),(theme,name))
+            again,_=build(theme,KIT)
+            self.assertEqual(canonical(world.track_source),canonical(again.track_source))
+            self.assertEqual(canonical(world.doc),canonical(again.doc))
 
 if __name__=='__main__':unittest.main()
