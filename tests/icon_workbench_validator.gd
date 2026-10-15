@@ -67,6 +67,7 @@ func run() -> void:
 	ui._history(true)
 	await settle()
 	check(bench.source.instances.size() == 2 and placement.tool == "", "Redo restores placement without restarting a tool")
+	placement.set_free(true)
 	commands.execute_id("track.piece.gentle90")
 	placement.preview_at(Vector3(40, 0, 0))
 	before = state()
@@ -89,7 +90,7 @@ func run() -> void:
 	ui._set_view_mode("2d")
 	check(placement.tool == "" and not placement.commit(serial), "view change rejects late candidates")
 	commands.execute_id("track.piece.straight")
-	check(ui.view_mode == "split", "hidden 3D automatically opens split view")
+	check(ui.view_mode == "3d", "track tools open the main 3D view")
 	placement.preview_at(Vector3(40, 0, 0))
 	ui.commands.open()
 	check(placement.tool == "" and not placement.commit(), "opening command popup cancels placement")
@@ -181,6 +182,7 @@ func run() -> void:
 	await settle()
 	check(bench.source.instances.size() == 2, "track delete resolves current selection")
 	bench.selected = 0
+	bench.advanced = true
 	bench._properties()
 	bench.route_list.select(0)
 	var route: Array = bench.source.paths[0].pieces.duplicate()
@@ -198,7 +200,8 @@ func run() -> void:
 	ui.canvas._gui_input(click)
 	check(state() == before and ui.canvas.navigation_only, "auxiliary track plan is navigation-only")
 	# Same physical slot selects a different mode's command.
-	check(ui.store.set_free_roam(true) == "", "switch to free roam")
+	check(ui.store.set_free_roam(true) == "" and ui.track_workbench.active, "free-roam policy does not switch editing tools")
+	ui.set_tool_workspace("landscape")
 	release_focus()
 	commands.handle_key(key(KEY_2))
 	check(ui.canvas.tool == "Road", "free-roam favorite two selects Road")
@@ -212,6 +215,7 @@ func run() -> void:
 	check(ui.canvas.zoom == 1, "F fits the free roam plan through the shared command")
 	for roam in [false, true]:
 		ui.store.set_free_roam(roam)
+		ui.set_tool_workspace("landscape" if roam else "track")
 		for window_size in [Vector2i(1024, 720), Vector2i(1440, 900), Vector2i(1920, 1080)]:
 			root.size = window_size
 			ui._reset_panels()

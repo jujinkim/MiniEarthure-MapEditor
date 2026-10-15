@@ -26,7 +26,7 @@ func wait_job() -> void:
 func run() -> void:
 	root.size=Vector2i(1024,720)
 	ui=load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.store.new_document()
 	check(ui.store.apply_command("four-cell synthetic map",[{"field":"bounds","before":ui.store.document.bounds.duplicate(true),"after":{"min":[0,0],"max":[102400,102400]}}])=="","fixture bounds")

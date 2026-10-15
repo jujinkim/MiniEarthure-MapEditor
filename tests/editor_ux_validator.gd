@@ -64,7 +64,7 @@ func capture(name: String) -> void:
 func run() -> void:
 	root.size = Vector2i(1024, 720)
 	ui = load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	ui.store.new_track(true)
 	ui.set_tool_workspace("landscape")
 	ui.dialog.use_native_dialog = false

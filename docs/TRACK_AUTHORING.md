@@ -8,16 +8,25 @@ in [TRACK_EDIT_PERFORMANCE](TRACK_EDIT_PERFORMANCE.md).
 
 ## Workspace
 
-New Map defaults to a track draft; selecting free roam keeps the ordinary map tools.
-Track mode opens a primary 3D workspace with an auxiliary plan, driving/gimmick/action
-palettes on the left, source properties on the right and connection/course issues
-below. View changes and `free_roam` edits preserve geometry.
+**Create track** opens a manual sprint draft in the primary 3D workspace. Ordinary
+OSM roads and track pieces use the same document and tools. The game `free_roam`
+finish policy never selects an editing screen.
 
-Select a piece in the list or by 3D click. Left drag moves it on the selected
-elevation plane; numeric X/Y/Z and Euler fields allow any placement. With snap
-enabled a nearby entry snaps to another exit. Add, duplicate, delete, port snap,
-Bézier connection, control points and entry/exit widths are source edits; MapKit
-rebuilds and tessellates all geometry.
+Place the first piece, then select a visible exit or keep the newly placed exit.
+The next piece previews already connected; click or Enter confirms and continues
+the route in placement order. **Free placement** enables independent placement.
+Port-fixed previews retain connection height; slope pieces change elevation.
+PageUp/PageDown changes free work height by 1 m, Shift by 0.1 m. Escape discards the
+preview. Clicking/dragging a selected piece moves it on the work plane. Exact
+transforms, curves, connection targets and route lists remain under Advanced tools.
+
+**Course → Suggest basic course** calls MapKit's read-only proposal API. Preview
+shows the start, finish and shared checkpoints; **Apply course proposal** explicitly
+replaces existing track gates in one Undo command. Gates can be selected and dragged
+in 3D. Missing connections and ambiguous branches have located diagnostics; choose
+the intended route in advanced controls before applying. **Preview circuit
+connection** validates a direct edge or cubic candidate to the start, shows failed
+connections and requires explicit application.
 
 The Driving palette includes five extra-wide presets with a fixed 12 m body
 (`straight_extra_wide`, `gentle90_extra_wide[_left]`, `right90_extra_wide[_left]`)
@@ -100,7 +109,7 @@ existing history budget; it does not recompile a narrow original.
 
 ## Validation
 
-`track_workbench_validator`, `assembled_track_validator`,
+`driving_workflow_validator`, `driving_osm_validator`, `track_workbench_validator`, `assembled_track_validator`,
 `seed_track_validator`, `extra_wide_track_validator`, `grind_line_validator` and `pipe_edit_validator`
 cover placement, snapping, generation settings, cancellation and stale results,
 Undo/Redo and save/reopen. Detailed pointer editing, long sessions, driving and

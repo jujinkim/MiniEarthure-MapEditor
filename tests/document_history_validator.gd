@@ -188,9 +188,9 @@ func canvas_gestures() -> void:
 	check(not store.has_gesture() and not canvas.dragging, "focus loss cancels gesture")
 	canvas._gui_input(press)
 	ui._new()
-	ui.new_free_roam.button_pressed = true
-	ui.new_map_dialog.hide()
-	ui.new_map_dialog.confirmed.emit()
+	check(ui.start_panel.visible,"New opens starting choices")
+	ui.start_panel.hide()
+	ui._request_document_action("new")
 	if ui.unsaved_dialog.visible:
 		ui.unsaved_dialog.hide()
 		ui._continue_document_action()

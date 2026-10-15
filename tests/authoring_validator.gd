@@ -71,7 +71,7 @@ func shape(tool: String, vertices: Array) -> void:
 func run() -> void:
 	root.size = Vector2i(1440, 900)
 	ui = load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	await process_frame
 	# General terrain/shape authoring uses the explicit free-roam document mode.

@@ -42,7 +42,7 @@ func pointer(button: Button) -> void:
 		await process_frame
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	ui.store.new_track(true)
 	root.size = Vector2i(1024,720)
 	await process_frame

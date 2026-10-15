@@ -41,6 +41,32 @@ static func decode(value: Variant, allow_assets: bool = false, allow_generation:
 			if record is not Dictionary: return {"error":"Invalid prepared document record."}
 	var fields: Array = ["pois","nodes","roads","buildings","zones","heightmaps","attributions","placements","surface_areas","water_bodies","gimmicks","assets"] if allow_generation else ["assets", "attributions"] if allow_assets else ["pois", "nodes", "roads", "buildings", "zones", "heightmaps", "attributions"]
 	for patch: Variant in command.patches:
+		if not allow_assets and patch is Dictionary and patch.get("field") == "bounds":
+			if patch.get("id") != "" or patch.get("before") is not Dictionary or patch.get("after") is not Dictionary or patch.get("after") != candidate.get("bounds"):
+				return {"error":"Invalid imported map extent."}
+			for extent: Dictionary in [patch.before,patch.after]:
+				for key in ["min","max"]:
+					if extent.get(key) is not Array or extent[key].size() != 2: return {"error":"Invalid imported map extent."}
+					for coordinate: Variant in extent[key]:
+						if (coordinate is not int and coordinate is not float) or not is_finite(coordinate) or coordinate != round(coordinate): return {"error":"Invalid imported map extent."}
+			continue
+		if not allow_assets and patch is Dictionary and patch.get("field") == "assembled_track":
+			# Only the native composition transition of an existing standalone
+			# assembly is transferable. Adapter patches cannot name this field.
+			var before: Variant = patch.get("before")
+			var after: Variant = patch.get("after")
+			if patch.get("id") != "" or before is not Dictionary:
+				return {"error":"Invalid imported track composition."}
+			var source: Variant = before.get("authoring") if before.get("authoring") is Dictionary else before.get("seed_source")
+			if source is not Dictionary or source.get("terrain_integration",false):
+				return {"error":"Invalid imported track composition."}
+			var expected: Dictionary = before.duplicate(true)
+			expected.authoring = source.duplicate(true)
+			expected.authoring.terrain_integration = true
+			expected.seed_source = null
+			if after != expected and not (after == null and before.get("pieces",[]).is_empty() and source.get("structures",[]).is_empty() and source.get("grind_lines",[]).is_empty()):
+				return {"error":"Import cannot rewrite assembled geometry."}
+			continue
 		if not allow_assets and patch is Dictionary and patch.get("field") == "free_roam":
 			if patch.get("id") != "" or patch.get("before") is not bool or patch.get("after") != true or candidate.get("free_roam") != true:
 				return {"error":"Invalid imported map free-roam policy."}

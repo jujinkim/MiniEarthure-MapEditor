@@ -14,7 +14,7 @@ func wait_import(ui: Control) -> void:
 	check(not ui.busy, "structure worker terminates: " + ui.status_label.text)
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	check(ui.store.apply_command("Choose connected road recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current generation setup")
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")

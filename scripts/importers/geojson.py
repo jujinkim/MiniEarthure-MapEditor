@@ -137,9 +137,11 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 level = scalar("level", 0, -100, 100)
                 if int(level) != level:
                     raise ValueError("level must be integral")
+                ground_refs = properties.get("_city_ends") if osm_graph and not connected else None
                 endpoints = []
                 for offset, suffix, p in [(0, "from", points[0]), (-1, "to", points[-1])]:
                     node_id = f"import-{layer.layer_id}-osm-node-{properties['osm_node_refs'][offset]}" if connected else road_id + "-" + suffix
+                    if ground_refs and ground_refs[offset]: node_id = f"import-{layer.layer_id}-osm-ground-node-{ground_refs[offset]}"
                     record = {"id": node_id, "position": p, "level": int(level)}
                     if node_id in graph_nodes and graph_nodes[node_id] != record:
                         raise ValueError("OSM shared node has conflicting geometry")
@@ -152,7 +154,9 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 if "surface" not in properties: layer.estimate("surface")
                 layer.add("roads", {"id": road_id, "from": endpoints[0], "to": endpoints[1], "points": points,
                     "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": properties["road_kind"] if explicit else "ground", "clearance_cm": round(properties["clearance_m"] * 100) if explicit and "clearance_m" in properties else None, "sidewalk_cm": None})
-                if not connected:
+                if ground_refs:
+                    layer.coordinates.setdefault("osm_ground_endpoints", []).append(dict(road_id=road_id,refs=ground_refs))
+                if not connected and not ground_refs:
                     label = str(index) if kind == "LineString" else f"{index} part {part}"
                     layer.warning(f"{label}: disconnected endpoints; connect explicitly in Editor")
                 if kind == "MultiLineString":

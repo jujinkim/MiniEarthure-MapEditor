@@ -16,7 +16,7 @@ func wait_job() -> void:
 	check(not ui.busy,"bounded city DEM completes: "+ui.status_label.text)
 func run() -> void:
 	ui=load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.store.new_document()
 	var patches: Array=[

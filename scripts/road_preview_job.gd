@@ -29,11 +29,10 @@ func _prepare(document: Dictionary,path: String) -> Dictionary:
 			var cell_triangles: Array=[]
 			var view: Dictionary=DATA.view(result.data.chunk)
 			for i in DATA.count(view):
-				if not DATA.spawnable(view,i):continue
 				var values: PackedInt64Array=view.vertices_cm
 				var vertices: Array=[]
 				for j in 3:vertices.append(Array(values.slice(i*9+j*3,i*9+j*3+3)))
-				cell_triangles.append({"object_id":DATA.object_id(view,i),"spawnable":true,"vertices":vertices})
+				cell_triangles.append({"object_id":DATA.object_id(view,i),"spawnable":DATA.spawnable(view,i),"vertices":vertices})
 			triangles.append_array(cell_triangles)
 			if triangles.size()>40000:return {"error":"E_BUDGET: nearby picking triangle allowance exceeded"}
 			chunks.append({"cell":cell,"chunk":result.data.chunk,"hash":result.data.preview_signature,"triangles":cell_triangles})

@@ -29,7 +29,16 @@ var preview_stats := {"generated": 0, "reused": 0, "attachment_frames": 0, "max_
 var export_report: AcceptDialog
 var last_export_report := {}
 var tool_workspace := "track"
-var workspace_tabs: TabBar
+var tool_group := "roads"
+var advanced_visible := false
+var simple_palette: VBoxContainer
+var spatial: Node
+var course_tools: Node
+var scenery: Node
+var start_panel: PanelContainer
+var output_tabs: TabContainer
+var work_controls: VBoxContainer
+var workspace_tabs: GridContainer
 var track_workbench: Node
 var new_map_dialog: ConfirmationDialog
 var new_free_roam: CheckBox
@@ -64,7 +73,7 @@ var project_label: Label
 var commands: PopupPanel
 var workspace_views: HSplitContainer
 var preview_dock: VBoxContainer
-var view_mode := "split"
+var view_mode := "3d"
 var properties: VBoxContainer
 const EDIT := preload("./workbench_edit.gd")
 const LAYERS := preload("./workbench_layers.gd")
@@ -173,18 +182,35 @@ func _ready() -> void:
 	get_tree().auto_accept_quit = false
 	get_window().min_size = Vector2i(1024, 720)
 	_build_ui()
-	generation_panel = preload("./generation_panel.gd").new()
-	add_child(generation_panel)
-	generation_panel.build(self)
 	track_workbench=preload("./track_workbench.gd").new()
 	add_child(track_workbench)
 	track_workbench.build(self)
-	workspace_tabs = TabBar.new()
-	workspace_tabs.add_tab(I18N.t("Roads & tracks"))
-	workspace_tabs.add_tab(I18N.t("Terrain & scenery"))
+	workspace_tabs = GridContainer.new()
+	workspace_tabs.columns = 2
 	left_dock.add_child(workspace_tabs)
 	left_dock.move_child(workspace_tabs,0)
-	workspace_tabs.tab_changed.connect(func(index: int): set_tool_workspace("track" if index == 0 else "landscape"))
+	for item in [["roads","Roads & tracks"],["gimmicks","Gimmicks"],["course","Course"],["scenery","Scenery"]]:
+		var button := Button.new()
+		button.text = I18N.t(item[1])
+		button.toggle_mode = true
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.custom_minimum_size.y = 36
+		button.set_meta("workspace_group",item[0])
+		button.pressed.connect(show_tool_group.bind(item[0]))
+		workspace_tabs.add_child(button)
+
+	simple_palette = VBoxContainer.new()
+	left_dock.add_child(simple_palette)
+	simple_palette.hide()
+	spatial = preload("./spatial_edit.gd").new()
+	add_child(spatial)
+	spatial.build(self,work_controls)
+	course_tools = preload("./course_workbench.gd").new()
+	add_child(course_tools)
+	course_tools.build(self)
+	scenery = preload("./scenery_workbench.gd").new()
+	add_child(scenery)
+	scenery.build(self)
 	commands.settings_changed.connect(func():
 		snap_toggle.tooltip_text = commands.tooltip("edit.toggle_snap")
 		track_workbench.snap.tooltip_text = commands.tooltip("edit.toggle_snap"))
@@ -201,6 +227,7 @@ func _ready() -> void:
 	store.changed.connect(_document_changed)
 	store.new_track()
 	_restore_workbench.call_deferred()
+	_show_start.call_deferred()
 	if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path("user://recovery")):
 		_status(I18N.t("Recovery snapshots are available. Use Recover to inspect one; saved projects stay unchanged."))
 
@@ -236,7 +263,7 @@ func _build_ui() -> void:
 	var bar := HBoxContainer.new()
 	column.add_child(bar)
 	var toolbar_groups := {}
-	for group in [["File", ["file.new", "file.open", "file.save", "file.export_map"]], ["Edit", ["edit.undo", "edit.redo", "edit.duplicate", "edit.delete"]], ["Create", ["create.seed_track"]], ["Inspect", ["validate.validate", "view.commands", "edit.shortcuts"]]]:
+	for group in [["File", ["file.new", "file.open", "file.save", "file.export_map"]], ["Edit", ["edit.undo", "edit.redo", "edit.duplicate", "edit.delete"]], ["Create", ["create.track", "create.osm", "validate.test_drive"]], ["Inspect", ["validate.validate", "view.commands", "edit.shortcuts"]]]:
 		var group_row := HBoxContainer.new()
 		bar.add_child(group_row)
 		toolbar_groups[group[0]] = group_row
@@ -334,6 +361,8 @@ func _build_ui() -> void:
 	selection_label.text = I18N.t("2D MAP  ·  Select  ·  0 selected")
 	center.add_child(selection_label)
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	work_controls = VBoxContainer.new()
+	center.add_child(work_controls)
 	var view_modes := HBoxContainer.new()
 	center.add_child(view_modes)
 	for mode in ["2d", "3d", "split"]:
@@ -407,7 +436,13 @@ func _build_ui() -> void:
 	preview_dock.add_child(preview_container)
 	preview_container.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.pressed: preview_container.grab_focus()
-		if landscape_brush.input(event):
+		if spatial != null and spatial.input(event):
+			preview_container.accept_event()
+		elif course_tools != null and course_tools.input(event):
+			preview_container.accept_event()
+		elif scenery != null and scenery.input(event):
+			preview_container.accept_event()
+		elif landscape_brush.input(event):
 			preview_container.accept_event()
 		elif track_workbench != null and track_workbench.input(event):
 			preview_container.accept_event()
@@ -448,9 +483,10 @@ func _build_ui() -> void:
 		environment_preview.previous_weather = environment_preview.weather
 		environment_preview.wet = 2 if index == 2 else 0
 		environment_preview.snow = 2 if index == 3 else 0)
-	var output_tabs := TabContainer.new()
+	output_tabs = TabContainer.new()
 	output_tabs.custom_minimum_size.y = 128
 	column.add_child(output_tabs)
+	output_tabs.hide()
 	var activity := VBoxContainer.new()
 	activity.name = "Activity"
 	output_tabs.add_child(activity)
@@ -512,6 +548,10 @@ func _build_ui() -> void:
 	)
 	unsaved_dialog.canceled.connect(func(): pending_document_action.clear())
 	add_child(unsaved_dialog)
+	_build_test_drive_dialog()
+
+func _ensure_import_ui() -> void:
+	if is_instance_valid(import_dialog): return
 	import_dialog = ConfirmationDialog.new()
 	import_dialog.title = I18N.t("Import vector source")
 	import_dialog.ok_button_text = I18N.t("Choose source…")
@@ -592,7 +632,7 @@ func _build_ui() -> void:
 	review_fields.add_child(import_summary)
 	_button(review_fields, "Browse exact details", _open_import_details)
 	import_exclusions = CheckBox.new()
-	import_exclusions.text = "I reviewed and exclude every listed invalid row / unsupported source object"
+	import_exclusions.text = I18N.t("I reviewed and exclude every listed invalid row / unsupported source object")
 	import_exclusions.toggled.connect(func(checked): import_review.get_ok_button().disabled = import_exclusions.visible and not checked)
 	review_fields.add_child(import_exclusions)
 	import_review.confirmed.connect(_adopt_import)
@@ -614,7 +654,6 @@ func _build_ui() -> void:
 	dem_panel = DEM_PANEL.new()
 	dem_panel.editor = self
 	add_child(dem_panel)
-	_build_test_drive_dialog()
 
 func _import_number(parent: Control, title: String, minimum: float, maximum: float, initial: float, step_size: float) -> SpinBox:
 	_label(parent, title)
@@ -641,6 +680,9 @@ func _label(parent: Node, text: String) -> Label:
 	return label
 
 func _new() -> void:
+	_show_start()
+
+func _legacy_new() -> void:
 	var failure: String = store.finish_active_terrain()
 	if failure != "": _status(failure); return
 	while store.water_job != null: await get_tree().process_frame
@@ -697,7 +739,9 @@ func _continue_document_action() -> void:
 	var failure := ""
 	match request.action:
 		"new":
-			store.new_track(new_free_roam.button_pressed if is_instance_valid(new_free_roam) else false)
+			store.new_track(false)
+			show_tool_group("roads")
+			_set_view_mode("3d")
 			_status(I18N.t("New map."))
 		"open": failure = store.open_project(request.path)
 		"recover": failure = store.recover(request.path)
@@ -706,6 +750,7 @@ func _continue_document_action() -> void:
 	elif request.action in ["open", "recover"]: _status(I18N.t("Ready: ") + request.path)
 
 func _choose(action: String) -> void:
+	if action == "import": _ensure_import_ui()
 	var failure: String = store.finish_active_terrain()
 	if failure != "": _status(failure); return
 	while store.water_job != null: await get_tree().process_frame
@@ -799,6 +844,7 @@ func _save() -> void:
 		_start_save(store.project_path)
 
 func _import_geojson() -> void:
+	_ensure_import_ui()
 	_cancel_editing()
 	if not busy:
 		import_dialog.get_ok_button().disabled = not IMPORT_LAYER._text(import_license.text.strip_edges())
@@ -836,6 +882,16 @@ func _selection(ids: Array) -> void:
 	tool_hint.tooltip_text = tool_hint.text
 	selection_label.text = I18N.t("2D MAP  ·  %s  ·  %d selected") % [I18N.t(canvas.tool), property_records.size()]
 	apply_button.disabled = property_records.is_empty()
+	if tool_workspace == "landscape" and not advanced_visible:
+		apply_button.hide()
+		if property_records.size() == 1:
+			selected_field = property_records[0].field
+			selected_record = property_records[0].record
+			_label(properties,selected_record.id)
+			_button(properties,"Rotate 90°",scenery.rotate_selected)
+			commands.button(properties,"edit.delete")
+		_button(properties,"Advanced tools…",open_advanced)
+		return
 	if property_records.is_empty():
 		var free_roam := CheckBox.new()
 		free_roam.text = I18N.t("Free roam map")
@@ -1006,7 +1062,10 @@ func set_tool_workspace(value: String) -> void:
 	if value not in ["track", "landscape"]: return
 	_cancel_editing()
 	tool_workspace = value
-	if is_instance_valid(workspace_tabs): workspace_tabs.set_current_tab(0 if value == "track" else 1)
+	if value == "landscape": tool_group = "scenery"
+	elif tool_group == "scenery": tool_group = "roads"
+	if is_instance_valid(workspace_tabs):
+		for button: Button in workspace_tabs.get_children(): button.set_pressed_no_signal(button.get_meta("workspace_group") == tool_group)
 	track_workbench.refresh()
 	commands.refresh_buttons()
 
@@ -1055,6 +1114,9 @@ func _toggle_snap() -> void:
 func _cancel_editing() -> void:
 	if canvas != null: canvas.cancel_interaction()
 	if track_workbench != null: track_workbench.cancel_interaction()
+	if spatial != null: spatial.cancel()
+	if course_tools != null: course_tools.cancel()
+	if scenery != null: scenery.cancel()
 
 func _register_commands() -> void:
 	commands.context_source = func(): return "roam" if tool_workspace == "landscape" else "track"
@@ -1079,6 +1141,11 @@ func _register_commands() -> void:
 	commands.register("View", "Tools / layers", func(): left_dock.visible = not left_dock.visible)
 	commands.register("View", "Properties", func(): right_dock.visible = not right_dock.visible)
 	commands.register("View", "Reset panels", _reset_panels)
+	commands.register("View", "Diagnostics", func(): output_tabs.visible = not output_tabs.visible, "", {"id":"view.diagnostics","icon":"inspect"})
+	commands.register("View", "Object lists", func(): track_workbench.object_lists = not track_workbench.object_lists; track_workbench.refresh(), "", {"id":"view.object_lists","icon":"list"})
+	commands.register("Create", "Create track", func(): _show_start(), "", {"id":"create.track","icon":"plus"})
+	commands.register("Create", "Import OSM / PBF", _guided_osm, "", {"id":"create.osm","icon":"import"})
+	commands.register("Create", "Advanced tools…", open_advanced, "", {"id":"create.advanced","icon":"settings"})
 	for mode in ["2d", "3d", "split"]:
 		commands.register("View", mode.to_upper(), _set_view_mode.bind(mode), "", {"id":"view." + mode, "icon":mode})
 	for tool in ["Select", "Road", "Surface area", "Water", "Remove water", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
@@ -1086,8 +1153,8 @@ func _register_commands() -> void:
 		commands.register("Create", tool, _set_tool.bind(tool), shortcut, {"id":"tool." + tool.to_snake_case(), "context":"global" if tool == "Select" else "roam", "description":"Select in the active workspace: track pieces in 3D, or free roam objects on the plan." if tool == "Select" else _tool_help(tool), "menu":false})
 	commands.register("Create", "Authoring settings…", func(): author_panel.open(), "", {"context":"roam"})
 	commands.register("Create", "Seed Track", _open_track_generator, "", {"id":"create.seed_track", "icon":"generate"})
-	commands.register("Create", "New region", func(): generation_panel.open_mode("new"), "", {"id":"create.new_region","icon":"generate"})
-	commands.register("Create", "Complete selected area", func(): generation_panel.open_mode("fill"), "", {"id":"create.complete_area","context":"roam","icon":"generate"})
+	commands.register("Create", "New region", func(): _open_generation("new"), "", {"id":"create.new_region","icon":"generate"})
+	commands.register("Create", "Complete selected area", func(): _open_generation("fill"), "", {"id":"create.complete_area","context":"roam","icon":"generate"})
 	commands.register("Validate", "Validate", _validate)
 	commands.register("Validate", "3D Preview", _preview, "", {"context":"roam", "icon":"3d"})
 	commands.register("Validate", "Test Drive", _test_drive)
@@ -1112,6 +1179,7 @@ func _decorate_ui_id(id: int) -> void:
 	if node is Node: _decorate_ui(node)
 
 func _decorate_ui(node: Node) -> void:
+	if node.has_meta("workspace_group"): return
 	if not is_instance_valid(node) or node.is_queued_for_deletion(): return
 	if node is Window:
 		node.theme = theme
@@ -1143,11 +1211,11 @@ func _reset_panels() -> void:
 	center_split.split_offset = int(size.x * 0.35)
 	right_dock.split_offset = 0
 	workspace_views.split_offset = 0
-	_set_view_mode("split")
+	_set_view_mode("3d")
 
 func _restore_workbench() -> void:
 	view_settings.load("user://workbench.cfg")
-	_set_view_mode(str(view_settings.get_value("views", "mode", "split")))
+	_set_view_mode(str(view_settings.get_value("views", "mode", "3d")))
 	workspace_views.split_offset = int(view_settings.get_value("views", "split", 0))
 	left_dock.visible = bool(view_settings.get_value("panels", "left_visible", true))
 	right_dock.visible = bool(view_settings.get_value("panels", "right_visible", true))
@@ -1156,18 +1224,18 @@ func _restore_workbench() -> void:
 	right_dock.split_offset = int(view_settings.get_value("panels", "vertical", 0))
 	snap_toggle.button_pressed = bool(view_settings.get_value("snap", "enabled", true))
 	snap_size.value = clampf(float(view_settings.get_value("snap", "metres", 1.0)), 0.01, 100.0)
-	author_panel.visible = tool_workspace == "landscape" and bool(view_settings.get_value("panels", "authoring_visible", true))
+	author_panel.visible = tool_workspace == "landscape" and advanced_visible
 	if author_panel.visible and author_panel.tabs.get_tab_count() == 0: author_panel.open()
 	canvas.layer_state = view_settings.get_value("layers", displayed_map_id, {}).duplicate(true)
 	layers.refresh()
 	if tool_workspace == "track":
-		_set_view_mode("split")
 		workspace_views.move_child(preview_dock,0)
 		preview_dock.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 		preview_dock.size_flags_stretch_ratio=3.0
 		canvas.size_flags_stretch_ratio=1.0
 		workspace_views.split_offset=300
 		track_workbench.refresh()
+	show_tool_group(tool_group)
 
 func _save_workbench() -> void:
 	if canvas == null or left_dock == null: return
@@ -1436,6 +1504,7 @@ func _trim_preview_cache(keep: Vector2i) -> void:
 		preview_cache.erase(oldest)
 
 func _start_import(source: String, license_name: String) -> void:
+	_ensure_import_ui()
 	if busy:
 		_status(I18N.t("Another operation is running; wait for cancellation to finish."))
 		return
@@ -1683,6 +1752,7 @@ func _finish_native_import(job: RefCounted, result: Dictionary) -> void:
 		_review_import(job.layer)
 
 func _review_import(layer: RefCounted) -> void:
+	_ensure_import_ui()
 	import_details.clear()
 	pending_import = layer
 	import_review_generation = generation
@@ -1692,6 +1762,9 @@ func _review_import(layer: RefCounted) -> void:
 	import_exclusions.visible = not layer.value.coordinates.get("csv", {}).get("rejected", []).is_empty() or not layer.value.coordinates.get("osm_review", {}).get("excluded", []).is_empty()
 	import_review.get_ok_button().disabled = import_exclusions.visible
 	import_summary.text = layer.summary()
+	for patch: Dictionary in layer.patches(store):
+		if patch.field == "bounds":
+			import_summary.text += "\n"+I18N.t("New map extent: %.0f × %.0f m (1:8). Applied together with the reviewed import.") % [(patch.after.max[0]-patch.after.min[0])/100.0,(patch.after.max[1]-patch.after.min[1])/100.0]
 	import_review.popup_centered(Vector2i(760, 460))
 	_status(I18N.t("Import prepared. Review and adopt the new layer, or discard it."))
 	return
@@ -1761,6 +1834,7 @@ func _show_status_details() -> void:
 	details.popup_centered(Vector2i(760, 380))
 
 func _status(text: String) -> void:
+	if text.begins_with("E_") and is_instance_valid(output_tabs): output_tabs.show()
 	if busy and text.begins_with("x "): return
 	if validation_label != null and text.contains("E_"):
 		validation_label.text = I18N.t("Edit/operation rejected · ") + text
@@ -1799,6 +1873,8 @@ func _build_test_drive_dialog() -> void:
 	_button(path_row, "Browse", func(): client_dialog.popup_centered_ratio(0.8))
 	var coordinates := HBoxContainer.new()
 	layout.add_child(coordinates)
+	_button(layout,"Choose start in 3D",func(): spatial.pick_drive())
+	_button(layout,"Use course start",func(): spatial.drive_point = {}; drive_dialog.hide(); _test_drive())
 	_label(coordinates, "x (m)")
 	drive_x = SpinBox.new()
 	coordinates.add_child(drive_x)
@@ -1850,6 +1926,25 @@ func _test_drive() -> void:
 			drive_surface.select(drive_surface.item_count - 1)
 			drive_x.value = float(road.points[0][0] + road.points[1][0]) / 200
 			drive_y.value = float(road.points[0][2] + road.points[1][2]) / 200
+	var start: Dictionary = spatial.drive_point
+	if start.is_empty():
+		var source: Dictionary = store.track_source()
+		if not source.checkpoints.is_empty():
+			var cp: Dictionary = source.checkpoints[0]
+			for i in source.instances.size():
+				if source.instances[i].id == cp.piece:
+					start = {"position_cm":store.track_pieces()[i].path[int(cp.sample)].position_cm,"surface_id":"assembled-road-%d" % i}
+		elif not store.document.get("courses",[]).is_empty(): start = store.document.get("courses",[])[0].definition.checkpoints[0] if not store.document.get("courses",[])[0].definition.checkpoints.is_empty() else {}
+	if not start.is_empty():
+		drive_x.value = float(start.position_cm[0])/100
+		drive_y.value = float(start.position_cm[2])/100
+		var found := false
+		for i in drive_surface.item_count:
+			if drive_surface.get_item_metadata(i) == start.surface_id: drive_surface.select(i); found = true; break
+		if not found:
+			drive_surface.add_item(start.surface_id)
+			drive_surface.set_item_metadata(drive_surface.item_count-1,start.surface_id)
+			drive_surface.select(drive_surface.item_count-1)
 	drive_dialog.popup_centered()
 
 
@@ -1889,6 +1984,7 @@ func _prepare_test_drive() -> void:
 	_status(I18N.t("Validating and packaging test-drive snapshot…"))
 
 func _begin_dem(request: Dictionary) -> void:
+	_ensure_import_ui()
 	if busy: return
 	_discard_import()
 	var job := DEM_JOB.new()
@@ -2013,6 +2109,7 @@ func _build_operation_ui() -> void:
 	_sync_operation_ui()
 
 func _sync_operation_ui() -> void:
+	if busy and is_instance_valid(output_tabs): output_tabs.show()
 	if not is_instance_valid(operation_dim): return
 	var locked := store.editing_locked()
 	if locked and not operation_dim.visible:
@@ -2062,3 +2159,74 @@ func _file_finished(result: Dictionary) -> void:
 	_status(I18N.t("Project saved."))
 	match continuation:
 		"save_transition": _continue_document_action()
+
+func _show_start() -> void:
+	_cancel_editing()
+	if not is_instance_valid(start_panel):
+		start_panel = PanelContainer.new()
+		start_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+		start_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		start_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+		start_panel.custom_minimum_size = Vector2(460,300)
+		add_child(start_panel)
+		var box := VBoxContainer.new()
+		start_panel.add_child(box)
+		_label(box,"Build a course and drive")
+		_button(box,"Create track",func(): start_panel.hide(); _request_document_action("new")).custom_minimum_size.x = 440
+		_button(box,"Import OSM / PBF",func(): start_panel.hide(); _guided_osm()).custom_minimum_size.x = 440
+		_button(box,"Open existing project",func(): start_panel.hide(); _choose("open")).custom_minimum_size.x = 440
+		_button(box,"Seed track options…",func(): start_panel.hide(); _open_track_generator()).custom_minimum_size.x = 440
+		_button(box,"Continue editing",func(): start_panel.hide()).custom_minimum_size.x = 440
+	start_panel.show()
+
+func _guided_osm() -> void:
+	_ensure_import_ui()
+	_cancel_editing()
+	show_tool_group("roads")
+	_set_view_mode("3d")
+	import_source_format.select(1)
+	import_source_format.item_selected.emit(1)
+	osm_panel.open_guided()
+
+func _open_generation(mode: String) -> void:
+	if not is_instance_valid(generation_panel):
+		generation_panel = preload("./generation_panel.gd").new()
+		add_child(generation_panel)
+		generation_panel.build(self)
+	generation_panel.open_mode(mode)
+
+func open_advanced() -> void:
+	advanced_visible = true
+	if tool_workspace == "track" and tool_group != "course": track_workbench.open_advanced()
+	else:
+		show_tool_group("scenery")
+		author_panel.open()
+
+func show_tool_group(group: String) -> void:
+	tool_group = group
+	set_tool_workspace("landscape" if group == "scenery" else "track")
+	if simple_palette == null or course_tools == null: return
+	simple_palette.visible = group == "scenery" and not advanced_visible
+	course_tools.panel.visible = group == "course"
+	if group == "course": course_tools.open()
+	elif is_instance_valid(course_tools.preview): course_tools.preview.hide()
+	if group == "scenery":
+		if not advanced_visible:
+			for child in simple_palette.get_children(): simple_palette.remove_child(child); child.queue_free()
+			for item in [["Tree","builtin:tree"],["Fence","builtin:fence"],["Building","building"]]: _button(simple_palette,item[0],scenery.activate.bind(item[1])).custom_minimum_size.x = 220
+			for asset: Dictionary in store.document.get("assets",[]):
+				if str(asset.get("path","")).get_extension() == "glb": _button(simple_palette,asset.id,scenery.activate.bind(asset.id))
+			_button(simple_palette,"Rotate 90°",scenery.rotate_selected)
+			commands.button(simple_palette,"edit.delete")
+			for mode in ["raise","lower","flatten","smooth"]:
+				_button(simple_palette,I18N.builtin(mode),func(): _set_tool("Terrain"); canvas.author.options.mode = mode)
+			_button(simple_palette,"Advanced tools…",open_advanced)
+		return
+	if group == "course": return
+	var tabs: TabContainer = track_workbench.palette_tools.tabs
+	for i in tabs.get_tab_count():
+		var visible_group := str(tabs.get_child(i).name) == "Driving" if group == "roads" else str(tabs.get_child(i).name) != "Driving"
+		tabs.set_tab_hidden(i,not visible_group)
+	tabs.current_tab = 0 if group == "roads" else 1
+	tabs.tabs_visible = group == "gimmicks"
+	spatial.refresh()

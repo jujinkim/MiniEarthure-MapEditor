@@ -127,6 +127,12 @@ func run() -> void:
 				var bytes := PackedByteArray(); bytes.resize(COMMAND.HISTORY_LIMIT)
 				bad.retained["editor/source.png"] = bytes
 		check(COMMAND.decode(bad).has("error"), "reject malformed prepared envelope " + mode)
+	for extent: Variant in [null,[],{"min":[0],"max":[1,1]},{"min":["bad",0],"max":[1,1]}]:
+		var bad := envelope.duplicate(true)
+		var document: Dictionary = JSON.parse_string(bad.canonical); document.bounds = extent
+		bad.canonical = JSON.stringify(document)
+		bad.command_json = JSON.stringify({"label":"Bad extent","patches":[{"field":"bounds","id":"","before":store.document.bounds,"after":extent}]})
+		check(COMMAND.decode(bad).has("error"),"malformed derived extent is rejected without type errors")
 	before = state()
 	layer.value["test_large_provenance"] = "x".repeat(8 * 1024 * 1024)
 	var oversized := JOB.new()

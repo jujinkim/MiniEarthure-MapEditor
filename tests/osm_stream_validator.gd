@@ -15,7 +15,7 @@ func wait_import(ui: Control) -> void:
 	check(not ui.busy,"stream worker terminates: "+ui.status_label.text)
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	ui.store.new_track(true)  # Import fixture uses a blank free-roam map.
 	await process_frame
 	root.size = Vector2i(1024,720)

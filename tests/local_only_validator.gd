@@ -19,7 +19,7 @@ func inspect_controls(node: Node) -> void:
 
 func run() -> void:
 	var ui := UI.new()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	check(ui.import_source_format.item_count == 6, "all six local vector/snapshot formats retained")
 	check(ui.osm_panel != null and ui.dem_panel != null, "local crop/streaming and COG panels retained")

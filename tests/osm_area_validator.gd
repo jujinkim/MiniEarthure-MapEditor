@@ -15,7 +15,7 @@ func wait_job(ui: Control) -> void:
 	check(not ui.busy,"owned job terminates: "+ui.status_label.text)
 func run() -> void:
 	var ui := UI.new()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	root.size = Vector2i(1024,720)
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
@@ -47,7 +47,7 @@ func run() -> void:
 			check(root.get_texture().get_image().save_png(capture+".crop.png")==OK,"crop screenshot")
 	ui.osm_panel.dialog.hide()
 	ui.osm_panel.dialog.confirmed.emit()
-	check(ui.import_dialog.visible and ui.osm_crop_button.text.contains("on"),"return to import with crop status")
+	check(ui.import_dialog.visible and str(ui.osm_crop_button.get_meta("action_label")).contains("on"),"return to import with crop status")
 	ui.import_dialog.hide()
 	ui._start_import(source,LAYER.OSM_LICENSE)
 	ui.osm_panel.fields[0].value+=0.000001

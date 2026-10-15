@@ -45,7 +45,7 @@ func run() -> void:
 	var screen:=EDITOR.new()
 	root.add_child(screen)
 	await process_frame
-	check(screen.track_workbench.active and screen.preview_dock.visible and screen.canvas.visible,"track workspace has 3D and auxiliary plan")
+	check(screen.track_workbench.active and screen.preview_dock.visible and not screen.canvas.visible,"track workspace defaults to 3D")
 	check(screen.track_workbench.palette.visible,"manual piece palette")
 	var bench: Node=screen.track_workbench
 	bench.add_piece("straight")
@@ -61,6 +61,7 @@ func run() -> void:
 	bench.delete_piece()
 	await settle(screen)
 	check(bench.source.instances.size()==2,"delete command")
+	bench.advanced=true
 	bench.selected=1
 	bench._properties()
 	bench.controls[0].value=3.0

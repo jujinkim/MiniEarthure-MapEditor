@@ -10,6 +10,10 @@ var selection: ItemList
 var catalogue: Dictionary
 var source: Dictionary={}
 var selected := -1
+var anchor_id := ""
+var advanced := false
+var port_markers: MeshInstance3D
+var object_lists := false
 var route_index := 0
 var snap: CheckButton
 var road_tools: RefCounted
@@ -152,12 +156,14 @@ func select_piece(index: int) -> void:
 	else: selection.deselect_all()
 	_properties()
 	PREVIEW.select(view, selected)
+	draw_ports()
 	editor.commands.refresh_buttons()
 
 func cancel_interaction(rebuild_properties := true) -> void:
 	if rebuild_properties: interaction_serial += 1
 	var had_preview: bool = placement != null and placement.tool != "" and placement.moving_index < 0
 	if placement != null: placement.cancel()
+	if road_tools != null: road_tools.cancel_direct()
 	if palette_tools != null: palette_tools.select_tool("")
 	if rebuild_properties and had_preview and is_instance_valid(properties) and not source.is_empty(): _properties()
 	show_hint()
@@ -166,10 +172,10 @@ func refresh() -> void:
 	if updating: return
 	active=editor.tool_workspace == "track"
 	editor.canvas.navigation_only = active
-	palette.visible=active
-	properties.visible=active
+	palette.visible=active and editor.tool_group != "course"
+	properties.visible=active and editor.tool_group != "course"
 	report.visible=true
-	editor.author_panel.visible=not active
+	editor.author_panel.visible=not active and editor.advanced_visible
 	editor.full_generation.visible=not active
 	editor.regional_grouping.visible=not active
 	editor.preview_dock.get_child(0).visible=not active or not editor.store.document.get("heightmaps",[]).is_empty()
@@ -178,12 +184,12 @@ func refresh() -> void:
 		show_hint()
 		editor.status_label.text=I18N.t("Choose a piece to preview, or generate a Seed Track.") if source.get("instances",[]).is_empty() else I18N.t("Draft can be saved · Free roam needs safe geometry; races also need a valid course.")
 	for child in editor.left_dock.get_children():
-		if child!=palette and child!=editor.workspace_tabs: child.visible=not active
+		if child!=palette and child!=editor.workspace_tabs and child!=editor.simple_palette and (editor.course_tools == null or child!=editor.course_tools.panel): child.visible=not active and editor.advanced_visible
 	editor.properties.visible=not active
 	editor.apply_button.visible=not active
 	if not active:
 		road_tools.refresh()
-		if editor.author_panel.tabs.get_tab_count() == 0: editor.author_panel.open()
+
 		if editor.store.document.has("assembled_track") or not editor.store.document.get("roads",[]).is_empty(): _draw()
 		elif is_instance_valid(view): view.queue_free()
 		return
@@ -205,12 +211,15 @@ func refresh() -> void:
 	selected=mini(selected,source.instances.size()-1)
 	if selected>=0: selection.select(selected)
 	_properties()
-	if route_item >= 0 and route_item < route_list.item_count: route_list.select(route_item)
+	if is_instance_valid(route_list) and route_item >= 0 and route_item < route_list.item_count: route_list.select(route_item)
 	var a: Dictionary=editor.store.document.get("assembled_track",{})
 	var issues: Array=[] if editor.store.draft_pending() else a.get("issues",[])
 	report.text=I18N.t("Connections & courses: ")+(I18N.t("Geometry ready · Manual courses need player completion") if issues.is_empty() and not a.is_empty() else " / ".join(issues.map(func(issue): return I18N.diagnostic(str(issue)))))
 	if editor.store.draft_pending(): report.text = I18N.t("Draft geometry · Connections and supports are being prepared.")
+	selection.visible = object_lists
+	road_tools.selection.visible = object_lists
 	_draw()
+	draw_ports()
 
 func _button(parent: Node, text: String, callback: Callable) -> Button:
 	for command: Dictionary in editor.commands.commands:
@@ -252,6 +261,9 @@ func _selected_button(parent: Node, label: String, callback: Callable, enabled :
 	return button
 
 func _properties() -> void:
+	if not advanced:
+		_simple_properties()
+		return
 	properties.set_meta("placement_tool", placement.tool)
 	for child in properties.get_children(): child.queue_free(); properties.remove_child(child)
 	controls.clear()
@@ -642,26 +654,28 @@ func _draw() -> void:
 	if editor.preview_camera.camera.position==Vector3.ZERO: editor.preview_camera.frame(Vector3.ZERO,80.0)
 
 func input(event: InputEvent) -> bool:
-	if not active or editor.store.editing_locked() or editor.busy or editor._popup_open(editor): return false
+	if not active or editor.tool_group == "course" or editor.store.editing_locked() or editor.busy or editor._popup_open(editor): return false
 	if placement.tool != "": return placement.input(event)
+	if road_tools.input(event): return true
 	var camera: Camera3D = editor.preview_camera.camera
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		var nearest := 18.0
-		var index := -1
-		var pieces: Array = editor.store.track_pieces()
-		for i in pieces.size():
-			for p: Dictionary in pieces[i].path:
-				var point := PREVIEW.point(p.position_cm)
-				if camera.is_position_behind(point): continue
-				var d := camera.unproject_position(point).distance_to(event.position)
-				if d < nearest: nearest = d; index = i
-		var road_hit: Dictionary=road_tools.raycast(event.position,true)
-		if road_hit.get("road","")!="" and index<0:
-			road_tools.select(road_hit.road);return true
-		select_piece(index)
-		if selected >= 0 and not editor.store.editing_locked() and not editor.busy:
-			var start: Variant = _plane_point(event.position, float(source.instances[selected].position_cm[1])*0.01)
-			if start != null: placement.begin_move(selected, start)
+		# Explicit exit handles take priority over the road surface behind them.
+		for i in editor.store.track_pieces().size():
+			var path: Array = editor.store.track_pieces()[i].path
+			if path.is_empty(): continue
+			var point := PREVIEW.point(path.back().position_cm)
+			if not camera.is_position_behind(point) and camera.unproject_position(point).distance_to(event.position) < 12:
+				select_exit(i)
+				return true
+		var hit: Dictionary = placement._surface_at(event.position,true)
+		var road_hit: Dictionary = road_tools.raycast(event.position,true)
+		if road_hit.get("road","") != "" and road_hit.distance < hit.distance:
+			road_tools.select(road_hit.road,false)
+			return true
+		select_piece(int(hit.piece))
+		if selected >= 0:
+			var start: Variant = _plane_point(event.position,float(source.instances[selected].position_cm[1])*0.01)
+			if start != null: placement.begin_move(selected,start)
 		return true
 	return false
 
@@ -697,3 +711,60 @@ func open_grind_lines() -> void:
 
 func _exit_tree() -> void:
 	if road_tools != null: road_tools.shutdown()
+
+func open_advanced() -> void:
+	advanced = true
+	_properties()
+
+func _simple_properties() -> void:
+	properties.set_meta("placement_tool",placement.tool)
+	for child in properties.get_children(): properties.remove_child(child); child.queue_free()
+	controls.clear()
+	port_widths.clear()
+	if source.is_empty(): return
+	if road_tools.selected != "":
+		road_tools.properties(properties)
+		if placement.tool != "": placement.build_controls(properties)
+		return
+	if placement.tool != "": placement.build_controls(properties)
+	elif selected >= 0:
+		editor._label(properties,I18N.t(piece_name(source.instances[selected].preset)))
+		_button(properties,"Continue from exit",select_exit.bind(selected))
+	else: editor._label(properties,I18N.t("Choose a road piece to start building."))
+	_button(properties,"Suggest basic course",func(): editor.show_tool_group("course"); editor.course_tools.suggest())
+	_button(properties,"Preview circuit connection",func(): editor.show_tool_group("course"); editor.course_tools.preview_closure())
+	_button(properties,"Test Drive",editor._test_drive)
+	_button(properties,"Advanced tools…",open_advanced)
+
+func select_exit(index: int) -> void:
+	select_piece(index)
+	anchor_id = source.instances[index].id
+	placement.free_placement = false
+	add_piece("straight")
+	draw_ports()
+
+func draw_ports() -> void:
+	if is_instance_valid(port_markers): port_markers.queue_free()
+	port_markers = null
+	if editor.store.track_pieces().is_empty(): return
+	port_markers = MeshInstance3D.new()
+	var mesh := ImmediateMesh.new()
+	var count := 0
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	for i in editor.store.track_pieces().size():
+		var path: Array = editor.store.track_pieces()[i].path
+		if path.is_empty(): continue
+		var point := PREVIEW.point(path.back().position_cm)
+		mesh.surface_set_color(Color("ffbc40") if source.instances[i].id == anchor_id else Color("65c7ed"))
+		for axis in [Vector3.RIGHT,Vector3.UP,Vector3.BACK]:
+			mesh.surface_add_vertex(point-axis*0.6); mesh.surface_add_vertex(point+axis*0.6)
+		count += 1
+	mesh.surface_end()
+	if count == 0: port_markers.free(); port_markers = null; return
+	port_markers.mesh = mesh
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.vertex_color_use_as_albedo = true
+	material.no_depth_test = true
+	port_markers.material_override = material
+	editor.preview_world.add_child(port_markers)

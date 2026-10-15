@@ -6,6 +6,9 @@ const RENDER:=preload("res://addons/mapkit/godot/chunk_renderer.gd")
 var bench: Node
 var selected := ""
 var selection: ItemList
+var road_ids := {}
+var direct := {}
+var dragging := false
 var paths := {}
 var epoch := -1
 var session := -1
@@ -46,14 +49,17 @@ func refresh() -> void:
 	epoch = store.command_epoch
 	session = store.session_id
 	paths.clear()
+	road_ids.clear()
+	cancel_direct()
 	selection.clear()
 	for road: Dictionary in store.document.get("roads",[]):
+		road_ids[road.id] = road
 		selection.add_item(str(road.id))
 		selection.set_item_metadata(selection.item_count-1,road.id)
 		if road.has("design"):
 			var result: Dictionary=JSON.parse_string(store.bridge.road_surface_path(JSON.stringify(road)))
 			if result.ok: paths[road.id]=result.data
-	if selected not in paths: selected=""
+	if selected not in road_ids: selected=""
 	if replaced:
 		selected=""
 		triangles.clear()
@@ -71,15 +77,16 @@ func refresh() -> void:
 		if not replaced and environment_cell.x>=0: request_cell(environment_cell)
 		else: focus_point(PREVIEW.point(point))
 
-func select(id: String) -> void:
+func select(id: String, frame := true) -> void:
+	if not road_ids.has(id) or not bench.editor.canvas.available({"field":"roads","record":road_ids[id]},true): return
 	bench.cancel_interaction(false)
 	bench.selected=-1
 	bench.selection.deselect_all()
 	selected=id
 	point_index=0
 	bench._properties()
-	if paths.has(id):
-		var point:=PREVIEW.point(paths[id][0].position_cm)
+	if frame and road_ids.has(id):
+		var point := PREVIEW.point(road_ids[id].points[0])
 		bench.editor.preview_camera.frame(point,48)
 		focus_point(point)
 	bench.editor.commands.refresh_buttons()
@@ -97,12 +104,18 @@ func properties(parent: Node) -> void:
 	for road: Dictionary in bench.editor.store.document.roads:
 		if road.id==selected: record=road;break
 	if record.is_empty(): return
+	controls.clear()
 	var result: Dictionary=JSON.parse_string(bench.editor.store.bridge.road_design(JSON.stringify(record)))
 	if not result.ok: bench.editor._status(bench.editor.store.reason(result));return
 	design=result.data
 	bench.editor._label(parent,selected)
-	bench.editor._label(parent,I18N.t("Cubic controls · Shared nodes move connected road ends"))
+	bench.editor._label(parent,I18N.t("Drag a control point · PageUp / PageDown changes height · Enter applies"))
 	width=bench._spin(parent,"Road width (m)",float(record.widths_cm[0])/100,1,100)
+	if not bench.advanced:
+		draw_guides()
+		bench._button(parent,"Apply road alignment",commit_direct)
+		bench._button(parent,"Advanced tools…",bench.open_advanced)
+		return
 	terrain_policy_control(parent,design.terrain_policy,func(value: String): design.terrain_policy=value)
 	var shoulder: SpinBox=bench._spin(parent,"Shoulder (m)",float(design.shoulder_cm)/100,0,50)
 	shoulder.value_changed.connect(func(value: float): design.shoulder_cm=roundi(value*100))
@@ -121,7 +134,7 @@ func properties(parent: Node) -> void:
 		draw_guides())
 	bench._button(parent,"Apply road alignment",func():
 		capture_point()
-		var failure: String=bench.editor.store.edit_road(selected,design,roundi(width.value*100))
+		var failure: String=apply_design(design,roundi(width.value*100))
 		if failure!="": bench.editor._status(I18N.diagnostic(failure)))
 	for item: Dictionary in bench.editor.store.document.get("surface_attachments",[]):
 		if item.surface.surface_id!=selected: continue
@@ -315,15 +328,16 @@ func raycast(screen: Vector2, roads_only := false) -> Dictionary:
 	var best: Dictionary={"distance":INF,"road":"","sample":-1}
 	if environment_epoch!=bench.editor.store.command_epoch or environment_session!=bench.editor.store.session_id:return best
 	for t: Dictionary in triangles:
-		if roads_only and not paths.has(t.object_id):continue
+		if roads_only and not road_ids.has(t.object_id):continue
 		if not t.spawnable:continue
 		var hit: Variant=bench.placement._surface_triangle(origin,ray,PREVIEW.point(t.vertices[0]),PREVIEW.point(t.vertices[1]),PREVIEW.point(t.vertices[2]))
 		if not hit is Vector3 or origin.distance_to(hit)>=best.distance:continue
 		best={"distance":origin.distance_to(hit),"point":hit,"road":"","sample":-1}
-		if paths.has(t.object_id):
+		if road_ids.has(t.object_id):
+			if not bench.editor.canvas.available({"field":"roads","record":road_ids[t.object_id]},true): continue
 			best.road=t.object_id
 			var nearest:=INF
-			for i in paths[t.object_id].size():
+			for i in paths.get(t.object_id,[]).size():
 				var gap: float=hit.distance_squared_to(PREVIEW.point(paths[t.object_id][i].position_cm))
 				if gap<nearest:nearest=gap;best.sample=i
 	return best
@@ -374,3 +388,96 @@ func delete_road() -> void:
 	var failure: String=store.apply_command("Remove road and restore original terrain",store.document_patches(next))
 	if failure!="":bench.editor._status(failure)
 	else:selected="";bench.refresh()
+
+func has_draft() -> bool:
+	return not direct.is_empty()
+
+func begin_direct() -> bool:
+	if selected == "" or design.is_empty() or bench.editor.store.editing_locked() or bench.editor.store.draft_pending(): return false
+	if direct.is_empty():
+		direct = {"epoch":bench.editor.store.command_epoch,"session":bench.editor.store.session_id,"design":design.duplicate(true),"id":selected}
+	return true
+
+func cancel_direct() -> void:
+	if not direct.is_empty(): design = direct.design.duplicate(true)
+	direct = {}
+	dragging = false
+	draw_guides()
+
+func move_point(point: Array) -> void:
+	var old: Array = design.control_points[point_index].duplicate()
+	design.control_points[point_index] = point
+	if point_index % 3 == 0:
+		for at in [point_index-1,point_index+1]:
+			if at >= 0 and at < design.control_points.size():
+				for j in 3: design.control_points[at][j] += point[j]-old[j]
+	else:
+		var anchor := point_index-1 if point_index%3==1 else point_index+1
+		var opposite := 2*anchor-point_index
+		if opposite >= 0 and opposite < design.control_points.size():
+			for j in 3: design.control_points[opposite][j] = 2*design.control_points[anchor][j]-point[j]
+	for j in mini(3,controls.size()):
+		if is_instance_valid(controls[j]): controls[j].set_value_no_signal(float(point[j])/100)
+	draw_guides()
+
+func change_height(delta: float) -> void:
+	if not begin_direct(): return
+	var point: Array = design.control_points[point_index].duplicate()
+	point[1] += roundi(delta*100)
+	move_point(point)
+
+func commit_direct() -> bool:
+	if selected == "" or design.is_empty(): return false
+	if not direct.is_empty() and (direct.epoch != bench.editor.store.command_epoch or direct.session != bench.editor.store.session_id or direct.id != selected):
+		cancel_direct()
+		return false
+	var next: Dictionary = design.duplicate(true)
+	var requested_width := roundi(width.value*100)
+	if not direct.is_empty() and next == direct.design and requested_width == int(road_ids[selected].widths_cm[0]):
+		cancel_direct()
+		return false
+	# Width-only Apply is explicit too. Selection itself never writes a design.
+	var failure: String = apply_design(next,requested_width)
+	if failure != "": bench.editor._status(I18N.diagnostic(failure)); return false
+	direct = {}
+	dragging = false
+	return true
+
+func input(event: InputEvent) -> bool:
+	if selected == "" or design.is_empty(): return false
+	var camera: Camera3D = bench.editor.preview_camera.camera
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if not event.pressed and dragging:
+			dragging = false
+			commit_direct()
+			return true
+		if not event.pressed: return false
+		var closest := 14.0
+		var index := -1
+		for i in design.control_points.size():
+			var point := PREVIEW.point(design.control_points[i])
+			if camera.is_position_behind(point): continue
+			var distance := camera.unproject_position(point).distance_to(event.position)
+			if distance < closest: closest = distance; index = i
+		if index >= 0:
+			point_index = index
+			dragging = begin_direct()
+			draw_guides()
+			return true
+	if event is InputEventMouseMotion and dragging:
+		if event.button_mask & (MOUSE_BUTTON_MASK_RIGHT | MOUSE_BUTTON_MASK_MIDDLE): cancel_direct(); return false
+		var point: Variant = bench._plane_point(event.position,float(design.control_points[point_index][1])/100)
+		if point is Vector3: move_point([roundi(point.x*100),roundi(point.y*100),roundi(-point.z*100)])
+		return true
+	return false
+
+func apply_design(next: Dictionary, width_cm: int) -> String:
+	var store: RefCounted = bench.editor.store
+	if store.editing_locked() or store.draft_pending(): return store.EDIT_BUSY
+	var result: Dictionary = JSON.parse_string(store.bridge.edit_road_design(JSON.stringify(store.document),selected,JSON.stringify(next),width_cm))
+	if not result.ok: return store.reason(result)
+	var patches: Array = store.document_patches(result.data.document)
+	for patch: Dictionary in patches:
+		if patch.before != null and patch.field in bench.editor.EDIT.FIELDS and not bench.editor.canvas.available({"field":patch.field,"record":patch.before},true):
+			return I18N.t("Edit affects a hidden or locked object.")
+	return store.apply_command("Road alignment and terrain fit",patches)

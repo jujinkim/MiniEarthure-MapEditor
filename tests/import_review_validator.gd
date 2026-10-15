@@ -38,7 +38,7 @@ func pointer(button: Button) -> void:
 		await process_frame
 func run() -> void:
 	root.size = Vector2i(1024, 720)
-	ui = load("res://main.tscn").instantiate(); root.add_child(ui)
+	ui = load("res://main.tscn").instantiate(); root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.store.new_track(true)
 	var source := ProjectSettings.globalize_path("user://source.geojson")

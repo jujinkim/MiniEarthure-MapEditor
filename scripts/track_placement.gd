@@ -32,6 +32,7 @@ var move_item: Dictionary = {}
 var moved := false
 var hidden_nodes: Array[Node3D] = []
 var ghost_key := ""
+var free_placement := false
 var pending_pointer: Variant = null
 var pointer_updates := 0
 
@@ -51,6 +52,7 @@ func begin_move(index: int, point: Vector3) -> void:
 
 func resume_tool(state: Dictionary) -> void:
 	for field in ["tool", "kind", "height", "yaw", "width_cm", "landing", "jump_height_cm", "panel_width_percent", "panel_alignment", "manual_height"]: set(field, state[field])
+	free_placement = state.get("free_placement",false)
 	epoch = bench.editor.store.command_epoch
 	document_id = str(bench.editor.store.session_id)
 	hint = "Placed · Move to preview the next piece · Click to place"
@@ -67,14 +69,14 @@ func _process(_delta: float) -> void:
 func activate(type: String, preset: String) -> void:
 	if not bench.active or bench.editor.store.editing_locked() or bench.editor.busy: return
 	bench.editor._cancel_editing()
-	if not bench.editor.preview_dock.visible: bench.editor._set_view_mode("split")
+	if not bench.editor.preview_dock.visible: bench.editor._set_view_mode("3d")
 	kind = type
 	tool = preset
 	epoch = bench.editor.store.command_epoch
 	document_id = str(bench.editor.store.session_id)
-	height = float(bench.source.instances[bench.selected].position_cm[1]) / 100.0 if bench.selected >= 0 else 0.0
+	height = bench.editor.spatial.height
 	yaw = 0.0
-	manual_height = false
+	manual_height = bench.editor.spatial.manual
 	if kind == "piece":
 		for entry: Dictionary in bench.catalogue.entries:
 			if entry.id == tool: width_cm = int(entry.default_width_cm)
@@ -88,6 +90,8 @@ func activate(type: String, preset: String) -> void:
 	bench._properties()
 	bench.show_hint()
 	bench.editor.commands.refresh_buttons()
+	if port_locked(): preview_at(Vector3.ZERO)
+	bench.editor.spatial.refresh()
 
 func cancel() -> void:
 	for node in hidden_nodes:
@@ -123,12 +127,35 @@ func invalidate_candidate() -> void:
 func current() -> bool:
 	return not bench.editor.store.editing_locked() and not bench.editor.busy and tool != "" and bench.active and epoch == bench.editor.store.command_epoch and document_id == str(bench.editor.store.session_id) and bench.editor.preview_dock.visible and not bench.editor._popup_open(bench.editor)
 
+func port_locked() -> bool:
+	return kind == "piece" and tool != "" and moving_index < 0 and not free_placement and anchor_index() >= 0
+
+func anchor_index() -> int:
+	for i in bench.source.get("instances",[]).size():
+		if bench.source.instances[i].id == bench.anchor_id: return i
+	return -1
+
+func set_free(value: bool) -> void:
+	free_placement = value
+	invalidate_candidate()
+	if port_locked(): preview_at(Vector3.ZERO)
+	elif last_screen != null: update_pointer(last_screen)
+	bench.editor.spatial.refresh()
+
 func build_controls(parent: Node) -> void:
 	var heading := Label.new()
 	heading.text = I18N.t("PREVIEW · ") + I18N.t(bench.piece_name(tool))
 	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(heading)
 	if kind == "piece":
+		var free := CheckButton.new()
+		free.text = I18N.t("Free placement")
+		free.button_pressed = free_placement
+		parent.add_child(free)
+		free.toggled.connect(set_free)
+		if not bench.advanced:
+			bench.editor._label(parent, I18N.t("Choose a piece, then click or press Enter to connect."))
+			return
 		var automatic := CheckButton.new()
 		automatic.text=I18N.t("Use pointed terrain height")
 		automatic.button_pressed=not manual_height
@@ -169,7 +196,7 @@ func build_controls(parent: Node) -> void:
 		station.value_changed.connect(func(_v: float): changed.call())
 
 func rotate_by(degrees: float) -> void:
-	if tool == "" or kind != "piece": return
+	if tool == "" or kind != "piece" or port_locked(): return
 	yaw = wrapf(yaw + degrees, -180.0, 180.0)
 	if is_instance_valid(yaw_control): yaw_control.set_value_no_signal(yaw)
 	invalidate_candidate()
@@ -186,7 +213,9 @@ func solve_item(item: Dictionary, excluded := -1) -> Dictionary:
 	var snap_index := -1
 	var road_snap := {}
 	var nearest := 3.0
-	if bench.snap.button_pressed:
+	if port_locked():
+		snap_index = anchor_index()
+	elif bench.snap.button_pressed:
 		var pieces: Array = bench.editor.store.track_pieces()
 		for i in bench.source.instances.size():
 			if i == excluded: continue
@@ -219,11 +248,12 @@ func preview_at(point: Vector3) -> bool:
 	var item: Dictionary
 	if moving_index >= 0:
 		var delta: Vector3 = point - move_origin
-		if not moved and delta.length() <= 0.01: return false
+		if not moved and delta.length() <= 0.01 and is_equal_approx(height,float(move_item.position_cm[1])*0.01): return false
 		moved = true
 		item = move_item.duplicate(true)
 		item.position_cm[0] += roundi(delta.x * 100)
 		item.position_cm[2] -= roundi(delta.z * 100)
+		item.position_cm[1] = roundi(height*100)
 	else:
 		item = _instance(tool, width_cm)
 		item.position_cm = [roundi(point.x * 100), roundi((height if manual_height else point.y) * 100), roundi(-point.z * 100)]
@@ -237,6 +267,8 @@ func preview_at(point: Vector3) -> bool:
 	if moving_index >= 0: _show_move(solved.piece)
 	elif not _show_ghost(solved.item, -1, solved.piece): return false
 	hint = (I18N.t("Release to move") if moving_index >= 0 else I18N.t("Click to place · Rotate with the preview controls")) + (I18N.t(" · Snap to ") + bench.source.instances[solved.snap].id if solved.snap >= 0 else I18N.t(" · Snap to ")+str(solved.road_snap.road) if not solved.road_snap.is_empty() else I18N.t(" · No port snap"))
+	if not manual_height: height = float(solved.item.position_cm[1])/100.0
+	bench.editor.spatial.refresh()
 	bench.show_hint()
 	return true
 
@@ -259,10 +291,11 @@ func _show_move(piece: Dictionary) -> void:
 func commit_move() -> bool:
 	if not current() or not moved or candidate.is_empty() or candidate.epoch != epoch or candidate.serial != serial: return false
 	# Returning to the same transform is a click/no-op, even near a port.
-	if last_point != null and last_point.distance_to(move_origin) <= 0.01: return false
+	if last_point != null and last_point.distance_to(move_origin) <= 0.01 and candidate.item.position_cm[1] == move_item.position_cm[1]: return false
 	if candidate.item == move_item: return false
 	var next: Dictionary = bench.source.duplicate(true)
 	next.instances[moving_index] = candidate.item.duplicate(true)
+	next.connections = next.connections.filter(func(link): return link.from != candidate.item.id and link.to != candidate.item.id)
 	next.road_connections=next.get("road_connections",[]).filter(func(link):return link.instance!=candidate.item.id)
 	if not candidate.get("road_snap",{}).is_empty():next.road_connections.append({"road":candidate.road_snap.road,"start":candidate.road_snap.start,"instance":candidate.item.id})
 	if candidate.snap >= 0:
@@ -328,10 +361,13 @@ func commit(expected_serial := -1) -> bool:
 				line.id="grind-"+Crypto.new().generate_random_bytes(6).hex_encode()
 				next.get_or_add("grind_lines",[]).append(line)
 	var state := {"tool":tool, "kind":kind, "height":float(next.instances[next_selection].position_cm[1]) / 100.0 if kind == "piece" else height,
-		"yaw":yaw, "width_cm":width_cm, "landing":landing, "manual_height":manual_height, "jump_height_cm":jump_height_cm, "panel_width_percent":panel_width_percent, "panel_alignment":panel_alignment}
+		"yaw":yaw, "width_cm":width_cm, "landing":landing, "manual_height":manual_height, "free_placement":free_placement, "jump_height_cm":jump_height_cm, "panel_width_percent":panel_width_percent, "panel_alignment":panel_alignment}
+	if kind == "piece" and not free_placement: bench.anchor_id = next.instances[next_selection].id
 	if not bench._commit(next, next_selection, {"repeat":state}): return false
 	# The new draft has already been published; repeat placement uses its epoch.
 	resume_tool(state)
+	if port_locked(): preview_at(Vector3.ZERO)
+	bench.editor.spatial.refresh()
 	return true
 
 func _attachment(item: Dictionary, sample: int) -> Dictionary:
@@ -469,7 +505,7 @@ static func _surface_triangle(origin: Vector3, ray: Vector3, a: Vector3, b: Vect
 	var weights := Geometry3D.get_triangle_barycentric_coords(hit, a, b, c)
 	return hit if minf(weights.x, minf(weights.y, weights.z)) >= -0.00001 else null
 
-func _surface_at(screen: Vector2) -> Dictionary:
+func _surface_at(screen: Vector2, all_modes := false) -> Dictionary:
 	var camera: Camera3D = bench.editor.preview_camera.camera
 	var origin := camera.project_ray_origin(screen)
 	var ray := camera.project_ray_normal(screen)
@@ -491,15 +527,16 @@ func _surface_at(screen: Vector2) -> Dictionary:
 			var nearest := -1
 			var distance := INF
 			for i in path.size():
-				if path[i].mode in ["flight","loop","cylinder","halfpipe"]: continue
+				if not all_modes and path[i].mode in ["flight","loop","cylinder","halfpipe"]: continue
 				var d: float = hit.distance_squared_to(PREVIEW.point(path[i].position_cm))
 				if d < distance: distance = d; nearest = i
-			if nearest >= 0: best = {"distance":origin.distance_to(hit), "piece":owner, "sample":nearest}
+			if nearest >= 0: best = {"distance":origin.distance_to(hit), "piece":owner, "sample":nearest, "point":hit}
 	return best
 
 func update_pointer(screen: Vector2) -> bool:
 	last_screen = screen
 	if kind == "piece":
+		if port_locked(): return preview_at(Vector3.ZERO)
 		var actual: Dictionary=bench.road_tools.raycast(screen)
 		var point: Variant = bench._plane_point(screen,height) if manual_height or moving_index>=0 else actual.get("point")
 		if point==null:
@@ -510,7 +547,11 @@ func update_pointer(screen: Vector2) -> bool:
 		return preview_at(point)
 	var hit := _surface_at(screen)
 	var road_hit: Dictionary=bench.road_tools.raycast(screen,true)
-	if road_hit.get("road","")!="" and road_hit.distance<hit.distance:return preview_road_attachment(road_hit.road,road_hit.sample)
+	if road_hit.get("road","")!="" and road_hit.distance<hit.distance:
+		if not bench.road_tools.paths.has(road_hit.road):
+			_failure("Edit and apply this road alignment before attaching a road tool.")
+			return false
+		return preview_road_attachment(road_hit.road,road_hit.sample)
 	return preview_attachment(hit.piece, hit.sample)
 
 func input(event: InputEvent) -> bool:

@@ -11,6 +11,7 @@ var fields: Array[SpinBox] = []
 var area: Control
 var status: Label
 var revision := 0
+var guided := false
 var place_query: LineEdit
 var source_path: LineEdit
 var place_choices: OptionButton
@@ -35,14 +36,14 @@ func setup(owner_ui: Control) -> void:
 	var search := HBoxContainer.new()
 	layout.add_child(search)
 	place_query = LineEdit.new()
-	place_query.placeholder_text = "Area name in this PBF (local name or recorded alias)"
+	place_query.placeholder_text = I18N.t("Area name in this PBF (local name or recorded alias)")
 	place_query.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	search.add_child(place_query)
 	ui._button(search,"Find area by name",start_search).custom_minimum_size.x = 180
 	var source_row := HBoxContainer.new()
 	layout.add_child(source_row)
 	source_path = LineEdit.new()
-	source_path.placeholder_text = "Choose the downloaded .osm.pbf"
+	source_path.placeholder_text = I18N.t("Choose the downloaded .osm.pbf")
 	source_path.editable = false
 	source_path.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	source_row.add_child(source_path)
@@ -54,10 +55,12 @@ func setup(owner_ui: Control) -> void:
 	source_dialog.filters = PackedStringArray(["*.pbf ; OSM PBF"])
 	source_dialog.file_selected.connect(func(path):
 		source_path.text = path
+		changed()
 		places.clear()
 		place_choices.clear()
 		area.set_places([])
-		place_status.text = "PBF selected. Enter the administrative area name and press Find area by name."
+		place_status.text = I18N.t("PBF selected. Enter the administrative area name and press Find area by name.")
+		if guided: dialog.popup_centered(Vector2i(840,680))
 	)
 	ui.add_child(source_dialog)
 	place_choices = OptionButton.new()
@@ -77,7 +80,7 @@ func setup(owner_ui: Control) -> void:
 	layout.add_child(city)
 	ui._label(layout, "City optimization combines compatible road chains, nearby unnamed low buildings and matching vegetation.\nRoad corridors, junctions, courtyards and landmarks are protected. Review before/after counts and approximations.")
 	exclusions = CheckBox.new()
-	exclusions.text = "Review and exclude unsupported source objects (PBF streaming)"
+	exclusions.text = I18N.t("Review and exclude unsupported source objects (PBF streaming)")
 	layout.add_child(exclusions)
 	ui._label(layout, "Streaming: source bytes + 2 GiB index + 64 MiB free disk; 15-minute deadline.\nThree byte-counted passes; complete candidate ways/relations before crop.\nOther vector inputs stay at 32 MiB.")
 	var grid := GridContainer.new()
@@ -110,8 +113,10 @@ func setup(owner_ui: Control) -> void:
 	streaming.toggled.connect(func(_v): changed())
 	city.toggled.connect(func(_v): changed())
 	exclusions.toggled.connect(func(_v): changed())
-	dialog.confirmed.connect(func(): ui.import_dialog.popup_centered(Vector2i(760,550)))
-	dialog.canceled.connect(func(): ui.import_dialog.popup_centered(Vector2i(760,550)))
+	dialog.confirmed.connect(finish_selection)
+	dialog.canceled.connect(func():
+		if not guided: ui.import_dialog.popup_centered(Vector2i(760,550))
+		else: ui._status(I18N.t("Import discarded · document unchanged")))
 	ui.add_child(dialog)
 	changed()
 
@@ -136,14 +141,18 @@ func changed() -> void:
 	ui.osm_crop_button.set_meta("action_label", "Find area / OSM crop: %s…" % (I18N.t("on") if enabled.button_pressed else I18N.t("off")))
 	preload("./workbench_style.gd").refresh_label(ui.osm_crop_button)
 	area.set_bounds(bbox())
-	status.text = I18N.diagnostic(error()) if error() != "" else ("Crop enabled. All corners must be within 20 km of the projection origin.\nReview counts, estimates and exact exclusions before adoption." if enabled.button_pressed else I18N.t("Crop disabled: import the complete supported snapshot."))
+	status.text = I18N.diagnostic(error()) if error() != "" else (I18N.t("Crop enabled. All corners must be within 20 km of the projection origin.\nReview counts, estimates and exact exclusions before adoption.") if enabled.button_pressed else I18N.t("Crop disabled: import the complete supported snapshot."))
+	if guided: dialog.get_ok_button().disabled = error() != "" or source_path.text == ""
 	if enabled.button_pressed and error() == "":
 		var b := bbox()
 		var metres := Vector2((b[2]-b[0])*111320.0*cos(deg_to_rad((b[1]+b[3])*0.5)),(b[3]-b[1])*111320.0)/8.0
-		status.text += "\n1:8 approximate map size: %.0f × %.0f m. Origin: %.6f, %.6f (longitude, latitude)." % [metres.x,metres.y,ui.import_origin_lon.value,ui.import_origin_lat.value]
+		status.text += "\n"+I18N.t("1:8 approximate map size: %.0f × %.0f m. Origin: %.6f, %.6f (longitude, latitude).") % [metres.x,metres.y,ui.import_origin_lon.value,ui.import_origin_lat.value]
 
 func open() -> void:
 	if ui.busy: return
+	guided = false
+	dialog.title = I18N.t("OSM derived geometry crop")
+	dialog.ok_button_text = I18N.t("Keep selection")
 	if source_path.text == "" and ui.last_import_source.get_extension() == "pbf": source_path.text = ui.last_import_source
 	ui.import_dialog.hide()
 	dialog.popup_centered(Vector2i(840,680))
@@ -172,7 +181,7 @@ func finish_search(_job: RefCounted, result: Dictionary) -> void:
 		for place: Dictionary in places:
 			place_choices.add_item("%s · admin %s · %s%s" % [place.name,place.admin_level,place.source_id," · unavailable" if place.issue != "" else ""])
 		area.set_places(places)
-		place_status.text = "%d matching areas in %s. Select a name to inspect its boundary." % [places.size(),result.data.source_name] if not places.is_empty() else "No matching administrative area. Try its local name; English search needs an alias recorded in this PBF."
+		place_status.text = I18N.t("%d matching areas in %s. Select a name to inspect its boundary.") % [places.size(),result.data.source_name] if not places.is_empty() else I18N.t("No matching administrative area. Try its local name; English search needs an alias recorded in this PBF.")
 		if not places.is_empty(): select_place(0)
 	else: place_status.text = str(result.get("error",{}).get("message","PBF lookup failed."))
 	ui._status(place_status.text)
@@ -189,7 +198,7 @@ func select_place(index: int) -> void:
 	streaming.button_pressed = true
 	set_origin(Vector2((b[0]+b[2])*0.5,(b[1]+b[3])*0.5))
 	area.toggle_fit()
-	place_status.text = "%s · source %s. Drag for another crop, or click to move its projection origin." % [place.name,place.source_id]
+	place_status.text = I18N.t("%s · source %s. Drag for another crop, or click to move its projection origin.") % [place.name,place.source_id]
 	ui._status(place_status.text)
 
 func set_origin(point: Vector2) -> void:
@@ -204,3 +213,26 @@ func set_origin(point: Vector2) -> void:
 	area.center = point
 	area.queue_redraw()
 	changed()
+
+func open_guided() -> void:
+	if ui.busy: return
+	guided = true
+	dialog.title = I18N.t("1. Choose PBF → 2. Select area → 3. Review → 4. Apply")
+	dialog.ok_button_text = I18N.t("Review selected area")
+	enabled.button_pressed = true
+	streaming.button_pressed = true
+	city.button_pressed = true
+	changed()
+	ui.import_dialog.hide()
+	if source_path.text == "": source_dialog.popup_centered_ratio(0.7)
+	else: dialog.popup_centered(Vector2i(840,680))
+
+func finish_selection() -> void:
+	if not guided:
+		ui.import_dialog.popup_centered(Vector2i(760,550))
+		return
+	if error() != "" or source_path.text == "":
+		ui._status(I18N.diagnostic(error()))
+		dialog.popup_centered(Vector2i(840,680))
+		return
+	ui._start_import(source_path.text,ui.IMPORT_LAYER.OSM_LICENSE)

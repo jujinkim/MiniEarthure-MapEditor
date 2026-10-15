@@ -6,6 +6,14 @@ layers and shortcuts.
 
 ## Start and draw
 
+**Scenery** offers direct 3D tree/fence/building/GLB placement, movement, rotation,
+delete and four terrain brushes; shared work height and detailed controls are in
+[WORKBENCH](WORKBENCH.md). Advanced drawing/assets/environment panels build on first
+opening. Imported-road selection is read-only; explicit curve/height/width edits
+use MapKit and atomically move shared nodes and attachments, rejecting locked
+or hidden dependencies. Scenery promotes a standalone track through the existing
+composition path in the same Undo; subsequent track edits retain it.
+
 Terrain and water can be edited before the first Save; asset imports need a project
 directory. In **Authoring settings…** the Map tab applies the theme, typed map bounds
 and terrain base, each as one atomic Apply with seams and junctions revalidated.

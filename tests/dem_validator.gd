@@ -23,7 +23,7 @@ func fixture(path: String, bias: int = 0) -> void:
 func run() -> void:
 	root.size = Vector2i(1024,720)
 	ui = load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	check(ui.store.apply_command("single-cell synthetic map",[{"field":"bounds","before":ui.store.document.bounds.duplicate(true),"after":{"min":[0,0],"max":[51200,51200]}}])=="","single-cell fixture bounds")
 	var project := ProjectSettings.globalize_path("user://dem-project")

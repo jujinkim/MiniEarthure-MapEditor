@@ -4,6 +4,8 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	ui.store.new_track(true)
+	ui.set_tool_workspace("landscape")
+	ui.open_advanced()
 	await process_frame
 	await process_frame
 	ui.preview_enabled = false
@@ -31,7 +33,7 @@ func run() -> void:
 	check(ui.commands.results.item_count == 1, "search finds package restoration")
 	ui.commands._filter("no-such-command")
 	check(ui.commands.results.item_count == 0, "empty search result is safe")
-	ui.commands._filter("Create / Road")
+	ui.commands._filter("tool.road")
 	check(ui.commands.results.item_count == 1, "search selects one tool command")
 	ui.commands._run(0)
 	check(ui.canvas.tool == "Road", "command invokes existing tool")

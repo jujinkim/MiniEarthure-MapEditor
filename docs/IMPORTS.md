@@ -1,5 +1,14 @@
 # Supported local imports and atomic adoption
 
+**Import OSM / PBF** guides PBF selection → area selection → review → Apply using
+the existing 1:8 city profile, budgets and explicit exclusions. An empty track
+project proposes fitted bounds; populated maps retain their extent. Bounds,
+composition and layer adoption share one Undo; cancel/failure preserves the map.
+Ordinary roads split at shared original OSM nodes before optimization. Surviving
+source endpoints retain identity through crop/quantization; new cuts remain
+independent. Selection never rewrites geometry or infers height. See
+[3D road editing](WORKBENCH.md).
+
 Editor owns the MIT import adapters and document adoption; public MapKit owns native
 geometry validation. Obtain source files separately and choose the source format
 explicitly. Importing never overwrites source files, PBF/DEM, receipts, projects or

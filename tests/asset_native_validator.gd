@@ -64,7 +64,7 @@ func wait_ui() -> void:
 	check(not ui.busy, "asset UI completes: " + ui.author_panel.feedback.text)
 func run() -> void:
 	root.size = Vector2i(1024,720)
-	ui = load("res://main.tscn").instantiate(); root.add_child(ui)
+	ui = load("res://main.tscn").instantiate(); root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.store.new_document()
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")

@@ -10,7 +10,7 @@ func check(ok: bool, message: String) -> void:
 func _initialize() -> void: run.call_deferred()
 func run() -> void:
 	var ui := UI.new()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	root.size = Vector2i(1024,720)
 	var before: Dictionary = ui.store.document.duplicate(true)

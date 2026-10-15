@@ -25,7 +25,7 @@ func run() -> void:
 	var zone_count := 3 if multipolygon() else 1
 	var test_name := "osm_multipolygon_validator" if multipolygon() else "osm_import_validator"
 	var ui: Control = load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.store.new_document()
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")

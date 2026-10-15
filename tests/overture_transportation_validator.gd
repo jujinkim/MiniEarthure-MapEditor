@@ -17,7 +17,7 @@ func wait_job(ui: Control) -> void:
 	check(not ui.busy, "Overture worker terminates: " + ui.status_label.text)
 func run() -> void:
 	var ui := UI.new()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	check(ui.store.apply_command("Choose road recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}])=="","current generation setup for native junction generation")

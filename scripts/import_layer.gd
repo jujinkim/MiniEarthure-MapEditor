@@ -215,6 +215,8 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if multiline_error != "": return multiline_error
 	var loop_error: String = preload("./import_osm_loops.gd").validate(raw, get_script())
 	if loop_error != "": return loop_error
+	var endpoint_error := _ground_endpoints(raw,prefix)
+	if endpoint_error != "": return endpoint_error
 	var connection_error := _structure_connections(raw, prefix)
 	if connection_error != "": return connection_error
 	if crop is Dictionary:
@@ -240,6 +242,29 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		_review_prefix += preload("./import_height_supplement.gd").summary(value.coordinates.osm_height_supplement) + "\n"
 	if city: _review_prefix = preload("./import_city.gd").summary(value.coordinates.osm_city) + "\n" + _review_prefix
 	return ""
+
+static func _ground_endpoints(raw: Dictionary, prefix: String) -> String:
+	var entries: Variant = raw.coordinates.get("osm_ground_endpoints",[])
+	if entries is not Array or entries.size() > 60000: return "Invalid OSM ground endpoint mapping."
+	var roads := {}; var nodes := {}; var expected := {}
+	for patch: Dictionary in raw.patches:
+		if patch.field == "roads":
+			roads[patch.id] = patch.after
+			if str(patch.after.from).contains("-osm-ground-node-") or str(patch.after.to).contains("-osm-ground-node-"): expected[patch.id] = true
+		if patch.field == "nodes": nodes[patch.id] = patch.after
+	var seen := {}
+	for entry: Variant in entries:
+		if raw.adapter != "osm-extract-v1" or entry is not Dictionary or not roads.has(entry.get("road_id")) or seen.has(entry.road_id) or entry.get("refs") is not Array or entry.refs.size() != 2: return "Invalid OSM ground endpoint mapping."
+		seen[entry.road_id] = true
+		var road: Dictionary = roads[entry.road_id]
+		if road.kind != "ground": return "Invalid OSM ground endpoint mapping."
+		for i in 2:
+			var ref: Variant = entry.refs[i]
+			if ref != null and not preload("./import_osm_loops.gd").source_ref(ref): return "Invalid OSM ground endpoint mapping."
+			var id: String = prefix+"osm-ground-node-"+ref if ref != null else entry.road_id+("-from" if i == 0 else "-to")
+			if road["from" if i == 0 else "to"] != id or not nodes.has(id) or nodes[id].position != road.points[0 if i == 0 else -1]: return "Invalid OSM ground endpoint mapping."
+		expected.erase(entry.road_id)
+	return "" if expected.is_empty() else "Invalid OSM ground endpoint mapping."
 
 static func _structure_connections(raw: Dictionary, prefix: String) -> String:
 	var crop: Variant = raw.coordinates.get("osm_crop")
@@ -407,10 +432,41 @@ func patches(store: RefCounted) -> Array:
 		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1"}
 		if value.coordinates.has("osm_city"): metadata.authored_units.quantization_cleanup = "adjacent-equal-vertices-v1"
 		metadata.authored_regions = preload("./import_regions.gd").scaled(value.coordinates.get("generation_regions", []))
+	if value.adapter == "osm-extract-v1":
+		var extent := empty_map_extent(store.document,result)
+		if not extent.is_empty() and extent != store.document.bounds:
+			result.append({"field":"bounds","id":"","before":store.document.bounds.duplicate(true),"after":extent})
 	var attribution := {"source": value.source.name + "#" + value.layer_id, "license": value.source.license, "notice": JSON.stringify(metadata)}
 	result.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
 	result.append({"field":"free_roam","id":"","before":store.document.free_roam,"after":true})
 	return result
+
+# A blank project has no cell payloads to relocate. Fit its first imported
+# region before native generation; populated maps retain their authored extent.
+static func empty_map_extent(document: Dictionary, incoming: Array) -> Dictionary:
+	if document.get("assembled_track") is not Dictionary: return {}
+	for field in ["nodes","roads","buildings","placements","heightmaps","zones","surface_areas","water_bodies","pois","gimmicks"]:
+		if not document.get(field,[]).is_empty(): return {}
+	if not (document.get("assembled_track",{}) if document.get("assembled_track") is Dictionary else {}).get("pieces",[]).is_empty(): return {}
+	var points: Array = []
+	for patch: Dictionary in incoming:
+		var record: Dictionary = patch.after
+		match patch.field:
+			"nodes": points.append([record.position[0],record.position[2]])
+			"pois": points.append(record.position)
+			"roads":
+				for point: Array in record.points: points.append([point[0],point[2]])
+			"buildings": points.append_array(record.footprint)
+			"zones": points.append_array(record.polygon)
+	if points.is_empty(): return {}
+	var low: Array = points[0].duplicate(); var high: Array = points[0].duplicate()
+	for point: Array in points:
+		for axis in 2: low[axis] = mini(low[axis],point[axis]); high[axis] = maxi(high[axis],point[axis])
+	var size := int(document.cell_size_cm)
+	for axis in 2:
+		low[axis] = floori(float(low[axis]-1600)/size)*size
+		high[axis] = ceili(float(high[axis]+1600)/size)*size
+	return {"min":low,"max":high}
 
 func has_structures() -> bool:
 	if value.get("adapter") != "osm-extract-v1": return false
@@ -437,10 +493,9 @@ func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 			var frame: Dictionary = value.coordinates.get("vertical", {"target_crs":"EPSG:5773 / EGM96 metres", "vertical_zero_m":0})
 			var frame_error: String = preload("./import_vertical.gd").frame_error(store.document, frame, value.coordinates)
 			if frame_error != "": return frame_error
-	var candidate: Dictionary = store.document.duplicate(true)
-	var failure: String = store._apply(candidate, patches(store), false)
-	if failure != "": return failure
-	var result: Dictionary = store._validate(candidate)
+	var staged: Dictionary = store._candidate_for_patches(patches(store))
+	if staged.has("error"): return staged.error
+	var result: Dictionary = store._validate(staged.candidate)
 	if not result.ok: return store.reason(result)
 	if value.adapter == "osm-extract-v1":
 		if value.coordinates.has("osm_city"):

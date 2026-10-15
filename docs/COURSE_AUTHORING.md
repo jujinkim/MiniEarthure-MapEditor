@@ -15,6 +15,20 @@ Existing overlapping source arrays give a stable first-wins editing/driving view
 opening never rewrites the source. Zero or one effective gate keeps a connected
 map readable, while racing stays disabled.
 
+The main **Course** tool previews MapKit's `suggest_track_course(source_json)` result
+without changing the document. Existing track checkpoints change only with explicit
+Apply, as one Undo. Proposals share the manual route's start/finish and common-path
+rules; seed generation keeps its own established start policy. Disconnects,
+undeclared branches, overlapping gates and the 64-gate budget remain diagnostics.
+Proposal tokens bind the document session, command epoch and draft revision.
+
+**New course on surfaces** adds gates from actual 3D road/terrain hits. Dragging,
+height adjustment and deletion edit the draft until **Save course to map**. Existing
+courses can be selected; advanced course controls retain exact shape, radius,
+heading, ordering and proof import. **Test Drive** initializes the existing package
+and Client launcher from the course start or a point chosen in the 3D view. Finish
+certification remains owned by the game.
+
 ## Validation and proof
 
 An unverified course may be saved and exported. New drafts use a placeholder driving

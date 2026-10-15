@@ -1,7 +1,9 @@
 # Editing workbench
 
-The workspace edits one DocumentStore through the **Roads & Tracks** and
-**Terrain & Landscape** tools; `free_roam` is a separate game policy.
+The start screen offers **Create track**, **Import OSM / PBF** and **Open existing
+project**. Seed generation is an optional track starting point. **Roads & tracks**,
+**Gimmicks**, **Course** and **Scenery** edit one DocumentStore; `free_roam` is a
+separate game finish policy.
 [World authoring](ARCADE_WORLD.md), [track authoring](TRACK_AUTHORING.md) and
 [documents](DOCUMENTS.md) own geometry, commands, history and saving.
 
@@ -15,9 +17,11 @@ title bar and an inset 24 px close control. Text follows
 [localization](LOCALIZATION.md).
 
 File, Edit, Create and Inspect share commands with toolbars, search and shortcuts.
-Palettes have search, sorting, favourites and object lists; track groups separate
-pieces, gimmicks and actions. Inspector groups cover Transform, Connections, Routes
-& Checkpoints and Actions. Activity and Problems use the bottom panel; **Activity →
+Palettes retain search, sorting and favourites. The default 3D workspace shows
+simple selection settings; object lists, 2D/split plans and diagnostics open on
+demand. Advanced tools create their settings when first opened and retain
+Transform, Connections, Routes & Checkpoints, GIS, assets and environment controls.
+Activity and Problems use the bottom panel; **Activity →
 Operation details…** shows the full latest message read-only.
 
 The centre offers 2D, 3D and split views: right drag orbits, middle drag pans, wheel
@@ -46,21 +50,34 @@ overlapping bindings cannot save, while separate tool contexts may share a key.
 | S | Toggle snap |
 | F | Frame track selection or fit the terrain map |
 | Q/E | Rotate road placement preview by 15° |
+| PageUp / PageDown | Work height ±1 m; Shift uses ±0.1 m |
+| Enter | Confirm the active placement or direct edit |
 | 1–9 | Assigned palette slots |
 
 Right-click tiles/favourites to assign slots; search/sort never renumbers them.
 Terrain V/R/B/G/O shortcuts remain. Text focus, IME composition, popups and key
 capture block editor shortcuts; echoed keys never execute.
 
-A tile, slot or search result starts a placement preview without changing the
-document; a hidden 3D view opens split mode. Preview height starts at the selection
-or 0 m, width prefers 4 m, rotation accepts any angle and port search uses a 3 m
-radius with MapKit snapping. Placement commits once; Escape or a mode/document change
-cancels.
+A tile, slot or search result starts a preview without changing the document and
+opens the 3D view. The first piece uses the displayed work height; selecting an exit
+locks the next piece to that port. Confirmation continues from the new exit.
+**Free placement** restores pointer/height control. Connected pieces keep their
+port height; use a slope to change it. Width prefers 4 m; free rotation and the
+existing nearby-port snap remain available.
+
+The work height, horizontal plane and **Fit to ground** switch are visible. Height
+keys select manual height and affect the active placement, move or road control
+point; while idle they set the next placement height. Click/drag release or Enter
+confirms, Escape cancels. Document/session changes invalidate pending input.
 
 ## Selection, layers and history
 
-Click selects the topmost editable vector object; Shift toggles. Dragging a selected
+In 3D, piece/ordinary-road selection uses generated surfaces and source object IDs.
+Road control points and course gates have direct handles. Scenery supports tree,
+fence, basic building and existing GLB placement, dragging, rotation and deletion;
+the four basic terrain brushes share the same view.
+
+In the optional 2D plan, click selects the topmost editable vector object; Shift toggles. Dragging a selected
 object moves its group; dragging empty space box-selects. Grid spacing is
 0.01–100 m and coordinates are always integer centimetres; drawing also snaps to
 nearby vertices. Duplicate keeps attributes, creates new IDs and tries up to four
@@ -94,7 +111,9 @@ fallback implementation is supplied.
 
 ## Essential validation and limits
 
-Use `scripts/check_documents.py --script workbench_validator` or
+Use `driving_workflow_validator` and `driving_osm_validator` for connected tracks,
+height/focus/cancel, explicit course application, OSM direct edits and mixed content
+retention. Use `scripts/check_documents.py --script workbench_validator` or
 `--script icon_workbench_validator`; source startup and icons have
 `tests/test_source_startup.py` and `tests/test_workbench_icons.py`. Use isolated user
 state because fixtures persist view preferences. Layout is checked at 1024×720,

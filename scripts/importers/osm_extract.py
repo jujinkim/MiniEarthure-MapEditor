@@ -484,19 +484,35 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         raise ValueError("OSM extract contains no supported road/building/forest/orchard features")
     counts["structure_continuations"] = len(connections)
     collection = dict(type="FeatureCollection", features=features)
-    if city:
-        relation_tags = {identity: tags for identity, kind, members, tags in relations}
-        for feature in features:
-            p = feature["properties"]
-            kind, identity = p["osm_source_id"].split("/")
-            refs, tags = all_ways[int(identity)] if kind == "way" else ([], relation_tags[int(identity)])
-            p["_city_name"] = tags.get("name", "")
-            p["_city_landmark"] = any(key in tags for key in ("historic", "tourism", "amenity"))
-            if feature["geometry"]["type"] == "LineString" and "osm_node_refs" not in p:
-                p["_city_refs"] = refs
-                # Do not merge roads across semantic changes omitted by the
-                # legacy display adapter (oneway, access, name, classification).
-                p["_city_road_tags"] = {key: tags[key] for key in ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction") if key in tags}
+    relation_tags = {identity: tags for identity, kind, members, tags in relations}
+    for feature in features:
+        p = feature["properties"]
+        kind, identity = p["osm_source_id"].split("/")
+        refs, tags = all_ways[int(identity)] if kind == "way" else ([], relation_tags[int(identity)])
+        p["_city_name"] = tags.get("name", "")
+        p["_city_landmark"] = any(key in tags for key in ("historic", "tourism", "amenity"))
+        if feature["geometry"]["type"] == "LineString" and "osm_node_refs" not in p:
+            p["_city_refs"] = refs
+            # Do not merge roads across semantic changes omitted by the
+            # legacy display adapter (oneway, access, name, classification).
+            p["_city_road_tags"] = {key: tags[key] for key in ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction") if key in tags}
+    # Preserve ordinary source junctions without assigning an elevation datum.
+    # Split at shared original IDs before city simplification/merging and crop.
+    uses = Counter(ref for f in features for ref in set(f["properties"].get("_city_refs", [])))
+    connected_features = []
+    for feature in features:
+        p = feature["properties"]
+        refs = p.get("_city_refs")
+        if not refs:
+            connected_features.append(feature)
+            continue
+        cuts = [0] + [i for i in range(1,len(refs)-1) if uses[refs[i]] > 1] + [len(refs)-1]
+        for a,b in zip(cuts,cuts[1:]):
+            props = dict(p, _city_refs=refs[a:b+1], _city_ends=[str(refs[a]),str(refs[b])])
+            connected_features.append(dict(type="Feature", properties=props,
+                geometry=dict(type="LineString",coordinates=feature["geometry"]["coordinates"][a:b+1])))
+            if len(connected_features)>feature_limit: raise ValueError("OSM split feature budget exceeded")
+    collection["features"] = connected_features
     if connections: collection["osm_connections"] = connections
     if loop_sources:
         structural = any(s["kind"] != "ground" for s in loop_sources)

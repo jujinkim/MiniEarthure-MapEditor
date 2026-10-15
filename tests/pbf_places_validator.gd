@@ -11,7 +11,7 @@ func finish(ui: Control) -> void:
 	check(not ui.busy,"place worker terminates")
 func run() -> void:
 	var ui := UI.new()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.import_python.text=OS.get_environment("MINIEARTHURE_PYTHON")
 	var source := ProjectSettings.globalize_path("user://places.pbf")

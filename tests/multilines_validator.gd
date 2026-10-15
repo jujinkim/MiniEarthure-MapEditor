@@ -36,7 +36,7 @@ func pointer(button: Button) -> void:
 		await process_frame
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	root.size = Vector2i(1024,720)
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")

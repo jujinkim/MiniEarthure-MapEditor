@@ -186,6 +186,9 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None):
                 # Cut vertices do not acquire a source-node identity. Such
                 # boundary pieces are protected from cross-way chain merging.
                 properties = {k:v for k,v in properties.items() if k != "_city_refs"}
+                original = feature["geometry"]["coordinates"]
+                refs = feature["properties"]["_city_refs"]
+                properties["_city_ends"] = [str(refs[i]) if geometry["coordinates"][i] == original[i] else None for i in (0,-1)]
             append(dict(type="Feature", properties=properties, geometry=geometry))
     # A boundary-only contact is not a drivable approach. Check the retained graph,
     # not the complete source's earlier connectivity proof.

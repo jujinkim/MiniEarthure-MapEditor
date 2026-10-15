@@ -623,13 +623,29 @@ func _commit_command(label: String, patches: Array, binary_mementos: Dictionary 
 	_install_command(prepared)
 	return ""
 
+# Share pure composition staging with native import validation.
+func _candidate_for_patches(patches: Array) -> Dictionary:
+	var candidate := document.duplicate(true)
+	var overlay := false
+	var assembly: Dictionary = document.get("assembled_track",{})
+	if not assembly.is_empty() and not (assembly.get("authoring",{}) if assembly.get("authoring") is Dictionary else {}).get("terrain_integration",false) and not patches.any(func(p): return p.field in ["assembled_track","track_document"]):
+		overlay = patches.any(func(p): return p.field in ["roads","nodes","buildings","placements","repetitions","zones","surface_areas","water_bodies","heightmaps","pois","gimmicks","environment"] and p.after != null)
+		if overlay:
+			# Promote the valid previous track through MapKit before adding scenery.
+			# Promotion and the user's edit share one memento and one Undo owner.
+			var promoted: Dictionary = JSON.parse_string(bridge.apply_track_source(JSON.stringify(document),JSON.stringify(track_source())))
+			if not promoted.ok: return {"error":reason(promoted)}
+			candidate = promoted.data.document
+	var failure := _apply(candidate, patches, false)
+	return {"error":failure} if failure != "" else {"candidate":candidate,"overlay":overlay}
+
 # Pure with respect to this store. Owned import workers use the same canonical
 # mementos/budget as synchronous authoring; no live bridge/history is transferred.
 func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary = {}) -> Dictionary:
-	var candidate := document.duplicate(true)
-	var failure := _apply(candidate, patches, false)
-	if failure != "":
-		return {"error": failure}
+	var staged := _candidate_for_patches(patches)
+	if staged.has("error"): return staged
+	var candidate: Dictionary = staged.candidate
+	var overlay: bool = staged.overlay
 	for patch: Dictionary in patches:
 		if patch.field != "gimmicks": continue
 		var after: Variant = patch.get("after")
@@ -645,6 +661,7 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 		var memory_check: Dictionary = JSON.parse_string(working.fork().set_document(JSON.stringify(candidate),project_path))
 		if not memory_check.ok: return {"error":reason(memory_check)}
 	candidate = validation.data.document
+	if overlay: patches = document_patches(candidate)
 	# Keep canonical first-before/final-after for touched records only. Native
 	# normalization adds defaults and sorts records; undo must match that result.
 	var mementos: Array = []
@@ -964,6 +981,8 @@ func _prepare_track(source: Dictionary, record_history := true) -> Dictionary:
 	if document.get("assembled_track", {}).get("authoring") == source: return {"noop":true}
 	var authored: Variant=document.get("assembled_track",{}).get("authoring")
 	var mixed: bool = not document.has("assembled_track") or (authored is Dictionary and authored.get("terrain_integration",false))
+	for field in ["roads","nodes","buildings","placements","repetitions","zones","surface_areas","water_bodies","heightmaps","assets","pois"]:
+		if not document.get(field,[]).is_empty(): mixed = true
 	var result: Dictionary = JSON.parse_string(bridge.apply_track_source(JSON.stringify(document), JSON.stringify(source)) if mixed else bridge.compile_track_source(JSON.stringify(source)))
 	if not result.ok: return {"error":reason(result)}
 	var candidate: Dictionary = result.data.document
@@ -987,7 +1006,9 @@ func new_track(free_roam := false) -> void:
 	if free_roam:
 		document.free_roam=true
 	else:
-		var result: Dictionary=JSON.parse_string(bridge.compile_track_source(JSON.stringify(track_source())))
+		var source: Dictionary = track_source()
+		source.settings.circuit = false
+		var result: Dictionary=JSON.parse_string(bridge.compile_track_source(JSON.stringify(source)))
 		if result.ok:
 			result.data.document.provenance=document.provenance.duplicate(true)
 			document=result.data.document

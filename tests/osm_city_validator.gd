@@ -15,7 +15,7 @@ func run() -> void:
 		await validate_candidate()
 		return
 	var ui: Control = load("res://main.tscn").instantiate()
-	root.add_child(ui)
+	root.add_child(ui); ui._ensure_import_ui()
 	ui.store.new_track(true)
 	await process_frame
 	var author := preload("res://scripts/authoring_tools.gd").new()
