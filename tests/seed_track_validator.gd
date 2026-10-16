@@ -11,7 +11,7 @@ func settle(screen:Control)->void:
 func run()->void:
 	var screen:=EDITOR.new();root.add_child(screen);await process_frame
 	var bench:Node=screen.track_workbench
-	for id in ["double_jump","air_ring_chain","grind_shortcut"]:
+	for id in ["double_jump","air_ring_chain","grind_shortcut","jump_shortcut_5"]:
 		screen.store.new_track();bench.refresh()
 		var before:Dictionary=screen.store.document.duplicate(true)
 		check(bench.append_template(id),"template palette command "+id)
@@ -25,6 +25,11 @@ func run()->void:
 		check(screen.store.redo()=="","template Redo accepted "+id)
 		await settle(screen)
 		check(screen.store.document==after,"one Redo restores template geometry and interactions "+id)
+	var saved:=screen.store.document.duplicate(true)
+	var project:=ProjectSettings.globalize_path("user://jump-source")
+	check(screen.store.save_project(project)=="","save jump source")
+	screen.store.new_track()
+	check(screen.store.open_project(project)=="" and screen.store.document==saved,"reopen preserves explicit jump definitions and geometry")
 	screen._open_track_generator()
 	var native:RefCounted=ClassDB.instantiate("MapKitBridge")
 	var defaults:Dictionary=JSON.parse_string(native.track_seed_defaults(42)).data

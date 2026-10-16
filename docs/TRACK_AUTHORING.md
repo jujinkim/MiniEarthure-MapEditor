@@ -38,9 +38,12 @@ vector-stroked "12" or "18" badge. Newly compiled vertical loops are 10.5 m high
 with a 5.25 m radius; their ribbon and the spiral-turn dimensions are unchanged.
 
 The palette also offers banked hairpins, spiral pipes and spatial S roads.
-Templates append double jumps, three-ring sequences or optional grind shortcuts
+Templates append double jumps, three-ring sequences, optional grind shortcuts or
+independent jump-platform routes
 at the selected base-route endpoint. Each expansion is one Undo/Redo operation;
-its roads, actions, branches and grind lines remain independently editable.
+its roads, actions, branches, grind lines and explicit jump-route definitions are
+retained through save/reopen. Piece-only placement previews clear route references
+until the complete graph is compiled.
 
 Choose a base/alternative route, append/remove roads or reorder them, and pick
 samples for start, finish and intermediate checkpoints. Add jump/acceleration/

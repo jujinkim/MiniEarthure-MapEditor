@@ -389,7 +389,7 @@ func _show_ghost(item: Dictionary, sample := -1, compiled_piece: Dictionary = {}
 	local.position_cm = [0, 0, 0]
 	local.rotation_mdeg = [0, 0, 0]
 	var source: Dictionary = bench.source.duplicate(true)
-	for field in ["connections", "paths", "checkpoints", "actions", "attachments", "grind_lines", "structures", "road_connections"]: source[field] = []
+	for field in ["connections", "paths", "checkpoints", "actions", "attachments", "grind_lines", "structures", "jump_shortcuts", "road_connections"]: source[field] = []
 	source.terrain_policies = {}
 	source.terrain_integration = false
 	source.instances = [local]
