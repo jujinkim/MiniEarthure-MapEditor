@@ -118,11 +118,19 @@ func _refresh_duration(seconds: int) -> void:
 		if duration.get_item_id(i)==seconds: duration.select(i); return
 	duration.select(0)
 
-func show_result(assembly: Dictionary) -> void:
+func show_result(assembly: Dictionary, summary: Dictionary = {}) -> void:
 	var seconds := float(assembly.estimated_msec) / 1000.0
 	note.text = I18N.t("Generated · %.1f m · base route %.1f s / target %d s · reference-speed estimate") % [float(assembly.length_cm)/100.0, seconds, int(assembly.settings.duration_seconds)]
 	for route: Dictionary in assembly.get("routes",[]).slice(1):
 		note.text += I18N.t(" · shortcut %.1f s") % (float(route.estimated_msec)/1000.0)
+
+
+	if not summary.is_empty():
+		var pieces: Dictionary = summary.pieces
+		var gimmicks: Dictionary = summary.gimmicks
+		note.text += "\n" + I18N.t("Pieces %d/%d types · Gimmicks %d/%d types") % [int(pieces.used), int(pieces.total), int(gimmicks.used), int(gimmicks.total)]
+		if int(pieces.used) < int(pieces.target) or int(gimmicks.used) < int(gimmicks.target):
+			note.text += I18N.t(" · Below 50% variety target")
 
 func _update_enabled() -> void:
 	if not is_instance_valid(generate): return

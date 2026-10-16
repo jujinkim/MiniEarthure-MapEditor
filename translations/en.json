@@ -2198,6 +2198,8 @@
     "Start and finish overlap; extend the course or choose different endpoints": "Start and finish overlap; extend the course or choose different endpoints",
     "Overlapping intermediate checkpoint omitted": "Overlapping intermediate checkpoint omitted",
     "Course needs more than 64 shared checkpoints": "Course needs more than 64 shared checkpoints",
-    "Course needs at least two non-overlapping checkpoints": "Course needs at least two non-overlapping checkpoints"
+    "Course needs at least two non-overlapping checkpoints": "Course needs at least two non-overlapping checkpoints",
+    "Pieces %d/%d types · Gimmicks %d/%d types": "Pieces %d/%d types · Gimmicks %d/%d types",
+    " · Below 50% variety target": " · Below 50% variety target"
   }
 }

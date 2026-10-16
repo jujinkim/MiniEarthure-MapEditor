@@ -2031,7 +2031,7 @@ func _open_track_generator() -> void:
 			if failure != "": _status(I18N.diagnostic(failure)); return
 			_apply_track_seed_environment(result.data.seed_defaults)
 			_clear_preview_cache()
-			track_panel.show_result(result.data.document.assembled_track)
+			track_panel.show_result(result.data.document.assembled_track, result.data.generation_summary)
 			_status(track_panel.note.text)
 			track_dialog.hide()
 			track_workbench.refresh())

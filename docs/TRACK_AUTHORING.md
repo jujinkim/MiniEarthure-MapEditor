@@ -67,6 +67,12 @@ base route must meet MapKit's ±10% reference-time bound at 900 cm/s; actual tim
 depends on vehicle and input. New panels pick a random seed; reopening restores the
 saved settings, source, placements and fingerprints.
 
+Successful generation displays MapKit's response-only piece/gimmick used/total
+counts and a notice when either 50% goal is unmet. Time and safety take priority;
+missing types remain in the denominator. Saved source and packages remain v1 and
+are not rewritten to add a summary. Taxonomy, candidate ranking and narrow-road
+limits belong to [MapKit](https://github.com/jujinkim/MiniEarthure-MapKit/blob/main/docs/TRACK_DIVERSITY.md).
+
 Progress shows a translated stage and the shared circular percentage; search and
 preparation stay indeterminate. Generate is disabled while busy. Cancel, dialog
 close, document change or a newer request discard late results and keep the last

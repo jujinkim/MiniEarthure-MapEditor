@@ -36,9 +36,11 @@ func run()->void:
 	var source:Dictionary=JSON.parse_string(native.track_template_source("double_jump")).data
 	var result:Dictionary=JSON.parse_string(native.compile_track_source(JSON.stringify(source)))
 	result.data.seed_defaults=defaults
+	result.data.generation_summary={"pieces":{"used":1,"total":32,"target":16},"gimmicks":{"used":1,"total":17,"target":9}}
 	screen.track_epoch=screen.store.command_epoch;screen.track_request=42
 	screen.track_job.completed.emit(42,result)
 	check(screen.environment_preview.weather==defaults.weather and screen.environment_preview.seconds==float(defaults.time_minutes)*60,"adoption resets preview to shared seed defaults")
+	check("1/32" in screen.track_panel.note.text and "50%" in screen.track_panel.note.text,"adopted result displays response summary")
 	var document:Dictionary=screen.store.document.duplicate(true)
 	screen.preview_time.select(4);screen.preview_time.item_selected.emit(4)
 	screen.preview_weather.select(2);screen.preview_weather.item_selected.emit(2)

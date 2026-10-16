@@ -2198,6 +2198,8 @@
     "Start and finish overlap; extend the course or choose different endpoints": "출발점과 도착점이 겹칩니다. 코스를 늘리거나 다른 끝점을 선택하세요.",
     "Overlapping intermediate checkpoint omitted": "겹치는 중간 체크포인트를 제외했습니다.",
     "Course needs more than 64 shared checkpoints": "이 코스에는 공유 체크포인트가 64개 넘게 필요합니다.",
-    "Course needs at least two non-overlapping checkpoints": "코스에는 겹치지 않는 체크포인트가 최소 2개 필요합니다."
+    "Course needs at least two non-overlapping checkpoints": "코스에는 겹치지 않는 체크포인트가 최소 2개 필요합니다.",
+    "Pieces %d/%d types · Gimmicks %d/%d types": "조각 %d/%d종 · 기믹 %d/%d종",
+    " · Below 50% variety target": " · 다양성 목표 50% 미달"
   }
 }

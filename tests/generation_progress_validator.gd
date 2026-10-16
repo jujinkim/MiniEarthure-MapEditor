@@ -24,6 +24,10 @@ func run()->void:
 		check(results[0][0]==request and result.ok,"current request succeeds")
 		if result.ok:
 			check(not result.data.get("preview",{}).is_empty(),"prepared preview accompanies completion")
+			check(result.data.has("generation_summary") and not result.data.document.assembled_track.has("generation_summary"),"summary belongs to response only")
+			panel.show_result(result.data.document.assembled_track,result.data.generation_summary)
+			var counts: Dictionary = result.data.generation_summary.pieces
+			check(("%d/%d" % [int(counts.used),int(counts.total)]) in panel.note.text,"Editor displays native diversity counts")
 			var store:=STORE.new()
 			check(store.open_generated(result.data.document,result.data.preview)=="" and not store.prepared_track_preview.is_empty(),"document adopts prepared preview")
 	var unknown:=false;var counted:=false;var preview:=false

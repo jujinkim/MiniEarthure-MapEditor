@@ -2198,6 +2198,8 @@
     "Start and finish overlap; extend the course or choose different endpoints": "出発点と到着点が重なっています。コースを延ばすか別の端点を選択してください。",
     "Overlapping intermediate checkpoint omitted": "重なる中間チェックポイントを除外しました。",
     "Course needs more than 64 shared checkpoints": "このコースには共有チェックポイントが64個を超えて必要です。",
-    "Course needs at least two non-overlapping checkpoints": "コースには重ならないチェックポイントが2個以上必要です。"
+    "Course needs at least two non-overlapping checkpoints": "コースには重ならないチェックポイントが2個以上必要です。",
+    "Pieces %d/%d types · Gimmicks %d/%d types": "ピース %d/%d種 · ギミック %d/%d種",
+    " · Below 50% variety target": " · 多様性の目標50%未達"
   }
 }
