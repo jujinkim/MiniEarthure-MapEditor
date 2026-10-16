@@ -1,8 +1,8 @@
 # Authored default worlds
 
-`examples/default-worlds` contains the seven compact, original v1 worlds; current
-Harbor/Factory sources live in `examples/default-worlds-rails`, preserving prior
-sources. Each has
+`examples/default-worlds-racing` contains the seven current bright-sepia, low-poly
+v1 worlds. Earlier `default-worlds` and `default-worlds-rails` sources are preserved.
+Each has
 free roam and three recommended ordinary-road courses: **intro 600–900 m**, **tour
 1,400–2,000 m**, **technical 1,000–1,500 m**. These are geometric distances from the
 first gate to the finish, not completion-time promises. Map and course content
@@ -23,8 +23,8 @@ changes require fresh hashes and sealing; human completion remains unverified.
 coordinates. Irregular species/age clusters fill declared habitat polygons only;
 road margins, water and optional branch corridors exclude scenery. Vehicles,
 models and road widths retain their actual scale. Frontages use the model's depth
-for service props. Paired primary/distant models use MapKit window reveals, roof/structural thickness
-and asymmetric vegetation/rock silhouettes; solid landmarks
+for service props. Paired primary/distant models use MapKit angular forms, broad colour faces, window reveals,
+roof/structural thickness and asymmetric vegetation/rock silhouettes; solid landmarks
 and boundaries remain visible on Low. General **New region** is independent.
 
 Terrain uses one integer 2 m grid sliced into 32 m execution cells. Roads own their
@@ -63,6 +63,13 @@ Always choose a fresh destination, preserving existing maps and user data:
 ```sh
 rtk proxy .venv/bin/python map-editor/scripts/default_worlds.py /absolute/new-worlds --theme village --kit map-kit --cli map-kit/target/debug/mapkit
 ```
+
+For a visual revision of an existing default, use `scripts/restyle_default_worlds.py
+SOURCE NEW_DESTINATION --theme THEME --kit MAPKIT --cli MAPKIT_CLI`. It replaces
+only built-in authored near/far models, preserves collision, placements, terrain,
+roads, routes and lights, and verifies current compilation changes only the build
+fingerprint. Every new package is cell-validated, then sealed and rendered by the
+Client delivery tools. Imports and prior sources remain intact.
 
 The authoring fingerprint includes common helpers and the owning model sources.
 Generation compiles roads/tracks, audits road collision and validates every cell.
