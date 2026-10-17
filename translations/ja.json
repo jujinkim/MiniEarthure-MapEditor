@@ -2035,6 +2035,8 @@
     "Course name": "コース名",
     "New course on surfaces": "路面に新しいコースを作成",
     "Suggest course on roads": "道路にコースを提案",
+    "Width %.1fm": "幅%.1fm",
+    "Preview width %.1fm": "プレビュー幅%.1fm",
     "Road shortcuts": "ショートカット道路",
     "Corner-cutting roads proposed at course turns": "コースの曲がり角に提案する角を抜けるショートカット道路",
     "Placed %d of %d requested shortcuts": "ショートカット %d 本を配置(要求 %d 本)",

@@ -350,8 +350,9 @@ func _properties() -> void:
 		if entry.id != item.preset: continue
 		minimum_port = float(entry.min_port_width_cm) / 100.0
 		maximum_port = float(entry.max_port_width_cm) / 100.0
-		for w in entry.widths_cm:
-			width.add_item(I18N.t("Width %dm") % (float(w) / 100.0), int(w))
+		if region_overlay() and not entry.get("region_widths_cm",[]).is_empty(): minimum_port = float(catalogue.region_min_width_cm) / 100.0
+		for w in widths(entry):
+			width.add_item((I18N.t("Width %dm") if int(w) % 100 == 0 else I18N.t("Width %.1fm")) % (float(w) / 100.0), int(w))
 			if int(w) == int(item.width_cm):
 				width.select(width.item_count - 1)
 				found_width = true
@@ -768,3 +769,11 @@ func draw_ports() -> void:
 	material.no_depth_test = true
 	port_markers.material_override = material
 	editor.preview_world.add_child(port_markers)
+
+## Narrow region widths are offered only where the track overlays an existing map.
+func region_overlay() -> bool:
+	var authored: Variant = editor.store.document.get("assembled_track",{}).get("authoring") if editor.store.document.get("assembled_track") is Dictionary else null
+	return (authored is Dictionary and authored.get("terrain_integration",false)) or not editor.store.document.get("roads",[]).is_empty()
+
+func widths(entry: Dictionary) -> Array:
+	return (entry.get("region_widths_cm",[]) if region_overlay() else []) + entry.widths_cm

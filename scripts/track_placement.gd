@@ -168,8 +168,8 @@ func build_controls(parent: Node) -> void:
 		var width := OptionButton.new()
 		for entry: Dictionary in bench.catalogue.entries:
 			if entry.id != tool: continue
-			for w in entry.widths_cm:
-				width.add_item(I18N.t("Preview width %dm") % (float(w) / 100.0), int(w))
+			for w in bench.widths(entry):
+				width.add_item((I18N.t("Preview width %dm") if int(w) % 100 == 0 else I18N.t("Preview width %.1fm")) % (float(w) / 100.0), int(w))
 				if int(w) == width_cm: width.select(width.item_count - 1)
 		parent.add_child(width)
 		width.item_selected.connect(func(_i: int): width_cm = width.get_selected_id(); invalidate_candidate())

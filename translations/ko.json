@@ -2035,6 +2035,8 @@
     "Course name": "코스 이름",
     "New course on surfaces": "표면에 새 코스 만들기",
     "Suggest course on roads": "도로에 코스 제안",
+    "Width %.1fm": "폭 %.1fm",
+    "Preview width %.1fm": "미리보기 폭 %.1fm",
     "Road shortcuts": "지름길",
     "Corner-cutting roads proposed at course turns": "코스가 꺾이는 곳에 제안할 모서리 지름길 도로",
     "Placed %d of %d requested shortcuts": "지름길 %d개 배치 (요청 %d개)",

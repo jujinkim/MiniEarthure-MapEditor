@@ -2035,6 +2035,8 @@
     "Course name": "Course name",
     "New course on surfaces": "New course on surfaces",
     "Suggest course on roads": "Suggest course on roads",
+    "Width %.1fm": "Width %.1fm",
+    "Preview width %.1fm": "Preview width %.1fm",
     "Road shortcuts": "Road shortcuts",
     "Corner-cutting roads proposed at course turns": "Corner-cutting roads proposed at course turns",
     "Placed %d of %d requested shortcuts": "Placed %d of %d requested shortcuts",
