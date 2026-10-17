@@ -24,9 +24,8 @@ adoption waits for the current drag or text input to finish. An unconfirmed
 calculation lasting 500 ms shows a small "Applying changes" indicator; there is no
 dim or edit lock.
 
-Save, Save As and execution export finish the current terrain stroke in memory,
-cancel other unsubmitted gestures and lock edits while the UI and camera stay
-responsive. One file request freezes the last submitted revision, waits for its
+Save, Save As and execution export cancel unsubmitted gestures and lock edits
+while the UI and camera stay responsive. One file request freezes the last submitted revision, waits for its
 validation and works on an owned worker. Only successful publication advances the
 savepoint. Project Save accepts valid drafts with course issues; execution export
 also checks connections/courses. Failure or cancellation keeps the draft/history and
@@ -66,26 +65,23 @@ finishing or cancelling the gesture. Escape, tool/focus change and document
 replacement discard a gesture; old mouse releases cannot modify a new document.
 New/Open/Recover reset history; returning by Undo to saved content clears dirty.
 
-Terrain commands hold sparse height samples plus water patches; see
+Heightmap and asset imports keep binary payload mementos; see
 [AUTHORING](AUTHORING.md). History detects changed payloads before travel. Cell
 identities use canonical integer coordinates.
 
 ## Save and recovery
 
 Only **Save**, **Ctrl+S** or **Cmd+S** publishes the project; there is no timer,
-transition or exit autosave. A new map can be sculpted before choosing a directory.
-Dirty content highlights Save; sparse modified samples and a saved baseline decide
-terrain dirtiness. Save keeps both history stacks; an unchanged repeat Save writes
-nothing.
+transition or exit autosave. Dirty content highlights Save. Save keeps both history
+stacks; an unchanged repeat Save writes nothing.
 
-The Save worker freezes the revision, waits for water/track validation, encodes
-**only modified height tiles** as lossless PNG16, reuses unchanged payloads, installs
-immutable payloads and publishes `document.json` last. `document_files.gd` writes a
+The Save worker freezes the revision, waits for track validation, reuses unchanged
+payloads, installs immutable payloads and publishes `document.json` last. `document_files.gd` writes a
 flushed `.pending-<id>` file, keeps the current primary as `.previous`, then replaces
 the primary with one rename. Expected SHA-256 checks detect external changes before
 and during saving. Failure keeps the dirty state, old primary and interrupted
 candidates. Command source identities stay separate from published PNG descriptors,
-so import → sculpt → Undo/Redo chains survive Save.
+so import → Undo/Redo chains survive Save.
 
 **Save As** requires a directory without a document and copies current plus
 Undo/Redo-only asset and heightmap payloads, validates the candidate and publishes

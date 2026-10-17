@@ -162,11 +162,7 @@ func _draw() -> void:
 			visible_tiles[key] = texture
 		draw_string(get_theme_default_font(), Vector2(start.x + 4, end.y + 18), I18N.t("Terrain %d,%d · base %.2fm") % [tile.cell.x, tile.cell.y, tile.offset_cm / 100.0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("a4c88c"))
 	terrain_textures = visible_tiles
-	if tool == "Terrain":
-		var center := screen([brush_cursor.x, brush_cursor.y])
-		draw_arc(center, float(author.options.radius_cm) * _scale(), 0, TAU, 48, Color("c76035"), 2)
-		for point in author.terrain.stroke: draw_circle(screen([point.x, point.y]), 3, Color("c76035"))
-	elif tool == "Cylinder wall":
+	if tool == "Cylinder wall":
 		draw_arc(screen([brush_cursor.x, brush_cursor.y]), float(author.options.wall_radius_cm) * _scale(), 0, TAU, AUTHOR.CYLINDER.SEGMENTS, Color("c76035"), 2)
 	var transformed := {}
 	if dragging and drag_offset != Vector2.ZERO:
@@ -332,12 +328,6 @@ func _gui_input(event: InputEvent) -> void:
 				var p := world(event.position)
 				if tool == "Course":
 					course_point_selected.emit(p)
-				elif tool == "Terrain":
-					var options: Dictionary = author.options.duplicate(true)
-					options.spacing_cm = options.grid_cm
-					_report(author.terrain.begin(p, options))
-				elif tool in ["Water", "Remove water"]:
-					if available({"field":"water_bodies","record":{"id":"water"}}, true): _report(store.start_water(p, tool == "Remove water"))
 				elif tool == "Select":
 					var hit := _hit(raw_world(event.position))
 					_select_at(raw_world(event.position), event.shift_pressed)
@@ -355,11 +345,7 @@ func _gui_input(event: InputEvent) -> void:
 					if tool in ["Place", "Cylinder wall"]: finish_shape()
 					elif event.double_click: finish_shape()
 			else:
-				if author.terrain.active:
-					_report(author.terrain.finish())
-					accept_event()
-					return
-				elif marquee:
+				if marquee:
 					var rect := Rect2(drag_start, marquee_end - drag_start).abs()
 					var keys: Array = selected.duplicate() if marquee_additive else []
 					for entry in EDIT.entries(store.document):
@@ -377,11 +363,6 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		if event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
 			pan += event.relative
-		elif author.terrain.active:
-			var failure := author.terrain.sample(world(event.position))
-			if failure != "":
-				author.terrain.cancel()
-				status.emit(failure)
 		elif dragging:
 			drag_offset = world(event.position) - drag_start
 		elif marquee:
@@ -392,7 +373,6 @@ func _gui_input(event: InputEvent) -> void:
 		queue_redraw()
 
 func finish_shape() -> void:
-	if tool == "Terrain": return
 	if draft.size() > 1 and draft[-1] == draft[-2]: draft.pop_back()
 	var failure := author.draw(tool, draft)
 	_report(failure)
@@ -456,7 +436,6 @@ func _execute(operation: String, delta: Vector2 = Vector2.ZERO) -> String:
 
 func cancel_interaction(clear_draft: bool = true) -> void:
 	interaction_revision += 1
-	author.terrain.cancel()
 	dragging = false
 	marquee = false
 	drag_offset = Vector2.ZERO

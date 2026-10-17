@@ -12,7 +12,6 @@ func start(store: RefCounted, request: Dictionary) -> Error:
 		"disk_path":store._disk_path, "disk_digest":store._disk_digest,
 		"working":store.working_snapshot().fork(), "dirty":store.dirty,
 		"signature":store._saved_signature,"canonical":store._saved_canonical,
-		"terrain_state":store.terrain_state,"saved_terrain_state":store.saved_terrain_state,
 		"history":(store.undo_stack + store.redo_stack).duplicate(true), "request":request.duplicate(true), "files":store.files}
 	return thread.start(_run.bind(snapshot))
 
@@ -29,8 +28,6 @@ func _run(snapshot: Dictionary) -> Dictionary:
 		worker.dirty = snapshot.dirty
 		worker._saved_signature = snapshot.signature
 		worker._saved_canonical = snapshot.canonical
-		worker.terrain_state = snapshot.terrain_state
-		worker.saved_terrain_state = snapshot.saved_terrain_state
 		worker.files = snapshot.files
 		worker.save_token = token
 		worker.undo_stack.assign(snapshot.history)

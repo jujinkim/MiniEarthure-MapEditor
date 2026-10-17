@@ -24,9 +24,6 @@ func _run() -> void:
 	await process_frame
 	ui.store.new_track(true)
 	var directory := ProjectSettings.globalize_path("user://drive contract $ literal " + Crypto.new().generate_random_bytes(6).hex_encode())
-	var terrain := preload("res://scripts/terrain_tools.gd").new();terrain.store=ui.store
-	check(terrain.begin(Vector2(12025,13075),{"radius_cm":1600})=="" and terrain.step(Vector2(12025,13075),1)=="","unsaved terrain fixture")
-	terrain.last_usec=Time.get_ticks_usec();check(terrain.finish()=="","unsaved terrain ready for test drive")
 	ui._test_drive()
 	ui.drive_dialog.hide()
 	ui.client_path.text = directory + "/missing-client"

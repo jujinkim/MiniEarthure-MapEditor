@@ -18,7 +18,7 @@ var settings_path := "user://workbench.cfg"
 var settings_dialog: Window
 const DEFAULT_FAVORITES := {
 	"track": ["track.piece.straight", "track.piece.gentle90", "track.piece.hairpin", "track.piece.slope_up", "track.piece.free_curve", "track.piece.cylinder", "track.piece.loop", "track.piece.jump", "track.action.jump_panel"],
-	"roam": ["tool.select", "tool.road", "tool.building", "tool.terrain", "tool.water", "tool.forest", "tool.place", "tool.repeat", "tool.surface_area"]
+	"roam": ["tool.select", "tool.road", "tool.building", "tool.forest", "tool.place", "tool.repeat", "tool.surface_area", "tool.cylinder_wall", "tool.orchard"]
 }
 
 func _ready() -> void:

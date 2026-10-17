@@ -119,7 +119,6 @@ var file_dialog_lock := false
 
 var unsaved_dialog: ConfirmationDialog
 var recovery_continue_button: Button
-var landscape_brush := preload("./landscape_brush.gd").new()
 var pending_document_action := {}
 var tool_hint: Label
 var cancel_button: Button
@@ -223,7 +222,6 @@ func _ready() -> void:
 	store.file_operation_finished.connect(_file_finished)
 	store.dirty_changed.connect(_draft_status_changed)
 	store.terrain_preview_changed.connect(func(_cells: Array): canvas.queue_redraw())
-	landscape_brush.editor = self
 	store.changed.connect(_document_changed)
 	store.new_track()
 	_restore_workbench.call_deferred()
@@ -307,7 +305,7 @@ func _build_ui() -> void:
 	roam_palette.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(roam_palette)
 	var tool_entries: Array[Dictionary] = []
-	for name in ["Select", "Road", "Surface area", "Water", "Remove water", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
+	for name in ["Select", "Road", "Surface area", "Building", "Cylinder wall", "Forest", "Orchard", "Place", "Repeat", "Entrance", "Exclusion"]:
 		tool_entries.append({"id":"tool." + name.to_snake_case(), "group":"Free roam", "section":"Drawing tools"})
 	roam_palette.build(commands, "roam", tool_entries)
 	# Leave room for persistent operation feedback at the 1024 × 720 minimum.
@@ -441,8 +439,6 @@ func _build_ui() -> void:
 		elif course_tools != null and course_tools.input(event):
 			preview_container.accept_event()
 		elif scenery != null and scenery.input(event):
-			preview_container.accept_event()
-		elif landscape_brush.input(event):
 			preview_container.accept_event()
 		elif track_workbench != null and track_workbench.input(event):
 			preview_container.accept_event()
@@ -683,9 +679,6 @@ func _new() -> void:
 	_show_start()
 
 func _legacy_new() -> void:
-	var failure: String = store.finish_active_terrain()
-	if failure != "": _status(failure); return
-	while store.water_job != null: await get_tree().process_frame
 	_cancel_editing()
 	if not is_instance_valid(new_map_dialog):
 		new_map_dialog=ConfirmationDialog.new()
@@ -699,9 +692,6 @@ func _legacy_new() -> void:
 	new_map_dialog.popup_centered(Vector2i(400,160))
 
 func _request_document_action(action: String, path: String = "") -> void:
-	var finish_failure: String = store.finish_active_terrain()
-	if finish_failure != "": _status(finish_failure); return
-	while store.water_job != null: await get_tree().process_frame
 	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	_cancel_editing()
 	canvas.cancel_interaction()
@@ -751,9 +741,6 @@ func _continue_document_action() -> void:
 
 func _choose(action: String) -> void:
 	if action == "import": _ensure_import_ui()
-	var failure: String = store.finish_active_terrain()
-	if failure != "": _status(failure); return
-	while store.water_job != null: await get_tree().process_frame
 	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	_cancel_editing()
 	dialog_action = action
@@ -831,9 +818,6 @@ func _path_selected(path: String) -> void:
 	if failure == "": _document_changed()
 
 func _save() -> void:
-	var failure: String = store.finish_active_terrain()
-	if failure != "": _status(failure); return
-	while store.water_job != null: await get_tree().process_frame
 	if store.editing_locked(): _status(store.EDIT_BUSY); return
 	if busy:
 		_status(I18N.t("Wait for the active operation before saving."))
@@ -1045,12 +1029,9 @@ func _tool_help(name: String) -> String:
 		"Select":"Click to select; Shift toggles. Drag empty space to box-select. Edit in Properties, then Apply.",
 		"Road":"Click at least two points; right-click to finish. Set width, surface and structure in Authoring settings.",
 		"Building":"Click at least three corners; right-click to finish. Select the building to edit height and material.",
-		"Water":"Click a slope to fill connected lower terrain at the clicked height. Flat terrain does not change.",
-		"Remove water":"Click to remove the entire connected water surface. Raise terrain to make islands.",
 		"Cylinder wall":"Click the centre to place a solid round wall. Set radius and height in Authoring settings; select it to resize.",
 		"Forest":"Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
 		"Orchard":"Click at least three corners; right-click to finish. Select the zone to edit density and spacing.",
-		"Terrain":"Drag to paint terrain. Choose brush, radius and strength in Authoring settings; release commits one Undo step.",
 		"Place":"Click to place the asset chosen in Authoring settings. Select it to change rotation.",
 		"Repeat":"Click a path; right-click to finish. Choose asset and spacing in Authoring settings.",
 		"Entrance":"Select one building first, then draw an entrance polygon; right-click to finish.",
@@ -1122,7 +1103,6 @@ func _register_commands() -> void:
 	commands.context_source = func(): return "roam" if tool_workspace == "landscape" else "track"
 	commands.blocked_source = _shortcuts_blocked
 	commands.availability_source = func(id: String):
-		if id in ["file.save","file.save_as"] and store.water_job != null and store.file_request.is_empty() and not store.external_lock: return ""
 		return store.EDIT_BUSY if store.editing_locked() else ""
 
 	for entry in [["New", _new], ["Open", _choose.bind("open")], ["Restore package", _choose.bind("reopen_package")], ["Save", _save], ["Save As", _choose.bind("save")], ["Recover", _choose.bind("recover")], ["Import vector", _import_geojson], ["Export map", _export]]:
@@ -1148,7 +1128,7 @@ func _register_commands() -> void:
 	commands.register("Create", "Advanced tools…", open_advanced, "", {"id":"create.advanced","icon":"settings"})
 	for mode in ["2d", "3d", "split"]:
 		commands.register("View", mode.to_upper(), _set_view_mode.bind(mode), "", {"id":"view." + mode, "icon":mode})
-	for tool in ["Select", "Road", "Surface area", "Water", "Remove water", "Building", "Cylinder wall", "Forest", "Orchard", "Terrain", "Place", "Repeat", "Entrance", "Exclusion"]:
+	for tool in ["Select", "Road", "Surface area", "Building", "Cylinder wall", "Forest", "Orchard", "Place", "Repeat", "Entrance", "Exclusion"]:
 		var shortcut: String = {"Select":"V", "Road":"R", "Building":"B", "Forest":"G", "Orchard":"O"}.get(tool, "")
 		commands.register("Create", tool, _set_tool.bind(tool), shortcut, {"id":"tool." + tool.to_snake_case(), "context":"global" if tool == "Select" else "roam", "description":"Select in the active workspace: track pieces in 3D, or free roam objects on the plan." if tool == "Select" else _tool_help(tool), "menu":false})
 	commands.register("Create", "Authoring settings…", func(): author_panel.open(), "", {"context":"roam"})
@@ -1267,9 +1247,6 @@ func _preview_cell_changed(_value: float) -> void:
 		preview_due = Time.get_ticks_msec() + 150
 
 func _start_package(operation: String, destination: String = "") -> void:
-	var finish_failure: String = store.finish_active_terrain()
-	if finish_failure != "": _status(finish_failure); return
-	while store.water_job != null: await get_tree().process_frame
 	if operation == "export":
 		if store.editing_locked(): _status(store.EDIT_BUSY); return
 		_cancel_editing()
@@ -1320,7 +1297,6 @@ func _cancel_operation() -> void:
 	if generation_lock:
 		_cancel_track_generation()
 		return
-	if store.water_job != null and store.file_request.is_empty(): store.cancel_water()
 	if not store.file_request.is_empty():
 		store.cancel_file_operation()
 		_status(I18N.t("Stopping operation… Waiting for publication result."))
@@ -1589,10 +1565,6 @@ func _process(_delta: float) -> void:
 		store.set_external_lock(busy)
 	store.poll_track_edit()
 	store.poll_file_operation()
-	store.poll_water()
-	if canvas.author.terrain.active:
-		var failure: String = canvas.author.terrain.tick()
-		if failure != "": _status(failure)
 	_sync_operation_ui()
 	if track_workbench != null and track_workbench.placement.tool != "" and _popup_open(self): _cancel_editing()
 	if not density_deferred_package.is_empty() and density_panel.task == null:
@@ -1600,7 +1572,7 @@ func _process(_delta: float) -> void:
 		density_deferred_package = {}
 		busy = false
 		_start_package(pending.operation,pending.destination)
-	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy and store.file_request.is_empty() and store.water_job == null
+	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy and store.file_request.is_empty()
 	cancel_button.tooltip_text = I18N.t("Cancel the running operation; keep prior preview and original files.") if busy or store.track_edit_busy else I18N.t("No running operation.")
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
 	# Density owns its own worker. A queued preview must wait for its cancellation
@@ -1903,9 +1875,6 @@ func _build_test_drive_dialog() -> void:
 
 
 func _test_drive() -> void:
-	var failure: String = store.finish_active_terrain()
-	if failure != "": _status(failure); return
-	while store.water_job != null: await get_tree().process_frame
 	if busy:
 		_status(I18N.t("Wait for the current operation before starting test drive."))
 		return
@@ -1958,9 +1927,6 @@ func _launch_test_drive() -> void:
 		last_drive_result = checked
 		_status(I18N.result(checked))
 		return
-	var failure: String = store.finish_active_terrain()
-	if failure != "": _status(failure); return
-	while store.water_job != null: await get_tree().process_frame
 	_prepare_test_drive()
 
 func _prepare_test_drive() -> void:
@@ -2135,8 +2101,8 @@ func _draft_status_changed() -> void:
 			button.tooltip_text = commands.tooltip("file.save") + (I18N.t(" · Unsaved changes") if store.dirty else "")
 
 func _start_save(path: String, continuation := "save") -> void:
-	if store.editing_locked() and store.water_job == null: _status(store.EDIT_BUSY); return
-	if store.active_terrain == null: _cancel_editing()
+	if store.editing_locked(): _status(store.EDIT_BUSY); return
+	_cancel_editing()
 	file_continuation = continuation
 	var failure := store.start_file_operation("save", path)
 	if failure != "":
@@ -2218,8 +2184,6 @@ func show_tool_group(group: String) -> void:
 				if str(asset.get("path","")).get_extension() == "glb": _button(simple_palette,asset.id,scenery.activate.bind(asset.id))
 			_button(simple_palette,"Rotate 90°",scenery.rotate_selected)
 			commands.button(simple_palette,"edit.delete")
-			for mode in ["raise","lower","flatten","smooth"]:
-				_button(simple_palette,I18N.builtin(mode),func(): _set_tool("Terrain"); canvas.author.options.mode = mode)
 			_button(simple_palette,"Advanced tools…",open_advanced)
 		return
 	if group == "course": return

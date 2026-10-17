@@ -6,18 +6,16 @@ layers and shortcuts.
 
 ## Start and draw
 
-**Scenery** offers direct 3D tree/fence/building/GLB placement, movement, rotation,
-delete and four terrain brushes; shared work height and detailed controls are in
-[WORKBENCH](WORKBENCH.md). Advanced drawing/assets/environment panels build on first
-opening. Imported-road selection is read-only; explicit curve/height/width edits
+**Scenery** offers direct 3D tree/fence/building/GLB placement, movement, rotation
+and delete; shared work height and detailed controls are in [WORKBENCH](WORKBENCH.md).
+Advanced drawing/assets/environment panels build on first opening. Imported-road selection is read-only; explicit curve/height/width edits
 use MapKit and atomically move shared nodes and attachments, rejecting locked
 or hidden dependencies. Scenery promotes a standalone track through the existing
 composition path in the same Undo; subsequent track edits retain it.
 
-Terrain and water can be edited before the first Save; asset imports need a project
-directory. In **Authoring settings…** the Map tab applies the theme, typed map bounds
-and terrain base, each as one atomic Apply with seams and junctions revalidated.
-Unsupported input is rejected by MapKit.
+Asset and heightmap imports need a project directory. In **Authoring settings…**
+the Map tab applies the theme, typed map bounds and terrain base, each as one atomic
+Apply with seams and junctions revalidated. Unsupported input is rejected by MapKit.
 
 The Drawing tab sets the next shape's parameters. Choose the canvas tool and click
 vertices; right-click finishes, Place uses one click. Backspace/Delete removes the
@@ -48,35 +46,17 @@ Tool/focus/document/history changes cancel pending input. Each shape is one Undo
   rings (≤1 MiB, stable ID retained).
 
 Road creation and structural edits generate affected junction cells through MapKit
-before publication (≤16 cells). Terrain edits with roads also regenerate affected
+before publication (≤16 cells). Heightmap imports with roads also regenerate affected
 cells, so terrain cannot silently break a portal. Failures appear in validation status.
 
 ## Terrain and water
 
-The same circular brush works in 2D and 3D: hold to raise/lower over time, drag for
-a continuous ridge or valley. Defaults are **16 m radius, 2 m/s, 50% steepness**;
-radius ranges from the grid spacing to twice the storage cell size and new terrain
-uses **2 m** samples. Flatten keeps the first click's height or a typed height;
-flatten/smooth strength defaults to **50%**. Shared cell edges change together.
-Hidden/locked terrain cannot be painted.
-
-Height tiles stay in memory as arrays. `begin / step / preview / finish / cancel`
-manages a stroke; `finish` records one sparse Undo command including shoreline
-changes. Only changed 32 m display cells and neighbours rebuild. A stroke may change
-up to **one million samples** within the shared 16 MiB / 200-command history and
-**64 MiB** working-array admission.
-
-**Water** fills connected lower terrain from a clicked slope at that height; flat
-terrain is unchanged. Raising terrain makes islands or splits lakes; lowering joins
-same-level water. A higher overlapping surface removes the lower connected lake.
-**Remove water** deletes the clicked surface. Water has no flow simulation. Searches
-run on cancellable workers; a stroke and its shore update share one Undo, and budget
-failures restore the previous command.
-
-Save encodes PNG16 with exact 1 cm samples and an offset; a range wider than 65535 cm
-fails and leaves the edit dirty. PNG import accepts unsigned grayscale16 with exact
-full-cell dimensions, explicit spacing/accuracy and attribution, using staged
-asynchronous review/adoption with progress and Cancel; see [IMPORTS](IMPORTS.md).
+Terrain comes from imported heightmaps and linked DEM; see [IMPORTS](IMPORTS.md).
+The Terrain tab stages an unsigned grayscale16 PNG with exact full-cell dimensions,
+explicit spacing/accuracy and attribution, using asynchronous review/adoption with
+progress and Cancel. Adoption is one Undo command; original files are never
+rewritten. Existing water bodies keep their surface, bottom and flow editable in
+**Selected**.
 
 ## Assets and proxies
 
@@ -130,7 +110,7 @@ kart courses use these round walls.
 ## Validation and open work
 
 ```sh
-rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --script terrain_native_validator --script terrain_frame_validator --script water_authoring_validator --script authoring_validator --log-dir /new/path/checks
+rtk proxy python3 scripts/check_documents.py --godot /path/to/godot --script terrain_native_validator --script authoring_validator --log-dir /new/path/checks
 ```
 
 Add `asset_native_validator` for asset changes. The runner uses isolated synthetic

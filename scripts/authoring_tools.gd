@@ -13,7 +13,7 @@ var options := {
 	"wall_radius_cm": 1200, "wall_height_cm": 250,
 	"spacing_cm": 800, "density_per_mille": 750, "asset_id": "builtin:tree", "quarter_turns": 0, "yaw_offset_mdeg": 0,
 	"tree_asset_id": "builtin:tree", "tree_radius_cm": 58, "tree_clearance_cm": 5,
-	"mode": "raise", "radius_cm": 1600, "rate_cm_s": 200, "steepness": 0.5, "strength": 0.5, "target_cm": 0, "numeric_target": false, "grid_cm": 200,
+	"grid_cm": 200,
 }
 
 func configure(source: RefCounted, view: Control) -> void:

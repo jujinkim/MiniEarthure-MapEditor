@@ -8,9 +8,8 @@ Save As are defined in [DOCUMENTS](DOCUMENTS.md#save-and-recovery).
 
 ## Preview and validation
 
-Terrain input updates arrays immediately and requests the affected **32 m display
-cells** plus needed neighbours. One running worker plus the latest pending cells
-bound demand while keeping the full brush path. Nearby display is a 3×3 cell window.
+Edits request the affected **32 m display cells** plus needed neighbours. One
+running worker plus the latest pending cells bound demand. Nearby display is a 3×3 cell window.
 Unchanged nodes and shared mesh/material/asset caches are reused; request epoch and
 session checks stop old documents receiving results.
 

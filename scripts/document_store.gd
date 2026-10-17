@@ -64,14 +64,6 @@ var save_token: RefCounted
 var working: RefCounted
 var _working_epoch := -1
 var terrain_revision := 0
-var terrain_state := 0
-var saved_terrain_state := 0
-var terrain_sequence := 0
-var active_terrain: RefCounted
-var water_job: RefCounted
-var water_request := 0
-var water_pending := {}
-var _file_saved_terrain := 0
 
 func working_snapshot() -> RefCounted:
 	if working == null:
@@ -83,90 +75,8 @@ func working_snapshot() -> RefCounted:
 		_working_epoch = command_epoch
 	return working
 
-func finish_active_terrain() -> String:
-	return active_terrain.finish() if active_terrain != null else ""
-
-func terrain_preview(cells: Array) -> void:
-	terrain_revision += 1
-	dirty = true
-	dirty_changed.emit()
-	terrain_preview_changed.emit(cells)
-
-func start_water(point: Vector2, remove := false, refresh := false, delta := PackedInt32Array()) -> String:
-	if editing_locked() or draft_pending(): return EDIT_BUSY
-	water_request += 1
-	water_pending = {"id":water_request,"session":session_id,"revision":command_epoch,"delta":delta}
-	water_job = preload("./water_edit_job.gd").new()
-	var failure: Error = water_job.start(working_snapshot().fork(), point, remove, refresh)
-	if failure != OK:
-		water_job = null
-		water_pending = {}
-		return error_string(failure)
-	lock_changed.emit()
-	return ""
-
-func cancel_water() -> void:
-	if water_job != null: water_job.cancel()
-
-func poll_water() -> void:
-	if water_job == null or water_job.is_alive(): return
-	var result: Dictionary = water_job.finish()
-	water_job = null
-	var pending := water_pending
-	water_pending = {}
-	var valid: bool = pending.id == water_request and pending.session == session_id and pending.revision == command_epoch
-	if valid:
-		var failure := reason(result) if not result.ok else install_terrain_command(pending.delta, result.data)
-		if failure != "":
-			if not pending.delta.is_empty(): working.apply_delta(pending.delta, true)
-			dirty = _signature(document) != _saved_signature or (working != null and working.has_changes())
-			dirty_changed.emit()
-			terrain_revision += 1
-			terrain_preview_changed.emit([])
-			track_edit_finished.emit(failure)
-			if not file_request.is_empty(): _finish_file({"ok":false,"error":failure})
-	lock_changed.emit()
-	_poll_file()
-
-func install_terrain_command(delta: PackedInt32Array, water: Array) -> String:
-	var patches: Array = []
-	var next := document.duplicate(true)
-	next.water_bodies = water
-	if not delta.is_empty() and next.get("assembled_track") is Dictionary and next.assembled_track.get("authoring") is Dictionary:
-		next.assembled_track.authoring.terrain_integration = true
-	var checked := _validate(next)
-	if not checked.ok: return reason(checked)
-	next = checked.data.document
-	if next.get("assembled_track") != document.get("assembled_track"):
-		patches.append({"field":"assembled_track","before":document.assembled_track,"after":next.assembled_track})
-	for record: Dictionary in document.get("water_bodies", []):
-		var after: Variant = _get_value(next, "water_bodies", record.id)
-		if record != after: patches.append({"field":"water_bodies","id":record.id,"before":record,"after":after})
-	for record: Dictionary in next.get("water_bodies", []):
-		if _get_value(document,"water_bodies",record.id) == null: patches.append({"field":"water_bodies","id":record.id,"before":null,"after":record})
-	if delta.is_empty() and patches.is_empty():
-		dirty = _signature(document) != _saved_signature or (working != null and working.has_changes())
-		dirty_changed.emit()
-		return ""
-	var command := {"label":"Terrain / water", "patches":patches, "terrain_delta":delta,
-		"terrain_before":terrain_state,"terrain_after":terrain_state}
-	command.bytes = delta.size()*4 + JSON.stringify(patches).to_utf8_buffer().size()
-	if command.bytes > HISTORY_BYTES: return "Command exceeds the 16 MiB undo budget; split this operation."
-	if not delta.is_empty():
-		terrain_sequence += 1
-		command.terrain_after = terrain_sequence
-	terrain_state = command.terrain_after
-	_record_command(command)
-	document = next
-	_after_edit()
-	terrain_revision += 1
-	terrain_preview_changed.emit([])
-	return ""
-
-
-
 func editing_locked() -> bool:
-	return external_lock or not file_request.is_empty() or water_job != null
+	return external_lock or not file_request.is_empty()
 
 func set_external_lock(value: bool) -> void:
 	if external_lock == value: return
@@ -346,7 +256,6 @@ func poll_track_edit() -> void:
 func shutdown_track_edit() -> void:
 	if track_edit_job != null: track_edit_job.shutdown()
 	if file_job != null: file_job.shutdown()
-	if water_job != null: water_job.shutdown(); water_job = null
 	track_edit_job = null
 	file_job = null
 	pending_track = {}
@@ -355,12 +264,9 @@ func shutdown_track_edit() -> void:
 func start_file_operation(operation: String, path: String, options: Dictionary = {}) -> String:
 	if external_lock or not file_request.is_empty(): return EDIT_BUSY
 	if operation not in ["save", "export"]: return "Unsupported file operation."
-	var finish_failure := finish_active_terrain()
-	if finish_failure != "": return finish_failure
 	if has_gesture():
-		finish_failure = commit_gesture()
+		var finish_failure := commit_gesture()
 		if finish_failure != "": return finish_failure
-	_file_saved_terrain = terrain_state
 	file_sequence += 1
 	file_request = {"id":file_sequence, "session":session_id, "revision":draft_revision,
 		"operation":operation, "path":path, "options":options.duplicate(true), "cancelled":false}
@@ -383,12 +289,10 @@ func poll_file_operation() -> void:
 func _poll_file() -> void:
 	if file_request.is_empty(): return
 	if file_job == null:
-		if water_job != null: return
 		if file_request.cancelled:
 			if track_edit_job == null: _finish_file({"ok":false, "cancelled":true, "error":"Operation cancelled; draft retained."})
 			return
 		if draft_pending(): return
-		_file_saved_terrain = terrain_state
 		file_request.revision = draft_revision
 		file_job = file_job_factory.call()
 		var failure: Error = file_job.start(self, file_request)
@@ -413,7 +317,6 @@ func _poll_file() -> void:
 		if working != null: working.accept_saved(result.canonical, project_path)
 		command_epoch += 1
 		_working_epoch = command_epoch
-		saved_terrain_state = _file_saved_terrain
 		dirty = false
 		dirty_changed.emit()
 		changed.emit()
@@ -488,10 +391,7 @@ func _reset_session() -> void:
 	_disk_digest = ""
 	working = null
 	_working_epoch = -1
-	terrain_state = 0
-	saved_terrain_state = 0
 	terrain_revision += 1
-	active_terrain = null
 
 func _validate(value: Dictionary) -> Dictionary:
 	return JSON.parse_string(bridge.validate_document(JSON.stringify(value)))
@@ -742,9 +642,6 @@ func _prepare_history(command: Dictionary, reverse: bool) -> Dictionary:
 			if payload_source.has("error") or payload_source.bytes != command.binary_mementos[path]:
 				return {"error":"History payload changed or is missing: " + path}
 	var native: RefCounted = working_snapshot().fork()
-	if command.has("terrain_delta") and not command.terrain_delta.is_empty():
-		var applied: Dictionary = JSON.parse_string(native.apply_delta(command.terrain_delta, reverse))
-		if not applied.ok: return {"error":reason(applied)}
 	var replayed: Dictionary = JSON.parse_string(native.replay_document(JSON.stringify(validation.data.document),project_path))
 	if not replayed.ok: return {"error":reason(replayed)}
 	if command.has("binary_mementos"):
@@ -759,7 +656,6 @@ func _install_history(prepared: Dictionary, reverse: bool) -> void:
 	(redo_stack if reverse else undo_stack).append(command)
 	document = prepared.candidate
 	working = prepared.working
-	if command.has("terrain_before"): terrain_state = command.terrain_before if reverse else command.terrain_after
 	_after_edit(prepared.signature)
 	terrain_revision += 1
 	terrain_preview_changed.emit([])
@@ -830,9 +726,7 @@ func _after_edit(prepared_signature: String = "") -> void:
 
 func save_project(path: String) -> String:
 	if editing_locked() or draft_pending(): return EDIT_BUSY
-	var failure := finish_active_terrain()
-	if failure != "": return failure
-	if has_gesture() or water_job != null: return "Wait for the current edit before synchronous saving."
+	if has_gesture(): return "Wait for the current edit before synchronous saving."
 	if path.is_empty(): return "Choose a project directory first."
 	var absolute := ProjectSettings.globalize_path(path).simplify_path()
 	var destination := absolute.path_join("document.json")
@@ -847,14 +741,13 @@ func save_project(path: String) -> String:
 	var captured := SNAPSHOT.capture_working(working_snapshot(), project_path, undo_stack + redo_stack)
 	if not captured.ok: return reason(captured)
 	if save_token != null and save_token.is_cancelled(): return "Operation cancelled; draft retained."
-	failure = SNAPSHOT.publish(captured.data, absolute, expected, files, save_token)
+	var failure := SNAPSHOT.publish(captured.data, absolute, expected, files, save_token)
 	if failure != "": return failure
 	project_path = absolute
 	_disk_path = destination
 	_disk_digest = str(captured.data.canonical).sha256_text()
 	_saved_canonical = captured.data.canonical
 	_saved_signature = _signature(document)
-	saved_terrain_state = terrain_state
 	working.accept_saved(_saved_canonical, project_path)
 	command_epoch += 1
 	_working_epoch = command_epoch

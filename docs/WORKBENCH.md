@@ -74,8 +74,7 @@ confirms, Escape cancels. Document/session changes invalidate pending input.
 
 In 3D, piece/ordinary-road selection uses generated surfaces and source object IDs.
 Road control points and course gates have direct handles. Scenery supports tree,
-fence, basic building and existing GLB placement, dragging, rotation and deletion;
-the four basic terrain brushes share the same view.
+fence, basic building and existing GLB placement, dragging, rotation and deletion.
 
 In the optional 2D plan, click selects the topmost editable vector object; Shift toggles. Dragging a selected
 object moves its group; dragging empty space box-selects. Grid spacing is

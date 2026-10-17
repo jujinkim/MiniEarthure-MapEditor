@@ -47,14 +47,6 @@ func click(point: Vector2) -> void:
 func point(value: Vector2) -> Vector2:
 	return ui.canvas.global_position + ui.canvas.screen([value.x, value.y])
 
-func stroke(start: Vector2, end: Vector2) -> void:
-	var terrain: RefCounted = ui.canvas.author.terrain
-	ok(terrain.begin(start,ui.canvas.author.options),"begin memory stroke")
-	ok(terrain.step(end,1.0),"timed memory stroke")
-	terrain.last_usec = Time.get_ticks_usec()
-	ok(terrain.finish(),"finish memory stroke")
-	await process_frame
-
 func shape(tool: String, vertices: Array) -> void:
 	ui._set_tool(tool)
 	# Tool/selection changes rebuild the inspector and resize the canvas.
@@ -127,80 +119,28 @@ func run() -> void:
 	ui.author_panel.hide()
 	ok(ui.canvas.author.set_theme("rural"), "explicit recipe4/theme")
 	var author: RefCounted = ui.canvas.author
-	author.options.grid_cm = 800
-	author.options.radius_cm = 1600
-	author.options.amount_cm = 200
-	ui.canvas.snap_cm = 100
-	ui._set_tool("Terrain")
-	var history: int = ui.store.undo_stack.size()
-	await stroke(Vector2(6100,6100), Vector2(6700,6700))
-	check(ui.store.working_snapshot().tile_cells().size() == 4 and ui.store.document.heightmaps.is_empty(), "one stroke creates four memory seam owners without file descriptors")
-	check(ui.store.undo_stack.size() == history+1 and not ui.store.has_gesture(), "stroke is one atomic undo")
-	var raised: Dictionary = JSON.parse_string(ui.store.working_snapshot().height(Vector2(6400,6400)))
-	var first_bytes := {}
-	check(ui.store.undo_stack.back().terrain_delta.size() > 0 and not ui.store.undo_stack.back().has("binary_mementos"), "sparse sample history without PNG mementos")
-	check(ui.store.history_bytes >= ui.store.undo_stack.back().terrain_delta.size()*4, "height bytes charged to shared undo budget")
-	ok(ui.store.save_project(project), "save raster source")
-	for tile: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(project.path_join("document.json"))).heightmaps:
-		first_bytes[tile.path] = FILES.read(project.path_join(tile.path)).bytes
-	var native: RefCounted = ClassDB.instantiate("MapKitBridge")
-	var result: Dictionary = JSON.parse_string(native.open_project(project))
-	check(result.ok, "native PNG/seam acceptance: " + JSON.stringify(result))
-	for y in range(2):
-		for x in range(2): check(JSON.parse_string(native.generate_chunk(x,y)).ok, "native generated terrain cell")
-	ok(ui.store.undo(), "undo raster")
-	check(JSON.parse_string(ui.store.working_snapshot().height(Vector2(6400,6400))).data.height == 0, "undo returns flat memory terrain after save")
-	ok(ui.store.redo(), "redo raster")
-	check(JSON.parse_string(ui.store.working_snapshot().height(Vector2(6400,6400))).data == raised.data and not ui.store.dirty, "redo exact saved heights and baseline")
-	for mode in ["lower", "flatten", "smooth"]:
-		var mode_before: int = ui.store.undo_stack.size()
-		author.options.mode = mode
-		author.options.target_cm = 0
-		author.options.numeric_target = true
-		await stroke(Vector2(6400,6400), Vector2(6400,6400))
-		check(not ui.store.has_gesture() and ui.store.undo_stack.size() == mode_before+1, "completed nonempty " + mode)
-	ok(FILES.validate(ui.store, ui.store.document), "all brush modes preserve seams")
-	for path: String in first_bytes: check(FILES.read(project.path_join(path)).bytes == first_bytes[path], "original raster remains immutable")
-	var terrain_capture := OS.get_environment("MAPEDITOR_CAPTURE_PATH")
-	if terrain_capture != "" and DisplayServer.get_name() != "headless":
-		await process_frame
-		await RenderingServer.frame_post_draw
-		check(root.get_texture().get_image().save_png(terrain_capture.get_basename() + "-terrain.png") == OK, "native terrain screenshot")
 	var before := state()
-	await pointer(point(Vector2(6400,6400)), true)
-	ui.canvas.cancel_interaction()
-	await pointer(point(Vector2(6400,6400)), false)
-	check(state() == before, "cancelled stroke ignores late release")
-	author.options.mode = "raise"
-	await pointer(point(Vector2(6400,6400)), true)
-	ui.canvas._notification(Control.NOTIFICATION_WM_WINDOW_FOCUS_OUT)
-	await pointer(point(Vector2(6400,6400)), false)
-	check(state() == before, "focus loss cancels without publication")
-	# Import a valid but discontinuous source: native file validation must reject it.
+	var failure := ""
+	# A flat outer cell with exact seams imports and preserves attribution/accuracy.
 	var flat := PackedInt64Array()
 	flat.resize(81)
-	flat.fill(500)
-	var imported := PNG.encode(flat, 9)
-	var import_path := ProjectSettings.globalize_path("user://unrelated-source.png")
-	ok(FILES.write_new(import_path, imported.bytes), "synthetic independent import source")
-	var failure: String = author.terrain.import_png(import_path, Vector2i.ZERO, 800, 500, 1, 500, {"source":"Synthetic E03", "license":"MIT", "notice":"Original"})
-	check(failure != "" and state() == before, "bad imported seam preserves history/document: " + failure)
-	check(FILES.read(import_path).bytes == imported.bytes, "rejected import does not rewrite source")
-	# A flat outer cell with exact seams imports and preserves attribution/accuracy.
 	flat.fill(0)
-	imported = PNG.encode(flat, 9)
+	var imported := PNG.encode(flat, 9)
 	var flat_path := ProjectSettings.globalize_path("user://flat-source.png")
 	ok(FILES.write_new(flat_path, imported.bytes), "flat import fixture")
-	ok(ui.store.undo(), "undo smooth")
+	ok(author.terrain.import_png(flat_path, Vector2i.ZERO, 800, 0, 1, 500, {"source":"Synthetic E03", "license":"MIT", "notice":"Original"}), "import raster source")
+	check(FILES.read(flat_path).bytes == imported.bytes, "import does not rewrite source")
 	# Use separate blank map for structures; old terrain project and recovery remain.
 	ok(ui.store.save_project(project), "persist terrain before next document")
+	var native: RefCounted = ClassDB.instantiate("MapKitBridge")
+	check(JSON.parse_string(native.open_project(project)).ok, "native PNG/seam acceptance")
+	check(JSON.parse_string(native.generate_chunk(0,0)).ok, "native generated terrain cell")
 	ok(RECOVERY_FIXTURE.write(ui.store), "raster recovery snapshot")
 	var recovered := STORE.new()
 	ok(recovered.recover(RECOVERY_FIXTURE.path(ui.store)), "recover immutable raster references")
 	ok(FILES.validate(recovered, recovered.document), "recovered raster native validation")
-	check(ui.commands.execute_id("file.new"), "open New Map command")
-	ui.new_free_roam.button_pressed = true
-	ui.new_map_dialog.get_ok_button().pressed.emit()
+	ui.store.new_track(true)
+	ui._document_changed()
 	await process_frame
 	check(ui.store.document.free_roam and ui.store.document.heightmaps.is_empty(), "confirmed new free-roam map starts without old terrain")
 	ok(ui.store.save_project(ProjectSettings.globalize_path("user://e03-structures")), "new authoring project")
@@ -314,7 +254,7 @@ func run() -> void:
 	ok(RECOVERY_FIXTURE.write(ui.store), "authoring recovery")
 	ok(recovered.recover(RECOVERY_FIXTURE.path(ui.store)), "recover structures and custom assets")
 	ok(FILES.validate(recovered,recovered.document), "native recovered document/assets")
-	result = JSON.parse_string(native.export_project(ui.store.project_path,destination))
+	var result: Dictionary = JSON.parse_string(native.export_project(ui.store.project_path,destination))
 	check(result.ok, "export authored package: " + JSON.stringify(result))
 	check(JSON.parse_string(native.open_package(destination)).ok, "reopen authored package")
 	ui.preview_x.value = 1

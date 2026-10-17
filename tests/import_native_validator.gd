@@ -77,6 +77,7 @@ func run() -> void:
 	await process_frame
 	# Import fixtures author free-roam geometry, not the default assembled track.
 	ui.store.new_track(true)
+	ui._ensure_import_ui()
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	if structural_case():
 		ui.import_source_format.select(1); ui.import_source_format.item_selected.emit(1)

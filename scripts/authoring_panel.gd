@@ -372,7 +372,7 @@ func _setup() -> void:
 		var patches: Array = [{"field":"bounds","before":editor.store.document.bounds,"after":next_bounds},{"field":"terrain_base_cm","before":editor.store.document.terrain_base_cm,"after":roundi(base.value*100)},{"field":"cell_size_cm","before":editor.store.document.cell_size_cm,"after":roundi(cell_size.value*100)}]
 		report(author.apply("Edit map settings", patches, true))
 	)
-	hint(box, "Save to a project directory before importing assets. Terrain and water can be edited before saving. Use 3D Preview to inspect the common renderer after editing. Terrain seams and road junction failures appear here immediately.")
+	hint(box, "Save to a project directory before importing assets. Use 3D Preview to inspect the common renderer after editing. Terrain seams and road junction failures appear here immediately.")
 
 func opt_number(box: Node, title: String, key: String, minimum: float, maximum: float, metres: bool = true) -> void:
 	var scale := 100.0 if metres else 1.0
@@ -410,7 +410,6 @@ func _drawing() -> void:
 	opt_choice(box, "Building material", "material", ["concrete", "brick", "wood"])
 	opt_choice(box, "Roof", "roof", ["flat", "gable"])
 	hint(box, "Cylinder wall: choose the tool and click its centre. A solid round barrier uses the same visible and collision outline. Base and material are shared with the settings above.")
-	hint(box, "Click sloping terrain with Water to fill connected lower ground at the clicked height. Flat ground is unchanged. Remove water deletes the connected surface. Raise terrain to form islands. New water has zero flow.")
 
 	opt_number(box, "Cylinder wall radius (m)", "wall_radius_cm", 0.25, 500)
 	opt_number(box, "Cylinder wall height (m)", "wall_height_cm", 0.01, 1000)
@@ -438,24 +437,6 @@ func choose_file(target: LineEdit, filters: PackedStringArray) -> void:
 
 func _terrain() -> void:
 	var box := page("Terrain")
-	hint(box, "Hold or drag in 2D or 3D. A stroke is one Undo step in memory. Only Save writes the project and changed PNG16 tiles.")
-	opt_choice(box, "Brush", "mode", ["raise", "lower", "flatten", "smooth"])
-	var spacing: int = editor.store.working_snapshot().spacing_cm()
-	opt_number(box, "Radius (m)", "radius_cm", float(spacing)/100, float(editor.store.document.cell_size_cm)*2/100)
-	opt_number(box, "Raise / lower speed (m/s)", "rate_cm_s", 0.01, 100)
-	var steep := number(box, "Steepness (%)", author.options.steepness*100, 0, 100, 1)
-	steep.value_changed.connect(func(value: float): author.options.steepness = value/100)
-	var strength := number(box, "Flatten / smooth strength (%)", author.options.strength*100, 0, 100, 1)
-	strength.value_changed.connect(func(value: float): author.options.strength = value/100)
-	var numeric := CheckBox.new()
-	numeric.text = I18N.t("Use numeric flatten height (otherwise first click)")
-	numeric.clip_text = true
-	numeric.tooltip_text = numeric.text
-	numeric.button_pressed = author.options.numeric_target
-	box.add_child(numeric)
-	numeric.toggled.connect(func(value: bool): author.options.numeric_target = value)
-	opt_number(box, "Flatten target (m)", "target_cm", -10000, 10000)
-	hint(box, "Brushes follow the existing grid; new terrain uses 2 m samples. Shared cell edges change together.")
 	opt_number(box, "Import grid spacing (m)", "grid_cm", 2, 1024)
 	var path := text(box, "Heightmap PNG", "")
 	button(box, "Choose heightmap PNG…", func(): choose_file(path, PackedStringArray(["*.png ; Grayscale16 heightmap"])))
