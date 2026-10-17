@@ -19,6 +19,10 @@ var circuit := false
 var course_name := "My course"
 var closure := {}
 var closure_view: Node3D
+var road_picking := false
+var road_seconds := 60
+var road_proposal := {}
+var start_direction: Array = []
 
 func build(owner: Control) -> void:
 	editor = owner
@@ -43,8 +47,9 @@ func open() -> void:
 
 func changed() -> void:
 	if binding.get("session",-1) != editor.store.session_id:
-		manual_course = false; original = {}; course_name = I18N.t("My course"); circuit = false
+		manual_course = false; original = {}; course_name = I18N.t("My course"); circuit = false; start_direction = []; road_proposal = {}
 	proposal = {}
+	road_picking = false
 	closure = {}
 	moving = false
 	placing = false
@@ -105,7 +110,21 @@ func refresh() -> void:
 	editor._button(panel,"Preview circuit connection",preview_closure)
 	editor._button(panel,"New course on surfaces",func():
 		editor._cancel_editing()
-		manual_course = true; original = {}; gates = []; proposal = {}; binding = token(); refresh(); show_gates())
+		manual_course = true; original = {}; gates = []; proposal = {}; road_proposal = {}; start_direction = []; binding = token(); refresh(); show_gates())
+	if not editor.store.document.get("roads",[]).is_empty():
+		var seconds := SpinBox.new()
+		seconds.min_value = 20; seconds.max_value = 300; seconds.step = 10; seconds.value = road_seconds
+		seconds.suffix = "s"; seconds.tooltip_text = I18N.t("Road course duration at the reference speed")
+		seconds.value_changed.connect(func(value: float): road_seconds = int(value))
+		panel.add_child(seconds)
+		editor._button(panel,"Suggest course on roads",func():
+			editor._cancel_editing()
+			road_picking = true; binding = token()
+			editor._status(I18N.t("Click a road to start; the course follows the camera direction.")))
+		for diagnostic: Dictionary in road_proposal.get("diagnostics",[]):
+			var button: Button = editor._button(panel,I18N.diagnostic(diagnostic.message),func():
+				if diagnostic.position_cm != null: editor.preview_camera.frame(PREVIEW.point(diagnostic.position_cm),32))
+			button.custom_minimum_size.x = 220
 	if not editor.store.document.get("courses",[]).is_empty():
 		var picker := OptionButton.new()
 		picker.add_item(I18N.t("Open existing course"))
@@ -200,6 +219,12 @@ func input(event: InputEvent) -> bool:
 		if not event.pressed:
 			if moving: confirm_move(); return true
 			return false
+		if road_picking:
+			road_picking = false
+			var hit: Dictionary = editor.spatial.surface(event.position,true)
+			if hit.is_empty() or str(hit.get("road","")) == "": editor._status(I18N.t("Choose a start on a drivable road")); return true
+			suggest_road(hit.point,-editor.preview_camera.camera.global_basis.z)
+			return true
 		if placing:
 			var hit: Dictionary = editor.spatial.surface(event.position)
 			if hit.is_empty() or gates.size() >= 64: return true
@@ -267,11 +292,12 @@ func cancel() -> void:
 	move_before = {}
 	moving = false
 	placing = false
+	road_picking = false
 
 func save_manual() -> bool:
 	if not current(): return false
 	var bounds: Dictionary = editor.store.document.bounds
-	var direction: Array = original.get("definition",{}).get("start_direction",[0,1000000])
+	var direction: Array = original.get("definition",{}).get("start_direction",start_direction if not start_direction.is_empty() else [0,1000000])
 	var body := {"map_id":editor.store.document.map_id,"display_name":course_name,"world_content_hash":original.get("definition",{}).get("world_content_hash","0".repeat(64)),"mode":"circuit" if circuit else "sprint","start_mode":"ground","start_direction":direction,"checkpoints":gates}
 	var result: Dictionary = JSON.parse_string(editor.store.bridge.seal_course(JSON.stringify(body),PackedInt64Array([bounds.min[0],bounds.min[1],bounds.max[0],bounds.max[1]])))
 	if not result.ok: editor._status(I18N.error(result.error)); return false
@@ -341,3 +367,19 @@ func adjust_height(delta: float) -> bool:
 	gate.position_cm[1] += roundi(delta*100)
 	if allowed(gate,selected): gates[selected] = gate; show_gates()
 	return true
+
+## Road proposals become an unsaved manual course; Save course to map seals it in one Undo step.
+func suggest_road(point: Vector3, forward: Vector3) -> bool:
+	if not current(): return false
+	var request := {"start_cm":[roundi(point.x*100),roundi(-point.z*100)],"heading":[roundi(forward.x*1000),roundi(-forward.z*1000)],"mode":"circuit" if circuit else "sprint","duration_seconds":road_seconds}
+	var result: Dictionary = JSON.parse_string(editor.store.bridge.suggest_road_course(JSON.stringify(editor.store.document),JSON.stringify(request)))
+	if not result.ok: editor._status(I18N.error(result.error)); return false
+	road_proposal = result.data
+	manual_course = true; original = {}; proposal = {}; selected = -1
+	if road_proposal.applicable:
+		gates = road_proposal.gates.duplicate(true)
+		start_direction = [int(road_proposal.start_direction[0]),int(road_proposal.start_direction[1])]
+		editor._status(I18N.t("Review the road course, then save it to the map."))
+	show_gates()
+	refresh()
+	return road_proposal.applicable

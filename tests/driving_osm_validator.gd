@@ -75,6 +75,10 @@ func run() -> void:
 	var attachment := {"id":"osm-jump","surface":{"surface_id":record.id,"station_cm":1500},"kind":"jump_panel","height_cm":100,"panel_width_percent":50,"panel_alignment":"center","side":1}
 	assert(ui.store.edit_surface_attachments([attachment]) == "","ordinary edited road supports gimmicks")
 	ui.show_tool_group("course")
+	var first: Array = ui.store.document.roads[0].points[0]
+	ui.course_tools.binding = ui.course_tools.token(); ui.course_tools.circuit = false; ui.course_tools.road_seconds = 20
+	ui.course_tools.suggest_road(Vector3(float(first[0])/100,0,-float(first[2])/100),Vector3.ZERO)
+	assert(not ui.course_tools.road_proposal.is_empty() and ui.course_tools.road_proposal.roads.size() >= 1,"imported OSM roads accept a road course proposal")
 	ui.course_tools.manual_course = true; ui.course_tools.original = {}; ui.course_tools.binding = ui.course_tools.token(); ui.course_tools.circuit = false
 	ui.course_tools.gates = []
 	for point: Array in [ui.store.document.roads[0].points[0],ui.store.document.roads[0].points[-1]]:

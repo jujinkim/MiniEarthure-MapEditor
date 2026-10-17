@@ -29,6 +29,14 @@ heading, ordering and proof import. **Test Drive** initializes the existing pack
 and Client launcher from the course start or a point chosen in the 3D view. Finish
 certification remains owned by the game.
 
+Maps with roads add **Suggest course on roads**: pick a duration (20–300 s at the
+reference speed), then click a road; the camera direction picks the travel direction
+and the **Circuit** toggle picks the mode. MapKit `suggest_road_course` returns gates
+along the road graph (see map-kit ROAD_DESIGN). An applicable proposal becomes an
+unsaved surface-course draft with its start direction; editing and **Save course to
+map** work as above, as one Undo. Blocking diagnostics leave the draft unchanged.
+Roads outside the course stay drivable.
+
 ## Validation and proof
 
 An unverified course may be saved and exported. New drafts use a placeholder driving
@@ -63,5 +71,7 @@ and recovery reference at the end of a Seed sprint.
 
 `course_authoring_validator` and `document_history_validator` cover shape/order,
 overlap rejection, Undo/Redo, hemisphere radius, native reload, opaque proof import,
-Save As retention and policy/hash preservation. Player completion and detailed
+Save As retention and policy/hash preservation. `road_course_validator` covers the
+read-only road proposal, its one-Undo save and far-start diagnostics;
+`driving_osm_validator` proposes on imported OSM roads. Player completion and detailed
 Editor/device use are user checks.
