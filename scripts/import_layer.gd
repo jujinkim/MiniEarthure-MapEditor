@@ -429,7 +429,8 @@ func patches(store: RefCounted) -> Array:
 	metadata.erase("patches")
 	if value.adapter == "osm-extract-v1":
 		result = preload("./import_units.gd").osm_patches(value.patches,value.coordinates.has("osm_city"))
-		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1"}
+		preload("./import_units.gd").widen_roads(result,store.document.get("buildings",[]))
+		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1", "road_width_floor_cm": preload("./import_units.gd").ROAD_WIDTH_FLOOR_CM}
 		if value.coordinates.has("osm_city"): metadata.authored_units.quantization_cleanup = "adjacent-equal-vertices-v1"
 		metadata.authored_regions = preload("./import_regions.gd").scaled(value.coordinates.get("generation_regions", []))
 	if value.adapter == "osm-extract-v1":

@@ -24,6 +24,54 @@ static func osm_patches(source: Array, city := false) -> Array:
 					for i in range(record[key].size()): record[key][i] = _ring_duplicates(record[key][i])
 	return result
 
+## A 1:8 road narrower than this cannot carry the ~61 cm car with any margin.
+const ROAD_WIDTH_FLOOR_CM := 150
+const BUILDING_MARGIN_CM := 20
+const EDGE_BUCKET_CM := 1000
+
+## Widens adopted roads to the floor per segment, stopping each side at the nearest
+## building edge (including sidewalk and margin). Already wider segments never change.
+static func widen_roads(patches: Array, existing_buildings: Array) -> void:
+	var buckets := {}
+	var rings: Array = []
+	for building: Dictionary in existing_buildings: rings.append(building.footprint)
+	for patch: Dictionary in patches:
+		if patch.field == "buildings" and patch.after is Dictionary: rings.append(patch.after.footprint)
+	var edges: Array = []
+	for ring: Array in rings:
+		for i in ring.size():
+			var a := Vector2(ring[i][0],ring[i][1])
+			var b := Vector2(ring[(i+1)%ring.size()][0],ring[(i+1)%ring.size()][1])
+			var index := edges.size()
+			edges.append([a,b])
+			for x in range(floori(minf(a.x,b.x)/EDGE_BUCKET_CM),floori(maxf(a.x,b.x)/EDGE_BUCKET_CM)+1):
+				for y in range(floori(minf(a.y,b.y)/EDGE_BUCKET_CM),floori(maxf(a.y,b.y)/EDGE_BUCKET_CM)+1):
+					buckets.get_or_add(Vector2i(x,y),[]).append(index)
+	for patch: Dictionary in patches:
+		if patch.field != "roads" or not patch.after is Dictionary: continue
+		var road: Dictionary = patch.after
+		var sidewalk := float(road.get("sidewalk_cm",0) if road.get("sidewalk_cm") != null else 0)
+		for s in road.widths_cm.size():
+			if int(road.widths_cm[s]) >= ROAD_WIDTH_FLOOR_CM: continue
+			var p := Vector2(road.points[s][0],road.points[s][2])
+			var q := Vector2(road.points[s+1][0],road.points[s+1][2])
+			var reach := ROAD_WIDTH_FLOOR_CM/2.0+sidewalk+BUILDING_MARGIN_CM
+			var nearest := INF
+			var seen := {}
+			for x in range(floori((minf(p.x,q.x)-reach)/EDGE_BUCKET_CM),floori((maxf(p.x,q.x)+reach)/EDGE_BUCKET_CM)+1):
+				for y in range(floori((minf(p.y,q.y)-reach)/EDGE_BUCKET_CM),floori((maxf(p.y,q.y)+reach)/EDGE_BUCKET_CM)+1):
+					for index: int in buckets.get(Vector2i(x,y),[]):
+						if seen.has(index): continue
+						seen[index] = true
+						nearest = minf(nearest,_segment_gap(p,q,edges[index][0],edges[index][1]))
+			var half := minf(ROAD_WIDTH_FLOOR_CM/2.0,nearest-sidewalk-BUILDING_MARGIN_CM)
+			road.widths_cm[s] = maxi(int(road.widths_cm[s]),floori(half*2))
+
+static func _segment_gap(a: Vector2, b: Vector2, c: Vector2, d: Vector2) -> float:
+	if Geometry2D.segment_intersects_segment(a,b,c,d) != null: return 0.0
+	return minf(minf(Geometry2D.get_closest_point_to_segment(a,c,d).distance_to(a),Geometry2D.get_closest_point_to_segment(b,c,d).distance_to(b)),
+		minf(Geometry2D.get_closest_point_to_segment(c,a,b).distance_to(c),Geometry2D.get_closest_point_to_segment(d,a,b).distance_to(d)))
+
 static func _ring_duplicates(source: Array) -> Array:
 	var result: Array = []
 	for point: Variant in source:

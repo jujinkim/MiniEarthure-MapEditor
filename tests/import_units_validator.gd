@@ -45,5 +45,17 @@ func run() -> void:
 	check(units.osm_patches(source,true)[0].after.points.size()==4,"material boundary cannot be silently removed")
 	check(units._ring_duplicates([[0,0],[0,0],[1,0],[1,1],[0,1]])==[[0,0],[1,0],[1,1],[0,1]],"adjacent polygon duplicates retain the same mathematical footprint")
 	check(units._ring_duplicates([[0,0],[0,0],[1,0]]).size()==3,"collapsed courtyard stays invalid rather than silently filling")
+	var narrow := [{"field":"roads","after":{"id":"n","kind":"ground","from":"a","to":"b","points":[[0,0,0],[1000,0,0],[2000,0,0]],"widths_cm":[75,200],"surfaces":["asphalt","asphalt"],"sidewalk_cm":null}},
+		{"field":"buildings","after":{"id":"near","footprint":[[1200,60],[1800,60],[1800,400],[1200,400]]}}]
+	units.widen_roads(narrow,[])
+	check(narrow[0].after.widths_cm == [150,200],"narrow 1:8 road widens to the 150 cm floor; wider segments unchanged")
+	narrow[0].after.widths_cm = [75,75]
+	units.widen_roads(narrow,[])
+	check(narrow[0].after.widths_cm == [150,80],"widening stops 20 cm before a building edge")
+	units.widen_roads(narrow,[{"id":"old","footprint":[[0,-50],[1000,-50],[1000,-500],[0,-500]]}])
+	check(narrow[0].after.widths_cm == [150,80],"existing buildings never shrink an already widened road")
+	narrow[0].after.widths_cm = [75,75]
+	units.widen_roads(narrow,[{"id":"old","footprint":[[0,-50],[1000,-50],[1000,-500],[0,-500]]}])
+	check(narrow[0].after.widths_cm == [75,75],"existing map buildings also limit widening without narrowing")
 	print("import_units_validator: PASS (",checks,")")
 	quit(0)
