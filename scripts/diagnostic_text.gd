@@ -38,6 +38,7 @@ const TEMPLATES := [
   "Import timed out after %d seconds; use a smaller source or retry.",
   "Generating cell %d / %d",
   "Route is %s m for a %s m target",
+  "Placed %d of %d requested gimmicks",
   "Optional 3D check %d / %d",
   "Native validation diagnostics: ",
   "Invalid native validation event: ",

@@ -2035,6 +2035,8 @@
     "Course name": "Course name",
     "New course on surfaces": "New course on surfaces",
     "Suggest course on roads": "Suggest course on roads",
+    "Boosts, jumps, ramps and rails proposed along the course": "Boosts, jumps, ramps and rails proposed along the course",
+    "Placed %d of %d requested gimmicks": "Placed %d of %d requested gimmicks",
     "Road course duration at the reference speed": "Road course duration at the reference speed",
     "Click a road to start; the course follows the camera direction.": "Click a road to start; the course follows the camera direction.",
     "Choose a start on a drivable road": "Choose a start on a drivable road",

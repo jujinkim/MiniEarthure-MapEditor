@@ -2035,6 +2035,8 @@
     "Course name": "コース名",
     "New course on surfaces": "路面に新しいコースを作成",
     "Suggest course on roads": "道路にコースを提案",
+    "Boosts, jumps, ramps and rails proposed along the course": "コースに沿って提案するブースト、ジャンプ、ランプ、レール",
+    "Placed %d of %d requested gimmicks": "ギミック %d 個を配置(要求 %d 個)",
     "Road course duration at the reference speed": "基準速度で走ったときの道路コースの時間",
     "Click a road to start; the course follows the camera direction.": "開始する道路をクリックしてください。コースはカメラの向きに進みます。",
     "Choose a start on a drivable road": "走行可能な道路で開始地点を選んでください",

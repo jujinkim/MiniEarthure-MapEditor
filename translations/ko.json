@@ -2035,6 +2035,8 @@
     "Course name": "코스 이름",
     "New course on surfaces": "표면에 새 코스 만들기",
     "Suggest course on roads": "도로에 코스 제안",
+    "Boosts, jumps, ramps and rails proposed along the course": "코스를 따라 제안할 부스터, 점프, 램프, 레일",
+    "Placed %d of %d requested gimmicks": "기믹 %d개 배치 (요청 %d개)",
     "Road course duration at the reference speed": "기준 속도로 달릴 때의 도로 코스 시간",
     "Click a road to start; the course follows the camera direction.": "시작할 도로를 클릭하세요. 코스는 카메라 방향으로 이어집니다.",
     "Choose a start on a drivable road": "주행 가능한 도로에서 시작점을 고르세요",

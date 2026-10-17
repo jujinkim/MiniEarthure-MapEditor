@@ -22,6 +22,10 @@ var closure_view: Node3D
 var road_picking := false
 var road_seconds := 60
 var road_proposal := {}
+var road_gimmicks := 4
+var road_seed := 0
+## Document with the proposal's alignments and attachments; saved with the course.
+var road_candidate := {}
 var start_direction: Array = []
 
 func build(owner: Control) -> void:
@@ -48,6 +52,7 @@ func open() -> void:
 func changed() -> void:
 	if binding.get("session",-1) != editor.store.session_id:
 		manual_course = false; original = {}; course_name = I18N.t("My course"); circuit = false; start_direction = []; road_proposal = {}
+	road_candidate = {}
 	proposal = {}
 	road_picking = false
 	closure = {}
@@ -110,16 +115,21 @@ func refresh() -> void:
 	editor._button(panel,"Preview circuit connection",preview_closure)
 	editor._button(panel,"New course on surfaces",func():
 		editor._cancel_editing()
-		manual_course = true; original = {}; gates = []; proposal = {}; road_proposal = {}; start_direction = []; binding = token(); refresh(); show_gates())
+		manual_course = true; original = {}; gates = []; proposal = {}; road_proposal = {}; road_candidate = {}; start_direction = []; binding = token(); refresh(); show_gates())
 	if not editor.store.document.get("roads",[]).is_empty():
 		var seconds := SpinBox.new()
 		seconds.min_value = 20; seconds.max_value = 300; seconds.step = 10; seconds.value = road_seconds
 		seconds.suffix = "s"; seconds.tooltip_text = I18N.t("Road course duration at the reference speed")
 		seconds.value_changed.connect(func(value: float): road_seconds = int(value))
 		panel.add_child(seconds)
+		var count := SpinBox.new()
+		count.min_value = 0; count.max_value = 16; count.value = road_gimmicks
+		count.prefix = I18N.t("Gimmicks"); count.tooltip_text = I18N.t("Boosts, jumps, ramps and rails proposed along the course")
+		count.value_changed.connect(func(value: float): road_gimmicks = int(value))
+		panel.add_child(count)
 		editor._button(panel,"Suggest course on roads",func():
 			editor._cancel_editing()
-			road_picking = true; binding = token()
+			road_picking = true; binding = token(); road_seed = randi()
 			editor._status(I18N.t("Click a road to start; the course follows the camera direction.")))
 		for diagnostic: Dictionary in road_proposal.get("diagnostics",[]):
 			var button: Button = editor._button(panel,I18N.diagnostic(diagnostic.message),func():
@@ -204,6 +214,11 @@ func apply_proposal() -> bool:
 func show_gates() -> void:
 	if is_instance_valid(preview): preview.queue_free()
 	preview = RENDER.create(gates)
+	for g: Dictionary in road_candidate.get("gimmicks",[]):
+		if not str(g.id).begins_with("surface-attachment-course-"): continue
+		var node: Node3D = PREVIEW.GIMMICK.visual(g)
+		node.transform = PREVIEW.GIMMICK.pose(g,0)
+		preview.add_child(node)
 	editor.preview_world.add_child(preview)
 
 func allowed(gate: Dictionary, index: int) -> bool:
@@ -303,12 +318,14 @@ func save_manual() -> bool:
 	if not result.ok: editor._status(I18N.error(result.error)); return false
 	var course: Dictionary = result.data.document
 	if original.has("validation"): course.validation = original.validation.duplicate(true)
-	var patches: Array = []
+	# A road proposal's alignments and gimmicks join the course in one Undo step.
+	var patches: Array = editor.store.document_patches(road_candidate) if original.is_empty() and not road_candidate.is_empty() else []
 	if not original.is_empty(): patches.append({"field":"courses","id":original.course_id,"before":original,"after":null})
 	patches.append({"field":"courses","id":course.course_id,"before":null,"after":course})
 	var failure: String = editor.store.apply_command("Edit course",patches)
 	if failure != "": editor._status(I18N.diagnostic(failure)); return false
 	original = course
+	road_candidate = {}
 	return true
 
 func preview_closure() -> void:
@@ -371,11 +388,16 @@ func adjust_height(delta: float) -> bool:
 ## Road proposals become an unsaved manual course; Save course to map seals it in one Undo step.
 func suggest_road(point: Vector3, forward: Vector3) -> bool:
 	if not current(): return false
-	var request := {"start_cm":[roundi(point.x*100),roundi(-point.z*100)],"heading":[roundi(forward.x*1000),roundi(-forward.z*1000)],"mode":"circuit" if circuit else "sprint","duration_seconds":road_seconds}
+	var request := {"start_cm":[roundi(point.x*100),roundi(-point.z*100)],"heading":[roundi(forward.x*1000),roundi(-forward.z*1000)],"mode":"circuit" if circuit else "sprint","duration_seconds":road_seconds,"gimmicks":road_gimmicks,"seed":road_seed}
 	var result: Dictionary = JSON.parse_string(editor.store.bridge.suggest_road_course(JSON.stringify(editor.store.document),JSON.stringify(request)))
 	if not result.ok: editor._status(I18N.error(result.error)); return false
 	road_proposal = result.data
+	road_candidate = {}
 	manual_course = true; original = {}; proposal = {}; selected = -1
+	if road_proposal.applicable and not road_proposal.attachments.is_empty():
+		var applied: Dictionary = JSON.parse_string(editor.store.bridge.apply_road_course_gimmicks(JSON.stringify(editor.store.document),JSON.stringify(road_proposal.road_designs),JSON.stringify(road_proposal.attachments)))
+		if applied.ok: road_candidate = applied.data.document
+		else: road_proposal.attachments = []; editor._status(I18N.error(applied.error))
 	if road_proposal.applicable:
 		gates = road_proposal.gates.duplicate(true)
 		start_direction = [int(road_proposal.start_direction[0]),int(road_proposal.start_direction[1])]
