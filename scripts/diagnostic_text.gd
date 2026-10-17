@@ -39,6 +39,7 @@ const TEMPLATES := [
   "Generating cell %d / %d",
   "Route is %s m for a %s m target",
   "Placed %d of %d requested gimmicks",
+  "Placed %d of %d requested shortcuts",
   "Optional 3D check %d / %d",
   "Native validation diagnostics: ",
   "Invalid native validation event: ",

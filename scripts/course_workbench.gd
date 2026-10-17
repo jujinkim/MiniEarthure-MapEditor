@@ -23,6 +23,7 @@ var road_picking := false
 var road_seconds := 60
 var road_proposal := {}
 var road_gimmicks := 4
+var road_shortcuts := 2
 var road_seed := 0
 ## Document with the proposal's alignments and attachments; saved with the course.
 var road_candidate := {}
@@ -127,6 +128,11 @@ func refresh() -> void:
 		count.prefix = I18N.t("Gimmicks"); count.tooltip_text = I18N.t("Boosts, jumps, ramps and rails proposed along the course")
 		count.value_changed.connect(func(value: float): road_gimmicks = int(value))
 		panel.add_child(count)
+		var cuts := SpinBox.new()
+		cuts.min_value = 0; cuts.max_value = 4; cuts.value = road_shortcuts
+		cuts.prefix = I18N.t("Road shortcuts"); cuts.tooltip_text = I18N.t("Corner-cutting roads proposed at course turns")
+		cuts.value_changed.connect(func(value: float): road_shortcuts = int(value))
+		panel.add_child(cuts)
 		editor._button(panel,"Suggest course on roads",func():
 			editor._cancel_editing()
 			road_picking = true; binding = token(); road_seed = randi()
@@ -219,6 +225,20 @@ func show_gates() -> void:
 		var node: Node3D = PREVIEW.GIMMICK.visual(g)
 		node.transform = PREVIEW.GIMMICK.pose(g,0)
 		preview.add_child(node)
+	# Proposed shortcut roads render as lines until they are saved and generated.
+	var lines := PackedVector3Array()
+	for shortcut: Dictionary in road_proposal.get("shortcuts",[]) if not road_candidate.is_empty() else []:
+		var points: Array = shortcut.roads.back().points
+		for i in range(1,points.size()): lines.append_array([PREVIEW.point(points[i-1])+Vector3.UP*0.2,PREVIEW.point(points[i])+Vector3.UP*0.2])
+	if not lines.is_empty():
+		var mesh := ImmediateMesh.new()
+		mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+		for p: Vector3 in lines: mesh.surface_add_vertex(p)
+		mesh.surface_end()
+		var line := MeshInstance3D.new(); line.mesh = mesh
+		var material := StandardMaterial3D.new(); material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; material.no_depth_test = true
+		material.albedo_color = Color("65c7ed"); line.material_override = material
+		preview.add_child(line)
 	editor.preview_world.add_child(preview)
 
 func allowed(gate: Dictionary, index: int) -> bool:
@@ -318,7 +338,7 @@ func save_manual() -> bool:
 	if not result.ok: editor._status(I18N.error(result.error)); return false
 	var course: Dictionary = result.data.document
 	if original.has("validation"): course.validation = original.validation.duplicate(true)
-	# A road proposal's alignments and gimmicks join the course in one Undo step.
+	# A road proposal's shortcuts, alignments and gimmicks join the course in one Undo step.
 	var patches: Array = editor.store.document_patches(road_candidate) if original.is_empty() and not road_candidate.is_empty() else []
 	if not original.is_empty(): patches.append({"field":"courses","id":original.course_id,"before":original,"after":null})
 	patches.append({"field":"courses","id":course.course_id,"before":null,"after":course})
@@ -388,16 +408,18 @@ func adjust_height(delta: float) -> bool:
 ## Road proposals become an unsaved manual course; Save course to map seals it in one Undo step.
 func suggest_road(point: Vector3, forward: Vector3) -> bool:
 	if not current(): return false
-	var request := {"start_cm":[roundi(point.x*100),roundi(-point.z*100)],"heading":[roundi(forward.x*1000),roundi(-forward.z*1000)],"mode":"circuit" if circuit else "sprint","duration_seconds":road_seconds,"gimmicks":road_gimmicks,"seed":road_seed}
+	var request := {"start_cm":[roundi(point.x*100),roundi(-point.z*100)],"heading":[roundi(forward.x*1000),roundi(-forward.z*1000)],"mode":"circuit" if circuit else "sprint","duration_seconds":road_seconds,"gimmicks":road_gimmicks,"seed":road_seed,"shortcuts":road_shortcuts}
 	var result: Dictionary = JSON.parse_string(editor.store.bridge.suggest_road_course(JSON.stringify(editor.store.document),JSON.stringify(request)))
 	if not result.ok: editor._status(I18N.error(result.error)); return false
 	road_proposal = result.data
 	road_candidate = {}
 	manual_course = true; original = {}; proposal = {}; selected = -1
-	if road_proposal.applicable and not road_proposal.attachments.is_empty():
-		var applied: Dictionary = JSON.parse_string(editor.store.bridge.apply_road_course_gimmicks(JSON.stringify(editor.store.document),JSON.stringify(road_proposal.road_designs),JSON.stringify(road_proposal.attachments)))
+	if road_proposal.applicable and not (road_proposal.attachments.is_empty() and road_proposal.shortcuts.is_empty()):
+		var extras := {"shortcuts":road_proposal.shortcuts,"road_designs":road_proposal.road_designs,"attachments":road_proposal.attachments}
+		var applied: Dictionary = JSON.parse_string(editor.store.bridge.apply_road_course_extras(JSON.stringify(editor.store.document),JSON.stringify(extras)))
+		# Gates already omit bypassed corners, so a failed extras apply rejects the whole proposal.
 		if applied.ok: road_candidate = applied.data.document
-		else: road_proposal.attachments = []; editor._status(I18N.error(applied.error))
+		else: road_proposal.applicable = false; editor._status(I18N.error(applied.error))
 	if road_proposal.applicable:
 		gates = road_proposal.gates.duplicate(true)
 		start_direction = [int(road_proposal.start_direction[0]),int(road_proposal.start_direction[1])]

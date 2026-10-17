@@ -39,6 +39,9 @@ Roads outside the course stay drivable. **Gimmicks** (0–16, default 4) asks fo
 seeded boosts, jumps, ramps and rails along the course (new seed per suggestion);
 they preview with the gates. Saving applies the default alignment to unaligned host
 roads (as **Apply alignment** would), the attachments and the course in one Undo.
+**Shortcuts** (0–4, default 2) asks for ordinary-road corner cuts at course turns;
+they preview as lines, split the two course roads at new junctions on save and
+remove the bypassed corner gates, in the same Undo step.
 
 ## Validation and proof
 
@@ -75,7 +78,7 @@ and recovery reference at the end of a Seed sprint.
 `course_authoring_validator` and `document_history_validator` cover shape/order,
 overlap rejection, Undo/Redo, hemisphere radius, native reload, opaque proof import,
 Save As retention and policy/hash preservation. `road_course_validator` covers the
-read-only road proposal, its one-Undo save with alignments and gimmicks and
-far-start diagnostics;
+read-only road proposal, its one-Undo save with shortcuts, alignments and gimmicks
+and far-start diagnostics;
 `driving_osm_validator` proposes on imported OSM roads. Player completion and detailed
 Editor/device use are user checks.

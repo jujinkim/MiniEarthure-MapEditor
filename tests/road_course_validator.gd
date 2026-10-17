@@ -25,7 +25,7 @@ func run() -> void:
 	ui.show_tool_group("course")
 	var tools: Node = ui.course_tools
 	var before: Dictionary = ui.store.document.duplicate(true)
-	tools.binding = tools.token(); tools.circuit = true; tools.road_seconds = 60; tools.road_gimmicks = 0
+	tools.binding = tools.token(); tools.circuit = true; tools.road_seconds = 60; tools.road_gimmicks = 0; tools.road_shortcuts = 0
 	check(tools.suggest_road(Vector3(150,0,-100),Vector3(1,0,0)),"circuit proposal applicable: %s" % [tools.road_proposal.get("diagnostics",[])])
 	check(ui.store.document == before,"proposal never edits the document")
 	check(tools.manual_course and tools.gates.size() >= 4 and Array(tools.gates[0].position_cm).map(func(v): return int(v)) == [15000,0,10000],"gates adopted from the start road")
@@ -34,14 +34,21 @@ func run() -> void:
 	var courses: Array = ui.store.document.get("courses",[])
 	check(courses.size() == 1 and courses[0].definition.mode == "circuit" and Array(courses[0].definition.start_direction).map(func(v): return int(v)) == [1000000,0],"saved as an ordinary circuit course")
 	check(ui.store.undo() == "" and ui.store.document.get("courses",[]).is_empty(),"one Undo removes the road course")
-	tools.binding = tools.token(); tools.road_gimmicks = 4; tools.road_seed = 11
+	tools.binding = tools.token(); tools.road_gimmicks = 4; tools.road_seed = 11; tools.road_shortcuts = 0
 	check(tools.suggest_road(Vector3(150,0,-100),Vector3(1,0,0)) and not tools.road_proposal.attachments.is_empty() and not tools.road_candidate.is_empty(),"gimmicks proposed: %s" % [tools.road_proposal.diagnostics])
 	check(ui.store.document == before,"gimmick proposal never edits the document")
 	check(tools.save_manual(),"road course with gimmicks saves: " + ui.status_label.text)
 	check(ui.store.document.get("surface_attachments",[]).size() == tools.road_proposal.attachments.size() and ui.store.document.courses.size() == 1,"course and attachments saved together")
 	check(ui.store.document.roads.any(func(r): return r.has("design")),"host roads aligned on save")
 	check(ui.store.undo() == "" and ui.store.document == before,"one Undo removes course, alignments and gimmicks")
-	tools.binding = tools.token(); tools.circuit = false; tools.road_gimmicks = 0
+	tools.binding = tools.token(); tools.road_gimmicks = 0; tools.road_shortcuts = 2
+	var roads_before: int = ui.store.document.roads.size()
+	check(tools.suggest_road(Vector3(150,0,-100),Vector3(1,0,0)) and not tools.road_proposal.shortcuts.is_empty(),"shortcuts proposed: %s" % [tools.road_proposal.diagnostics])
+	check(ui.store.document == before,"shortcut proposal never edits the document")
+	check(tools.save_manual(),"road course with shortcuts saves: " + ui.status_label.text)
+	check(ui.store.document.roads.size() == roads_before + 3 * tools.road_proposal.shortcuts.size(),"shortcut roads and split halves saved")
+	check(ui.store.undo() == "" and ui.store.document == before,"one Undo removes course and shortcuts")
+	tools.binding = tools.token(); tools.circuit = false; tools.road_gimmicks = 0; tools.road_shortcuts = 0
 	check(not tools.suggest_road(Vector3(900,0,-900),Vector3(1,0,0)) and tools.road_proposal.diagnostics[0].code == "E_ROAD_COURSE_START","far start reports a blocking diagnostic")
 	ui.queue_free()
 	await process_frame
