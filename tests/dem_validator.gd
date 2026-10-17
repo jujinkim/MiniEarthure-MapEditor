@@ -25,6 +25,7 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
+	ui.store.new_document() # One 512 m cell; the launch track uses 128 m cells.
 	check(ui.store.apply_command("single-cell synthetic map",[{"field":"bounds","before":ui.store.document.bounds.duplicate(true),"after":{"min":[0,0],"max":[51200,51200]}}])=="","single-cell fixture bounds")
 	var project := ProjectSettings.globalize_path("user://dem-project")
 	check(ui.store.save_project(project)=="","save isolated DEM project")

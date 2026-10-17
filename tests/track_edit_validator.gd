@@ -8,6 +8,10 @@ const FIXTURE := preload("res://tests/track_edit_benchmark.gd")
 var ui: Control
 var checks := 0
 
+## JSON numbers may arrive as int or float; compare coordinates numerically.
+func same(a: Variant, b: Array) -> bool:
+	return Array(a).map(func(v): return float(v)) == b.map(func(v): return float(v))
+
 func _initialize() -> void: run.call_deferred()
 func check(value: bool, message: String) -> void:
 	checks += 1
@@ -63,7 +67,7 @@ func run() -> void:
 	var guides_id: int = p.guides.get_instance_id()
 	var guide_mesh: int = p.guides.mesh.get_instance_id()
 	check(p.preview_at(grab + Vector3(30, 0, 0)) and p.candidate.snap == -1, "leaving three metre radius releases snap")
-	check(p.candidate.item.position_cm == [3000.0,300.0,0.0], "grab offset and elevation retained")
+	check(same(p.candidate.item.position_cm, [3000,300,0]), "grab offset and elevation retained")
 	check(p.ghost.get_instance_id() == ghost_id and p.guides.get_instance_id() == guides_id and p.guides.mesh.get_instance_id() == guide_mesh, "drag reuses ghost, guide node and guide mesh")
 	var action_found := false
 	var obstacle_found := false
@@ -102,7 +106,7 @@ func run() -> void:
 	bench.select_piece(4)
 	check(ui.commands.reason("view.frame") == "" and bench.selected == 4, "camera and selection remain enabled during worker")
 	await settle()
-	check(bench.source.instances[0].position_cm == [2300.0,300.0,0.0] and ui.store.undo_stack.size() == 1, "latest release applied once with one Undo")
+	check(same(bench.source.instances[0].position_cm, [2300,300,0]) and ui.store.undo_stack.size() == 1, "latest release applied once with one Undo")
 	var command: Dictionary = ui.store.undo_stack[0].duplicate(true)
 	command.erase("bytes")
 	check(ui.store.history_bytes == JSON.stringify(command).to_utf8_buffer().size() and ui.store.history_bytes <= ui.store.HISTORY_BYTES, "track memento uses shared serialized Undo budget")

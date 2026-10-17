@@ -50,6 +50,7 @@ func run() -> void:
 	check(ui.store.undo() == "" and ui.store.document == before,"one Undo removes course and shortcuts")
 	tools.binding = tools.token(); tools.circuit = false; tools.road_gimmicks = 0; tools.road_shortcuts = 0
 	check(not tools.suggest_road(Vector3(900,0,-900),Vector3(1,0,0)) and tools.road_proposal.diagnostics[0].code == "E_ROAD_COURSE_START","far start reports a blocking diagnostic")
+	if not failed: print("road_course_validator: PASS")
 	ui.queue_free()
 	await process_frame
 	quit(1 if failed else 0)

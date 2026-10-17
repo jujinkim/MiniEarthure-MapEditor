@@ -15,6 +15,7 @@ func settle(ui: Control) -> void:
 func run() -> void:
 	var ui := EDITOR.new(); root.add_child(ui); await process_frame
 	var bench: Node = ui.track_workbench
+	bench.open_advanced() # Exact width and port controls live in the advanced properties.
 	var icon_hashes := {}
 	for preset in PRESETS:
 		var body_width := 1800 if "ultra_wide" in preset else 1200
@@ -48,7 +49,14 @@ func run() -> void:
 		await settle(ui)
 		bench.placement.cancel(); bench.select_piece(bench.source.instances.size()-1); bench._properties()
 		check(bench.width.item_count == 1 and bench.width.get_selected_id() == body_width, "fixed body width control " + preset)
-		check(bench.port_widths.all(func(s): return s.min_value == 4 and s.max_value == 18 and s.value == body_width/100.0), "default ports and 4–18m range " + preset)
+		# Placement auto-chains to an open exit; port snapping then matches that exit's width.
+		var placed: Dictionary = bench.source.instances.back()
+		var entry_width := float(body_width)
+		for link: Dictionary in bench.source.connections:
+			if link.to != placed.id: continue
+			for other: Dictionary in bench.source.instances:
+				if other.id == link.from: entry_width = float(other.exit_width_cm)
+		check(bench.port_widths.all(func(s): return s.min_value == 4 and s.max_value == 18) and bench.port_widths[0].value == entry_width/100.0 and bench.port_widths[1].value == body_width/100.0, "ports follow the chained exit within the 4–18m range " + preset + " " + str(bench.port_widths.map(func(s): return s.value)))
 		var after: Dictionary = ui.store.document.duplicate(true)
 		ui._history(false); await settle(ui); check(ui.store.document == before, "Undo " + preset)
 		ui._history(true); await settle(ui); check(ui.store.document == after, "Redo " + preset)

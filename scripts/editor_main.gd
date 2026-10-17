@@ -40,8 +40,6 @@ var output_tabs: TabContainer
 var work_controls: VBoxContainer
 var workspace_tabs: GridContainer
 var track_workbench: Node
-var new_map_dialog: ConfirmationDialog
-var new_free_roam: CheckBox
 var track_job: Node
 var track_dialog: AcceptDialog
 var track_panel: Control
@@ -300,7 +298,13 @@ func _build_ui() -> void:
 	left_dock = VBoxContainer.new()
 	var left := left_dock
 	left.custom_minimum_size.x = 245
-	split.add_child(left)
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Scroll vertically so tools never push status feedback off a 1024 × 720 window.
+	var left_scroll := ScrollContainer.new()
+	left_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	split.add_child(left_scroll)
+	left_scroll.add_child(left)
+	left.visibility_changed.connect(func(): left_scroll.visible = left.visible)
 	roam_palette = preload("./workbench_palette.gd").new()
 	roam_palette.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(roam_palette)
@@ -677,19 +681,6 @@ func _label(parent: Node, text: String) -> Label:
 
 func _new() -> void:
 	_show_start()
-
-func _legacy_new() -> void:
-	_cancel_editing()
-	if not is_instance_valid(new_map_dialog):
-		new_map_dialog=ConfirmationDialog.new()
-		new_map_dialog.title=I18N.t("New Map")
-		add_child(new_map_dialog)
-		new_free_roam=CheckBox.new()
-		new_free_roam.text=I18N.t("Free roam map (default: track assembly)")
-		new_map_dialog.add_child(new_free_roam)
-		new_map_dialog.confirmed.connect(func(): _request_document_action("new"))
-	new_free_roam.button_pressed=false
-	new_map_dialog.popup_centered(Vector2i(400,160))
 
 func _request_document_action(action: String, path: String = "") -> void:
 	if store.editing_locked(): _status(store.EDIT_BUSY); return

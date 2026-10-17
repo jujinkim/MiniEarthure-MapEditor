@@ -39,7 +39,8 @@ def multipolygon_xml():
         ET.SubElement(rel, "tag", k="type", v="multipolygon")
         ET.SubElement(rel, "tag", k=kind, v="yes" if kind == "building" else "forest")
     relation(100, [("outer",ring(100,0,0.001,0.0002,True)),("outer",ring(102,0.001,0.001,0.0002))], "building")
-    relation(101, [("outer",ring(110,0.003,0.001,0.002,True)),("inner",ring(112,0.0034,0.0014,0.0012,True)),("outer",ring(114,0.0038,0.0018,0.0004))], "landuse")
+    # The island stays inside the hole and, after 1:8 adoption, can hold one whole tree footprint.
+    relation(101, [("outer",ring(110,0.003,0.001,0.002,True)),("inner",ring(112,0.0034,0.0014,0.0012,True)),("outer",ring(114,0.0036,0.0016,0.0008))], "landuse")
     # Snapshot order need not match traversal or relation membership order.
     root[:] = sorted(root, key=lambda e: ({"node":0,"way":1,"relation":2}[e.tag], int(e.get("id"))))
     return ET.tostring(root, encoding="unicode")

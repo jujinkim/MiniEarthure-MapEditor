@@ -22,6 +22,7 @@ func write(path: String, text: String) -> void:
 func run() -> void:
 	root.size = Vector2i(1024,720)
 	ui = load("res://main.tscn").instantiate();root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_document() # Imports and generation edits start from a plain map, not the launch track.
 	await process_frame
 	check(ui.store.apply_command("Fixture seed",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current setup")
 	ui.import_python.text=OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")

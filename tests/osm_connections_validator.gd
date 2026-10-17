@@ -16,6 +16,7 @@ func wait_import(ui: Control) -> void:
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_document() # Imports and generation edits start from a plain map, not the launch track.
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	ui.import_source_format.select(1)

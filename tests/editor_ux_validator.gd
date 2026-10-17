@@ -39,9 +39,10 @@ func menu_command(label: String) -> void:
 		if ui.commands.commands[index].label == label:
 			ui.commands.execute(index)
 			if label == "New":
-				ui.new_free_roam.button_pressed = true
-				ui.new_map_dialog.hide()
-				ui.new_map_dialog.confirmed.emit()
+				# New opens the start screen; Create track requests the guarded replacement.
+				check(ui.start_panel.visible, "New opens the start screen")
+				ui.start_panel.hide()
+				ui._request_document_action("new")
 			await process_frame
 			return
 	check(false, "menu command available: " + label)
@@ -74,6 +75,8 @@ func run() -> void:
 		quit(1)
 		return
 	check(ui.cancel_button.disabled, "idle cancellation disabled")
+	ui.open_advanced() # Authoring tools live in the advanced palette.
+	await process_frame
 	await click(button(ui, "Road"))
 	check(ui.tool_hint.text.contains("right-click") and ui.tool_hint.text.contains("Authoring settings"), "persistent tool discovery")
 	await capture("workbench")
@@ -104,6 +107,8 @@ func run() -> void:
 	ui._path_selected(abandoned)
 	check(state() == before and not DirAccess.dir_exists_absolute(abandoned), "cancel picker rejects late save/transition")
 	# Exporting a new map chooses only its explicit output, preserving dirty state.
+	# Create track starts a track map; free roam needs no race course to export.
+	check(ui.store.set_free_roam(true) == "", "free-roam export fixture")
 	await menu_command("Export map")
 	check(ui.dialog_action == "export", "first export chooses package directly")
 	var project := ProjectSettings.globalize_path("user://ux-project")
@@ -137,12 +142,12 @@ func run() -> void:
 	await click(ui.unsaved_dialog.get_ok_button())
 	await finish()
 	var reopened := STORE.new()
-	check(reopened.open_project(safe_project) == "" and reopened.document.seed == 18 and ui.store.document.map_id != original_id, "Save and continue persists exact edits before replacement")
+	# Track map IDs are content-derived, so replacement is checked by its fresh session.
+	check(reopened.open_project(safe_project) == "" and reopened.document.seed == 18 and ui.store.project_path.is_empty() and ui.store.undo_stack.is_empty(), "Save and continue persists exact edits before replacement")
 	# A deferred document action cannot consume a replacement document.
 	ui._new()
-	ui.new_free_roam.button_pressed = true
-	ui.new_map_dialog.hide()
-	ui.new_map_dialog.confirmed.emit()
+	ui.start_panel.hide()
+	ui._request_document_action("new")
 	ui.store.new_document()
 	before = state()
 	await click(ui.recovery_continue_button)

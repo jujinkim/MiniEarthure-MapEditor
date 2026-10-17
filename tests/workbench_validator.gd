@@ -97,8 +97,10 @@ func run() -> void:
 	root.add_child(ui)
 	ui.store.new_track(true)
 	ui.set_tool_workspace("landscape")
-	ui._set_view_mode("2d")
+	ui.open_advanced() # Canvas authoring tools live in the advanced palette.
 	await process_frame
+	await process_frame
+	ui._set_view_mode("2d") # After startup layout restoration, which opens 3D.
 	await process_frame
 	var patches: Array = []
 	for item in [

@@ -68,6 +68,7 @@ func run() -> void:
 	await process_frame
 	# General terrain/shape authoring uses the explicit free-roam document mode.
 	ui.store.new_track(true)
+	if is_instance_valid(ui.start_panel): ui.start_panel.hide() # The launch start screen covers the canvas centre.
 	ui.set_tool_workspace("landscape")
 	await process_frame
 	check(ui.commands.execute_id("view.2d"), "use the 2D authoring workspace")
@@ -293,7 +294,19 @@ func run() -> void:
 	check(not ui.busy, "asynchronous asset job finishes: " + ui.author_panel.feedback.text)
 	check(ui.store.document.assets.size() == 3 and ui.store.document.assets.any(func(record: Dictionary): return record.id == "ui-asset"), "real authoring panel Apply imports an asset: " + ui.author_panel.feedback.text)
 	before = state()
+	# A successful Apply closes the panel; reopen the Assets page and use its current controls.
+	check(ui.commands.execute_id("create.authoring_settings"), "reopen authoring settings after Apply")
+	ui.author_panel.page_picker.select(assets_page)
+	ui.author_panel.page_picker.item_selected.emit(assets_page)
+	await process_frame
+	controls = ui.author_panel.asset_fields
 	controls.boxes.text = "[invalid"
+	apply = button(ui.author_panel, "Apply asset and proxies")
+	ancestor = apply.get_parent()
+	while ancestor != null and ancestor is not ScrollContainer: ancestor = ancestor.get_parent()
+	if ancestor != null: (ancestor as ScrollContainer).ensure_control_visible(apply)
+	await process_frame
+	await process_frame
 	await click(apply.get_global_rect().get_center())
 	check(state() == before and ui.author_panel.feedback.text.contains("valid JSON"), "proxy UI invalid input preserves history")
 	controls.boxes.text = "[]"

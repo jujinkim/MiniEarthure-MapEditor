@@ -15,6 +15,7 @@ func wait_import(ui: Control) -> void:
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_document() # Imports and generation edits start from a plain map, not the launch track.
 	await process_frame
 	check(ui.store.apply_command("Choose connected road recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current generation setup")
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
@@ -229,7 +230,7 @@ func check_structure_crop(ui: Control, path: String) -> void:
 		check(road.from.contains("crop-") and road.to.contains("crop-"),"two cut endpoints retain distinct identities")
 	var base := ProjectSettings.globalize_path("user://structure-crop-project")
 	check(ui.store.save_project(base) == "","save partial structure source/provenance")
-	check(JSON.stringify(ui.store.document.attributions).contains("explicit-structure-crop-v1"),"source mapping preserved in document attribution")
+	check(JSON.stringify(ui.store.document.attributions).contains("explicit-connected-structure-crop-v1"),"source mapping preserved in document attribution")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"build partial structure package")
 	check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"reopen partial structure package")
 	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
@@ -275,7 +276,10 @@ func check_structure_crop(ui: Control, path: String) -> void:
 	await wait_import(ui)
 	check(ui.pending_import != null,"streaming retry includes outside source approaches: " + ui.status_label.text)
 	if ui.pending_import != null:
-		check(ui.pending_import.value.coordinates.osm_crop == crop,"whole/streaming partial structure provenance parity")
+		# Streaming also records its pre-optimization count; all shared provenance must match.
+		var streamed: Dictionary = ui.pending_import.value.coordinates.osm_crop.duplicate(true)
+		streamed.counts.erase("pre_optimization_output_features")
+		check(streamed == crop,"whole/streaming partial structure provenance parity")
 		ui._adopt_import()
 		await wait_import(ui)
 		check(ui.store.document.roads.size() == roads.size(),"streamed partial graph native adoption")
