@@ -226,10 +226,12 @@ func show_gates() -> void:
 		node.transform = PREVIEW.GIMMICK.pose(g,0)
 		preview.add_child(node)
 	# Proposed shortcut roads render as lines until they are saved and generated.
+	# Split halves come first; the ground chord, or stubs and elevated chord, follow.
 	var lines := PackedVector3Array()
 	for shortcut: Dictionary in road_proposal.get("shortcuts",[]) if not road_candidate.is_empty() else []:
-		var points: Array = shortcut.roads.back().points
-		for i in range(1,points.size()): lines.append_array([PREVIEW.point(points[i-1])+Vector3.UP*0.2,PREVIEW.point(points[i])+Vector3.UP*0.2])
+		for road: Dictionary in shortcut.roads.slice(shortcut.replaces.size() * 2):
+			var points: Array = road.points
+			for i in range(1,points.size()): lines.append_array([PREVIEW.point(points[i-1])+Vector3.UP*0.2,PREVIEW.point(points[i])+Vector3.UP*0.2])
 	if not lines.is_empty():
 		var mesh := ImmediateMesh.new()
 		mesh.surface_begin(Mesh.PRIMITIVE_LINES)

@@ -40,7 +40,9 @@ seeded boosts, jumps, ramps and rails along the course (new seed per suggestion)
 they preview with the gates. Saving applies the default alignment to unaligned host
 roads (as **Apply alignment** would), the attachments and the course in one Undo.
 **Shortcuts** (0–4, default 2) asks for ordinary-road corner cuts at course turns;
-they preview as lines, split the two course roads at new junctions on save and
+where buildings block a ground cut on a map without heightmaps, the seed picks an
+elevated ramp or steep crest over the roofs instead. They preview as lines (elevated
+ones at deck height), split the two course roads at new junctions on save and
 remove the bypassed corner gates, in the same Undo step.
 
 ## Validation and proof
