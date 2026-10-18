@@ -81,6 +81,11 @@ time/weather from the shared MapKit seed query. Preview controls change them
 without editing the source or package; opening/closing the generator retains
 overrides until a new result is adopted. The ring honours reduced motion.
 
+With nothing selected, document properties offer **Backdrop** for a standalone track:
+RC arena or one of the seven default-world themes. It is a map value with one Undo
+step, kept through track edits, save and export, and shown in the preview stage. It is
+display-only, so sealed courses keep their hashes; terrain overlays have no backdrop.
+
 The first geometry edit converts the seeded result to authoring source and keeps its
 seed settings and MapKit's
 [`grounded_supports` policy](https://github.com/jujinkim/MiniEarthure-MapKit/blob/main/docs/TRACK_GEOMETRY.md#grounded-supports);

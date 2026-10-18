@@ -16,7 +16,7 @@ const HISTORY := preload("./history_codec.gd")
 const HISTORY_BYTES := 16 * 1024 * 1024
 const HISTORY_COMMANDS := 200
 const RECORD_FIELDS := ["pois", "nodes", "roads", "buildings", "water_bodies", "surface_areas", "zones", "assets", "placements", "gimmicks", "repetitions", "heightmaps", "attributions", "courses", "grind_lines", "surface_attachments"]
-const VALUE_FIELDS := ["map_id", "free_roam", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment", "assembled_track"]
+const VALUE_FIELDS := ["map_id", "free_roam", "backdrop", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment", "assembled_track"]
 var document: Dictionary = {}
 var project_path := ""
 var undo_stack: Array[Dictionary] = []
@@ -434,7 +434,7 @@ func _patch_error(patch: Variant) -> String:
 	if field in VALUE_FIELDS:
 		if patch.get("id", "") != "":
 			return "Map-value commands have no record ID."
-		if field in ["environment", "assembled_track"]: return "" # Optional map profile: Undo restores its absence.
+		if field in ["environment", "assembled_track", "backdrop"]: return "" # Optional map profile: Undo restores its absence.
 		return "Map values cannot be removed." if patch.before == null or patch.after == null else ""
 	if field not in RECORD_FIELDS:
 		return "Unsupported command field: " + field
@@ -493,7 +493,7 @@ func _apply(target: Dictionary, patches: Array, reverse: bool) -> String:
 			target.merge(_json_copy(after))
 			continue
 		if field in VALUE_FIELDS:
-			if field in ["environment", "assembled_track"] and after == null: target.erase(field)
+			if field in ["environment", "assembled_track", "backdrop"] and after == null: target.erase(field)
 			else: target[field] = _json_copy(after)
 			continue
 		var batch := _record_batch(target,field,batches)
@@ -821,6 +821,15 @@ func set_free_roam(value: bool) -> String:
 			patches.append({"field":"courses", "id":course.course_id, "before":null, "after":course})
 	return apply_command("Free roam map", patches)
 
+## Display-only scenery of a standalone track; empty restores the RC arena. Courses keep
+## their hashes because MapKit leaves the backdrop out of the world content hash.
+func set_backdrop(value: String) -> String:
+	if editing_locked() or draft_pending(): return EDIT_BUSY
+	var before: Variant = document.get("backdrop")
+	var after: Variant = null if value.is_empty() else value
+	if before == after: return ""
+	return apply_command("Track backdrop", [{"field":"backdrop", "id":"", "before":before, "after":after}])
+
 func track_source() -> Dictionary:
 	if not draft.is_empty(): return draft.duplicate(true)
 	var assembly: Dictionary = document.get("assembled_track", {})
@@ -881,6 +890,7 @@ func _prepare_track(source: Dictionary, record_history := true) -> Dictionary:
 	var candidate: Dictionary = result.data.document
 	if not mixed:
 		candidate.free_roam = document.free_roam
+		if document.has("backdrop"): candidate.backdrop = document.backdrop
 		candidate.provenance = document.provenance.duplicate(true)
 		candidate.attributions = document.get("attributions",[]).duplicate(true)
 		if candidate.free_roam:

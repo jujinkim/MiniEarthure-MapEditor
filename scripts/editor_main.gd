@@ -876,6 +876,20 @@ func _selection(ids: Array) -> void:
 			var failure: String = store.set_free_roam(value)
 			if failure != "": _status(I18N.diagnostic(failure)))
 		properties.add_child(free_roam)
+		if _standalone_track():
+			var backdrop := OptionButton.new()
+			backdrop.tooltip_text = I18N.t("Display-only scenery around the track; driving and courses stay unchanged.")
+			var ids := ["rc_arena","village","neon_harbor","deep_forest","red_canyon","snow_mountain","machine_factory","sky_park"]
+			for title in ["RC arena","Village Driving Park","Neon Harbor","Deep Forest","Red Canyon","Snow Mountain","Machine Factory","Sky Amusement Park"]: backdrop.add_item(I18N.t(title))
+			backdrop.select(maxi(0, ids.find(str(store.document.get("backdrop","rc_arena")))))
+			backdrop.item_selected.connect(func(index: int):
+				var failure: String = store.set_backdrop("" if index == 0 else ids[index])
+				if failure != "": _status(I18N.diagnostic(failure)); return
+				var stage := preview_world.get_node_or_null("ToyTrackStage")
+				if stage != null: preview_world.remove_child(stage); stage.queue_free()
+				if framed_cell != Vector2i(-1, -1) and preview_cache.has(framed_cell): _show_cached(framed_cell))
+			_label(properties, "Backdrop")
+			properties.add_child(backdrop)
 		_label(properties, "Select objects on the map or in layers.")
 		_label(properties, "Shift toggles; drag empty space to box-select.")
 		return
@@ -1350,10 +1364,13 @@ func _frame_selection() -> void:
 	preview_enabled = true
 	preview_due = Time.get_ticks_msec() + 150
 
+func _standalone_track() -> bool:
+	return store.document.get("assembled_track") is Dictionary and not (store.document.assembled_track.get("authoring") is Dictionary and store.document.assembled_track.authoring.get("terrain_integration",false))
+
 func _show_cached(cell: Vector2i) -> void:
-	if store.document.get("assembled_track") is Dictionary and not (store.document.assembled_track.get("authoring") is Dictionary and store.document.assembled_track.authoring.get("terrain_integration",false)) and not preview_world.has_node("ToyTrackStage"):
+	if _standalone_track() and not preview_world.has_node("ToyTrackStage"):
 		var b: Dictionary = store.document.bounds
-		preview_world.add_child(preload("res://addons/mapkit/godot/track_stage.gd").create(PackedInt64Array([b.min[0],b.min[1],b.max[0],b.max[1]]), store.document.assembled_track))
+		preview_world.add_child(preload("res://addons/mapkit/godot/track_stage.gd").create(PackedInt64Array([b.min[0],b.min[1],b.max[0],b.max[1]]), store.document.assembled_track, str(store.document.get("backdrop",""))))
 	cache_clock += 1
 	preview_cache[cell].used = cache_clock
 	for key: Vector2i in preview_cache: preview_cache[key].root.visible = key == cell
