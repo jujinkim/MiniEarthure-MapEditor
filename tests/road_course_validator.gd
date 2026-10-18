@@ -50,6 +50,15 @@ func run() -> void:
 	check(tools.save_manual(),"road course with shortcuts saves: " + ui.status_label.text)
 	check(ui.store.document.roads.size() == roads_before + 3 * tools.road_proposal.shortcuts.size(),"shortcut roads and split halves saved")
 	check(ui.store.undo() == "" and ui.store.document == before,"one Undo removes course and shortcuts")
+	# One seed picks the start, direction and extras; its time/weather only drive the preview.
+	tools.binding = tools.token(); tools.road_gimmicks = 2; tools.road_shortcuts = 1; tools.race_seed = 5
+	check(tools.seed_race() and tools.gates.size() >= 2,"seeded race proposed: %s" % [tools.road_proposal.get("diagnostics",[])])
+	var seeded: Dictionary = JSON.parse_string(ui.store.bridge.seed_road_course(JSON.stringify(before),JSON.stringify({"seed":5,"mode":"circuit","duration_seconds":60,"gimmicks":2,"shortcuts":1}))).data
+	check(tools.gates == seeded.suggestion.gates and is_equal_approx(ui.preview_time.value,seeded.time_minutes/60.0),"seed gates and preview time adopted together")
+	check(ui.store.document == before,"seeded race never edits the document before saving")
+	check(tools.save_manual() and ui.store.document.courses.size() == 1,"seeded race saves: " + ui.status_label.text)
+	check(ui.store.document.get("environment") == before.get("environment"),"seed time/weather stay out of the map environment")
+	check(ui.store.undo() == "" and ui.store.document == before,"one Undo removes the seeded race")
 	tools.binding = tools.token(); tools.circuit = false; tools.road_gimmicks = 0; tools.road_shortcuts = 0
 	check(not tools.suggest_road(Vector3(900,0,-900),Vector3(1,0,0)) and tools.road_proposal.diagnostics[0].code == "E_ROAD_COURSE_START","far start reports a blocking diagnostic")
 	# Narrow 1:8-style streets with buildings in every block corner: ground cuts are

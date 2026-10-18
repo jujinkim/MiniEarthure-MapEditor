@@ -44,6 +44,11 @@ where buildings block a ground cut on a map without heightmaps, the seed picks a
 elevated ramp or steep crest over the roofs instead. They preview as lines (elevated
 ones at deck height), split the two course roads at new junctions on save and
 remove the bypassed corner gates, in the same Undo step.
+**Seed race on roads** uses the same duration, circuit, gimmick and shortcut settings
+with a **Seed** (or **New seed**): MapKit `seed_road_course` picks the start road and
+direction, then proposes gates and extras with that seed. The result becomes the same
+unsaved draft, and the seed's time/weather set the preview environment only; the map
+environment is never changed. Save adopts the course and extras in one Undo step.
 
 ## Validation and proof
 

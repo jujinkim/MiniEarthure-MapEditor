@@ -25,6 +25,7 @@ var road_proposal := {}
 var road_gimmicks := 4
 var road_shortcuts := 2
 var road_seed := 0
+var race_seed := randi()
 ## Document with the proposal's alignments and attachments; saved with the course.
 var road_candidate := {}
 var start_direction: Array = []
@@ -137,6 +138,15 @@ func refresh() -> void:
 			editor._cancel_editing()
 			road_picking = true; binding = token(); road_seed = randi()
 			editor._status(I18N.t("Click a road to start; the course follows the camera direction.")))
+		var seed_row := HBoxContainer.new()
+		panel.add_child(seed_row)
+		var seed_input := SpinBox.new()
+		seed_input.max_value = 2147483647; seed_input.value = race_seed; seed_input.prefix = I18N.t("Seed")
+		seed_input.tooltip_text = I18N.t("One seed picks the start, direction, gimmicks, shortcuts and preview time/weather")
+		seed_input.value_changed.connect(func(value: float): race_seed = int(value))
+		seed_row.add_child(seed_input)
+		editor._button(seed_row,"New seed",func(): race_seed = randi(); refresh())
+		editor._button(panel,"Seed race on roads",func(): editor._cancel_editing(); binding = token(); seed_race())
 		for diagnostic: Dictionary in road_proposal.get("diagnostics",[]):
 			var button: Button = editor._button(panel,I18N.diagnostic(diagnostic.message),func():
 				if diagnostic.position_cm != null: editor.preview_camera.frame(PREVIEW.point(diagnostic.position_cm),32))
@@ -413,7 +423,21 @@ func suggest_road(point: Vector3, forward: Vector3) -> bool:
 	var request := {"start_cm":[roundi(point.x*100),roundi(-point.z*100)],"heading":[roundi(forward.x*1000),roundi(-forward.z*1000)],"mode":"circuit" if circuit else "sprint","duration_seconds":road_seconds,"gimmicks":road_gimmicks,"seed":road_seed,"shortcuts":road_shortcuts}
 	var result: Dictionary = JSON.parse_string(editor.store.bridge.suggest_road_course(JSON.stringify(editor.store.document),JSON.stringify(request)))
 	if not result.ok: editor._status(I18N.error(result.error)); return false
-	road_proposal = result.data
+	return adopt_road(result.data)
+
+## The seed picks the start and direction too; its time/weather only drive the preview.
+func seed_race() -> bool:
+	if not current(): return false
+	var request := {"seed":race_seed,"mode":"circuit" if circuit else "sprint","duration_seconds":road_seconds,"gimmicks":road_gimmicks,"shortcuts":road_shortcuts}
+	var result: Dictionary = JSON.parse_string(editor.store.bridge.seed_road_course(JSON.stringify(editor.store.document),JSON.stringify(request)))
+	if not result.ok: editor._status(I18N.error(result.error)); return false
+	if not adopt_road(result.data.suggestion): return false
+	editor._apply_track_seed_environment({"time_minutes":result.data.time_minutes,"weather":result.data.weather})
+	editor.preview_camera.frame(PREVIEW.point(gates[0].position_cm),48)
+	return true
+
+func adopt_road(suggestion: Dictionary) -> bool:
+	road_proposal = suggestion
 	road_candidate = {}
 	manual_course = true; original = {}; proposal = {}; selected = -1
 	if road_proposal.applicable and not (road_proposal.attachments.is_empty() and road_proposal.shortcuts.is_empty()):
