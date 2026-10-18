@@ -6,6 +6,11 @@ func check(value: bool, message: String) -> void:
 		failed = true
 		push_error(message)
 func _initialize() -> void: run.call_deferred()
+## Every edit, Undo included, restamps provenance.last_edited to the second; compare the rest.
+func same(a: Dictionary, b: Dictionary) -> bool:
+	var left := a.duplicate(true); var right := b.duplicate(true)
+	left.provenance.erase("last_edited"); right.provenance.erase("last_edited")
+	return left == right
 ## Node and road patches for an n×n street grid from (100 m, 100 m).
 func grid(n: int, block: int, width: int) -> Array:
 	var patches: Array = []
@@ -29,7 +34,7 @@ func run() -> void:
 	var before: Dictionary = ui.store.document.duplicate(true)
 	tools.binding = tools.token(); tools.circuit = true; tools.road_seconds = 60; tools.road_gimmicks = 0; tools.road_shortcuts = 0
 	check(tools.suggest_road(Vector3(150,0,-100),Vector3(1,0,0)),"circuit proposal applicable: %s" % [tools.road_proposal.get("diagnostics",[])])
-	check(ui.store.document == before,"proposal never edits the document")
+	check(same(ui.store.document,before),"proposal never edits the document")
 	check(tools.manual_course and tools.gates.size() >= 4 and Array(tools.gates[0].position_cm).map(func(v): return int(v)) == [15000,0,10000],"gates adopted from the start road")
 	check(tools.start_direction == [1000000,0],"start direction follows the camera heading")
 	check(tools.save_manual(),"road course saves: " + ui.status_label.text)
@@ -38,27 +43,27 @@ func run() -> void:
 	check(ui.store.undo() == "" and ui.store.document.get("courses",[]).is_empty(),"one Undo removes the road course")
 	tools.binding = tools.token(); tools.road_gimmicks = 4; tools.road_seed = 11; tools.road_shortcuts = 0
 	check(tools.suggest_road(Vector3(150,0,-100),Vector3(1,0,0)) and not tools.road_proposal.attachments.is_empty() and not tools.road_candidate.is_empty(),"gimmicks proposed: %s" % [tools.road_proposal.diagnostics])
-	check(ui.store.document == before,"gimmick proposal never edits the document")
+	check(same(ui.store.document,before),"gimmick proposal never edits the document")
 	check(tools.save_manual(),"road course with gimmicks saves: " + ui.status_label.text)
 	check(ui.store.document.get("surface_attachments",[]).size() == tools.road_proposal.attachments.size() and ui.store.document.courses.size() == 1,"course and attachments saved together")
 	check(ui.store.document.roads.any(func(r): return r.has("design")),"host roads aligned on save")
-	check(ui.store.undo() == "" and ui.store.document == before,"one Undo removes course, alignments and gimmicks")
+	check(ui.store.undo() == "" and same(ui.store.document,before),"one Undo removes course, alignments and gimmicks")
 	tools.binding = tools.token(); tools.road_gimmicks = 0; tools.road_shortcuts = 2
 	var roads_before: int = ui.store.document.roads.size()
 	check(tools.suggest_road(Vector3(150,0,-100),Vector3(1,0,0)) and not tools.road_proposal.shortcuts.is_empty(),"shortcuts proposed: %s" % [tools.road_proposal.diagnostics])
-	check(ui.store.document == before,"shortcut proposal never edits the document")
+	check(same(ui.store.document,before),"shortcut proposal never edits the document")
 	check(tools.save_manual(),"road course with shortcuts saves: " + ui.status_label.text)
 	check(ui.store.document.roads.size() == roads_before + 3 * tools.road_proposal.shortcuts.size(),"shortcut roads and split halves saved")
-	check(ui.store.undo() == "" and ui.store.document == before,"one Undo removes course and shortcuts")
+	check(ui.store.undo() == "" and same(ui.store.document,before),"one Undo removes course and shortcuts")
 	# One seed picks the start, direction and extras; its time/weather only drive the preview.
 	tools.binding = tools.token(); tools.road_gimmicks = 2; tools.road_shortcuts = 1; tools.race_seed = 5
 	check(tools.seed_race() and tools.gates.size() >= 2,"seeded race proposed: %s" % [tools.road_proposal.get("diagnostics",[])])
 	var seeded: Dictionary = JSON.parse_string(ui.store.bridge.seed_road_course(JSON.stringify(before),JSON.stringify({"seed":5,"mode":"circuit","duration_seconds":60,"gimmicks":2,"shortcuts":1}))).data
 	check(tools.gates == seeded.suggestion.gates and is_equal_approx(ui.preview_time.value,seeded.time_minutes/60.0),"seed gates and preview time adopted together")
-	check(ui.store.document == before,"seeded race never edits the document before saving")
+	check(same(ui.store.document,before),"seeded race never edits the document before saving")
 	check(tools.save_manual() and ui.store.document.courses.size() == 1,"seeded race saves: " + ui.status_label.text)
 	check(ui.store.document.get("environment") == before.get("environment"),"seed time/weather stay out of the map environment")
-	check(ui.store.undo() == "" and ui.store.document == before,"one Undo removes the seeded race")
+	check(ui.store.undo() == "" and same(ui.store.document,before),"one Undo removes the seeded race")
 	tools.binding = tools.token(); tools.circuit = false; tools.road_gimmicks = 0; tools.road_shortcuts = 0
 	check(not tools.suggest_road(Vector3(900,0,-900),Vector3(1,0,0)) and tools.road_proposal.diagnostics[0].code == "E_ROAD_COURSE_START","far start reports a blocking diagnostic")
 	# Narrow 1:8-style streets with buildings in every block corner: ground cuts are
@@ -81,7 +86,7 @@ func run() -> void:
 	check(tools.save_manual(),"road course with elevated shortcuts saves: " + ui.status_label.text)
 	check(ui.store.document.roads.size() == roads_before + 5 * tools.road_proposal.shortcuts.size(),"stubs, elevated chords and split halves saved")
 	check(ui.store.document.roads.any(func(r): return r.kind == "elevated" and str(r.id).begins_with("shortcut-")),"elevated chord saved")
-	check(ui.store.undo() == "" and ui.store.document == city_before,"one Undo removes course and elevated shortcuts")
+	check(ui.store.undo() == "" and same(ui.store.document,city_before),"one Undo removes course and elevated shortcuts")
 	if not failed: print("road_course_validator: PASS")
 	ui.queue_free()
 	await process_frame
