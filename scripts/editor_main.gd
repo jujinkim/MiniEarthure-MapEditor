@@ -879,11 +879,11 @@ func _selection(ids: Array) -> void:
 		if _standalone_track():
 			var backdrop := OptionButton.new()
 			backdrop.tooltip_text = I18N.t("Display-only scenery around the track; driving and courses stay unchanged.")
-			var ids := ["rc_arena","village","neon_harbor","deep_forest","red_canyon","snow_mountain","machine_factory","sky_park"]
+			var presets := ["rc_arena","village","neon_harbor","deep_forest","red_canyon","snow_mountain","machine_factory","sky_park"]
 			for title in ["RC arena","Village Driving Park","Neon Harbor","Deep Forest","Red Canyon","Snow Mountain","Machine Factory","Sky Amusement Park"]: backdrop.add_item(I18N.t(title))
-			backdrop.select(maxi(0, ids.find(str(store.document.get("backdrop","rc_arena")))))
+			backdrop.select(maxi(0, presets.find(str(store.document.get("backdrop","rc_arena")))))
 			backdrop.item_selected.connect(func(index: int):
-				var failure: String = store.set_backdrop("" if index == 0 else ids[index])
+				var failure: String = store.set_backdrop("" if index == 0 else presets[index])
 				if failure != "": _status(I18N.diagnostic(failure)); return
 				var stage := preview_world.get_node_or_null("ToyTrackStage")
 				if stage != null: preview_world.remove_child(stage); stage.queue_free()
