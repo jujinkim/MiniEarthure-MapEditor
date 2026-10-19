@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+from osm_extract import PEDESTRIAN
 from pathlib import Path
 import sys
 import uuid
@@ -137,7 +138,9 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 level = scalar("level", 0, -100, 100)
                 if int(level) != level:
                     raise ValueError("level must be integral")
-                ground_refs = properties.get("_city_ends") if osm_graph and not connected else None
+                walking = osm_graph and properties.get("_city_road_tags", {}).get("highway") in PEDESTRIAN
+                # Pedestrian ways keep independent ends; only vehicle roads share source junctions.
+                ground_refs = properties.get("_city_ends") if osm_graph and not connected and not walking else None
                 endpoints = []
                 for offset, suffix, p in [(0, "from", points[0]), (-1, "to", points[-1])]:
                     node_id = f"import-{layer.layer_id}-osm-node-{properties['osm_node_refs'][offset]}" if connected else road_id + "-" + suffix
@@ -156,7 +159,9 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": properties["road_kind"] if explicit else "ground", "clearance_cm": round(properties["clearance_m"] * 100) if explicit and "clearance_m" in properties else None, "sidewalk_cm": None})
                 if ground_refs:
                     layer.coordinates.setdefault("osm_ground_endpoints", []).append(dict(road_id=road_id,refs=ground_refs))
-                if not connected and not ground_refs:
+                if walking:
+                    layer.coordinates.setdefault("osm_pedestrian_roads", []).append(road_id)
+                if not connected and not ground_refs and not walking:
                     label = str(index) if kind == "LineString" else f"{index} part {part}"
                     layer.warning(f"{label}: disconnected endpoints; connect explicitly in Editor")
                 if kind == "MultiLineString":

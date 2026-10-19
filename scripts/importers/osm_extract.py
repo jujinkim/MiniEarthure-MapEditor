@@ -3,6 +3,8 @@ import hashlib
 from importlib.metadata import version, PackageNotFoundError
 import re
 from collections import Counter
+# Highway classes for walking and cycling: no vehicle junctions, no width floor.
+PEDESTRIAN = ("path", "footway", "cycleway", "pedestrian")
 
 from import_layer import MAX_INPUT, MAX_POINTS
 from polygon_geometry import Budget, SpatialBudget, group_rings
@@ -496,14 +498,18 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             # Do not merge roads across semantic changes omitted by the
             # legacy display adapter (oneway, access, name, classification).
             p["_city_road_tags"] = {key: tags[key] for key in ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction") if key in tags}
-    # Preserve ordinary source junctions without assigning an elevation datum.
-    # Split at shared original IDs before city simplification/merging and crop.
-    uses = Counter(ref for f in features for ref in set(f["properties"].get("_city_refs", [])))
+    # Preserve ordinary source junctions between vehicle roads without assigning an
+    # elevation datum. Split at shared original IDs before simplification/merging
+    # and crop. Pedestrian ways keep independent ends, as dense path networks would
+    # otherwise multiply junctions beyond what a city cell can generate.
+    def vehicle(feature):
+        return feature["properties"].get("_city_road_tags", {}).get("highway") not in PEDESTRIAN
+    uses = Counter(ref for f in features if vehicle(f) for ref in set(f["properties"].get("_city_refs", [])))
     connected_features = []
     for feature in features:
         p = feature["properties"]
         refs = p.get("_city_refs")
-        if not refs:
+        if not refs or not vehicle(feature):
             connected_features.append(feature)
             continue
         cuts = [0] + [i for i in range(1,len(refs)-1) if uses[refs[i]] > 1] + [len(refs)-1]

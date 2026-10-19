@@ -173,3 +173,26 @@ class Junctions(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+class PedestrianWays(unittest.TestCase):
+    def test_footways_keep_independent_ends_and_never_split_vehicle_junctions(self):
+        xml = """<osm version="0.6">
+<node id="1" lon="9" lat="55"/><node id="2" lon="9.001" lat="55"/><node id="3" lon="9.002" lat="55"/>
+<node id="4" lon="9.001" lat="55.001"/><node id="6" lon="9.001" lat="54.999"/><node id="7" lon="9.0005" lat="55.0005"/>
+<way id="1"><nd ref="1"/><nd ref="2"/><nd ref="3"/><tag k="highway" v="residential"/></way>
+<way id="2"><nd ref="2"/><nd ref="4"/><tag k="highway" v="residential"/></way>
+<way id="3"><nd ref="6"/><nd ref="2"/><nd ref="7"/><tag k="highway" v="footway"/></way>
+</osm>"""
+        value, _ = osm.parse(xml.encode(), "osm")
+        footways = [f for f in value["features"] if f["properties"].get("_city_road_tags", {}).get("highway") == "footway"]
+        self.assertEqual(len(footways), 1, "a footway is not split at a shared node")
+        residential = [f for f in value["features"] if f["properties"].get("_city_road_tags", {}).get("highway") == "residential"]
+        self.assertEqual(len(residential), 3, "vehicle roads split at their shared node")
+        layer = convert(value, "synthetic", osm.LICENSE, coordinates=OPTIONS, osm_graph=True)
+        roads = {p["id"]: p["after"] for p in layer.patches if p["field"] == "roads"}
+        walking = layer.coordinates["osm_pedestrian_roads"]
+        self.assertEqual(len(walking), 1)
+        self.assertNotIn("osm-ground-node", roads[walking[0]]["from"] + roads[walking[0]]["to"])
+        shared = [r for r in roads.values() if any(n.endswith("-osm-ground-node-2") for n in (r["from"], r["to"]))]
+        self.assertEqual(len(shared), 3, "vehicle roads meet at one source junction")
+

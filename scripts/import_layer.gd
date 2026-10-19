@@ -222,6 +222,15 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if loop_error != "": return loop_error
 	var endpoint_error := _ground_endpoints(raw,prefix)
 	if endpoint_error != "": return endpoint_error
+	var pedestrian: Variant = raw.coordinates.get("osm_pedestrian_roads", [])
+	if pedestrian is not Array or (not pedestrian.is_empty() and raw.adapter != "osm-extract-v1"): return "Invalid OSM pedestrian road list."
+	var road_ids := {}
+	for patch: Dictionary in raw.patches:
+		if patch.field == "roads": road_ids[patch.id] = true
+	var listed := {}
+	for id: Variant in pedestrian:
+		if id is not String or not road_ids.has(id) or listed.has(id): return "Invalid OSM pedestrian road list."
+		listed[id] = true
 	var connection_error := _structure_connections(raw, prefix)
 	if connection_error != "": return connection_error
 	if crop is Dictionary:
@@ -434,7 +443,7 @@ func patches(store: RefCounted) -> Array:
 	metadata.erase("patches")
 	if value.adapter == "osm-extract-v1":
 		result = preload("./import_units.gd").osm_patches(value.patches,value.coordinates.has("osm_city"))
-		preload("./import_units.gd").widen_roads(result,store.document.get("buildings",[]))
+		preload("./import_units.gd").widen_roads(result,store.document.get("buildings",[]),value.coordinates.get("osm_pedestrian_roads",[]))
 		var separated: int = preload("./import_units.gd").separate_junctions(result, store)
 		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1", "road_width_floor_cm": preload("./import_units.gd").ROAD_WIDTH_FLOOR_CM}
 		if separated > 0: metadata.authored_units.separated_junctions = separated
