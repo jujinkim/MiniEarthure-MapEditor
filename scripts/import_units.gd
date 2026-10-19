@@ -67,6 +67,40 @@ static func widen_roads(patches: Array, existing_buildings: Array) -> void:
 			var half := minf(ROAD_WIDTH_FLOOR_CM/2.0,nearest-sidewalk-BUILDING_MARGIN_CM)
 			road.widths_cm[s] = maxi(int(road.widths_cm[s]),floori(half*2))
 
+## Source junctions the road planner cannot build (approaches too close or too acute
+## for one passage) become separate road ends at the same position, as before
+## source junctions were kept. Only nodes added by this import change. Returns the
+## number of separated junctions.
+static func separate_junctions(patches: Array, store: RefCounted) -> int:
+	var separated := 0
+	for _round in 3:
+		var staged: Dictionary = store._candidate_for_patches(patches)
+		if staged.has("error"): return separated
+		var found: Dictionary = JSON.parse_string(store.bridge.unbuildable_junctions(JSON.stringify(staged.candidate)))
+		if not found.get("ok", false) or found.data.nodes.is_empty(): return separated
+		var failing := {}
+		for id: String in found.data.nodes: failing[id] = true
+		var added := {}
+		for patch: Dictionary in patches:
+			if patch.field == "nodes" and patch.before == null and failing.has(patch.id): added[patch.id] = patch
+		if added.is_empty(): return separated
+		var arms := {}
+		for patch: Dictionary in patches:
+			if patch.field != "roads" or not patch.after is Dictionary: continue
+			for end in ["from", "to"]:
+				var id: String = patch.after[end]
+				if not added.has(id): continue
+				var k: int = arms.get(id, 0)
+				arms[id] = k + 1
+				var node: Dictionary = added[id].after.duplicate(true)
+				node.id = "%s-arm-%d" % [id, k]
+				patch.after[end] = node.id
+				patches.append({"field":"nodes", "id":node.id, "before":null, "after":node})
+		for id: String in added:
+			patches.erase(added[id])
+			separated += 1
+	return separated
+
 static func _segment_gap(a: Vector2, b: Vector2, c: Vector2, d: Vector2) -> float:
 	if Geometry2D.segment_intersects_segment(a,b,c,d) != null: return 0.0
 	return minf(minf(Geometry2D.get_closest_point_to_segment(a,c,d).distance_to(a),Geometry2D.get_closest_point_to_segment(b,c,d).distance_to(b)),
