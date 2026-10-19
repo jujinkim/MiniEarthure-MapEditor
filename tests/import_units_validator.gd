@@ -57,6 +57,10 @@ func run() -> void:
 	narrow[0].after.widths_cm = [75,75]
 	units.widen_roads(narrow,[{"id":"old","footprint":[[0,-50],[1000,-50],[1000,-500],[0,-500]]}])
 	check(narrow[0].after.widths_cm == [75,75],"existing map buildings also limit widening without narrowing")
+	var courtyard := [{"field":"roads","after":{"id":"c","kind":"ground","from":"a","to":"b","points":[[100,0,500],[900,0,500]],"widths_cm":[40],"surfaces":["asphalt"],"sidewalk_cm":null}},
+		{"field":"buildings","after":{"id":"yard","footprint":[[-500,-500],[1500,-500],[1500,1500],[-500,1500]],"holes":[[[0,450],[0,560],[1000,560],[1000,450]]]}}]
+	units.widen_roads(courtyard,[])
+	check(courtyard[0].after.widths_cm == [60],"a road inside a courtyard stops 20 cm before its walls")
 	var walking := [{"field":"roads","id":"path","after":{"id":"path","kind":"ground","from":"a","to":"b","points":[[0,0,3000],[1000,0,3000]],"widths_cm":[20],"surfaces":["asphalt"],"sidewalk_cm":null}}]
 	units.widen_roads(walking,[],["path"])
 	check(walking[0].after.widths_cm == [20],"listed pedestrian roads keep their estimated width")

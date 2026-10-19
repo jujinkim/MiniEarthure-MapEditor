@@ -30,16 +30,20 @@ const BUILDING_MARGIN_CM := 20
 const EDGE_BUCKET_CM := 1000
 
 ## Widens adopted roads to the floor per segment, stopping each side at the nearest
-## building edge (including sidewalk and margin). Already wider segments and the
+## building edge or courtyard wall (including sidewalk and margin). Already wider segments and the
 ## listed pedestrian roads (paths, footways, cycleways) never change.
 static func widen_roads(patches: Array, existing_buildings: Array, pedestrian: Array = []) -> void:
 	var walking := {}
 	for id: String in pedestrian: walking[id] = true
 	var buckets := {}
 	var rings: Array = []
-	for building: Dictionary in existing_buildings: rings.append(building.footprint)
+	var records: Array = existing_buildings.duplicate()
 	for patch: Dictionary in patches:
-		if patch.field == "buildings" and patch.after is Dictionary: rings.append(patch.after.footprint)
+		if patch.field == "buildings" and patch.after is Dictionary: records.append(patch.after)
+	# Courtyard walls bound a road inside the courtyard like outer walls.
+	for building: Dictionary in records:
+		rings.append(building.footprint)
+		rings.append_array(building.get("holes", []))
 	var edges: Array = []
 	for ring: Array in rings:
 		for i in ring.size():
