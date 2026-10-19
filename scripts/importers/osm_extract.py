@@ -493,11 +493,12 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         refs, tags = all_ways[int(identity)] if kind == "way" else ([], relation_tags[int(identity)])
         p["_city_name"] = tags.get("name", "")
         p["_city_landmark"] = any(key in tags for key in ("historic", "tourism", "amenity"))
-        if feature["geometry"]["type"] == "LineString" and "osm_node_refs" not in p:
-            p["_city_refs"] = refs
+        if feature["geometry"]["type"] == "LineString":
             # Do not merge roads across semantic changes omitted by the
             # legacy display adapter (oneway, access, name, classification).
+            # Loop and structural roads keep the class too (pedestrian handling).
             p["_city_road_tags"] = {key: tags[key] for key in ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction") if key in tags}
+            if "osm_node_refs" not in p: p["_city_refs"] = refs
     # Preserve ordinary source junctions between vehicle roads without assigning an
     # elevation datum. Split at shared original IDs before simplification/merging
     # and crop. Pedestrian ways keep independent ends, as dense path networks would

@@ -51,7 +51,7 @@ static func widen_roads(patches: Array, existing_buildings: Array, pedestrian: A
 				for y in range(floori(minf(a.y,b.y)/EDGE_BUCKET_CM),floori(maxf(a.y,b.y)/EDGE_BUCKET_CM)+1):
 					buckets.get_or_add(Vector2i(x,y),[]).append(index)
 	for patch: Dictionary in patches:
-		if patch.field != "roads" or not patch.after is Dictionary or walking.has(patch.id): continue
+		if patch.field != "roads" or not patch.after is Dictionary or walking.has(patch.get("id", "")): continue
 		var road: Dictionary = patch.after
 		var sidewalk := float(road.get("sidewalk_cm",0) if road.get("sidewalk_cm") != null else 0)
 		for s in road.widths_cm.size():
@@ -70,10 +70,10 @@ static func widen_roads(patches: Array, existing_buildings: Array, pedestrian: A
 			var half := minf(ROAD_WIDTH_FLOOR_CM/2.0,nearest-sidewalk-BUILDING_MARGIN_CM)
 			road.widths_cm[s] = maxi(int(road.widths_cm[s]),floori(half*2))
 
-## Source junctions the road planner cannot build (approaches too close or too acute
-## for one passage) become separate road ends at the same position, as before
-## source junctions were kept. Only nodes added by this import change. Returns the
-## number of separated junctions.
+## Ordinary source junctions the road planner cannot build (for example a way that
+## doubles back) become separate road ends at the same position, as before source
+## junctions were kept. Only ground junction nodes added by this import change;
+## explicit structural junctions still fail review. Returns the separated count.
 static func separate_junctions(patches: Array, store: RefCounted) -> int:
 	var separated := 0
 	for _round in 3:
@@ -85,7 +85,8 @@ static func separate_junctions(patches: Array, store: RefCounted) -> int:
 		for id: String in found.data.nodes: failing[id] = true
 		var added := {}
 		for patch: Dictionary in patches:
-			if patch.field == "nodes" and patch.before == null and failing.has(patch.id): added[patch.id] = patch
+			# Only ordinary source junctions; explicit structural junctions keep their rules.
+			if patch.field == "nodes" and patch.before == null and failing.has(patch.id) and str(patch.id).contains("-osm-ground-node-"): added[patch.id] = patch
 		if added.is_empty(): return separated
 		var arms := {}
 		for patch: Dictionary in patches:

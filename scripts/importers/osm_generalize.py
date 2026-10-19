@@ -465,7 +465,16 @@ class Generalizer:
         self.barrier_widths = self.road_widths + [max(0.01,float(f["properties"].get("width_m",8))) for f,g in roads]
         self.barrier_tree = STRtree(self.barrier_geometries)
         ground = [(g,float(f["properties"].get("width_m",8))) for f,g in roads if f["properties"].get("road_kind","ground") == "ground"]
-        self.ground_barriers = [g.buffer(w/2+0.8,cap_style="square",join_style="mitre") for g,w in list(zip(self.ground_geometries,self.ground_widths))+ground]
+        lines = list(zip(self.ground_geometries,self.ground_widths))+ground
+        self.ground_barriers = [g.buffer(w/2+0.8,cap_style="square",join_style="mitre") for g,w in lines]
+        # A junction surface is the hull of its approach mouths, which reaches up to
+        # √2 × the widest half width from the node; keep buildings outside it too.
+        ends = defaultdict(list)
+        for g,w in lines:
+            for x,y in (g.coords[0], g.coords[-1]):
+                ends[(round(x,2),round(y,2))].append(w)
+        self.ground_barriers += [shapely.Point(point).buffer(max(widths)/2*math.sqrt(2)+0.8, quad_segs=4)
+                                 for point,widths in sorted(ends.items()) if len(widths) > 1]
         self.ground_tree = STRtree(self.ground_barriers)
         items = roads + self.polygons(gap)
         # A multipart source remains fully represented by separate native

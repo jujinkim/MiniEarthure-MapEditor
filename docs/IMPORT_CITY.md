@@ -26,7 +26,9 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   source grid (one map centimetre).
 - Named, public, landmark and tall buildings are protected from aggregation. Road
   corridors, protected land and courtyards block filler.
-- Buildings are cut around road space with 0.8 m clearance; overlapping volumes are
+- Buildings are cut around road space with 0.8 m clearance, including a disk of
+  √2 × the widest half width + 0.8 m around every junction node (the extent of a
+  junction surface); overlapping volumes are
   partitioned with 0.16 m clearance, favouring taller/named geometry. Enclosed
   sources keep their IDs/names and an estimated height. Complex polygons split into
   native pieces with 0.32 m separation. Numeric failures keep the original group.

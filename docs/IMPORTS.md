@@ -4,9 +4,13 @@
 the existing 1:8 city profile, budgets and explicit exclusions. An empty track
 project proposes fitted bounds; populated maps retain their extent. Bounds,
 composition and layer adoption share one Undo; cancel/failure preserves the map.
-Ordinary roads split at shared original OSM nodes before optimization. Surviving
-source endpoints retain identity through crop/quantization; new cuts remain
-independent. Selection never rewrites geometry or infers height. See
+Ordinary vehicle roads split where they share original OSM nodes with other vehicle
+roads before optimization; paths, footways, cycleways and pedestrian streets keep
+independent ends (`osm_pedestrian_roads`). Surviving source endpoints retain identity
+through crop/quantization; new cuts remain independent. Adoption asks MapKit for
+ordinary source junctions it cannot build (for example a way doubling back) and turns
+only those into separate road ends at the same position (`separated_junctions` in the
+attribution); explicit structural junctions still fail review. Selection never rewrites geometry or infers height. See
 [3D road editing](WORKBENCH.md).
 
 Editor owns the MIT import adapters and document adoption; public MapKit owns native
@@ -24,8 +28,8 @@ mutation and deletions are rejected.
 
 Custom maps use real metres. OSM adoption divides coordinates, widths, heights,
 clearances and vegetation spacing by 8 once (`osm-import-1to8-v1`); staged input
-keeps source units. Adopted road segments narrower than 150 cm (`road_width_floor_cm`,
-about 2.5 widths of the 61 cm car) widen to it, each side stopping 20 cm (plus
+keeps source units. Adopted vehicle road segments narrower than 150 cm (`road_width_floor_cm`,
+about 2.5 widths of the 61 cm car) widen to it; pedestrian roads keep their estimate, each side stopping 20 cm (plus
 sidewalk) before the nearest new or existing building edge; wider segments never change. Linked DEM uses the same factor (map position × 8 for lookup,
 relative elevation ÷ 8). Standalone DEM, GeoJSON and Overture use their declared
 units. Undo/Redo/save operate on adopted coordinates and never reapply the factor.
