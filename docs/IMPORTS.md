@@ -6,7 +6,8 @@ project proposes fitted bounds; populated maps retain their extent. Bounds,
 composition and layer adoption share one Undo; cancel/failure preserves the map.
 Ordinary vehicle roads split where they share original OSM nodes with other vehicle
 roads before optimization; paths, footways, cycleways and pedestrian streets keep
-independent ends (`osm_pedestrian_roads`). Surviving source endpoints retain identity
+independent ends (`osm_pedestrian_roads`), and the city profile paints the ground ones
+instead ([IMPORT_CITY](IMPORT_CITY.md)). Surviving source endpoints retain identity
 through crop/quantization; new cuts remain independent. Adoption asks MapKit for
 ordinary source junctions it cannot build (for example a way doubling back) and turns
 only those into separate road ends at the same position (`separated_junctions` in the
@@ -21,8 +22,8 @@ packages. The automatic OSM city profile is described in [IMPORT_CITY](IMPORT_CI
 ## Contract and units
 
 [CURRENT_V1](CURRENT_V1.md) defines one shape per adapter; there is no recipe
-selector or automatic converter. An ImportLayer adds nodes, roads, buildings, zones
-and facility POIs with source provenance under a new 128-bit namespace, even when
+selector or automatic converter. An ImportLayer adds nodes, roads, buildings, zones,
+city ground paint (`surface_areas`) and facility POIs with source provenance under a new 128-bit namespace, even when
 the same bytes are reimported. References to existing objects, arbitrary map-value
 mutation and deletions are rejected.
 

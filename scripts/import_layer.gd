@@ -2,7 +2,7 @@ extends RefCounted
 const I18N := preload("./locale_text.gd")
 ## Untrusted adapter output can only add a fresh, explicitly adopted vector layer.
 const MAX_BYTES := 32 * 1024 * 1024
-const FIELDS := ["nodes", "roads", "buildings", "zones", "pois"]
+const FIELDS := ["nodes", "roads", "buildings", "zones", "surface_areas", "pois"]
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 const OVERTURE_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
 const OVERTURE_TRANSPORTATION_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation"
@@ -202,6 +202,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		if raw.adapter == "overture-buildings-v1" and patch.field != "buildings": return "Overture profile may only add buildings."
 		if patch.field not in FIELDS or patch.before != null or patch.after is not Dictionary: return "Import may only add supported records."
 		if patch.field == "pois" and raw.adapter != "facility-csv-v1": return "Facility records require the CSV adapter."
+		if patch.field == "surface_areas" and not raw.coordinates.has("osm_city"): return "Ground paint records require OSM city optimization."
 		if patch.id is not String or not patch.id.begins_with(prefix) or patch.id.length() > 128 or patch.after.get("id") != patch.id or ids.has(patch.id): return "Invalid/duplicate import record identity."
 		if raw.adapter == "overture-buildings-v1" and not overture_building_ids.has(patch.id): return "Unmapped Overture building."
 		if overture_vertical:
@@ -474,7 +475,7 @@ static func empty_map_extent(document: Dictionary, incoming: Array) -> Dictionar
 			"roads":
 				for point: Array in record.points: points.append([point[0],point[2]])
 			"buildings": points.append_array(record.footprint)
-			"zones": points.append_array(record.polygon)
+			"zones", "surface_areas": points.append_array(record.polygon)
 	if points.is_empty(): return {}
 	var low: Array = points[0].duplicate(); var high: Array = points[0].duplicate()
 	for point: Array in points:

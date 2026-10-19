@@ -5,10 +5,11 @@ from pathlib import Path
 import sys
 import unittest
 import math
+import shapely
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/importers"))
 import pyproj
-from shapely.geometry import shape, box, LineString, mapping, Polygon
+from shapely.geometry import shape, box, LineString, mapping, Polygon, MultiPolygon
 from shapely.ops import transform
 from osm_generalize import Generalizer
 from polygon_geometry import Budget, SpatialBudget, group_rings
@@ -247,5 +248,80 @@ class City(unittest.TestCase):
         self.assertGreater(meta["after"]["buildings"],1)
         self.assertTrue(all(len(f["geometry"]["coordinates"][0])<=512 for f in out["features"]))
 
+
+    def test_pedestrian_ways_become_disjoint_hole_free_ground_paint(self):
+        from geojson import convert
+        self.setup_city()
+        walk = lambda kind: dict(_city_road_tags=dict(highway=kind))
+        self.add(1,LineString([(0,0),(300,0)]),_city_refs=[1,2],**walk("residential"))
+        self.add(2,LineString([(10,10),(290,10)]),_city_refs=[3,4],**walk("footway"))
+        self.add(3,LineString([(50,10),(50,60)]),_city_refs=[3,5],surface="dirt",**walk("footway"))
+        self.add(4,LineString([(100,30),(140,30),(140,70),(100,70),(100,30)]),_city_refs=[6,7,8,9,6],**walk("path"))
+        loop=lambda identity,line,refs,**extra:self.add(identity,line,osm_way_id=identity,osm_node_refs=refs,osm_loop_range=[0,1],**extra,**walk("footway"))
+        loop(5,LineString([(200,30),(230,30)]),[20,21],road_kind="ground")
+        loop(6,LineString([(200,80),(230,80)]),[30,31],road_kind="ground")
+        self.add(7,LineString([(230,80),(260,80)]),osm_way_id=7,osm_node_refs=[31,32],osm_loop_range=[0,1],road_kind="bridge",elevations_m=[0.2,0.2],**walk("footway"))
+        worker=self.worker();out,meta=worker.candidate(0)
+        kept={f["properties"]["osm_source_id"] for f in out["features"] if f["geometry"]["type"]=="LineString"}
+        self.assertEqual(kept,{"way/1","way/6","way/7"},"loops joined to a pedestrian structure stay roads")
+        self.assertGreater(meta["painted_pedestrian_ways"],0)
+        self.assertEqual({s for group in meta["groups"] for s in group["source_ids"]},set(meta["source_ids"]))
+        lattice=lambda x,y,z=None:((x+1000)*12.5,(y+1000)*12.5)
+        paint=[(f["properties"]["_city_paint"],transform(lattice,transform(worker.project,shape(f["geometry"])))) for f in out["features"] if "_city_paint" in f["properties"]]
+        self.assertGreater(len(paint),2,"the footway spanning a native cell boundary is cut there")
+        for i,(surface,piece) in enumerate(paint):
+            self.assertEqual(len(piece.interiors),0)
+            self.assertLessEqual(len(piece.exterior.coords),257)
+            self.assertTrue(all(abs(v-round(v))<1e-6 for point in piece.exterior.coords for v in point),"whole 1:8 map centimetres")
+            self.assertTrue(all(piece.intersection(other).area<1e-6 for _,other in paint[i+1:]))
+        covered=lambda x,y:[surface for surface,piece in paint if piece.buffer(0.01).contains(shapely.Point(lattice(x,y)))]
+        self.assertEqual(covered(50,40),["dirt"])
+        self.assertEqual(covered(200,10),["concrete"])
+        self.assertEqual(covered(100,50),["concrete"],"the loop path is painted")
+        self.assertEqual(covered(120,50),[],"the loop interior stays unpainted terrain")
+        self.assertEqual(covered(200,0),[],"vehicle roads stay roads")
+        self.assertEqual(covered(215,30),["concrete"],"a free ground loop is painted")
+        layer=convert(out,"synthetic","ODbL-1.0",coordinates=self.options,osm_graph=True,city=True)
+        areas=[p["after"] for p in layer.patches if p["field"]=="surface_areas"]
+        self.assertEqual(len(areas),len(paint))
+        self.assertEqual(len([p for p in layer.patches if p["field"]=="roads"]),3)
+        self.assertTrue(all(v%8==0 for area in areas for point in area["polygon"] for v in point),"1:8 adoption keeps exact vertices")
+
+
+    def test_parts_of_one_building_never_touch(self):
+        # A trimmed building can split into parts that meet at one corner.
+        self.setup_city()
+        self.add(1,box(0,0,1,1))
+        worker=self.worker()
+        pinched=MultiPolygon([box(0,0,10,10),box(10,10,20,20)])
+        self.assertTrue(pinched.is_valid)
+        polygons=worker.separated_parts(pinched)
+        self.assertEqual(len(polygons),2)
+        self.assertFalse(polygons[0].intersects(polygons[1]),"a corner contact is separated")
+        self.assertGreater(polygons[1].area,99)
+
+    def test_gap_filling_never_regrows_into_a_junction_surface(self):
+        self.setup_city()
+        self.add(1,LineString([(70,10),(100,10)]),width_m=8,_city_refs=[1,2])
+        self.add(2,LineString([(100,10),(130,10)]),width_m=8,_city_refs=[2,3])
+        self.add(3,LineString([(100,10),(100,-20)]),width_m=8,_city_refs=[2,4])
+        self.add(4,box(90,15,99,25))
+        self.add(5,box(101,15,110,25))
+        worker=self.worker();out,meta=worker.candidate(16)
+        buildings=[transform(worker.project,shape(f["geometry"])) for f in out["features"] if f["geometry"]["type"]=="Polygon"]
+        self.assertEqual(meta["after"]["buildings"],1,"the gap above the junction is still filled")
+        self.assertGreater(min(b.distance(shapely.Point(100,10)) for b in buildings),6.2,"buildings stay outside the junction disk")
+
+    def test_erased_source_returns_trimmed_on_the_map_lattice(self):
+        self.setup_city()
+        self.add(1,box(10.03,10.03,20.01,20.01))
+        self.add(2,LineString([(0,9),(40,9)]),width_m=2,_city_refs=[1,2])
+        worker=self.worker()
+        worker.polygon_group=lambda group,gap,buildings:[]  # A merge that erased every member.
+        out,meta=worker.candidate(0)
+        building=next(transform(worker.project,shape(f["geometry"])) for f in out["features"] if f["geometry"]["type"]=="Polygon")
+        self.assertEqual(meta["unmerged_numeric_groups"],1)
+        self.assertGreater(building.bounds[1],9+1+0.8-0.05,"road clearance trim is kept")
+        self.assertTrue(all(abs((v+1000)*12.5-round((v+1000)*12.5))<1e-6 for point in building.exterior.coords for v in point))
 
 if __name__=="__main__": unittest.main()

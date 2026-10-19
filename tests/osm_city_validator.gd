@@ -51,7 +51,8 @@ func run() -> void:
 	var meta: Dictionary=raw.coordinates.osm_city
 	check(ui.pending_import.requires_generation() and ui.pending_import.generation_cell_limit()==256,"all city cells require native generation, including sources without structures")
 	check(meta.before.features>meta.after.features and meta.before.positions>meta.after.positions,"automatic aggregation reduces actual geometry")
-	check(meta.after.roads==1 and meta.after.buildings==3 and meta.after.areas==1,"compatible chain/footprints/vegetation merge while named/tall buildings survive")
+	check(meta.after.roads==1 and meta.after.buildings==3 and meta.after.areas>=2,"compatible chain/footprints/vegetation merge while named/tall buildings survive")
+	check(meta.painted_pedestrian_ways==1 and ui.import_summary.text.contains("painted as drivable ground"),"the footway is disclosed as ground paint, not a road")
 	check(meta.vegetation_spacing_m==32 and meta.vegetation_density_per_mille==750,"illustrative vegetation density is explicitly disclosed")
 	check(ui.import_summary.text.contains("Automatic city optimization") and ui.import_summary.text.contains("→"),"review shows measured reductions")
 	check(ui.store.document==before,"review leaves document unchanged")
@@ -72,6 +73,7 @@ func run() -> void:
 	ui._adopt_import()
 	await wait_import(ui)
 	check(ui.store.document.buildings.size()==3 and ui.store.document.roads.size()==1,"city adoption is complete")
+	check(ui.store.document.surface_areas.size()==meta.after.areas-1 and ui.store.document.surface_areas.all(func(area: Dictionary) -> bool: return area.surface=="concrete"),"the footway is adopted as painted ground, cut at cell lines")
 	check(ui.store.document.zones[0].spacing_cm==400 and ui.store.document.zones[0].density_per_mille==750,"city vegetation uses the disclosed 4 m map lattice after one scale conversion")
 	var adopted: Dictionary=ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.buildings.is_empty(),"atomic city Undo")

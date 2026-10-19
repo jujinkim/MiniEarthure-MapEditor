@@ -199,7 +199,11 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                         polygon=polygon, holes=[hole[:-1] for hole in rings[1:]],
                         protected=properties.get("protected", False), tags=properties.get("region_tags", {})))
                     if not zone: continue
-                if zone:
+                if properties.get("_city_paint"):
+                    if not (city and osm_graph) or len(rings) > 1 or properties["_city_paint"] not in ("asphalt", "concrete", "dirt", "gravel", "grass"):
+                        raise ValueError("City ground paint must be one hole-free current-v1 surface polygon")
+                    layer.add("surface_areas", {"id": part_id, "polygon": polygon, "surface": properties["_city_paint"]})
+                elif zone:
                     layer.add("zones", {"id": part_id, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 3200 if city else 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]})
                     layer.estimate("vegetation_spacing_density")
                 else:

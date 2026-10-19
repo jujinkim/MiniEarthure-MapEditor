@@ -4,7 +4,7 @@
   "name": "한국어",
   "messages": {
     "Cancel": "취소",
-    "New seed": "새 seed",
+    "New seed": "새 시드",
     "Circuit": "순환 코스",
     "Easy": "쉬움",
     "Normal": "보통",
@@ -2054,8 +2054,6 @@
     "Width %.1fm": "폭 %.1fm",
     "Preview width %.1fm": "미리보기 폭 %.1fm",
     "Road shortcuts": "지름길",
-    "Seed": "시드",
-    "New seed": "새 시드",
     "Seed race on roads": "도로에 시드 레이스",
     "One seed picks the start, direction, gimmicks, shortcuts and preview time/weather": "시드 하나로 출발점, 방향, 기믹, 지름길과 미리보기 시간대/날씨를 정합니다",
     "Corner-cutting roads proposed at course turns": "코스가 꺾이는 곳에 제안할 모서리 지름길 도로",
@@ -2226,6 +2224,7 @@
     "Course needs more than 64 shared checkpoints": "이 코스에는 공유 체크포인트가 64개 넘게 필요합니다.",
     "Course needs at least two non-overlapping checkpoints": "코스에는 겹치지 않는 체크포인트가 최소 2개 필요합니다.",
     "Pieces %d/%d types · Gimmicks %d/%d types": "조각 %d/%d종 · 기믹 %d/%d종",
-    " · Below 50% variety target": " · 다양성 목표 50% 미달"
+    " · Below 50% variety target": " · 다양성 목표 50% 미달",
+    "Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n": "보행로·자전거길은 도로 대신 주행 가능한 바닥 표시로 칠함: %d개 경로.\n"
   }
 }

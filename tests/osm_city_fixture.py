@@ -1,4 +1,4 @@
-"""Synthetic overlapping city footprints and compatible source road chains."""
+"""Synthetic overlapping city footprints, compatible source road chains and a footway."""
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
@@ -27,6 +27,7 @@ def xml():
     a,b,c=node(0,0),node(40,0),node(80,0)
     way(20,[a,b],{"highway":"residential","width":"4"})
     way(21,[b,c],{"highway":"residential","width":"4"})
+    way(22,[node(0,45),node(80,45)],{"highway":"footway"})
     rectangle(30,20,60,20,20,{"landuse":"forest"})
     rectangle(31,30,60,20,20,{"landuse":"forest"})
     root.extend(nodes+sorted(ways,key=lambda w:int(w.attrib["id"])))

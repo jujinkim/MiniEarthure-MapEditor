@@ -2054,8 +2054,6 @@
     "Width %.1fm": "Width %.1fm",
     "Preview width %.1fm": "Preview width %.1fm",
     "Road shortcuts": "Road shortcuts",
-    "Seed": "Seed",
-    "New seed": "New seed",
     "Seed race on roads": "Seed race on roads",
     "One seed picks the start, direction, gimmicks, shortcuts and preview time/weather": "One seed picks the start, direction, gimmicks, shortcuts and preview time/weather",
     "Corner-cutting roads proposed at course turns": "Corner-cutting roads proposed at course turns",
@@ -2226,6 +2224,7 @@
     "Course needs more than 64 shared checkpoints": "Course needs more than 64 shared checkpoints",
     "Course needs at least two non-overlapping checkpoints": "Course needs at least two non-overlapping checkpoints",
     "Pieces %d/%d types · Gimmicks %d/%d types": "Pieces %d/%d types · Gimmicks %d/%d types",
-    " · Below 50% variety target": " · Below 50% variety target"
+    " · Below 50% variety target": " · Below 50% variety target",
+    "Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n": "Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n"
   }
 }

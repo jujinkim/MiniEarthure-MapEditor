@@ -15,6 +15,14 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   nonempty holes are never discarded.
 - Missing road widths use disclosed highway-class estimates (≥1.6 source m);
   source surfaces map to game materials.
+- Ground paths, footways, cycleways and pedestrian streets become painted ground
+  (`surface_areas`), not roads; cars cross them as terrain. Their source-width
+  ribbons are united on the map-centimetre lattice and cut per 32 m map cell, and
+  through any enclosed hole, into hole-free pieces of ≤256 vertices. Each piece maps
+  to every source way it covers and takes the surface covering most of it (untagged:
+  concrete). The ways still stop building gap filling and keep road clearance from
+  buildings. Pedestrian bridges, tunnels, explicit-height ways and closed loops sharing
+  their nodes stay roads.
 - Compatible vegetation polygons are unioned. Illustrative trees use a 32 m source
   lattice (4 m on the map) at 750 ‰ density; they are estimates, not surveyed trees.
   The exact profile keeps an 8 m source lattice.
@@ -28,15 +36,17 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   corridors, protected land and courtyards block filler.
 - Buildings are cut around road space with 0.8 m clearance, including a disk of
   √2 × the widest half width + 0.8 m around every junction node (the extent of a
-  junction surface); overlapping volumes are
-  partitioned with 0.16 m clearance, favouring taller/named geometry. Enclosed
+  junction surface); gap filling never regrows into either. Overlapping volumes
+  are partitioned with 0.16 m clearance, favouring taller/named geometry. Enclosed
   sources keep their IDs/names and an estimated height. Complex polygons split into
-  native pieces with 0.32 m separation. Numeric failures keep the original group.
+  native pieces with 0.32 m separation; pieces meeting at a point keep 0.16 m.
+  Numeric failures keep the original group; a source erased by merging or
+  quantization returns as its road-trimmed shape on the map-centimetre lattice.
 
 ## Review and adoption
 
 Review reports before/after objects and positions, gaps/tolerances, width/material
-estimates, road cuts and overlap changes. A compact table maps every supported source
+estimates, painted pedestrian ways, road cuts and overlap changes. A compact table maps every supported source
 to contiguous output records; missing, duplicate or excluded claims fail validation.
 No supported source is dropped to fit a limit. A building entirely inside derived road
 space fails with its source ID unless exclusion review is enabled; then the whole

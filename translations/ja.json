@@ -2054,8 +2054,6 @@
     "Width %.1fm": "幅%.1fm",
     "Preview width %.1fm": "プレビュー幅%.1fm",
     "Road shortcuts": "ショートカット道路",
-    "Seed": "シード",
-    "New seed": "新しいシード",
     "Seed race on roads": "道路でシードレース",
     "One seed picks the start, direction, gimmicks, shortcuts and preview time/weather": "1つのシードでスタート、方向、ギミック、ショートカット、プレビューの時刻と天気を決めます",
     "Corner-cutting roads proposed at course turns": "コースの曲がり角に提案する角を抜けるショートカット道路",
@@ -2226,6 +2224,7 @@
     "Course needs more than 64 shared checkpoints": "このコースには共有チェックポイントが64個を超えて必要です。",
     "Course needs at least two non-overlapping checkpoints": "コースには重ならないチェックポイントが2個以上必要です。",
     "Pieces %d/%d types · Gimmicks %d/%d types": "ピース %d/%d種 · ギミック %d/%d種",
-    " · Below 50% variety target": " · 多様性の目標50%未達"
+    " · Below 50% variety target": " · 多様性の目標50%未達",
+    "Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n": "歩道・自転車道は道路ではなく走行可能な地面の塗装で表示: %d 本。\n"
   }
 }

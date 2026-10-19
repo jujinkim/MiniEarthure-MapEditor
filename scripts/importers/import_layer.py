@@ -12,7 +12,7 @@ CITY_OUTPUT = 32 * 1024 * 1024
 CITY_RECORDS = 180_000  # Leave room below current-v1's 200,000 document objects.
 CITY_POINTS = 800_000  # Leave room below current-v1's 1,000,000 vertices.
 CITY_FEATURES = 100_000
-FIELDS = ("nodes", "roads", "buildings", "zones", "pois")
+FIELDS = ("nodes", "roads", "buildings", "zones", "surface_areas", "pois")
 
 
 def number(value, name, minimum=-100_000, maximum=100_000):
