@@ -68,6 +68,11 @@ class CropTests(unittest.TestCase):
         park = feature("Polygon",[[[.004,.003],[.009,.003],[.009,.007],[.004,.007],[.004,.003]]])
         parts, _ = crop(dict(type="FeatureCollection", features=[park]), [0,0,.01,.01], region=pinch)
         self.assertEqual(len(parts["features"]), 2)
+        # Two source nodes at one stored position: a covered building keeps its
+        # shape but not the repeated vertex, as a rectangle crop would.
+        twin = feature("Polygon",[[[.001,.001],[.002,.001],[.002,.001],[.002,.002],[.001,.002],[.001,.001]]])
+        kept, _ = crop(dict(type="FeatureCollection", features=[twin]), [0,0,.01,.01], region=region)
+        self.assertEqual(len(kept["features"][0]["geometry"]["coordinates"][0][0]), 5)
         with self.assertRaisesRegex(ValueError, "do not overlap"):
             crop(dict(type="FeatureCollection", features=[road]), [.02,.02,.03,.03], region=region)
 

@@ -258,7 +258,8 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region
         if region is not None and window.covers(source):
             # GEOS overlay against a many-vertex area may node a covered line at
             # every vertex; a covered source keeps its exact geometry instead.
-            clipped = source
+            # Polygons drop repeated adjacent positions, as overlay would.
+            clipped = source if expected == "LineString" else shapely.remove_repeated_points(source)
         elif region is not None and expected == "LineString":
             pieces = region_line_parts(feature["geometry"]["coordinates"], window)
             clipped = shapely.MultiLineString(pieces)
