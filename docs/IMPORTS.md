@@ -55,7 +55,9 @@ extent, counts, estimates and bounded warning samples are retained.
 
 Copernicus mosaics allow up to 256 cells of any aspect ratio, four source tiles,
 64 MiB combined source, 1025² total samples, 513 samples per cell side, 64 MiB
-output and a 120-second native deadline. DEM is optional: a multi-district region
+output and a 120-second native deadline. The adopted source notice names each tile
+file with its bytes and SHA-256; local source and capture paths stay out of the map
+(the capture folder keeps its own review sidecars). DEM is optional: a multi-district region
 beyond these limits is refused with that explanation and keeps its flat terrain. **Use imported OSM coordinates and full
 map extent** copies the imported frame, selects all cells and uses 4 m map spacing
 when the grid allows.

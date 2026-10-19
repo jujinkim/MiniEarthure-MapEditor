@@ -60,13 +60,11 @@ func run() -> void:
 	check(panel.candidate!=null,"whole-mosaic native staging: "+ui.validation_label.text)
 	if panel.candidate==null: ui.queue_free();await process_frame;quit(1);return
 	var receipt: Dictionary=panel.candidate.value.dem.receipt.duplicate(true)
-	var sampling: Dictionary=panel.candidate.value.dem.sampling.duplicate(true)
 	var reviewed: Dictionary=panel.plan.duplicate(true)
 	var destination: String=panel.destination
-	var result := {"review":receipt,"raster":sampling,"outputs":[]}
-	for index in range(4):
-		var path := destination+".cell-%d.png" % index
-		result.outputs.append({"cell":reviewed.cells[index],"png_path":path,"png_sha256":FileAccess.get_sha256(path),"png_bytes":FileAccess.get_file_as_bytes(path).size()})
+	var result: Dictionary=panel.candidate_data.duplicate(true)
+	check(receipt.options.source==folder.get_file() and receipt.sources.all(func(item: Dictionary): return item.source.keys().size()==3 and item.source.name.ends_with(".tif"))
+		and not JSON.stringify(receipt).contains(folder) and not JSON.stringify(receipt).contains(destination),"stored mosaic receipt names files without local or capture paths")
 	check(state()==before,"capture/staging leaves document and history unchanged")
 	check(panel.review.visible and panel.review_text.text.contains("atomically"),"explicit complete-mosaic review")
 	if DisplayServer.get_name()!="headless" and OS.get_environment("MAPEDITOR_CAPTURE_PATH")!="":

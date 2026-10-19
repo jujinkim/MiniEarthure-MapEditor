@@ -22,7 +22,7 @@ func summary() -> String:
 		var record: Dictionary=value.heightmaps[index]
 		text+=I18N.t("\nCell (%d, %d) · spacing %d cm · %s\nDerived PNG SHA-256: %s\n") % [record.cell.x,record.cell.y,record.spacing_cm,I18N.t("replaces an active tile (Undo retained)") if value.previous[index]!=null else I18N.t("new active terrain"),str(record.path).get_file().get_basename()]
 	for item: Dictionary in value.dem.receipt.sources:
-		text+=I18N.t("\nSource tile %s · GLO-%d%s · %d bytes\nSHA-256: %s\n%s\n%s\n") % [str(item.tile),item.resolution_m,I18N.t(" (404 fallback)") if item.fallback90 else "",item.source.bytes,item.source.sha256,item.source.get("path",item.source.get("url","")),item.notice]
+		text+=I18N.t("\nSource tile %s · GLO-%d%s · %d bytes\nSHA-256: %s\n%s\n%s\n") % [str(item.tile),item.resolution_m,I18N.t(" (404 fallback)") if item.fallback90 else "",item.source.bytes,item.source.sha256,item.source.name,item.notice]
 	return text+I18N.t("\nLicense: ")+LICENSE
 
 
@@ -82,7 +82,13 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		_blobs.merge(layer._blobs)
 		_cells.append_array(layer._cells)
 		layer.discard()
-	value={"import_version":1,"adapter":"copernicus-dem-v1","layer_id":context.get("layer_id", Crypto.new().generate_random_bytes(16).hex_encode()),"heightmaps":records,"previous":previous,"dem":{"receipt":receipt.duplicate(true),"sampling":raster.duplicate(true)}}
+	# The stored notice names each source file with its size and hash; local and
+	# capture paths stay with the in-flight review and never enter the map.
+	var stored: Dictionary = receipt.duplicate(true)
+	stored.options.source = str(stored.options.source).trim_suffix("/").trim_suffix("\\").get_file()
+	for item: Dictionary in stored.sources:
+		item.source = {"name":str(item.source.path).get_file(),"bytes":item.source.bytes,"sha256":item.source.sha256}
+	value={"import_version":1,"adapter":"copernicus-dem-v1","layer_id":context.get("layer_id", Crypto.new().generate_random_bytes(16).hex_encode()),"heightmaps":records,"previous":previous,"dem":{"receipt":stored,"sampling":raster.duplicate(true)}}
 	if context.get("ground_buildings",false):
 		var grounded:=preload("./dem_building_grounding.gd").prepare(terrain.store,records,_blobs,options)
 		if grounded.has("error"): discard();return grounded.error

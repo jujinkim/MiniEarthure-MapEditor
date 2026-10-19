@@ -59,9 +59,11 @@ func run() -> void:
 	var receipt: Dictionary = panel.candidate.value.dem.receipt.duplicate(true)
 	var first_id: String = panel.candidate.value.layer_id
 	var first_destination: String = panel.destination
-	var first_png := first_destination+".cell-0.png"
-	var raster: Dictionary = panel.candidate.value.dem.sampling.duplicate(true)
-	var result := {"review":receipt,"raster":raster,"outputs":[{"cell":reviewed_cell(panel.plan),"png_path":first_png,"png_sha256":FileAccess.get_sha256(first_png),"png_bytes":FileAccess.get_file_as_bytes(first_png).size()}]}
+	var result: Dictionary = panel.candidate_data.duplicate(true)
+	var stored_keys: Array = receipt.sources[0].source.keys()
+	stored_keys.sort()
+	check(stored_keys == ["bytes","name","sha256"] and receipt.sources[0].source.name == source.get_file() and receipt.options.source == source.get_file()
+		and not JSON.stringify(receipt).contains(source) and not JSON.stringify(receipt).contains(first_destination),"stored DEM receipt names files without local or capture paths")
 	var reviewed: Dictionary = panel.plan.duplicate(true)
 	check(state()==before and FileAccess.get_sha256(first_destination+".source-0.tif")==source_sha,"capture and native staging preserve original document/source")
 	check(panel.review_text.text.contains("explicit bilinear") and panel.review_text.text.contains("DSM") and panel.review.size.y<=root.size.y,"sampling review and minimum window")
@@ -86,7 +88,7 @@ func run() -> void:
 	check(layer.adopt(ui.canvas.author.terrain)=="" and ui.store.document.heightmaps.size()==1,"adopt one active terrain cell")
 	check(layer.adopt(ui.canvas.author.terrain)!="","one-shot adoption")
 	var first: Dictionary = ui.store.document.heightmaps[0].duplicate(true)
-	check(ui.store.document.attributions[0].notice.contains(source_sha),"original COG hash survives native attribution")
+	check(ui.store.document.attributions[0].notice.contains(source_sha) and not ui.store.document.attributions[0].notice.contains(source.get_base_dir()),"original COG hash, not its local path, survives native attribution")
 	check(ui.store.undo()=="" and ui.store.document.heightmaps.is_empty(),"atomic geometry/notice undo")
 	check(ui.store.redo()=="" and ui.store.document.heightmaps[0]==first,"redo restores file and descriptor")
 	check(ui.store.save_project(project)=="","save imported terrain")
@@ -142,6 +144,3 @@ func run() -> void:
 	check(owned.cancelled and owned.pid==-1,"owner close reaps DEM helper")
 	print("dem_validator: ","PASS" if failures.is_empty() else failures,"; checks=",checks)
 	quit(0 if failures.is_empty() else 1)
-
-func reviewed_cell(plan: Dictionary) -> Array:
-	return plan.cells[0]
