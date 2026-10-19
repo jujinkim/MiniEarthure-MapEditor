@@ -1,5 +1,5 @@
 """Editor-owned typed import boundary. No game or MapServer dependency."""
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 import json
 import math
 import re
@@ -95,8 +95,13 @@ class ImportLayer:
         else:
             self.extent_cm = [min(x, self.extent_cm[0]), min(y, self.extent_cm[1]), max(x, self.extent_cm[2]), max(y, self.extent_cm[3])]
 
+    def data(self):
+        """JSON-ready fields. Only the source is a nested dataclass; a deep
+        asdict copy of every patch would serialize identically, only slower."""
+        return {f.name: asdict(self.source) if f.name == "source" else getattr(self, f.name) for f in fields(self)}
+
     def encode(self):
-        data = json.dumps(asdict(self), sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+        data = json.dumps(self.data(), sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
         maximum = CITY_OUTPUT if self.coordinates.get("osm_city") or self.coordinates.get("city_source_ids") else MAX_OUTPUT
         if len(data) > maximum:
             raise ValueError(f"ImportLayer exceeds {maximum//1024**2} MiB output budget")

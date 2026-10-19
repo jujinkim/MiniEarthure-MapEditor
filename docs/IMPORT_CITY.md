@@ -51,6 +51,10 @@ It separates larger bounded source work from the smaller output MapKit accepts.
 - Ordinary buildings group within 256 m source tiles (≤128 per group). Candidates
   fill 0–64 m gaps, simplify lines ≤4 m and polygons ≤8 m, then snap to a 0.08 m
   source grid (one map centimetre).
+- Candidates whose line tolerance is equal (16–64 m gaps) share one derived road
+  space: road-trimmed sources, protected buildings, aggregation groups and
+  pedestrian paint are built once and charge the same work budget as a fresh
+  build. Only gap filling and the overlap partition are rebuilt per gap.
 - Named, public, landmark and tall buildings are protected from aggregation. Road
   corridors, protected land and courtyards block filler.
 - Buildings are cut around road space with 0.8 m clearance, including a disk of

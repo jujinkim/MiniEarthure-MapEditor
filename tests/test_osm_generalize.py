@@ -288,6 +288,44 @@ class City(unittest.TestCase):
         self.assertTrue(all(v%8==0 for area in areas for point in area["polygon"] for v in point),"1:8 adoption keeps exact vertices")
 
 
+    def test_gaps_sharing_road_space_reuse_it_exactly(self):
+        from osm_review import Review
+        self.setup_city()
+        walk = lambda kind: dict(_city_road_tags=dict(highway=kind))
+        self.add(1,LineString([(0,0),(150,3),(300,0)]),width_m=8,_city_refs=[1,2,3],**walk("residential"))
+        self.add(2,LineString([(10,40),(290,40)]),_city_refs=[4,5],**walk("footway"))
+        self.add(3,box(20,2,22,4))  # Inside the road: excluded by review.
+        self.add(4,box(40,8,60,30),_city_name="도서관")
+        self.add(5,box(240,4,260,24))  # Trimmed by the road.
+        for i in range(12):
+            self.add(10+i,box(70+i*14,8,80+i*14,30),height_m=9)
+        self.add(30,box(0,50,80,90),landuse="forest")
+        workers = lambda: Generalizer(dict(type="FeatureCollection",features=self.features),self.options,Review(True))
+        original = deepcopy(self.features)
+        reused = workers()
+        runs = {gap: reused.candidate(gap)+(reused.remaining,) for gap in (16,32,64)}
+        for gap in (32,64):
+            fresh = workers()
+            self.assertEqual(runs[gap],fresh.candidate(gap)+(fresh.remaining,),f"gap {gap} equals a fresh build")
+        paint = lambda gap:[f["properties"]["_city_sources"] for f in runs[gap][0]["features"] if "_city_paint" in f["properties"]]
+        self.assertTrue(all(a is not b for a,b in zip(paint(32),paint(64))),"each candidate owns its paint source lists")
+        self.assertGreater(runs[64][1]["painted_pedestrian_ways"],0)
+        self.assertIn("way/5",runs[64][1]["trimmed_building_sources"])
+        self.assertEqual(runs[64][1]["source_ids"],sorted(f"way/{i}" for i in [1,2,4,5,30,*range(10,22)]))
+        self.assertEqual(self.features,original)
+
+    def test_area_invalid_after_projection_retains_the_group(self):
+        # Valid in lon/lat; the spike vertex crosses the projected chord of the
+        # long bottom edge, so overlays with it fail inside the building group.
+        self.setup_city()
+        water = Polygon([(8.9917,55),(9.0083,55),(9.0083,55.002),(9.0002,55.002),(9.0,55.0000001),(8.9998,55.002),(8.9917,55.002)])
+        self.features.append(dict(type="Feature",properties=dict(osm_source_id="way/1",osm_region=True,landuse="water"),geometry=mapping(water)))
+        worker = self.worker()
+        vertex = transform(worker.project,shapely.Point(9.0,55.0000001))
+        self.assertFalse(transform(worker.project,water).is_valid)
+        self.add(2,box(vertex.x-5,-12,vertex.x+5,-3))
+        self.assertEqual(self.worker().candidate(4)[1]["unmerged_numeric_groups"],2)
+
     def test_parts_of_one_building_never_touch(self):
         # A trimmed building can split into parts that meet at one corner.
         self.setup_city()

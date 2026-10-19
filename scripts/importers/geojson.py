@@ -412,6 +412,7 @@ def main():
     elif args.origin is not None or args.local_origin is not None:
         raise ValueError("local-metre mode must not specify geographic origins")
     city_meta = None
+    encoded = None
     if args.osm_city:
         from copy import deepcopy
         from osm_generalize import candidates, LEVELS
@@ -453,8 +454,7 @@ def main():
                 # Godot's JSON representation includes separator spaces. Its
                 # boundary budget applies to that representation as well as
                 # the compact wire file, so measure both before selecting.
-                from dataclasses import asdict
-                editor_bytes = len(json.dumps(asdict(trial), sort_keys=True, ensure_ascii=False, allow_nan=False).encode())
+                editor_bytes = len(json.dumps(trial.data(), sort_keys=True, ensure_ascii=False, allow_nan=False).encode())
                 if editor_bytes > CITY_OUTPUT - 65536:
                     raise ValueError(f"City Editor representation budget exceeded ({editor_bytes} bytes)")
             except ValueError as exc:
@@ -462,7 +462,7 @@ def main():
                     raise
                 error = str(exc)
                 continue
-            result, city_meta = trial, metadata
+            result, city_meta, encoded = trial, metadata, encoded_trial
             # Leave room for bounded source provenance and the atomic command.
             # Object merging alone can retain nearly every bend/vertex and
             # still overload native city cells. Prefer a candidate which also
@@ -517,7 +517,8 @@ def main():
         else:
             from overture_area import finish
         result = finish(result, overture_metadata)
-    encoded = result.encode()
+    if encoded is None:  # The selected city trial was encoded unchanged.
+        encoded = result.encode()
     event("write", 0, len(encoded))
     with args.output.open("xb") as stream:
         stream.write(encoded)
