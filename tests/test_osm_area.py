@@ -29,6 +29,48 @@ class CropTests(unittest.TestCase):
         # A courtyard that crosses both sides splits the output into two solids.
         polygon["geometry"]["coordinates"][1]=[[-.0005,.004],[.0105,.004],[.0105,.006],[-.0005,.006],[-.0005,.004]]
         result,_=run([polygon]); self.assertEqual(len(shape(result["features"][0]["geometry"]).geoms),2)
+    def test_region_clips_concave_areas_with_unique_cuts(self):
+        from shapely.geometry import Polygon
+        # L-shaped union: a road along y=.008 leaves and re-enters the region twice.
+        region = Polygon([(0,0),(.01,0),(.01,.01),(.006,.01),(.006,.004),(.004,.004),(.004,.01),(0,.01)])
+        road = dict(type="Feature", properties=dict(osm_way_id=7, osm_node_refs=[1,2], road_kind="ground"),
+                    geometry=dict(type="LineString", coordinates=[[-.001,.008],[.011,.008]]))
+        block = feature("Polygon",[[[.003,.007],[.007,.007],[.007,.009],[.003,.009],[.003,.007]]])
+        result, meta = crop(dict(type="FeatureCollection", features=[road, block]), [0,0,.01,.01], region=region, areas=[dict(source_id="relation/1", name="A")])
+        roads = [f for f in result["features"] if "osm_node_refs" in f["properties"]]
+        self.assertEqual([round(shape(f["geometry"]).length, 9) for f in roads], [.004, .004])
+        cuts = [r for f in roads for r in f["properties"]["osm_node_refs"]]
+        self.assertEqual(len(cuts), len(set(cuts)))
+        self.assertTrue(all(isinstance(r, str) and r.startswith("crop-0-0-") for r in cuts))
+        blocks = [shape(f["geometry"]) for f in result["features"] if "osm_node_refs" not in f["properties"]]
+        self.assertAlmostEqual(sum(b.area for b in blocks), .002*.001*2)
+        self.assertEqual((meta["region"], meta["areas"][0]["source_id"]), ("administrative-union-v1", "relation/1"))
+        # Ordinary roads keep their source identity when covered, and cut pieces are
+        # rejoined across area vertices rather than split per segment.
+        wavy = Polygon([(0,0)]+[(.001*i, .0001*(i%2)) for i in range(1,10)]+[(.01,0),(.01,.01),(0,.01)])
+        inside = dict(type="Feature", properties=dict(osm_source_id="way/9", _city_refs=[1,2,3], _city_ends=["1","3"]),
+                      geometry=dict(type="LineString", coordinates=[[.002,.005],[.004,.006],[.006,.005]]))
+        through = dict(type="Feature", properties=dict(osm_source_id="way/10", _city_refs=[4,5,6], _city_ends=["4","6"]),
+                       geometry=dict(type="LineString", coordinates=[[.002,-.002],[.002,.004],[.003,.008]]))
+        out, _ = crop(dict(type="FeatureCollection", features=[inside, through]), [0,-.01,.01,.01], region=wavy)
+        self.assertEqual(out["features"][0], inside)
+        self.assertEqual(len(out["features"]), 2)
+        self.assertEqual(out["features"][1]["properties"]["_city_ends"], [None, "6"])
+        # A boundary grazing a road's first vertex leaves a sub-centimetre sliver,
+        # which is a boundary contact rather than a road piece.
+        graze = Polygon([(0,0),(.01,0),(.01,.01),(.0020000005,.01),(.0020000005,.0060000005),(0,.0060000005)])
+        road = dict(type="Feature", properties=dict(osm_source_id="way/11", _city_refs=[7,8], _city_ends=["7","8"]),
+                    geometry=dict(type="LineString", coordinates=[[.002,.006],[.0005,.009]]))
+        _, meta = crop(dict(type="FeatureCollection", features=[road, inside]), [0,0,.01,.01], region=graze)
+        self.assertEqual((meta["counts"]["output_features"], meta["counts"]["boundary_contacts"]), (1, 1))
+        # A pinched boundary splits one park into two parts touching at a point.
+        pinch = Polygon([(0,0),(.01,0),(.005,.005),(.01,.01),(0,.01),(.005,.005)]).buffer(0)
+        park = feature("Polygon",[[[.004,.003],[.009,.003],[.009,.007],[.004,.007],[.004,.003]]])
+        parts, _ = crop(dict(type="FeatureCollection", features=[park]), [0,0,.01,.01], region=pinch)
+        self.assertEqual(len(parts["features"]), 2)
+        with self.assertRaisesRegex(ValueError, "do not overlap"):
+            crop(dict(type="FeatureCollection", features=[road]), [.02,.02,.03,.03], region=region)
+
     def test_empty_tangent_invalid_and_caps(self):
         with self.assertRaisesRegex(ValueError,"no supported"): run([feature("LineString",[[-.001,0],[0,0]])])
         with self.assertRaisesRegex(ValueError,"Invalid OSM"): run([feature("Polygon",[[[1,1],[2,2],[1,2],[2,1],[1,1]]])])

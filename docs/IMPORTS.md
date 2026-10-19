@@ -50,7 +50,8 @@ extent, counts, estimates and bounded warning samples are retained.
 
 Copernicus mosaics allow up to 256 cells of any aspect ratio, four source tiles,
 64 MiB combined source, 1025² total samples, 513 samples per cell side, 64 MiB
-output and a 120-second native deadline. **Use imported OSM coordinates and full
+output and a 120-second native deadline. DEM is optional: a multi-district region
+beyond these limits is refused with that explanation and keeps its flat terrain. **Use imported OSM coordinates and full
 map extent** copies the imported frame, selects all cells and uses 4 m map spacing
 when the grid allows.
 
@@ -71,9 +72,14 @@ outlines (≤32 matches, 200,000 references, 20,000 display points); missing out
 geometry is reported, never guessed.
 
 Selecting a result fills outward-rounded W/S/E/N fields and centres the WGS84
-origin. Click the diagram to move the origin or drag a rectangle; the origin maps
-to the map centre after 1:8 adoption. The rectangle includes territory outside the
-named boundary. Manual coordinates remain available. On macOS the in-app file
+origin. **Add selected area** combines up to eight results (for example neighbouring
+districts): the fields become their combined extent and the PBF streaming import
+clips to the exact union of their boundaries, read from the same captured PBF
+(`--osm-areas`, crop `region` `administrative-union-v1` with the area IDs and names in
+the receipt). Missing or open boundaries, or areas outside the rectangle, reject the
+import. Click the diagram to move the origin or drag a rectangle; dragging returns
+to a plain rectangle crop, which includes territory outside the named boundary. The
+origin maps to the map centre after 1:8 adoption. Manual coordinates remain available. On macOS the in-app file
 chooser is used because the system Open panel can leave confirmation disabled.
 
 **Review and exclude unsupported source objects** is an explicit PBF option.

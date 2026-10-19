@@ -144,7 +144,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     if ground_refs and ground_refs[offset]: node_id = f"import-{layer.layer_id}-osm-ground-node-{ground_refs[offset]}"
                     record = {"id": node_id, "position": p, "level": int(level)}
                     if node_id in graph_nodes and graph_nodes[node_id] != record:
-                        raise ValueError("OSM shared node has conflicting geometry")
+                        raise ValueError(f"OSM shared node has conflicting geometry: {node_id} at {graph_nodes[node_id]['position']} and {record['position']}")
                     if node_id not in graph_nodes:
                         layer.add("nodes", record)
                         graph_nodes[node_id] = record
@@ -292,6 +292,7 @@ def main():
     parser.add_argument("--osm-bbox", nargs=4, type=float)
     parser.add_argument("--osm-stream", action="store_true")
     parser.add_argument("--osm-city", action="store_true")
+    parser.add_argument("--osm-areas", nargs="+", type=int)
     parser.add_argument("--osm-review-exclusions", action="store_true")
     parser.add_argument("--vertical-request", type=Path)
     parser.add_argument("--height-supplement", type=Path)
@@ -306,6 +307,8 @@ def main():
         raise ValueError("PBF streaming requires PBF input and an explicit bbox")
     if args.osm_review_exclusions and not args.osm_stream:
         raise ValueError("Object exclusion review requires PBF streaming")
+    if args.osm_areas and not args.osm_stream:
+        raise ValueError("Administrative area crops require PBF streaming")
     if args.osm_city and not args.osm_stream:
         raise ValueError("Automatic city optimization requires PBF streaming")
     from osm_review import Review
@@ -338,6 +341,7 @@ def main():
     osm_counts = None
     overture_metadata = None
     osm_stream = None
+    region = None
     captured_source = None
     vertical = None
     if args.input_format == "csv":
@@ -367,7 +371,8 @@ def main():
             raise ValueError("OSM attribution must retain OpenStreetMap contributors and ODbL-1.0")
         if args.osm_stream:
             from osm_stream import extract
-            value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event,supplement,review,city=args.osm_city)
+            value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event,supplement,review,city=args.osm_city,areas=args.osm_areas)
+            region = osm_stream.pop("_region", None)
             captured_source = Source(args.source_name or args.source.name, osm_stream["source_sha256"], osm_stream["source_bytes"], args.license, args.accuracy)
         else:
             value, osm_counts = parse(raw, args.input_format, supplement)
@@ -379,9 +384,9 @@ def main():
             from osm_area import crop
             if args.osm_city:
                 from osm_stream import CITY_FEATURES, CITY_POINTS
-                value, osm_crop = crop(value, args.osm_bbox, feature_limit=CITY_FEATURES, point_limit=CITY_POINTS)
+                value, osm_crop = crop(value, args.osm_bbox, feature_limit=CITY_FEATURES, point_limit=CITY_POINTS, region=region, areas=osm_stream.get("areas"))
             else:
-                value, osm_crop = crop(value, args.osm_bbox)
+                value, osm_crop = crop(value, args.osm_bbox, region=region, areas=osm_stream.get("areas") if osm_stream else None)
     parse_bytes = osm_stream["selected"]["bytes"] if osm_stream else size
     event("parse", parse_bytes, parse_bytes)
     options = {"mode": args.coordinates}
@@ -424,6 +429,8 @@ def main():
                 trial.coordinates["osm_crop"] = trial_crop
                 trial = finish(trial, osm_counts)
                 trial.warning(f"Automatic city optimization at 1:8: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Gap filling up to {metadata['gap_m']} source metres; inspect approximated blocks and heights.")
+                if len(osm_stream.get("areas", [])) > 1:
+                    trial.warning(f"Combined {len(osm_stream['areas'])} administrative areas at their exact boundaries. DEM terrain is optional; Copernicus tiles beyond 64 MiB, four tiles or 1025² samples are refused and the map stays flat.")
                 trial.warning("City source-block indexing retains complete selected ways, relation members and source graph closure. Original PBF hash, every retained source ID and output mapping are preserved; unsupported exclusions are separate. Crop ends are artificial; no bridge/tunnel heights are inferred.")
                 encoded_trial = trial.encode()
                 # Godot's JSON representation includes separator spaces. Its

@@ -117,6 +117,11 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 			if not _finite(bbox[i], -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84): return "Invalid OSM crop coordinate."
 		if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]: return "Invalid OSM crop size."
 		if not requested.is_empty() and JSON.stringify(bbox) != JSON.stringify(requested.get("osm_bbox")): return "OSM crop selection changed."
+		if requested.has("osm_areas") or crop.has("region"):
+			var expected: Array = requested.get("osm_areas", []).map(func(id): return "relation/%d" % int(id))
+			var areas: Variant = crop.get("areas")
+			if crop.get("region") != "administrative-union-v1" or areas is not Array or areas.is_empty() or areas.size() > 8: return "Invalid administrative area crop."
+			if not requested.is_empty() and areas.map(func(a): return a.get("source_id") if a is Dictionary else null) != expected: return "OSM crop areas changed."
 		if crop.get("counts") is not Dictionary: return "Invalid OSM crop counts."
 		for key in ["input_features", "outside_features", "changed_features", "output_features", "boundary_contacts"]:
 			if not _count(crop.counts.get(key), 250000 if city else 200000): return "Invalid OSM crop count."

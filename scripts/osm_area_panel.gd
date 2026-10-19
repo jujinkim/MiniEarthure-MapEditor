@@ -17,6 +17,9 @@ var source_path: LineEdit
 var place_choices: OptionButton
 var place_status: Label
 var places: Array = []
+## Places whose exact boundary union clips the import (empty: rectangle crop).
+var selected_areas: Array = []
+const MAX_AREAS := 8
 var source_dialog: FileDialog
 const PLACES_JOB := preload("./pbf_places_job.gd")
 
@@ -57,15 +60,20 @@ func setup(owner_ui: Control) -> void:
 		source_path.text = path
 		changed()
 		places.clear()
+		selected_areas.clear()
 		place_choices.clear()
 		area.set_places([])
 		place_status.text = I18N.t("PBF selected. Enter the administrative area name and press Find area by name.")
 		if guided: dialog.popup_centered(Vector2i(840,680))
 	)
 	ui.add_child(source_dialog)
+	var choice_row := HBoxContainer.new()
+	layout.add_child(choice_row)
 	place_choices = OptionButton.new()
 	place_choices.item_selected.connect(select_place)
-	layout.add_child(place_choices)
+	place_choices.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	choice_row.add_child(place_choices)
+	ui._button(choice_row,"Add selected area",add_place).custom_minimum_size.x = 180
 	place_status = ui._label(layout,"Search reads the local PBF only; no login or online geocoding. Original files stay unchanged.")
 	enabled = CheckBox.new()
 	enabled.text = I18N.t("Crop OSM PBF/XML during import (source stays unchanged)")
@@ -92,6 +100,7 @@ func setup(owner_ui: Control) -> void:
 	area.custom_minimum_size.y = 220
 	layout.add_child(area)
 	area.bounds_selected.connect(func(b: Array):
+		selected_areas.clear()
 		for i in range(4): fields[i].value = b[i]
 		set_origin(Vector2((b[0]+b[2])*0.5,(b[1]+b[3])*0.5))
 	)
@@ -101,11 +110,12 @@ func setup(owner_ui: Control) -> void:
 	ui._button(actions,"Fit coordinates",func(): area.toggle_fit()).custom_minimum_size.x = 220
 	ui._button(actions,"Area at import origin",func():
 		var b := [ui.import_origin_lon.value,ui.import_origin_lat.value,ui.import_origin_lon.value+0.001,ui.import_origin_lat.value+0.001]
+		selected_areas.clear()
 		for i in range(4): fields[i].value = b[i]
 		area.toggle_fit()
 	).custom_minimum_size.x = 240
 	status = ui._label(layout,"")
-	ui._label(layout,"© OpenStreetMap contributors · ODbL · openstreetmap.org/copyright\nBoundary preview is simplified; the crop is a rectangle and includes surrounding areas.\nClick the map to place the origin at your current map centre; drag to choose a crop.")
+	ui._label(layout,"© OpenStreetMap contributors · ODbL · openstreetmap.org/copyright\nSelected areas clip to their exact boundaries (the preview is simplified); a dragged crop is a rectangle and includes surrounding areas.\nClick the map to place the origin at your current map centre; drag to choose a crop.")
 	for child in layout.get_children():
 		if child is Label: child.custom_minimum_size.x = 780
 	for field in fields: field.value_changed.connect(func(_v): changed())
@@ -191,15 +201,39 @@ func select_place(index: int) -> void:
 	if index < 0 or index >= places.size(): return
 	var place: Dictionary = places[index]
 	if place.issue != "": place_status.text = place.issue; return
-	var b: Array = place.bbox
+	selected_areas = [place]
+	_fit_areas()
+	place_status.text = I18N.t("%s · source %s. Drag for another crop, or click to move its projection origin.") % [place.name,place.source_id]
+	ui._status(place_status.text)
+
+## Adds the chosen place to the union; the rectangle becomes their combined extent.
+func add_place() -> void:
+	var index := place_choices.selected
+	if index < 0 or index >= places.size(): return
+	var place: Dictionary = places[index]
+	if place.issue != "": place_status.text = place.issue; return
+	if selected_areas.any(func(p): return p.source_id == place.source_id): return
+	if selected_areas.size() >= MAX_AREAS:
+		place_status.text = I18N.t("At most %d areas can be combined.") % MAX_AREAS
+		return
+	selected_areas.append(place)
+	_fit_areas()
+	place_status.text = I18N.t("Combined areas: %s. The crop follows their exact boundaries.") % ", ".join(selected_areas.map(func(p): return str(p.name)))
+	ui._status(place_status.text)
+
+func area_ids() -> Array:
+	return selected_areas.map(func(p): return int(str(p.source_id).trim_prefix("relation/")))
+
+func _fit_areas() -> void:
+	var b: Array = selected_areas[0].bbox.duplicate()
+	for place: Dictionary in selected_areas:
+		b = [minf(b[0],place.bbox[0]),minf(b[1],place.bbox[1]),maxf(b[2],place.bbox[2]),maxf(b[3],place.bbox[3])]
 	# Round outward to the UI precision so a boundary is never clipped by rounding.
 	for i in range(4): fields[i].value = (floorf(b[i]*1000000.0) if i < 2 else ceilf(b[i]*1000000.0))/1000000.0
 	enabled.button_pressed = true
 	streaming.button_pressed = true
 	set_origin(Vector2((b[0]+b[2])*0.5,(b[1]+b[3])*0.5))
 	area.toggle_fit()
-	place_status.text = I18N.t("%s · source %s. Drag for another crop, or click to move its projection origin.") % [place.name,place.source_id]
-	ui._status(place_status.text)
 
 func set_origin(point: Vector2) -> void:
 	ui.import_source_format.select(1)

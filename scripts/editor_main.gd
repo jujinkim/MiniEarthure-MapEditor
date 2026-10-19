@@ -1530,6 +1530,7 @@ func _start_import(source: String, license_name: String) -> void:
 			_status(I18N.diagnostic(osm_panel.error()))
 			return
 		import_coordinates_request.osm_bbox = osm_panel.bbox()
+		if not osm_panel.selected_areas.is_empty() and osm_panel.streaming.button_pressed: import_coordinates_request.osm_areas = osm_panel.area_ids()
 		if osm_panel.exclusions.button_pressed: import_coordinates_request.osm_review_exclusions = true
 	if input_format == "csv": import_coordinates_request.csv = csv_panel.capture()
 	import_coordinates_request.adapter = "facility-csv-v1" if input_format == "csv" else "overture-land-cover-v1" if input_format == "overture-land-cover" else "overture-transportation-v1" if input_format == "overture-transportation" else "overture-buildings-v1" if input_format == "overture" else ("geojson-v1" if input_format == "geojson" else "osm-extract-v1")

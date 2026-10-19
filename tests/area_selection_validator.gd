@@ -25,6 +25,18 @@ func run() -> void:
 	check(ui.osm_panel.error() == "","city bbox uses projection/object budgets rather than a degree-size cap")
 	ui.osm_panel.fields[2].value = 8.0
 	check(ui.osm_panel.error().contains("west"),"reversed or crossing box rejected")
+	# Combined administrative areas: union extent rounded outward, exact-boundary IDs.
+	ui.osm_panel.places = [{"name":"West","admin_level":"8","source_id":"relation/11","issue":"","bbox":[9.0,55.0,9.0004,55.0004],"outlines":[]},
+		{"name":"East","admin_level":"8","source_id":"relation/12","issue":"","bbox":[9.0003,55.0001,9.0009999,55.0005995],"outlines":[]}]
+	for place: Dictionary in ui.osm_panel.places: ui.osm_panel.place_choices.add_item(place.name)
+	ui.osm_panel.select_place(0)
+	ui.osm_panel.place_choices.select(1)
+	ui.osm_panel.add_place()
+	ui.osm_panel.add_place()
+	check(ui.osm_panel.area_ids() == [11,12],"two distinct areas combine once each")
+	check(ui.osm_panel.bbox() == [9.0,55.0,9.001,55.0006],"combined extent rounds outward")
+	ui.osm_panel.select_place(0)
+	check(ui.osm_panel.area_ids() == [11],"choosing one area restarts the combination")
 	ui.osm_panel.fields[2].value = 9.001
 	await process_frame
 	var area: Control = ui.osm_panel.area
@@ -40,6 +52,7 @@ func run() -> void:
 	var selected: Array = ui.osm_panel.bbox()
 	check(selected[0] < selected[2] and selected[1] < selected[3],"reverse drag normalizes W/S/E/N")
 	check(selected != bounds and area.bounds == selected,"drag updates numeric fields and diagram")
+	check(ui.osm_panel.selected_areas.is_empty(),"a dragged crop returns to a plain rectangle")
 	var revision: int = ui.osm_panel.revision
 	ui.osm_panel.fields[0].value += 0.000001
 	ui.osm_panel.fields[0].value -= 0.000001

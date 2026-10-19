@@ -21,54 +21,133 @@ def segment_interval(a, b, selected):
     return (lo, hi) if lo < hi and a != b else None
 
 
-def explicit_parts(feature, selected, identity):
+def region_intervals(a, b, region):
+    """Ordered source-parameter intervals of segment a→b inside a polygonal region.
+
+    Cut points are the exact GEOS intersection coordinates; touching points carry
+    no length and are not intervals.
+    """
+    import shapely
+    from shapely.geometry import LineString
+    if a == b: return []
+    segment = LineString([a, b])
+    # `region` is prepared by the caller; most segments are wholly in or out.
+    if shapely.covers(region, segment): return [(0.0, 1.0, None, None)]
+    if not shapely.intersects(region, segment): return []
+    dx, dy = b[0]-a[0], b[1]-a[1]
+    length = dx*dx + dy*dy
+    found = []
+    pieces = segment.intersection(region)
+    for piece in getattr(pieces, "geoms", [pieces]):
+        if piece.geom_type != "LineString" or piece.length == 0: continue
+        ends = [list(piece.coords[0]), list(piece.coords[-1])]
+        t = [min(1.0, max(0.0, ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / length)) for p in ends]
+        if t[0] > t[1]: t, ends = t[::-1], ends[::-1]
+        found.append((t[0], t[1], ends[0], ends[1]))
+    found.sort(key=lambda v: v[0])
+    merged = []
+    for item in found:
+        if merged and item[0] <= merged[-1][1]: merged[-1] = (merged[-1][0], max(merged[-1][1], item[1]), merged[-1][2], item[3] if item[1] >= merged[-1][1] else merged[-1][3])
+        else: merged.append(item)
+    return [(lo, hi, (pa if lo > 0 else None), (pb if hi < 1 else None)) for lo, hi, pa, pb in merged if lo < hi]
+
+
+# A region cut shorter than one 1:8 map centimetre (8 source cm) has no drivable
+# length; like a point contact it is a boundary contact, not a road piece.
+MIN_REGION_PIECE_M = 0.08
+
+
+def geographic_length_m(points):
+    import math
+    total = 0.0
+    for a, b in zip(points, points[1:]):
+        scale = math.cos(math.radians((a[1]+b[1])/2))
+        total += math.hypot((b[0]-a[0])*scale, b[1]-a[1]) * 111_320
+    return total
+
+
+def region_line_parts(coordinates, region):
+    """Pieces of a polyline inside `region`, keeping every source vertex exact.
+
+    Only the cut points come from GEOS; whole-line overlay could snap original
+    vertices and separate shared source nodes by centimetres.
+    """
+    pieces, current = [], None
+    for a, b in zip(coordinates, coordinates[1:]):
+        intervals = region_intervals(a, b, region)
+        if not intervals and current is not None:
+            pieces.append(current)
+            current = None
+        for lo, hi, cut_in, cut_out in intervals:
+            if lo > 0 and current is not None:
+                pieces.append(current)
+                current = None
+            if current is None: current = [list(a) if lo == 0 else list(cut_in)]
+            current.append(list(b) if hi == 1 else list(cut_out))
+            if hi < 1:
+                pieces.append(current)
+                current = None
+    if current is not None: pieces.append(current)
+    return [piece for piece in pieces if geographic_length_m(piece) >= MIN_REGION_PIECE_M]
+
+
+def explicit_parts(feature, selected, identity, region=None):
     """Clip in source traversal order; never join separate visits to the window.
 
     Heights interpolate only between two supplied node elevations. Synthetic cut
     IDs are local to this feature/segment; position equality is not connectivity.
+    A polygonal `region` (rectangle ∩ selected areas) may cut one segment more than
+    once; its cut IDs also carry the interval number.
     """
     p = feature["properties"]
     coordinates, refs = feature["geometry"]["coordinates"], p["osm_node_refs"]
     heights = p.get("elevations_m")
+
+    def endpoint(a, b, index, t, side, cut, number):
+        if t == 0: return list(a), refs[index], heights[index] if heights is not None else None
+        if t == 1: return list(b), refs[index+1], heights[index+1] if heights is not None else None
+        height = heights[index]+t*(heights[index+1]-heights[index]) if heights is not None else None
+        if cut is not None: return list(cut), f"crop-{identity}-{index}-{number}-{side}", height
+        point = [max(selected[k], min(selected[k+2], a[k]+t*(b[k]-a[k]))) for k in range(2)]
+        # Preserve the selected boundary exactly (including corner ties),
+        # rather than retaining cancellation error from a + t * delta.
+        for axis in range(2):
+            if b[axis] != a[axis]:
+                for boundary in (selected[axis], selected[axis+2]):
+                    if t == (boundary-a[axis])/(b[axis]-a[axis]): point[axis] = boundary
+        return point, f"crop-{identity}-{index}-{side}", height
+
     current = None
     for index, (a, b) in enumerate(zip(coordinates, coordinates[1:])):
         if a == b:
             raise ValueError("OSM explicit crop has a zero-length source segment")
-        interval = segment_interval(a, b, selected)
-        if interval is None:
-            if current is not None:
-                yield current, span
-                current = None
-            continue
-        lo, hi = interval
-
-        def endpoint(t, side):
-            if t == 0: return list(a), refs[index], heights[index] if heights is not None else None
-            if t == 1: return list(b), refs[index+1], heights[index+1] if heights is not None else None
-            point = [max(selected[k], min(selected[k+2], a[k]+t*(b[k]-a[k]))) for k in range(2)]
-            # Preserve the selected boundary exactly (including corner ties),
-            # rather than retaining cancellation error from a + t * delta.
-            for axis in range(2):
-                if b[axis] != a[axis]:
-                    for boundary in (selected[axis], selected[axis+2]):
-                        if t == (boundary-a[axis])/(b[axis]-a[axis]): point[axis] = boundary
-            return point, f"crop-{identity}-{index}-{side}", heights[index]+t*(heights[index+1]-heights[index]) if heights is not None else None
-
-        start, end = endpoint(lo, "in"), endpoint(hi, "out")
-        if current is None:
-            span = [index + lo, index + hi]
-            current = dict(type="Feature", properties=dict(p, osm_node_refs=[start[1]]),
-                           geometry=dict(type="LineString", coordinates=[start[0]]))
-            if heights is not None: current["properties"]["elevations_m"] = [start[2]]
-            if "osm_loop_range" in p: current["properties"]["osm_loop_range"] = [p["osm_loop_range"][0]+span[0],0]
-        span[1] = index + hi
-        current["geometry"]["coordinates"].append(end[0])
-        current["properties"]["osm_node_refs"].append(end[1])
-        if heights is not None: current["properties"]["elevations_m"].append(end[2])
-        if "osm_loop_range" in p: current["properties"]["osm_loop_range"][1] = p["osm_loop_range"][0]+span[1]
-        if hi < 1:
+        if region is None:
+            interval = segment_interval(a, b, selected)
+            intervals = [] if interval is None else [(*interval, None, None)]
+        else:
+            intervals = region_intervals(a, b, region)
+        if not intervals and current is not None:
             yield current, span
             current = None
+        for number, (lo, hi, cut_in, cut_out) in enumerate(intervals):
+            if lo > 0 and current is not None:
+                yield current, span
+                current = None
+            start, end = endpoint(a, b, index, lo, "in", cut_in, number), endpoint(a, b, index, hi, "out", cut_out, number)
+            if current is None:
+                span = [index + lo, index + hi]
+                current = dict(type="Feature", properties=dict(p, osm_node_refs=[start[1]]),
+                               geometry=dict(type="LineString", coordinates=[start[0]]))
+                if heights is not None: current["properties"]["elevations_m"] = [start[2]]
+                if "osm_loop_range" in p: current["properties"]["osm_loop_range"] = [p["osm_loop_range"][0]+span[0],0]
+            span[1] = index + hi
+            current["geometry"]["coordinates"].append(end[0])
+            current["properties"]["osm_node_refs"].append(end[1])
+            if heights is not None: current["properties"]["elevations_m"].append(end[2])
+            if "osm_loop_range" in p: current["properties"]["osm_loop_range"][1] = p["osm_loop_range"][0]+span[1]
+            if hi < 1:
+                yield current, span
+                current = None
     if current is not None: yield current, span
 
 
@@ -91,7 +170,9 @@ def projected_bounds(value, coordinates):
     return [w,s,e,n]
 
 
-def crop(collection, selected, *, feature_limit=20_000, point_limit=None):
+def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region=None, areas=None):
+    """Clip to the rectangle, or to rectangle ∩ `region` (the exact union of selected
+    administrative boundaries, `areas` naming them) when one is given."""
     selected = bounds(selected)
     point_limit = MAX_POINTS if point_limit is None else point_limit
     if version("shapely") != "2.1.2":
@@ -99,6 +180,10 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None):
     import shapely
     from shapely.geometry import shape, mapping
     window = shapely.box(*selected)
+    if region is not None:
+        window = shapely.make_valid(window.intersection(region))
+        if window.is_empty or window.area == 0: raise ValueError("Selected areas do not overlap the crop rectangle")
+        shapely.prepare(window)
     output, budget = [], SpatialBudget() if feature_limit > 20000 else Budget()
     counts = dict(input_features=len(collection["features"]), outside_features=0, changed_features=0, output_features=0, boundary_contacts=0)
     points = 0
@@ -149,7 +234,10 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None):
                 spans = [[0, len(p["osm_node_refs"])-1]]
             else:
                 spans = []
-                for part, span in explicit_parts(feature, selected, index):
+                for part, span in explicit_parts(feature, selected, index, window if region is not None else None):
+                    if region is not None and geographic_length_m(part["geometry"]["coordinates"]) < MIN_REGION_PIECE_M:
+                        counts["boundary_contacts"] += 1
+                        continue
                     append(part)
                     spans.append(span)
                 if len(output) > before:
@@ -166,8 +254,17 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None):
                 counts["boundary_contacts"] += source.intersects(window)
                 if "elevations_m" in p: vertical_counts["outside_explicit_features"] += 1
             continue
-        clipped = source.intersection(window)
         expected = "LineString" if source.geom_type == "LineString" else "Polygon"
+        if region is not None and window.covers(source):
+            # GEOS overlay against a many-vertex area may node a covered line at
+            # every vertex; a covered source keeps its exact geometry instead.
+            clipped = source
+        elif region is not None and expected == "LineString":
+            pieces = region_line_parts(feature["geometry"]["coordinates"], window)
+            clipped = shapely.MultiLineString(pieces)
+            if not pieces and source.intersects(window): counts["boundary_contacts"] += 1
+        else:
+            clipped = source.intersection(window)
         geometries = parts(clipped, expected)
         if not geometries:
             counts["outside_features"] += 1
@@ -175,9 +272,16 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None):
         counts["changed_features"] += not source.equals(clipped)
         if expected == "Polygon":
             # Shared normalizer retains holes, islands and stable part ordering.
-            polygons = group_rings([list(map(list, g.exterior.coords)) for g in geometries],
-                [list(map(list, ring.coords)) for g in geometries for ring in g.interiors], budget)
-            geometries_json = [dict(type="MultiPolygon", coordinates=polygons)]
+            def grouped(items):
+                return dict(type="MultiPolygon", coordinates=group_rings([list(map(list, g.exterior.coords)) for g in items],
+                    [list(map(list, ring.coords)) for g in items for ring in g.interiors], budget))
+            try:
+                geometries_json = [grouped(geometries)]
+            except ValueError as exc:
+                # A concave area boundary can pinch one source into parts that touch
+                # at a point; keep them as separate features instead of joining them.
+                if region is None or "touch" not in str(exc): raise
+                geometries_json = [grouped([g]) for g in geometries]
         else:
             geometries_json = [json.loads(json.dumps(mapping(g))) for g in geometries]
         for geometry in geometries_json:
@@ -197,7 +301,7 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None):
     for feature in output:
         p = feature["properties"]
         if p.get("road_kind") in ("bridge", "tunnel") and any(ref in source_ground_refs and ref not in ground_ends for ref in (p["osm_node_refs"][0], p["osm_node_refs"][-1])):
-            raise ValueError("OSM crop removes a required nonzero explicit-height ground approach; expand bbox")
+            raise ValueError("OSM crop removes a required nonzero explicit-height ground approach; expand bbox or add the neighbouring area")
     if not output: raise ValueError("OSM bbox contains no supported nonzero geometry")
     retained_connection_ends = Counter(str(ref) for f in output
         if f["properties"].get("road_kind") in ("bridge", "tunnel")
@@ -206,6 +310,7 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None):
         if 0 < retained_connection_ends[entry["ref"]] < len(entry.get("source_arms", [None, None]))}
     counts["output_features"] = len(output)
     meta = dict(bbox=selected, policy="geometry-intersection-v1", shapely="2.1.2", geos=shapely.geos_version_string, counts=counts)
+    if region is not None: meta.update(region="administrative-union-v1", areas=list(areas or []), region_area_deg2=window.area)
     # A source vertex cut is also a section end when its other source-way arm
     # was removed. Retained original junctions continue to use their own ID.
     retained_ends = Counter((f["properties"]["osm_way_id"], ref) for f in output

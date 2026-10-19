@@ -11,6 +11,8 @@ import time
 import zlib
 from import_layer import number, strict_json
 from projection import Coordinates
+# DEM is optional: a region beyond these limits keeps its flat terrain.
+KEEP_FLAT = "; the map keeps its flat terrain (DEM is optional for multi-district regions)"
 
 MAX_SOURCE = 64 * 1024 * 1024
 LICENSE_URL = "https://copernicus-dem-30m.s3.amazonaws.com/readme.html#license"
@@ -76,7 +78,7 @@ def identity(path):
     with path.open("rb") as stream:
         while chunk := stream.read(65536):
             count += len(chunk)
-            if count > MAX_SOURCE: raise ValueError("DEM source exceeds 64 MiB")
+            if count > MAX_SOURCE: raise ValueError("DEM source exceeds 64 MiB" + KEEP_FLAT)
             digest.update(chunk)
     if not count: raise ValueError("Empty DEM")
     return {"bytes":count, "sha256":digest.hexdigest()}
@@ -134,11 +136,11 @@ def mosaic_grid(options):
     if not isinstance(counts, list) or len(counts) != 2:
         raise ValueError("DEM cell_count must be [columns, rows]")
     nx, ny = [integer(v, "cell count", 1, MAX_MOSAIC_CELLS) for v in counts]
-    if nx * ny > MAX_MOSAIC_CELLS: raise ValueError("DEM exceeds 256 candidate cells")
+    if nx * ny > MAX_MOSAIC_CELLS: raise ValueError("DEM exceeds 256 candidate cells" + KEEP_FLAT)
     size = integer(base["cell_size_cm"], "cell size", 200, 102400)
     spacing = integer(base["spacing_cm"], "spacing", 200, size)
     sample_count = nx * ny * (size // spacing + 1) ** 2
-    if sample_count > MAX_MOSAIC_SAMPLES: raise ValueError("DEM mosaic sample budget exceeded")
+    if sample_count > MAX_MOSAIC_SAMPLES: raise ValueError("DEM mosaic sample budget exceeded" + KEEP_FLAT)
     cells, points = [], []
     for y in range(ny):
         for x in range(nx):
@@ -152,7 +154,7 @@ def mosaic_grid(options):
     west, east = math.floor(min(p[0] for p in flat)), math.floor(max(p[0] for p in flat)+1/120)
     south, north = math.floor(min(p[1] for p in flat)-1/1200), math.floor(max(p[1] for p in flat))
     tiles = [[x,y] for y in range(south,north+1) for x in range(west,east+1)]
-    if len(tiles) > MAX_MOSAIC_SOURCES: raise ValueError("DEM supports at most four source tiles including interpolation support")
+    if len(tiles) > MAX_MOSAIC_SOURCES: raise ValueError("DEM supports at most four source tiles including interpolation support" + KEEP_FLAT)
     return coordinates, side, cells, points, tiles, zero
 
 
@@ -171,7 +173,7 @@ def plan(options):
         source = dict(identity(local_source(path)), path=str(path))
         sources.append(dict(tile=tile,resolution_m=resolution,fallback90=fallback,source=source,notice=NOTICE.format(resolution=resolution)))
     if sum(s["source"]["bytes"] for s in sources) > MAX_SOURCE:
-        raise ValueError("Combined DEM sources exceed 64 MiB")
+        raise ValueError("Combined DEM sources exceed 64 MiB" + KEEP_FLAT)
     flat = [p for group in groups for p in group]
     return dict(adapter="copernicus-dem-v1",release="2021",license=LICENSE_URL,
                 vertical_crs="EPSG:3855 / EGM2008 metres",surface="DSM including buildings and vegetation; not bare-earth DTM",

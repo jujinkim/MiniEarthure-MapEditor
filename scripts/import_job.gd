@@ -55,6 +55,9 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		progress_limit = 2 * 1024 * 1024 * 1024
 		timeout_seconds = 900
 		stages = ["read", "index_nodes", "index_ways", "index_relations", "select", "parse", "convert", "write", "complete"]
+	if coordinates.has("osm_areas") and streaming:
+		# Exact area boundaries are read from the captured source before indexing.
+		for stage in ["region_nodes", "region_ways", "region_relations"]: stages.insert(stages.find("read") + 1, stage)
 	if coordinates.get("osm_city", false):
 		if not streaming: return "Automatic city optimization requires PBF streaming."
 		stages.insert(stages.find("convert"), "optimize")
@@ -84,6 +87,12 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 			return "OSM crop requires four coordinates and an OSM source."
 		arguments.append("--osm-bbox")
 		for value in coordinates.osm_bbox: arguments.append(JSON.stringify(value, "", false, true))
+	if coordinates.has("osm_areas"):
+		if not coordinates.has("osm_stream") or coordinates.osm_areas is not Array or coordinates.osm_areas.is_empty() or coordinates.osm_areas.size() > 8:
+			cleanup()
+			return "Administrative area crops need PBF streaming and 1–8 areas."
+		arguments.append("--osm-areas")
+		for value in coordinates.osm_areas: arguments.append(str(int(value)))
 	if coordinates.has("csv"):
 		if input_format != "csv": cleanup(); return "CSV mapping requires CSV input."
 		var csv_path := directory.path_join("csv.json")

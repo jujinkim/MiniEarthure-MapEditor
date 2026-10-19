@@ -255,7 +255,9 @@ def _structure_closure(db, event, size, read_way=None):
                 ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits, **(dict(loops=loops) if loops else {}))
 
 
-def extract(source, selected, directory, event=lambda *a: None, supplement=None, review=None, *, city=False):
+def extract(source, selected, directory, event=lambda *a: None, supplement=None, review=None, *, city=False, areas=None):
+    """`areas` (relation IDs) resolve their exact boundary union from the same captured
+    bytes; it is returned as `meta["_region"]` for the crop and never stored."""
     review = review or Review()
     selected = bounds(selected)
     source, directory = Path(source), Path(directory)
@@ -270,6 +272,13 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         size, digest = _capture(source, directory, event)
         path = directory / "source.pbf"
         osmium = dependency()
+        region = None
+        if areas:
+            from pbf_places import region as boundary_region
+            region, area_meta = boundary_region(path, areas, osmium, event)
+            w, s_, e, n = region.bounds
+            if w < selected[0] or s_ < selected[1] or e > selected[2] or n > selected[3]:
+                raise ValueError("Selected areas extend beyond the crop rectangle; use their combined extent")
         db = sqlite3.connect(directory / "source-index.sqlite")
         db.executescript(f"""
             PRAGMA page_size=4096;
@@ -527,6 +536,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         meta = dict(profile=PROFILE,passes=3,source_bytes=size,source_sha256=digest,
                     scan=totals,structure_closure=closure,selected=dict(nodes=len(nodes),ways=len(all_ways),relations=len(relations),references=selected_refs,bytes=selection_bytes))
         if city: meta.update(index_policy="source-block-pointers-v1", resolved_way_blocks=resolved_blocks)
+        if region is not None: meta.update(areas=area_meta, _region=region)
         return value, counts, meta
     except (sqlite3.Error, RuntimeError, zlib.error) as exc:
         raise ValueError("invalid/budget-exceeding PBF stream: " + str(exc)[:300]) from exc

@@ -112,6 +112,73 @@ def lookup(source, query, directory, event=lambda *args: None):
             (directory / name).unlink(missing_ok=True)
 
 
+MAX_REGION_AREAS = 8
+
+
+def region(path, relation_ids, osmium, event=lambda *args: None):
+    """Exact union of selected administrative boundaries in an already captured PBF.
+
+    Outer ways are polygonized as recorded; inner ways are removed. Missing or
+    open boundaries reject the request instead of guessing an extent.
+    """
+    import shapely
+    from shapely.geometry import LineString
+    from shapely.ops import polygonize, unary_union
+    wanted = [int(v) for v in relation_ids]
+    if not wanted or len(wanted) > MAX_REGION_AREAS or len(set(wanted)) != len(wanted) or any(v <= 0 for v in wanted):
+        raise ValueError(f"Choose 1–{MAX_REGION_AREAS} distinct administrative areas")
+    path = Path(path)
+    size = path.stat().st_size
+    found, ways, nodes, references = {}, {}, {}, 0
+
+    def relation(entity):
+        nonlocal references
+        if entity.id not in wanted: return
+        if entity.tags.get("boundary") != "administrative": raise ValueError(f"relation/{entity.id} is not an administrative boundary")
+        members = []
+        for member in entity.members:
+            if member.role not in ("outer", "inner", ""): continue
+            if member.type != "w": raise ValueError(f"relation/{entity.id}: nested boundary members are unsupported")
+            members.append((member.ref, member.role or "outer"))
+            references += 1
+            if references > MAX_REFS: raise ValueError("PBF boundary reference budget exceeded")
+        found[entity.id] = dict(name=next((entity.tags.get(k) for k in ("name", "name:ko", "name:en") if entity.tags.get(k)), "")[:256], members=members)
+        ways.update((ref, None) for ref, _ in members)
+
+    def way(entity):
+        nonlocal references
+        if entity.id not in ways: return
+        references += len(entity.nodes)
+        if references > MAX_REFS: raise ValueError("PBF boundary reference budget exceeded")
+        ways[entity.id] = [node.ref for node in entity.nodes]
+        nodes.update((ref, None) for ref in ways[entity.id])
+
+    def node(entity):
+        if entity.id not in nodes: return
+        if not entity.location.valid(): raise ValueError("Invalid boundary node")
+        nodes[entity.id] = (entity.lon, entity.lat)
+
+    for stage, bits, callback, ids in (("region_relations", osmium.osm.RELATION, relation, wanted), ("region_ways", osmium.osm.WAY, way, ways), ("region_nodes", osmium.osm.NODE, node, nodes)):
+        _scan(path, stage, event, size, osmium, bits, callback, osmium.filter.IdFilter(ids) if ids else None)
+    areas, parts = [], []
+    for identity in wanted:
+        if identity not in found: raise ValueError(f"relation/{identity} is missing from this PBF")
+        entry = found[identity]
+        lines = {"outer": [], "inner": []}
+        for ref, role in entry["members"]:
+            refs = ways.get(ref)
+            if not refs or any(nodes.get(n) is None for n in refs): raise ValueError(f"relation/{identity}: incomplete boundary; no extent was guessed")
+            lines[role].append(LineString([nodes[n] for n in refs]))
+        outer = unary_union(list(polygonize(unary_union(lines["outer"])))) if lines["outer"] else None
+        if outer is None or outer.is_empty: raise ValueError(f"relation/{identity}: boundary does not close")
+        if lines["inner"]: outer = outer.difference(unary_union(list(polygonize(unary_union(lines["inner"])))))
+        parts.append(outer)
+        areas.append(dict(source_id=f"relation/{identity}", name=entry["name"]))
+    union = shapely.make_valid(unary_union(parts))
+    if union.is_empty or union.bounds[2] - union.bounds[0] > 180: raise ValueError("Selected areas form an empty or dateline-crossing region")
+    return union, areas
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
