@@ -114,7 +114,8 @@ local IDs and cannot connect by position. Original topology and heights are
 validated before cropping, including incident ways outside the area.
 
 Structures need explicit source heights, vertical datum, clearance and two ground
-anchors per connected component. Snapshot-bound local height supplements may fill
+anchors per connected component; the city profile draws those crossing no other road
+at ground level instead ([IMPORT_CITY](IMPORT_CITY.md)). Snapshot-bound local height supplements may fill
 missing values but never override source heights. Native generation checks every
 affected corridor (≤16 cells) at review and adoption. WGS84 height conversion
 needs explicit reference metadata; a bounded EGM96→EGM2008 delta grid must cover

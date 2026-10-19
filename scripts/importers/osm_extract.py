@@ -111,6 +111,48 @@ def road_vertical(tags, references, node_tags):
     return result
 
 
+LEVEL_TAGS = ("bridge", "tunnel", "layer", "covered", "location", "maxheight:physical")
+
+
+def level_structures(ways, nodes, node_tags):
+    """City profile: structures without source heights that cross no other road.
+
+    A bridge, tunnel or layered way meeting other roads only at shared nodes
+    (a river bridge, culvert or building passage) is drawn at ground level on
+    the flat 1:8 city. Ways crossing another road keep needing explicit heights.
+    """
+    from shapely.geometry import LineString
+    from shapely.strtree import STRtree
+    roads = [(identity, refs, tags) for identity, kind, refs, tags in ways
+             if kind == "road" and len(refs) >= 2 and all(ref in nodes for ref in refs)]
+    def structure(tags):
+        return tags.get("bridge", "no") not in ("no", "0") or tags.get("tunnel", "no") not in ("no", "0") or tags.get("layer", "0") != "0"
+    candidates = [i for i, (_, refs, tags) in enumerate(roads)
+                  if structure(tags) and not any("ele" in node_tags.get(ref, {}) for ref in refs)]
+    if not candidates:
+        return set()
+    lines = [LineString([nodes[ref] for ref in refs]) for _, refs, _ in roads]
+    tree = STRtree(lines)
+    result = set()
+    for i in candidates:
+        identity, refs, _ = roads[i]
+        clear = True
+        for j in tree.query(lines[i]):
+            if j == i:
+                continue
+            meet = lines[i].intersection(lines[j])
+            if meet.is_empty:
+                continue
+            shared = {tuple(nodes[ref]) for ref in set(refs).intersection(roads[j][1])}
+            points = [meet] if meet.geom_type == "Point" else list(meet.geoms) if meet.geom_type == "MultiPoint" else None
+            if points is None or any((point.x, point.y) not in shared for point in points):
+                clear = False
+                break
+        if clear:
+            result.add(identity)
+    return result
+
+
 def closed_road(properties):
     return properties.get("osm_closed_ground") or properties.get("osm_closed_structure")
 
@@ -301,7 +343,7 @@ def relation_features(relations, all_ways, nodes, blocked_members, counts, budge
     return features, consumed
 
 
-def parse(raw, input_format, supplement=None):
+def parse(raw, input_format, supplement=None, city=False):
     """Capture scalars only: osmium entities expire at the next iteration.
 
     Bounds include ignored entities/references, so filtering cannot evade admission.
@@ -377,7 +419,7 @@ def parse(raw, input_format, supplement=None):
     except RuntimeError as exc:
         raise ValueError("invalid OSM snapshot: " + str(exc)[:300]) from exc
     return build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts,
-                          supplement, hashlib.sha256(raw).hexdigest() if supplement is not None else None)
+                          supplement, hashlib.sha256(raw).hexdigest() if supplement is not None else None, city=city)
 
 
 def way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology):
@@ -450,11 +492,16 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     supported_ids = {way[0] for way in ways}
     counts["ignored_ways"] -= sum(ref not in supported_ids for ref in consumed if ref in all_ways)
     features = []
+    level = level_structures(ways, nodes, node_tags) if city else set()
     for identity, kind, references, tags in sorted(ways):
         if identity in consumed:
             continue
         try:
+            if identity in level:
+                tags = {key: value for key, value in tags.items() if key not in LEVEL_TAGS}
             features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology))
+            if identity in level:
+                features[-1]["properties"]["_city_level_structure"] = True
         except ValueError as exc:
             review.reject("way/" + str(identity), exc)
     loop_refs = {ref for f in features if closed_road(f["properties"])

@@ -2225,6 +2225,7 @@
     "Course needs at least two non-overlapping checkpoints": "Course needs at least two non-overlapping checkpoints",
     "Pieces %d/%d types · Gimmicks %d/%d types": "Pieces %d/%d types · Gimmicks %d/%d types",
     " · Below 50% variety target": " · Below 50% variety target",
-    "Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n": "Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n"
+    "Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n": "Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n",
+    "Bridges, tunnels and layered ways without source heights that cross no other road are drawn at ground level: %d ways (estimate).\n": "Bridges, tunnels and layered ways without source heights that cross no other road are drawn at ground level: %d ways (estimate).\n"
   }
 }

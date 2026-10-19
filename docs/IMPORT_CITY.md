@@ -23,6 +23,10 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   concrete). The ways still stop building gap filling and keep road clearance from
   buildings. Pedestrian bridges, tunnels, explicit-height ways and closed loops sharing
   their nodes stay roads.
+- Bridges, tunnels and layered ways without source heights that cross no other
+  road (river bridges, culverts, building passages) are drawn at ground level on
+  the flat map, counted as estimates in review. Ways crossing another road still
+  need explicit heights and are otherwise excluded.
 - Compatible vegetation polygons are unioned. Illustrative trees use a 32 m source
   lattice (4 m on the map) at 750 ‰ density; they are estimates, not surveyed trees.
   The exact profile keeps an 8 m source lattice.

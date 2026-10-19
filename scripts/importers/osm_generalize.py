@@ -117,6 +117,7 @@ class Generalizer:
                     self.widened_roads += 1
             self.features.append((feature, geometry))
         self.before = self.counts(self.features)
+        self.level_structures = sum(bool(f["properties"].get("_city_level_structure")) for f,g in self.features)
         self.road_geometries = [g for f, g in self.features if g.geom_type == "LineString"]
         self.road_widths = [max(0.01, float(f["properties"].get("width_m", 8))) for f,g in self.features if g.geom_type == "LineString"]
         self.road_tree = STRtree(self.road_geometries)
@@ -649,6 +650,7 @@ class Generalizer:
                     line_tolerance_m=min(4.0, gap/4), polygon_tolerance_m=min(8.0, gap/4),
                     before=self.before, after=self.counts(items), source_ids=sorted(expected),
                     unmerged_numeric_groups=self.retained_groups, painted_pedestrian_ways=self.paint_ways,
+                    level_structures=self.level_structures,
                     groups=groups, protected_buildings=sum(bool(f["properties"].get("_city_name") or f["properties"].get("_city_landmark") or float(f["properties"].get("height_m",12))>=40) for f,g in items if is_building(f,g)))
         return result, meta
 

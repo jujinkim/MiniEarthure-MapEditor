@@ -196,3 +196,27 @@ class PedestrianWays(unittest.TestCase):
         shared = [r for r in roads.values() if any(n.endswith("-osm-ground-node-2") for n in (r["from"], r["to"]))]
         self.assertEqual(len(shared), 3, "vehicle roads meet at one source junction")
 
+
+class LevelStructures(unittest.TestCase):
+    def osm(self, crossing):
+        cross = """<node id="7" lon="9.0015" lat="54.999"/><node id="8" lon="9.0015" lat="55.001"/>
+<way id="4"><nd ref="7"/><nd ref="8"/><tag k="highway" v="residential"/></way>""" if crossing else ""
+        return f"""<osm version="0.6">
+<node id="1" lon="9" lat="55"/><node id="2" lon="9.001" lat="55"/><node id="3" lon="9.002" lat="55"/><node id="4" lon="9.003" lat="55"/>
+<way id="1"><nd ref="1"/><nd ref="2"/><tag k="highway" v="residential"/></way>
+<way id="2"><nd ref="2"/><nd ref="3"/><tag k="highway" v="residential"/><tag k="bridge" v="yes"/><tag k="layer" v="1"/></way>
+<way id="3"><nd ref="3"/><nd ref="4"/><tag k="highway" v="residential"/></way>{cross}
+</osm>""".encode()
+
+    def test_city_draws_a_bridge_crossing_no_road_at_ground_level(self):
+        with self.assertRaisesRegex(ValueError, "explicit vertical geometry"):
+            osm.parse(self.osm(False), "osm")
+        value, _ = osm.parse(self.osm(False), "osm", city=True)
+        bridge = next(f for f in value["features"] if f["properties"]["osm_source_id"] == "way/2")
+        self.assertTrue(bridge["properties"]["_city_level_structure"])
+        self.assertNotIn("road_kind", bridge["properties"])
+        self.assertEqual([f["properties"].get("_city_level_structure", False) for f in value["features"] if f["properties"]["osm_source_id"] != "way/2"], [False, False])
+
+    def test_city_keeps_requiring_heights_for_a_bridge_over_a_road(self):
+        with self.assertRaisesRegex(ValueError, "way/2: OSM explicit vertical geometry requires ele on every road node"):
+            osm.parse(self.osm(True), "osm", city=True)
