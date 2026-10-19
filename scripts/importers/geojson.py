@@ -130,15 +130,19 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 if not osm_graph and any(key in properties for key in ("osm_node_refs", "elevations_m", "road_kind", "clearance_m")):
                     raise ValueError("Structural/OSM graph metadata requires the OSM conversion path; no silent flattening")
                 explicit = osm_graph and "elevations_m" in properties
+                # City structures with estimated heights join ordinary ground roads.
+                estimated = osm_graph and "_city_estimated_m" in properties
                 connected = osm_graph and "osm_node_refs" in properties
-                elevations = properties.get("elevations_m") if explicit else [scalar("elevation_m", 0.2)] * len(line)
+                # City ground lies on the flat map plane, where estimated structure
+                # anchors meet it; other profiles keep the 0.2 m estimate.
+                elevations = properties["elevations_m"] if explicit else properties["_city_estimated_m"] if estimated else [scalar("elevation_m", 0.0 if city and osm_graph else 0.2)] * len(line)
                 if not isinstance(elevations, list) or len(elevations) != len(line):
                     raise ValueError("road elevation profile must match coordinates")
-                points = [[p[0], round(number(h, "road elevation", -10000 if explicit else -100000, 10000 if explicit else 100000) * 100), p[1]] for p,h in zip(map(point, line), elevations)]
+                points = [[p[0], round(number(h, "road elevation", -10000 if explicit or estimated else -100000, 10000 if explicit or estimated else 100000) * 100), p[1]] for p,h in zip(map(point, line), elevations)]
                 level = scalar("level", 0, -100, 100)
                 if int(level) != level:
                     raise ValueError("level must be integral")
-                walking = osm_graph and properties.get("_city_road_tags", {}).get("highway") in PEDESTRIAN
+                walking = osm_graph and properties.get("_city_road_tags", {}).get("highway") in PEDESTRIAN and not estimated
                 # Pedestrian ways keep independent ends; only vehicle roads share source junctions.
                 ground_refs = properties.get("_city_ends") if osm_graph and not connected and not walking else None
                 endpoints = []
@@ -155,8 +159,12 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 width = round(scalar("width_m", 8, 0.01, 1000) * 100)
                 surface = text(properties.get("surface", "asphalt"), "surface", 64)
                 if "surface" not in properties: layer.estimate("surface")
+                structure = properties["road_kind"] if explicit else properties["_city_estimated_kind"] if estimated else "ground"
+                clearance = properties.get("clearance_m") if explicit else properties.get("_city_estimated_clearance_m") if estimated else None
                 layer.add("roads", {"id": road_id, "from": endpoints[0], "to": endpoints[1], "points": points,
-                    "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": properties["road_kind"] if explicit else "ground", "clearance_cm": round(properties["clearance_m"] * 100) if explicit and "clearance_m" in properties else None, "sidewalk_cm": None})
+                    "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": structure, "clearance_cm": round(clearance * 100) if clearance is not None else None, "sidewalk_cm": None})
+                if estimated:
+                    layer.coordinates.setdefault("osm_estimated_structures", []).append(road_id)
                 if ground_refs:
                     layer.coordinates.setdefault("osm_ground_endpoints", []).append(dict(road_id=road_id,refs=ground_refs))
                 if walking:

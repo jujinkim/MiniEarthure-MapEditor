@@ -66,10 +66,19 @@ def is_building(feature, geometry):
     return geometry.geom_type != "LineString" and not (p.get("osm_region") or p.get("_city_paint") or p.get("landuse") in ("forest","orchard"))
 
 
+def clear_width(feature):
+    """Width buildings keep clear of; estimated structures add 1.6 m (20 map cm)
+    each side for native bridge/tunnel safety furniture."""
+    p = feature["properties"]
+    return float(p.get("width_m", 8)) + (3.2 if "_city_estimated_m" in p else 0.0)
+
+
 def is_walking(feature, structural=frozenset()):
     """Ground pedestrian ways, including closed loops not joined to a structure."""
     p = feature["properties"]
     if p.get("_city_road_tags", {}).get("highway") not in PEDESTRIAN or p.get("road_kind", "ground") != "ground" or "elevations_m" in p:
+        return False
+    if "_city_estimated_m" in p:
         return False
     return "osm_node_refs" not in p or ("osm_loop_range" in p and structural.isdisjoint(p["osm_node_refs"]))
 
@@ -122,7 +131,7 @@ class Generalizer:
         self.road_widths = [max(0.01, float(f["properties"].get("width_m", 8))) for f,g in self.features if g.geom_type == "LineString"]
         self.road_tree = STRtree(self.road_geometries)
         self.ground_geometries = [g for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
-        self.ground_widths = [float(f["properties"].get("width_m",8)) for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
+        self.ground_widths = [clear_width(f) for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
         self.protected_areas = [g for f,g in self.features if g.geom_type != "LineString" and (f["properties"].get("protected") or f["properties"].get("landuse") in ("water","wetland","forest","orchard","park","nature_reserve"))]
         self.area_tree = STRtree(self.protected_areas)
         self.barrier_geometries = self.road_geometries
@@ -183,7 +192,8 @@ class Generalizer:
         for f, g in self.features:
             if g.geom_type != "LineString":
                 continue
-            if "osm_node_refs" in f["properties"]:
+            if "osm_node_refs" in f["properties"] or "_city_estimated_m" in f["properties"]:
+                # Source graph and estimated structure profiles keep every vertex.
                 fixed.append((deepcopy(f), g))
             else:
                 ordinary.append((deepcopy(f), self.simplified_line(f, g, min(4.0, gap / 4))))
@@ -234,12 +244,8 @@ class Generalizer:
             p["_city_sources"] = sorted(sources)
             quantized = []
             for point in points:
-                snapped = []
-                for axis,value in enumerate(point):
-                    cm = round((value+self.projection.local[axis])*100)
-                    game_cm = math.copysign(math.floor(abs(cm)/8+0.5),cm)
-                    snapped.append(game_cm*0.08-self.projection.local[axis])
-                if not quantized or tuple(snapped) != quantized[-1]: quantized.append(tuple(snapped))
+                snapped = self.snap(point)
+                if not quantized or snapped != quantized[-1]: quantized.append(snapped)
             if len(quantized) >= 2: points = quantized
             joined_geometry = LineString(points)
             if not joined_geometry.is_simple or points[0] == points[-1]:
@@ -301,7 +307,32 @@ class Generalizer:
             p["osm_node_refs"]=[p["osm_node_refs"][i] for i in indices]
             feature["geometry"]["coordinates"]=[feature["geometry"]["coordinates"][i] for i in indices]
             joined[index]=(feature,candidate)
+        for index,(feature,geometry) in enumerate(joined):
+            p = feature["properties"]
+            if "_city_estimated_m" not in p: continue
+            # Estimated structures share ground nodes with quantized roads. Snap
+            # them to the same lattice, dropping a vertex (and its height) that
+            # collapses onto its predecessor; ends never move apart.
+            points, heights, refs = [], [], []
+            for i, point in enumerate(geometry.coords):
+                snapped = self.snap(point)
+                if points and snapped == points[-1]:
+                    if i == len(geometry.coords) - 1: points.pop(); heights.pop(); refs.pop()
+                    else: continue
+                points.append(snapped); heights.append(p["_city_estimated_m"][i]); refs.append(p["_city_refs"][i])
+            if len(points) < 2: continue
+            p["_city_estimated_m"], p["_city_refs"] = heights, refs
+            joined[index] = (feature, LineString(points))
         return joined + output
+
+    def snap(self, point):
+        """Nearest whole 1:8 map centimetre in this projection's local metres."""
+        snapped = []
+        for axis,value in enumerate(point[:2]):
+            cm = round((value+self.projection.local[axis])*100)
+            game_cm = math.copysign(math.floor(abs(cm)/8+0.5),cm)
+            snapped.append(game_cm*0.08-self.projection.local[axis])
+        return tuple(snapped)
 
     def polygon_group(self, group, gap, buildings):
         try:
@@ -566,7 +597,7 @@ class Generalizer:
         self.barrier_geometries = self.road_geometries + [g for f,g in roads]
         self.barrier_widths = self.road_widths + [max(0.01,float(f["properties"].get("width_m",8))) for f,g in roads]
         self.barrier_tree = STRtree(self.barrier_geometries)
-        ground = [(g,float(f["properties"].get("width_m",8))) for f,g in roads if f["properties"].get("road_kind","ground") == "ground"]
+        ground = [(g,clear_width(f)) for f,g in roads if f["properties"].get("road_kind","ground") == "ground"]
         lines = list(zip(self.ground_geometries,self.ground_widths))+ground
         self.ground_barriers = [g.buffer(w/2+0.8,cap_style="square",join_style="mitre") for g,w in lines]
         # A junction surface is the hull of its approach mouths, which reaches up to
@@ -651,6 +682,7 @@ class Generalizer:
                     before=self.before, after=self.counts(items), source_ids=sorted(expected),
                     unmerged_numeric_groups=self.retained_groups, painted_pedestrian_ways=self.paint_ways,
                     level_structures=self.level_structures,
+                    estimated_structure_roads=sum("_city_estimated_m" in f["properties"] for f,g in items),
                     groups=groups, protected_buildings=sum(bool(f["properties"].get("_city_name") or f["properties"].get("_city_landmark") or float(f["properties"].get("height_m",12))>=40) for f,g in items if is_building(f,g)))
         return result, meta
 

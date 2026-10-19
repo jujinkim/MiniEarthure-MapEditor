@@ -197,6 +197,8 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	var nodes := {}
 	var structure_count := 0
 	var prefix := "import-" + expected_id + "-"
+	var estimated: Variant = _estimated_structures(raw)
+	if estimated == null: return "Invalid estimated city structures."
 	for patch in raw.patches:
 		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]): return "Invalid import patch."
 		if raw.adapter == "overture-buildings-v1" and patch.field != "buildings": return "Overture profile may only add buildings."
@@ -211,7 +213,7 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 		ids[patch.id] = true
 		if patch.field == "nodes": nodes[patch.id] = true
 		if patch.field == "nodes" and patch.id.contains("-osm-node-") and raw.coordinates.has("vertical") and raw.coordinates.vertical.explicit_points == 0 and not raw.coordinates.has("osm_ground_loops"): return "Explicit OSM nodes require nonzero vertical source counts."
-		if patch.field == "roads" and patch.after.get("kind") in ["bridge", "tunnel"]: structure_count += 1
+		if patch.field == "roads" and patch.after.get("kind") in ["bridge", "tunnel"] and not estimated.has(patch.id): structure_count += 1
 	if crop is Dictionary and crop.vertical.retained_structure_features != structure_count: return "OSM retained structure count mismatch."
 	for patch in raw.patches:
 		if patch.field == "roads" and (not nodes.has(patch.after.get("from")) or not nodes.has(patch.after.get("to"))): return "Imported roads must reference their own layer nodes."
@@ -258,10 +260,26 @@ func load_value(raw: Variant, expected_id: String, requested: Dictionary = {}) -
 	if city: _review_prefix = preload("./import_city.gd").summary(value.coordinates.osm_city) + "\n" + _review_prefix
 	return ""
 
+## City structures with estimated heights: road IDs of bridge/tunnel records,
+## joined to ordinary ground roads instead of explicit source-height graphs.
+static func _estimated_structures(raw: Dictionary) -> Variant:
+	var list: Variant = raw.coordinates.get("osm_estimated_structures", [])
+	if list is not Array or (not list.is_empty() and not raw.coordinates.has("osm_city")): return null
+	var kinds := {}
+	for patch: Variant in raw.get("patches", []):
+		if patch is Dictionary and patch.get("field") == "roads" and patch.get("after") is Dictionary: kinds[patch.id] = patch.after.get("kind")
+	var result := {}
+	for id: Variant in list:
+		if id is not String or result.has(id) or kinds.get(id) not in ["bridge", "tunnel"]: return null
+		result[id] = true
+	return result
+
 static func _ground_endpoints(raw: Dictionary, prefix: String) -> String:
 	var entries: Variant = raw.coordinates.get("osm_ground_endpoints",[])
 	if entries is not Array or entries.size() > 60000: return "Invalid OSM ground endpoint mapping."
 	var roads := {}; var nodes := {}; var expected := {}
+	var estimated: Variant = _estimated_structures(raw)
+	if estimated == null: return "Invalid estimated city structures."
 	for patch: Dictionary in raw.patches:
 		if patch.field == "roads":
 			roads[patch.id] = patch.after
@@ -272,7 +290,7 @@ static func _ground_endpoints(raw: Dictionary, prefix: String) -> String:
 		if raw.adapter != "osm-extract-v1" or entry is not Dictionary or not roads.has(entry.get("road_id")) or seen.has(entry.road_id) or entry.get("refs") is not Array or entry.refs.size() != 2: return "Invalid OSM ground endpoint mapping."
 		seen[entry.road_id] = true
 		var road: Dictionary = roads[entry.road_id]
-		if road.kind != "ground": return "Invalid OSM ground endpoint mapping."
+		if road.kind != "ground" and not estimated.has(entry.road_id): return "Invalid OSM ground endpoint mapping."
 		for i in 2:
 			var ref: Variant = entry.refs[i]
 			if ref != null and not preload("./import_osm_loops.gd").source_ref(ref): return "Invalid OSM ground endpoint mapping."
@@ -443,7 +461,7 @@ func patches(store: RefCounted) -> Array:
 	var metadata := value.duplicate(true)
 	metadata.erase("patches")
 	if value.adapter == "osm-extract-v1":
-		result = preload("./import_units.gd").osm_patches(value.patches,value.coordinates.has("osm_city"))
+		result = preload("./import_units.gd").osm_patches(value.patches,value.coordinates.has("osm_city"),int(store.document.get("terrain_base_cm",0)))
 		preload("./import_units.gd").widen_roads(result,store.document.get("buildings",[]),value.coordinates.get("osm_pedestrian_roads",[]))
 		var separated: int = preload("./import_units.gd").separate_junctions(result, store)
 		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1", "road_width_floor_cm": preload("./import_units.gd").ROAD_WIDTH_FLOOR_CM}

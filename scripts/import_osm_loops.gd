@@ -93,7 +93,8 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 				if not crop or refs[i] is not String or not refs[i].begins_with("crop-") or refs[i].length() > 80: return "Invalid OSM loop crop endpoint."
 				if cuts.has(refs[i]): return "OSM loop crop endpoints must remain independent."
 				cuts[refs[i]] = true
-			if not entry.explicit_height and (road.points[i] is not Array or road.points[i].size() != 3 or road.points[i][1] != 20): return "OSM estimated loop elevation changed."
+			# City ground lies on the map plane; other profiles estimate 0.2 m.
+			if not entry.explicit_height and (road.points[i] is not Array or road.points[i].size() != 3 or road.points[i][1] != (0 if raw.coordinates.has("osm_city") else 20)): return "OSM estimated loop elevation changed."
 		for end: String in ["from","to"]:
 			var node_id: String = prefix + "osm-node-" + str(refs[0 if end == "from" else -1])
 			if road.get(end) != node_id or not nodes.has(node_id) or nodes[node_id].get("position") != road.points[0 if end == "from" else -1]: return "OSM loop endpoint identity or geometry changed."

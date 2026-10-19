@@ -43,6 +43,12 @@ func run() -> void:
 	check(road.points.size()==4 and units.osm_patches(source)[0].after.points.size()==4,"city cleanup never changes raw source or exact mode")
 	road.surfaces[1]="concrete"
 	check(units.osm_patches(source,true)[0].after.points.size()==4,"material boundary cannot be silently removed")
+	var planes := [{"field":"nodes","id":"import-x-osm-ground-node-1","after":{"id":"import-x-osm-ground-node-1","position":[80,0,80],"level":0}},
+		{"field":"roads","id":"import-x-1","after":{"id":"import-x-1","kind":"bridge","from":"import-x-osm-ground-node-1","to":"import-x-1-to","points":[[80,0,80],[160,4800,80]],"widths_cm":[800],"surfaces":["asphalt"]}},
+		{"field":"roads","id":"import-x-2","after":{"id":"import-x-2","kind":"bridge","from":"import-x-osm-node-5","to":"import-x-osm-node-6","points":[[80,800,80],[160,800,80]],"widths_cm":[800],"surfaces":["asphalt"]}}]
+	var placed: Array = units.osm_patches(planes,true,-2000)
+	check(placed[0].after.position[1]==-2000 and placed[1].after.points[0][1]==-2000 and placed[1].after.points[1][1]==-1400,"city plane heights follow the map terrain base")
+	check(placed[2].after.points[0][1]==100,"explicit source-height structures keep their vertical frame")
 	check(units._ring_duplicates([[0,0],[0,0],[1,0],[1,1],[0,1]])==[[0,0],[1,0],[1,1],[0,1]],"adjacent polygon duplicates retain the same mathematical footprint")
 	check(units._ring_duplicates([[0,0],[0,0],[1,0]]).size()==3,"collapsed courtyard stays invalid rather than silently filling")
 	var narrow := [{"field":"roads","after":{"id":"n","kind":"ground","from":"a","to":"b","points":[[0,0,0],[1000,0,0],[2000,0,0]],"widths_cm":[75,200],"surfaces":["asphalt","asphalt"],"sidewalk_cm":null}},

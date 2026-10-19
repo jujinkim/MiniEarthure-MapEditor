@@ -260,6 +260,10 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region
             # every vertex; a covered source keeps its exact geometry instead.
             # Polygons drop repeated adjacent positions, as overlay would.
             clipped = source if expected == "LineString" else shapely.remove_repeated_points(source)
+        elif expected == "LineString" and "_city_estimated_m" in feature["properties"]:
+            # An estimated structure stays whole: a cut would leave a deck end
+            # in the air and separate its profile from its vertices.
+            clipped = source if source.intersects(window) else shapely.LineString()
         elif region is not None and expected == "LineString":
             pieces = region_line_parts(feature["geometry"]["coordinates"], window)
             clipped = shapely.MultiLineString(pieces)

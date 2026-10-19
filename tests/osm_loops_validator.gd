@@ -79,6 +79,10 @@ func run() -> void:
 	var raw: Dictionary = ui.pending_import.value.duplicate(true)
 	var city := raw.duplicate(true)
 	city.coordinates.osm_city = {} # Unit-check the loop contract independently of outer city admission.
+	for patch: Dictionary in city.patches: # City ground lies on the map plane.
+		if patch.field == "roads" and patch.after.kind == "ground":
+			for point: Array in patch.after.points: point[1] = 0
+		if patch.field == "nodes": patch.after.position[1] = 0
 	var retained: Array = city.coordinates.osm_ground_loops.retained
 	var second_id: String = retained[1].road_id
 	var second: Dictionary

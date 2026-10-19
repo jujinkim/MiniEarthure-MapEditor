@@ -23,10 +23,25 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   concrete). The ways still stop building gap filling and keep road clearance from
   buildings. Pedestrian bridges, tunnels, explicit-height ways and closed loops sharing
   their nodes stay roads.
+- City ground roads lie on the flat map plane (0 m; other profiles estimate 0.2 m).
+  Adoption adds the map's terrain base to city heights outside the explicit
+  source-height graph, so estimated structures meet the terrain.
 - Bridges, tunnels and layered ways without source heights that cross no other
   road (river bridges, culverts, building passages) are drawn at ground level on
-  the flat map, counted as estimates in review. Ways crossing another road still
-  need explicit heights and are otherwise excluded.
+  the flat map, counted as estimates in review.
+- Those crossing another road get estimated heights: a chain of bridge (tunnel)
+  ways joined end to end rises (sinks) 6 m per layer with ramps of at most 8 % and
+  an 8 m level lead at each ground anchor. Where the chain is too short, whole
+  ground ways continuing it up to a junction or dead end join it as the same
+  structure; vertices are added where the profile bends. Chain ways have no side
+  roads along them, no closed-road contact and no bend over 60° (a bend of θ needs
+  neighbouring segments of 12 m · tan(θ/2) + 2 m, so native structure mouths stay
+  separate); every crossing keeps 5 m of separation; tunnels use 4.5 m clearance.
+  A chain crossing only excluded structures is drawn at ground level instead.
+  Estimated structures join ordinary ground roads, stay whole at crop edges, keep
+  building clearance plus 1.6 m for safety furniture (also when widened) and are
+  listed in `osm_estimated_structures`. Other crossing structures need explicit
+  heights and are otherwise excluded.
 - Compatible vegetation polygons are unioned. Illustrative trees use a 32 m source
   lattice (4 m on the map) at 750 ‰ density; they are estimates, not surveyed trees.
   The exact profile keeps an 8 m source lattice.

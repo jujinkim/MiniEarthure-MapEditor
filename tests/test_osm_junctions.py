@@ -217,6 +217,64 @@ class LevelStructures(unittest.TestCase):
         self.assertNotIn("road_kind", bridge["properties"])
         self.assertEqual([f["properties"].get("_city_level_structure", False) for f in value["features"] if f["properties"]["osm_source_id"] != "way/2"], [False, False])
 
-    def test_city_keeps_requiring_heights_for_a_bridge_over_a_road(self):
-        with self.assertRaisesRegex(ValueError, "way/2: OSM explicit vertical geometry requires ele on every road node"):
-            osm.parse(self.osm(True), "osm", city=True)
+    def test_city_estimates_rather_than_levels_a_bridge_over_a_road(self):
+        value, _ = osm.parse(self.osm(True), "osm", city=True)
+        bridge = next(f for f in value["features"] if f["properties"]["osm_source_id"] == "way/2")
+        self.assertNotIn("_city_level_structure", bridge["properties"])
+        self.assertEqual(bridge["properties"]["_city_estimated_kind"], "bridge")
+
+class EstimatedStructures(unittest.TestCase):
+    def osm(self, approach=0.002):
+        # West ground approach, a layer-1 bridge over a north-south road, east approach.
+        x = [0, approach, approach+0.002, 2*approach+0.002]
+        return f"""<osm version="0.6">
+<node id="1" lon="{9+x[0]}" lat="55"/><node id="2" lon="{9+x[1]}" lat="55"/><node id="3" lon="{9+x[2]}" lat="55"/><node id="4" lon="{9+x[3]}" lat="55"/>
+<node id="5" lon="{9+x[0]}" lat="55.001"/><node id="6" lon="{9+x[3]}" lat="55.001"/>
+<node id="7" lon="{9+approach+0.001}" lat="54.999"/><node id="8" lon="{9+approach+0.001}" lat="55.001"/>
+<way id="1"><nd ref="1"/><nd ref="2"/><tag k="highway" v="residential"/></way>
+<way id="2"><nd ref="2"/><nd ref="3"/><tag k="highway" v="residential"/><tag k="bridge" v="yes"/><tag k="layer" v="1"/></way>
+<way id="3"><nd ref="3"/><nd ref="4"/><tag k="highway" v="residential"/></way>
+<way id="4"><nd ref="5"/><nd ref="1"/><tag k="highway" v="residential"/></way>
+<way id="5"><nd ref="4"/><nd ref="6"/><tag k="highway" v="residential"/></way>
+<way id="6"><nd ref="7"/><nd ref="8"/><tag k="highway" v="residential"/></way>
+<node id="9" lon="{9+x[0]}" lat="54.999"/><node id="10" lon="{9+x[3]}" lat="54.999"/>
+<way id="7"><nd ref="1"/><nd ref="9"/><tag k="highway" v="residential"/></way>
+<way id="8"><nd ref="4"/><nd ref="10"/><tag k="highway" v="residential"/></way>
+</osm>""".encode()
+
+    def test_overpass_gets_a_six_metre_deck_and_ramps_on_its_approaches(self):
+        value, _ = osm.parse(self.osm(), "osm", city=True)
+        by_way = {f["properties"]["osm_source_id"]: f["properties"] for f in value["features"]}
+        for way in ("way/1", "way/2", "way/3"):
+            self.assertEqual(by_way[way]["_city_estimated_kind"], "bridge")
+        self.assertNotIn("_city_estimated_m", by_way["way/6"])
+        self.assertEqual(by_way["way/2"]["_city_estimated_m"], [6.0, 6.0])
+        self.assertEqual(by_way["way/1"]["_city_estimated_m"][0], 0.0, "the junction anchor stays on the ground")
+        layer = convert(value, "synthetic", osm.LICENSE, coordinates=OPTIONS, osm_graph=True, city=True)
+        roads = {p["id"]: p["after"] for p in layer.patches if p["field"] == "roads"}
+        estimated = layer.coordinates["osm_estimated_structures"]
+        self.assertEqual(sorted(roads[r]["kind"] for r in estimated), ["bridge"]*3)
+        deck = max(p[1] for r in estimated for p in roads[r]["points"])
+        self.assertEqual(deck, 600)
+        nodes = {p["id"] for p in layer.patches if p["field"] == "nodes"}
+        anchors = [roads[r]["from"] for r in estimated] + [roads[r]["to"] for r in estimated]
+        self.assertTrue(all("-osm-ground-node-" in n and n in nodes for n in anchors), "structures share ordinary ground nodes")
+
+    def test_short_approaches_keep_requiring_source_heights(self):
+        with self.assertRaisesRegex(ValueError, "way/2: OSM explicit vertical geometry requires ele"):
+            osm.parse(self.osm(0.0001), "osm", city=True)
+
+    def test_a_chain_crossing_only_excluded_structures_is_leveled(self):
+        value = self.osm()
+        root = ET.fromstring(value)
+        crossed = root.find("way[@id='6']")
+        ET.SubElement(crossed, "tag", k="tunnel", v="yes")
+        ET.SubElement(root.find("node[@id='7']"), "tag", k="ele", v="10")  # Partial heights: excluded.
+        ways, nodes, node_tags = [], {}, {}
+        for node in root.iter("node"):
+            nodes[int(node.get("id"))] = [float(node.get("lon")), float(node.get("lat"))]
+            node_tags[int(node.get("id"))] = {t.get("k"): t.get("v") for t in node.iter("tag")}
+        for way in root.iter("way"):
+            ways.append((int(way.get("id")), "road", [int(n.get("ref")) for n in way.iter("nd")], {t.get("k"): t.get("v") for t in way.iter("tag")}))
+        estimated, leveled = osm.estimate_structures(ways, nodes, node_tags, set())
+        self.assertEqual((estimated, leveled), ({}, {2}))

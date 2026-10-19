@@ -260,7 +260,7 @@ class City(unittest.TestCase):
         loop=lambda identity,line,refs,**extra:self.add(identity,line,osm_way_id=identity,osm_node_refs=refs,osm_loop_range=[0,1],**extra,**walk("footway"))
         loop(5,LineString([(200,30),(230,30)]),[20,21],road_kind="ground")
         loop(6,LineString([(200,80),(230,80)]),[30,31],road_kind="ground")
-        self.add(7,LineString([(230,80),(260,80)]),osm_way_id=7,osm_node_refs=[31,32],osm_loop_range=[0,1],road_kind="bridge",elevations_m=[0.2,0.2],**walk("footway"))
+        self.add(7,LineString([(230,80),(260,80)]),osm_way_id=7,osm_node_refs=[31,32],osm_loop_range=[0,1],road_kind="bridge",elevations_m=[0.0,0.0],**walk("footway"))
         worker=self.worker();out,meta=worker.candidate(0)
         kept={f["properties"]["osm_source_id"] for f in out["features"] if f["geometry"]["type"]=="LineString"}
         self.assertEqual(kept,{"way/1","way/6","way/7"},"loops joined to a pedestrian structure stay roads")

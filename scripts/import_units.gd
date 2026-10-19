@@ -2,7 +2,10 @@ extends RefCounted
 ## Source coordinates stay in provenance. Only newly adopted OSM records scale.
 const OSM_DENOMINATOR := 8
 
-static func osm_patches(source: Array, city := false) -> Array:
+## City roads and nodes outside the explicit source-height graph (-osm-node- IDs)
+## lie on the map plane: `terrain_base_cm` is added to their heights after scaling,
+## so estimated structure anchors meet the flat terrain.
+static func osm_patches(source: Array, city := false, terrain_base_cm := 0) -> Array:
 	var result := source.duplicate(true)
 	for patch: Dictionary in result:
 		var record: Dictionary = patch.after
@@ -22,11 +25,17 @@ static func osm_patches(source: Array, city := false) -> Array:
 			for key in ["courtyards","holes","exclusions"]:
 				if record.has(key):
 					for i in range(record[key].size()): record[key][i] = _ring_duplicates(record[key][i])
+			if terrain_base_cm != 0:
+				if patch.field == "nodes" and not patch.id.contains("-osm-node-"): record.position[1] += terrain_base_cm
+				if patch.field == "roads" and not (str(record.from) + str(record.to)).contains("-osm-node-"):
+					for point: Array in record.points: point[1] += terrain_base_cm
 	return result
 
 ## A 1:8 road narrower than this cannot carry the ~61 cm car with any margin.
 const ROAD_WIDTH_FLOOR_CM := 150
 const BUILDING_MARGIN_CM := 20
+## Native bridge/tunnel safety furniture extends this far outside the carriageway.
+const STRUCTURE_SAFETY_CM := 20
 const EDGE_BUCKET_CM := 1000
 
 ## Widens adopted roads to the floor per segment, stopping each side at the nearest
@@ -58,6 +67,7 @@ static func widen_roads(patches: Array, existing_buildings: Array, pedestrian: A
 		if patch.field != "roads" or not patch.after is Dictionary or walking.has(patch.get("id", "")): continue
 		var road: Dictionary = patch.after
 		var sidewalk := float(road.get("sidewalk_cm",0) if road.get("sidewalk_cm") != null else 0)
+		if road.get("kind", "ground") != "ground": sidewalk += STRUCTURE_SAFETY_CM
 		for s in road.widths_cm.size():
 			if int(road.widths_cm[s]) >= ROAD_WIDTH_FLOOR_CM: continue
 			var p := Vector2(road.points[s][0],road.points[s][2])

@@ -2226,6 +2226,7 @@
     "Pieces %d/%d types · Gimmicks %d/%d types": "조각 %d/%d종 · 기믹 %d/%d종",
     " · Below 50% variety target": " · 다양성 목표 50% 미달",
     "Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n": "보행로·자전거길은 도로 대신 주행 가능한 바닥 표시로 칠함: %d개 경로.\n",
-    "Bridges, tunnels and layered ways without source heights that cross no other road are drawn at ground level: %d ways (estimate).\n": "원본 높이가 없고 다른 도로와 교차하지 않는 교량·터널·층(layer) 도로는 지면 높이로 그림: %d개 경로(추정).\n"
+    "Bridges, tunnels and layered ways without source heights that cross no other road are drawn at ground level: %d ways (estimate).\n": "원본 높이가 없고 다른 도로와 교차하지 않는 교량·터널·층(layer) 도로는 지면 높이로 그림: %d개 경로(추정).\n",
+    "Overpasses and underpasses without source heights use estimated 6 m levels and ramps up to 8%%: %d structure roads (not surveyed).\n": "원본 높이가 없는 고가·지하차도는 층마다 6 m, 경사 최대 8%%로 추정: %d개 구조물 도로(측량값 아님).\n"
   }
 }

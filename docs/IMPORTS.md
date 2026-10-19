@@ -31,7 +31,7 @@ Custom maps use real metres. OSM adoption divides coordinates, widths, heights,
 clearances and vegetation spacing by 8 once (`osm-import-1to8-v1`); staged input
 keeps source units. Adopted vehicle road segments narrower than 150 cm (`road_width_floor_cm`,
 about 2.5 widths of the 61 cm car) widen to it; pedestrian roads keep their estimate, each side stopping 20 cm (plus
-sidewalk) before the nearest new or existing building edge or courtyard wall; wider segments never change. Linked DEM uses the same factor (map position × 8 for lookup,
+sidewalk, and 20 cm safety furniture on structures) before the nearest new or existing building edge or courtyard wall; wider segments never change. Linked DEM uses the same factor (map position × 8 for lookup,
 relative elevation ÷ 8). Standalone DEM, GeoJSON and Overture use their declared
 units. Undo/Redo/save operate on adopted coordinates and never reapply the factor.
 
@@ -114,8 +114,8 @@ local IDs and cannot connect by position. Original topology and heights are
 validated before cropping, including incident ways outside the area.
 
 Structures need explicit source heights, vertical datum, clearance and two ground
-anchors per connected component; the city profile draws those crossing no other road
-at ground level instead ([IMPORT_CITY](IMPORT_CITY.md)). Snapshot-bound local height supplements may fill
+anchors per connected component; the city profile levels those crossing no other road
+and estimates heights for the rest ([IMPORT_CITY](IMPORT_CITY.md)). Snapshot-bound local height supplements may fill
 missing values but never override source heights. Native generation checks every
 affected corridor (≤16 cells) at review and adoption. WGS84 height conversion
 needs explicit reference metadata; a bounded EGM96→EGM2008 delta grid must cover

@@ -153,6 +153,208 @@ def level_structures(ways, nodes, node_tags):
     return result
 
 
+DECK_M = 6.0  # Deck height per layer: 4.5 m road clearance plus the structure.
+GRADE = 0.08
+LEAD_M = 8.0  # Level lead at each ground anchor; native aprons stay on it.
+SEPARATION_M = 5.0  # Real metres; ÷8 on the map.
+TUNNEL_CLEARANCE_M = 4.5
+
+
+def estimate_structures(ways, nodes, node_tags, level):
+    """City profile: estimated heights for structures crossing other roads.
+
+    A chain of bridge (or tunnel) ways joined end to end is lifted (or lowered)
+    6 m per layer. Ramps of at most 8 % run over the chain and, where it is too
+    short, over whole ground ways continuing it up to a junction or dead end,
+    which become the same structure. Each anchor keeps an 8 m level lead. Chain
+    ways have no side roads along them, and every crossing with another road
+    keeps 5 m of separation; any other chain is left to the explicit-height rule.
+
+    A chain whose crossings are all with excluded structures is drawn at
+    ground level like a structure crossing nothing; one bending more than 60°
+    at a vertex keeps needing source heights (native structure mouths overlap).
+
+    Returns ({way: [(lon, lat, height_m, ref or None)]}, leveled ways): each
+    estimated way's vertices in its own order, with unreferenced vertices added
+    where the profile bends.
+    """
+    import math
+    from shapely.geometry import LineString
+    from shapely.strtree import STRtree
+    roads = {identity: (refs, tags) for identity, kind, refs, tags in ways
+             if kind == "road" and len(refs) >= 2 and all(ref in nodes for ref in refs)}
+    if not roads:
+        return {}, set()
+    lat0 = math.radians(sum(nodes[refs[0]][1] for refs, _ in roads.values()) / len(roads))
+    def metres(ref):
+        lon, lat = nodes[ref]
+        return lon * 111320 * math.cos(lat0), lat * 110540
+    def layer_of(tags):
+        if re.fullmatch(r"-?[0-9]+", tags.get("layer", "")): return int(tags["layer"])
+        return 1 if tags.get("bridge", "no") not in ("no", "0") else -1 if tags.get("tunnel", "no") not in ("no", "0") else 0
+    def structure(tags):
+        return tags.get("bridge", "no") not in ("no", "0") or tags.get("tunnel", "no") not in ("no", "0") or tags.get("layer", "0") != "0"
+    arms, ends = Counter(), {}
+    for identity, (refs, _) in roads.items():
+        for i, ref in enumerate(refs):
+            arms[ref] += 1 if i in (0, len(refs) - 1) else 2
+        for ref in (refs[0], refs[-1]):
+            ends.setdefault(ref, []).append(identity)
+    def plain(way):
+        """No other road meets this way between its ends."""
+        refs = roads[way][0]
+        return refs[0] != refs[-1] and all(arms[ref] == 2 for ref in refs[1:-1])
+    candidates = {identity for identity, (refs, tags) in roads.items()
+                  if identity not in level and structure(tags) and layer_of(tags) != 0
+                  and not any("ele" in node_tags.get(ref, {}) for ref in refs)}
+    def beyond(path, at_end):
+        way, flipped = path[-1] if at_end else path[0]
+        refs = roads[way][0]
+        node = (refs[0] if flipped else refs[-1]) if at_end else (refs[-1] if flipped else refs[0])
+        others = [w for w in ends.get(node, []) if w != way]
+        return node, (others[0] if arms[node] == 2 and len(others) == 1 else None)
+    def attach(path, at_end, node, way):
+        refs = roads[way][0]
+        if at_end: path.append((way, refs[-1] == node))
+        else: path.insert(0, (way, refs[0] == node))
+    used, chains = set(), []
+    for start in sorted(candidates):
+        if start in used: continue
+        layer = layer_of(roads[start][1])
+        path = [(start, False)]
+        used.add(start)
+        for at_end in (True, False):
+            while True:
+                node, way = beyond(path, at_end)
+                if way is None or way in used or way not in candidates or layer_of(roads[way][1]) != layer: break
+                used.add(way)
+                attach(path, at_end, node, way)
+        chains.append((layer, path))
+    lines = {identity: LineString([metres(ref) for ref in refs]) for identity, (refs, _) in roads.items()}
+    order = sorted(lines)
+    tree = STRtree([lines[i] for i in order])
+    def crossings(way):
+        """Plan crossings with other roads, not at shared source nodes."""
+        refs = roads[way][0]
+        for j in tree.query(lines[way]):
+            other = order[j]
+            if other == way: continue
+            meet = lines[way].intersection(lines[other])
+            if meet.is_empty: continue
+            shared = {metres(ref) for ref in set(refs).intersection(roads[other][0])}
+            points = [meet] if meet.geom_type == "Point" else list(meet.geoms) if meet.geom_type == "MultiPoint" else None
+            if points is None:
+                yield other, None  # Overlapping roads cannot be separated.
+                continue
+            for point in points:
+                if (point.x, point.y) not in shared: yield other, point
+    def vertices(path):
+        out = []
+        for way, flipped in path:
+            refs = roads[way][0][::-1] if flipped else roads[way][0]
+            out.extend(refs if not out else refs[1:])
+        return out
+    looped = {ref for refs, _ in roads.values() if refs[0] == refs[-1] for ref in refs}
+    def drawn(other):
+        return not structure(roads[other][1]) or other in level or other in candidates
+    leveled = set()
+    def sharp(refs):
+        """Native structure bends need separated mouths: a turn of θ needs both
+        neighbouring segments of at least 12 m · tan(θ/2) + 2 m (the widest
+        floored 1:8 road), and no turn may exceed 60°."""
+        for a, b, c in zip(refs, refs[1:], refs[2:]):
+            (ax, ay), (bx, by), (cx, cy) = metres(a), metres(b), metres(c)
+            u, v = (bx - ax, by - ay), (cx - bx, cy - by)
+            lu, lv = math.hypot(*u), math.hypot(*v)
+            if not lu or not lv: return True
+            turn = math.acos(max(-1.0, min(1.0, (u[0] * v[0] + u[1] * v[1]) / (lu * lv))))
+            if turn > math.pi / 3 or min(lu, lv) < 12.0 * math.tan(turn / 2) + 2.0 and turn > math.radians(2): return True
+        return False
+    absorbed = set()
+    result = {}
+    for layer, path in chains:
+        if not all(plain(way) for way, _ in path): continue
+        if not any(drawn(other) for way, _ in path for other, _ in crossings(way)):
+            leveled.update(way for way, _ in path)
+            continue
+        height = DECK_M * abs(layer)
+        core = LineString([metres(ref) for ref in vertices(path)])
+        cut = [core.project(point) for way, _ in path for _, point in crossings(way) if point is not None]
+        ramp = LEAD_M + height / GRADE + 10.0  # Full height just before the first crossing.
+        for at_end, need in ((False, ramp - min(cut, default=ramp)), (True, ramp - (core.length - max(cut, default=0.0)))):
+            length = 0.0
+            while length < need:
+                node, way = beyond(path, at_end)
+                if way is None or way in absorbed or way in candidates or way in used or not plain(way) or structure(roads[way][1]) and way not in level:
+                    break
+                absorbed.add(way)
+                attach(path, at_end, node, way)
+                length += lines[way].length
+        refs = vertices(path)
+        # Ways meeting a closed road join the explicit source-node loop graph.
+        if len(set(refs)) != len(refs) or not looped.isdisjoint(refs) or sharp(refs): continue
+        line = LineString([metres(ref) for ref in refs])
+        total = line.length
+        def profile(d, total=total, height=height, layer=layer):
+            rise = min(GRADE * max(0.0, d - LEAD_M), GRADE * max(0.0, total - d - LEAD_M))
+            return math.copysign(min(height, rise), layer) if rise else 0.0
+        result[path[0][0]] = (path, line, profile)
+    # Separation at every plan crossing (not at a shared node) with another road.
+    changed = True
+    while changed:
+        changed = False
+        owner = {way: key for key, (path, _, _) in result.items() for way, _ in path}
+        for key in sorted(result):
+            path, line, profile = result[key]
+            ok, checked = True, 0
+            for way, _ in path:
+                for other, point in crossings(way):
+                    if owner.get(other) == key: continue
+                    if other not in owner and structure(roads[other][1]) and other not in level and other not in leveled:
+                        continue  # An unestimated structure is excluded, not drawn.
+                    checked += 1
+                    if point is None:
+                        ok = False
+                        break
+                    theirs = 0.0
+                    if other in owner:
+                        _, other_line, other_profile = result[owner[other]]
+                        theirs = other_profile(other_line.project(point))
+                    if abs(profile(line.project(point)) - theirs) < SEPARATION_M:
+                        ok = False
+                        break
+                if not ok: break
+            if not ok or not checked:
+                # Crossing nothing drawn, the chain lies on the ground instead.
+                if ok: leveled.update(way for way, _ in path if way in candidates)
+                del result[key]
+                changed = True
+                break
+    estimated = {}
+    for path, line, profile in result.values():
+        total = line.length
+        top = LEAD_M + abs(profile(total / 2)) / GRADE
+        # A peak below full height is one bend, not two nearly coincident ones.
+        tops = (top, total - top) if total - 2 * top >= 1.0 else ((total / 2),)
+        bends = sorted({d for d in (LEAD_M, *tops, total - LEAD_M) if 0 < d < total})
+        offset = 0.0
+        for way, flipped in path:
+            refs = roads[way][0][::-1] if flipped else roads[way][0]
+            points = []
+            for a, b in zip(refs, refs[1:]):
+                pa, pb = metres(a), metres(b)
+                step = math.dist(pa, pb)
+                points.append((nodes[a][0], nodes[a][1], profile(offset), a))
+                for d in bends:
+                    if offset + 0.5 < d < offset + step - 0.5:
+                        t = (d - offset) / step
+                        points.append((nodes[a][0] + (nodes[b][0] - nodes[a][0]) * t, nodes[a][1] + (nodes[b][1] - nodes[a][1]) * t, profile(d), None))
+                offset += step
+            points.append((nodes[refs[-1]][0], nodes[refs[-1]][1], profile(offset), refs[-1]))
+            estimated[way] = (points[::-1] if flipped else points, "bridge" if profile(total / 2) > 0 else "tunnel")
+    return estimated, leveled
+
+
 def closed_road(properties):
     return properties.get("osm_closed_ground") or properties.get("osm_closed_structure")
 
@@ -493,15 +695,26 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     counts["ignored_ways"] -= sum(ref not in supported_ids for ref in consumed if ref in all_ways)
     features = []
     level = level_structures(ways, nodes, node_tags) if city else set()
+    estimated, leveled = estimate_structures(ways, nodes, node_tags, level) if city else ({}, set())
+    level |= leveled
     for identity, kind, references, tags in sorted(ways):
         if identity in consumed:
             continue
         try:
-            if identity in level:
+            if identity in level or identity in estimated:
                 tags = {key: value for key, value in tags.items() if key not in LEVEL_TAGS}
             features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology))
             if identity in level:
                 features[-1]["properties"]["_city_level_structure"] = True
+            if identity in estimated:
+                points, structure = estimated[identity]
+                # Profile bends add unreferenced vertices; chain ways have no
+                # side roads, so later source-junction splits never cut them.
+                feature = features[-1]
+                feature["geometry"]["coordinates"] = [[x, y] for x, y, _, _ in points]
+                feature["properties"].update(_city_estimated_m=[round(h, 2) for _, _, h, _ in points], _city_estimated_kind=structure,
+                    _city_estimated_refs=[ref for _, _, _, ref in points], _city_ends=[str(references[0]), str(references[-1])])
+                if structure == "tunnel": feature["properties"]["_city_estimated_clearance_m"] = TUNNEL_CLEARANCE_M
         except ValueError as exc:
             review.reject("way/" + str(identity), exc)
     loop_refs = {ref for f in features if closed_road(f["properties"])
@@ -545,7 +758,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             # legacy display adapter (oneway, access, name, classification).
             # Loop and structural roads keep the class too (pedestrian handling).
             p["_city_road_tags"] = {key: tags[key] for key in ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction") if key in tags}
-            if "osm_node_refs" not in p: p["_city_refs"] = refs
+            if "osm_node_refs" not in p: p["_city_refs"] = p.pop("_city_estimated_refs", refs)
     # Preserve ordinary source junctions between vehicle roads without assigning an
     # elevation datum. Split at shared original IDs before simplification/merging
     # and crop. Pedestrian ways keep independent ends, as dense path networks would
@@ -560,9 +773,10 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         if not refs or not vehicle(feature):
             connected_features.append(feature)
             continue
-        cuts = [0] + [i for i in range(1,len(refs)-1) if uses[refs[i]] > 1] + [len(refs)-1]
+        cuts = [0] + [i for i in range(1,len(refs)-1) if refs[i] is not None and uses[refs[i]] > 1] + [len(refs)-1]
         for a,b in zip(cuts,cuts[1:]):
             props = dict(p, _city_refs=refs[a:b+1], _city_ends=[str(refs[a]),str(refs[b])])
+            if "_city_estimated_m" in p: props["_city_estimated_m"] = p["_city_estimated_m"][a:b+1]
             connected_features.append(dict(type="Feature", properties=props,
                 geometry=dict(type="LineString",coordinates=feature["geometry"]["coordinates"][a:b+1])))
             if len(connected_features)>feature_limit: raise ValueError("OSM split feature budget exceeded")
