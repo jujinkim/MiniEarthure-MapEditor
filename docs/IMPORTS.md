@@ -152,8 +152,8 @@ The importer needs Python 3.12+ with `requirements-import.txt` (NumPy 2.5.3).
 
 ## Known limits
 
-- Full Suwon output is 33.8 MB, above the 32 MiB output allowance; Yeongtong is
-  the verified fallback, not a claim for every city.
+- City output stays within 32 MiB ([IMPORT_CITY](IMPORT_CITY.md)); four Suwon
+  districts adopt at 24.1 MB, which is not a claim for every city.
 - Two Suwon DEM tiles total 79 MB, above the 64 MiB source allowance.
 - Overture/GIS completeness, broader OSM/Overture semantics, general POI/structural
   GeoJSON and geoid preparation are feature work.
