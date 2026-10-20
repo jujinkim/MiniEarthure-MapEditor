@@ -2226,7 +2226,7 @@
     "Pieces %d/%d types · Gimmicks %d/%d types": "ピース %d/%d種 · ギミック %d/%d種",
     " · Below 50% variety target": " · 多様性の目標50%未達",
     "Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n": "歩道・自転車道・階段は道路ではなく走行可能な地面の塗装で表示: %d 本。\n",
-    "Bridges, tunnels and layered ways without source heights that cross no other road are drawn at ground level: %d ways (estimate).\n": "元の高さがなく他の道路と交差しない橋・トンネル・レイヤー道路は地面の高さで描画: %d 本(推定)。\n",
+    "Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n": "元の高さがない橋・トンネル・レイヤー道路のうち、他の道路と交差しないもの、および高さを推定できず塗装された歩道とのみ交差するものは地面の高さで描画: %d 本(推定)。\n",
     "Overpasses and underpasses without source heights use estimated 6 m levels and ramps up to 8%%: %d structure roads (not surveyed).\n": "元の高さがない高架・アンダーパスは1層6 m、勾配最大8%%で推定: %d 本の構造物道路(測量値ではありません)。\n"
   }
 }

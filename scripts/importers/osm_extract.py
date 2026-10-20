@@ -180,7 +180,7 @@ SEPARATION_M = 5.0  # Real metres; ÷8 on the map.
 TUNNEL_CLEARANCE_M = 4.5
 
 
-def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cut_chains=None):
+def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cut_chains=None, chain_of=None):
     """City profile: estimated heights for structures crossing other roads.
 
     A chain of bridge (or tunnel) ways joined end to end is lifted (or lowered)
@@ -193,6 +193,9 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
     A chain whose crossings are all with excluded structures is drawn at
     ground level like a structure crossing nothing; one bending more than 60°
     at a vertex keeps needing source heights (native structure mouths overlap).
+    A chain that cannot be estimated but crosses only open ground walking ways
+    (city paint: no closed-road contact, no source heights, not a ramp of an
+    estimated chain) is drawn at ground level too.
 
     `ways` holds only ways that can be imported. A chain that would get heights
     but ends at a dead end left by an excluded way (a source node in
@@ -200,7 +203,7 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
 
     Returns ({way: [(lon, lat, height_m, ref or None)]}, leveled ways): each
     estimated way's vertices in its own order, with unreferenced vertices added
-    where the profile bends.
+    where the profile bends. `chain_of` receives each estimated way's chain key.
     """
     import math
     from shapely.geometry import LineString
@@ -380,6 +383,19 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
                 offset += step
             points.append((nodes[refs[-1]][0], nodes[refs[-1]][1], profile(offset), refs[-1]))
             estimated[way] = (points[::-1] if flipped else points, "bridge" if profile(total / 2) > 0 else "tunnel")
+            if chain_of is not None: chain_of[way] = path[0][0]
+    ramps = {way for path, _, _ in result.values() for way, _ in path if way not in candidates}
+    def paint(other):
+        refs, tags = roads[other]
+        return (tags.get("highway") in PEDESTRIAN and not structure(tags) and other not in ramps
+                and looped.isdisjoint(refs) and not any("ele" in node_tags.get(ref, {}) for ref in refs))
+    for _, path in chains:
+        members = [way for way, _ in path if way in candidates]
+        if any(way in estimated or way in leveled for way in members): continue
+        hits = [other for way in members for other, _ in crossings(way) if drawn(other) and other not in members]
+        if hits and all(paint(other) for other in hits):
+            leveled.update(members)
+            if cut_chains is not None: cut_chains.difference_update(members)
     return estimated, leveled
 
 
@@ -742,9 +758,9 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                 absent[identity] = exc
     present = [way for way in ways if way[0] not in absent]
     cut_nodes = {ref for identity, _, references, _ in ways if identity in absent for ref in references}
-    cut_chains = set()
+    cut_chains, chain_of = set(), {}
     level = level_structures(present, nodes, node_tags) if city else set()
-    estimated, leveled = estimate_structures(present, nodes, node_tags, level, cut_nodes, cut_chains) if city else ({}, set())
+    estimated, leveled = estimate_structures(present, nodes, node_tags, level, cut_nodes, cut_chains, chain_of) if city else ({}, set())
     level |= leveled
     for identity, kind, references, tags in sorted(ways):
         if identity in consumed:
@@ -768,7 +784,8 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                 feature = features[-1]
                 feature["geometry"]["coordinates"] = [[x, y] for x, y, _, _ in points]
                 feature["properties"].update(_city_estimated_m=[round(h, 2) for _, _, h, _ in points], _city_estimated_kind=structure,
-                    _city_estimated_refs=[ref for _, _, _, ref in points], _city_ends=[str(references[0]), str(references[-1])])
+                    _city_estimated_refs=[ref for _, _, _, ref in points], _city_ends=[str(references[0]), str(references[-1])],
+                    _city_estimated_chain=chain_of[identity])
                 if structure == "tunnel": feature["properties"]["_city_estimated_clearance_m"] = TUNNEL_CLEARANCE_M
         except ValueError as exc:
             review.reject("way/" + str(identity), exc)

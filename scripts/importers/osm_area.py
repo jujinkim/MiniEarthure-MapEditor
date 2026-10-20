@@ -191,6 +191,8 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region
     vertical_counts = dict(clipped_ground_features=0, outside_explicit_features=0, retained_structure_features=0)
     retained_structures, incomplete_structures = set(), set()
     structure_sources = []
+    kept_chains = {f["properties"]["_city_estimated_chain"] for f in collection["features"]
+                   if "_city_estimated_chain" in f["properties"] and shape(f["geometry"]).intersects(window)}
     connections = collection.get("osm_connections", [])
     source_ends = Counter((f["properties"]["osm_way_id"], ref) for f in collection["features"]
         if f["properties"].get("road_kind") in ("bridge", "tunnel")
@@ -261,9 +263,11 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region
             # Polygons drop repeated adjacent positions, as overlay would.
             clipped = source if expected == "LineString" else shapely.remove_repeated_points(source)
         elif expected == "LineString" and "_city_estimated_m" in feature["properties"]:
-            # An estimated structure stays whole: a cut would leave a deck end
-            # in the air and separate its profile from its vertices.
-            clipped = source if source.intersects(window) else shapely.LineString()
+            # An estimated structure stays whole, with every way of its chain:
+            # a cut would leave a deck end in the air and separate its profile
+            # from its vertices.
+            chain = feature["properties"].get("_city_estimated_chain")
+            clipped = source if source.intersects(window) or chain in kept_chains else shapely.LineString()
         elif region is not None and expected == "LineString":
             pieces = region_line_parts(feature["geometry"]["coordinates"], window)
             clipped = shapely.MultiLineString(pieces)

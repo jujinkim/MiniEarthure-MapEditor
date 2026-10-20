@@ -39,12 +39,16 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   roads along them, no closed-road contact and no bend over 60° (a bend of θ needs
   neighbouring segments of 12 m · tan(θ/2) + 2 m, so native structure mouths stay
   separate); every crossing keeps 5 m of separation; tunnels use 4.5 m clearance.
-  A chain crossing only excluded structures is drawn at ground level instead.
+  A chain crossing only excluded structures is drawn at ground level instead, as is
+  one that cannot be estimated but crosses only open ground walking paint (not a
+  closed way or one touching it, a ramp of an estimated chain or a way with source
+  heights).
   Estimation sees only importable ways: a way excluded anyway (with its height tags
   removed, as an estimated way would be) or consumed by a relation is neither
   crossed nor absorbed, and a chain ending where such a way continued it is
   excluded, so no structure ends in the air or underground.
-  Estimated structures join ordinary ground roads, stay whole at crop edges, keep
+  Estimated structures join ordinary ground roads, stay whole at crop edges with
+  every way of their chain, keep
   building clearance plus 1.6 m for safety furniture (also when widened) and are
   listed in `osm_estimated_structures`. Other crossing structures need explicit
   heights and are otherwise excluded.

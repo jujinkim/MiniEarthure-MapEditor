@@ -76,6 +76,20 @@ class CropTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "do not overlap"):
             crop(dict(type="FeatureCollection", features=[road]), [.02,.02,.03,.03], region=region)
 
+    def test_an_estimated_chain_is_kept_whole_when_any_way_touches_the_region(self):
+        from shapely.geometry import box
+        def way(identity, coordinates, heights, chain):
+            return dict(type="Feature", properties=dict(osm_source_id=f"way/{identity}", _city_estimated_m=heights, _city_estimated_kind="bridge",
+                        _city_refs=[identity, identity+1], _city_ends=[str(identity), str(identity+1)], _city_estimated_chain=chain),
+                        geometry=dict(type="LineString", coordinates=coordinates))
+        a = way(1, [[.0005,.0005],[.0015,.0005]], [0.0, 6.0], 1)
+        b = way(2, [[.0015,.0005],[.0025,.0005]], [6.0, 0.0], 1)
+        c = way(3, [[.0018,.0008],[.0028,.0008]], [0.0, 0.0], 3)
+        out, meta = crop(dict(type="FeatureCollection", features=[a, b, c]), [0,0,.003,.001], region=box(0,0,.0012,.001))
+        self.assertEqual([f["properties"]["osm_source_id"] for f in out["features"]], ["way/1", "way/2"], "the chain's outside way stays; its deck must not end in the air")
+        self.assertEqual(out["features"][1], b)
+        self.assertEqual(meta["counts"]["outside_features"], 1)
+
     def test_empty_tangent_invalid_and_caps(self):
         with self.assertRaisesRegex(ValueError,"no supported"): run([feature("LineString",[[-.001,0],[0,0]])])
         with self.assertRaisesRegex(ValueError,"Invalid OSM"): run([feature("Polygon",[[[1,1],[2,2],[1,2],[2,1],[1,1]]])])

@@ -279,6 +279,56 @@ class EstimatedStructures(unittest.TestCase):
         estimated, leveled = osm.estimate_structures(ways, nodes, node_tags, set())
         self.assertEqual((estimated, leveled), ({}, {2}))
 
+    def test_a_chain_that_cannot_be_estimated_over_paint_only_is_leveled(self):
+        # Approaches too short for a deck, crossing only a footway (ground
+        # paint): the bridge lies on the ground instead of being excluded.
+        root = ET.fromstring(self.osm(0.0001))
+        root.find("way[@id='6']/tag[@k='highway']").set("v", "footway")
+        value, _ = osm.parse(ET.tostring(root), "osm", city=True)
+        bridge = next(f for f in value["features"] if f["properties"]["osm_source_id"] == "way/2")["properties"]
+        self.assertTrue(bridge["_city_level_structure"])
+        self.assertNotIn("_city_estimated_m", bridge)
+        for change in ("closed", "touches a closed way", "ele", "structure"):
+            with self.subTest(change=change):
+                root = ET.fromstring(self.osm(0.0001))
+                crossed = root.find("way[@id='6']")
+                crossed.find("tag[@k='highway']").set("v", "footway")
+                if change == "ele":
+                    ET.SubElement(root.find("node[@id='7']"), "tag", k="ele", v="10")
+                    ET.SubElement(root.find("node[@id='8']"), "tag", k="ele", v="10")
+                elif change == "structure":
+                    ET.SubElement(crossed, "tag", k="bridge", v="yes"); ET.SubElement(crossed, "tag", k="layer", v="1")
+                elif change == "closed":
+                    ET.SubElement(root, "node", id="20", lon="9.0003", lat="54.999")
+                    crossed.insert(2, ET.Element("nd", ref="20")); crossed.insert(3, ET.Element("nd", ref="7"))  # Nodes before tags.
+                else:
+                    ET.SubElement(root, "node", id="21", lon="9.0012", lat="55.0012"); ET.SubElement(root, "node", id="22", lon="9.0010", lat="55.0012")
+                    loop = ET.SubElement(root, "way", id="30")
+                    for ref in ("8", "21", "22", "8"): ET.SubElement(loop, "nd", ref=ref)
+                    ET.SubElement(loop, "tag", k="highway", v="footway")
+                with self.assertRaisesRegex(ValueError, "way/2: OSM explicit vertical geometry requires ele"):
+                    osm.parse(ET.tostring(root), "osm", city=True)
+
+    def test_a_ramp_of_an_estimated_chain_is_not_paint(self):
+        # Chain 5 (footway 4 absorbed as its west ramp) is estimated over road 7.
+        # Short bridge 2 crosses only that raised footway ramp: it stays excluded.
+        nodes = {1: [9.0, 55], 2: [9.0015, 55], 3: [9.003, 55], 4: [9.006, 55], 7: [9.0017, 54.999], 8: [9.0017, 55.001],
+                 10: [9.0005, 54.9999], 11: [9.0005, 55.0001]}
+        ways = [(4, "road", [1, 2], {"highway": "footway"}),
+                (5, "road", [2, 3], {"highway": "residential", "bridge": "yes", "layer": "1"}),
+                (6, "road", [3, 4], {"highway": "residential"}),
+                (7, "road", [7, 8], {"highway": "residential"}),
+                (2, "road", [10, 11], {"highway": "footway", "bridge": "yes", "layer": "1"})]
+        estimated, leveled = osm.estimate_structures(ways, nodes, {}, set())
+        self.assertEqual(set(estimated), {4, 5, 6})
+        self.assertNotIn(2, leveled)
+
+    def test_estimated_ways_carry_their_chain(self):
+        value, _ = osm.parse(self.osm(), "osm", city=True)
+        chains = {f["properties"]["osm_source_id"]: f["properties"].get("_city_estimated_chain") for f in value["features"] if "_city_estimated_m" in f["properties"]}
+        self.assertEqual(set(chains), {"way/1", "way/2", "way/3"})
+        self.assertEqual(set(chains.values()), {1}, "keyed by the first way of the extended chain")
+
     def test_an_excluded_continuation_cuts_the_chain_instead_of_leaving_a_raised_end(self):
         # A long bridge passes separation over way 6, but the way continuing it
         # east is excluded anyway (level tag): the bridge is cut, not ramped
