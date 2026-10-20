@@ -15,10 +15,11 @@ import stat
 import struct
 import zlib
 from collections import deque
+from itertools import chain
 
 from import_layer import MAX_INPUT, MAX_POINTS
 from osm_review import Review
-from osm_disk_nodes import DiskNodes, MissingNode, FILES as NODE_FILES, MAX_LOOKUP
+from osm_disk_nodes import DiskNodes, SharedRoadNodes, MissingNode, FILES as NODE_FILES, MAX_LOOKUP
 from osm_area import bounds
 from osm_extract import dependency, category, build_features, MAX_ENTITIES, MAX_REFS, MAX_FEATURES
 
@@ -94,6 +95,179 @@ def _fields(raw):
     return values
 
 
+def _uvarint(raw, offset, end):
+    value = shift = 0
+    while True:
+        if offset >= end or shift > 63: raise ValueError("truncated/oversized PBF integer")
+        byte = raw[offset]
+        offset += 1
+        value |= (byte & 127) << shift
+        if byte < 128: return value, offset
+        shift += 7
+
+
+def _message(raw, offset, end):
+    """(number, wire, value) of one protobuf message; bytes values are (start, stop)."""
+    while offset < end:
+        # One-byte keys and values are the common case in every PBF block.
+        key = raw[offset]
+        if key < 128: offset += 1
+        else: key, offset = _uvarint(raw, offset, end)
+        wire = key & 7
+        if wire == 0 or wire == 2:
+            if offset < end and raw[offset] < 128:
+                value = raw[offset]
+                offset += 1
+            else:
+                value, offset = _uvarint(raw, offset, end)
+            if wire == 0:
+                yield key >> 3, 0, value
+                continue
+            if value > end-offset: raise ValueError("truncated PBF bytes")
+            yield key >> 3, 2, (offset, offset+value)
+            offset += value
+        elif wire == 1 or wire == 5:
+            offset += 8 if wire == 1 else 4
+            if offset > end: raise ValueError("truncated PBF field")
+        else:
+            raise ValueError("unsupported PBF wire type")
+
+
+MAX_DECODED_BLOCK = 2 * 1024**2
+
+
+class _Unsupported(Exception):
+    """Block left to libosmium's per-entity path (which accepts or rejects it)."""
+
+
+def _uvarints(np, data):
+    """Packed unsigned varints, vectorized; temporaries scale with the value count."""
+    ends = np.flatnonzero(data < 128)
+    if not ends.size or ends[-1] != data.size-1: raise _Unsupported
+    starts = np.empty_like(ends)
+    starts[0] = 0
+    starts[1:] = ends[:-1]+1
+    lengths = ends-starts+1
+    longest = int(lengths.max())
+    # A tenth byte may only carry bit 63; anything else is left to libosmium.
+    if longest > 10 or (longest == 10 and np.any(data[starts[lengths == 10]+9] > 1)): raise _Unsupported
+    values = (data[starts] & 127).astype(np.uint64)
+    for shift in range(1, longest):
+        more = np.flatnonzero(lengths > shift)
+        values[more] |= (data[starts[more]+shift] & 127).astype(np.uint64) << np.uint64(7*shift)
+    return values, ends
+
+
+def _sint64(np, data, offsets=None):
+    """Zigzag packed varints. With byte offsets of packed runs, also each run's count."""
+    if not data.size: return np.empty(0, np.int64), np.zeros(0 if offsets is None else len(offsets)-1, np.int64)
+    values, ends = _uvarints(np, data)
+    values = (values >> np.uint64(1)).astype(np.int64) ^ -(values & np.uint64(1)).astype(np.int64)
+    if offsets is None: return values, None
+    if np.any(data[offsets[1:]-1] >= 128): raise _Unsupported
+    return values, np.diff(np.searchsorted(ends, offsets))
+
+
+def _deltas(np, values, counts=None):
+    """Delta-coded runs in wrapping int64 arithmetic, as libosmium sums them."""
+    total = np.cumsum(values)
+    if counts is None: return total
+    first = np.concatenate(([0], np.cumsum(counts)[:-1]))
+    return total-np.repeat(np.concatenate(([0], total))[first], counts)
+
+
+def _signed(value, bits):
+    value &= (1 << bits)-1
+    return value-(1 << bits) if value >> (bits-1) else value
+
+
+def _decode_block(np, raw, *, nodes=False, ways=False):
+    """Dense node IDs/locations and way IDs/refs of one PrimitiveBlock, as libosmium decodes them.
+
+    Returns None for anything but the canonical encoding (plain nodes, repeated or
+    mismatched fields, oversized blocks...): those blocks stay on the per-entity path.
+    """
+    if len(raw) > MAX_DECODED_BLOCK: return None
+    try:
+        with np.errstate(over="ignore"):
+            return _decode_canonical(np, raw, nodes, ways)
+    except (_Unsupported, ValueError, IndexError):
+        return None
+
+
+def _decode_canonical(np, raw, nodes, ways):
+    granularity, lat_offset, lon_offset, groups = 100, 0, 0, []
+    for number, wire, value in _message(raw, 0, len(raw)):
+        if number == 2 and wire == 2: groups.append(value)
+        elif number == 17 and wire == 0: granularity = _signed(value, 32)
+        elif number == 19 and wire == 0: lat_offset = _signed(value, 64)
+        elif number == 20 and wire == 0: lon_offset = _signed(value, 64)
+    data = np.frombuffer(raw, dtype=np.uint8)
+    dense, way_ids, way_refs = [], [], []
+    for start, stop in groups:
+        for number, wire, value in _message(raw, start, stop):
+            if number == 1: raise _Unsupported
+            if number == 2 and nodes and wire == 2:
+                fields = {}
+                for inner, kind, span in _message(raw, *value):
+                    if inner in (1, 5, 8, 9):
+                        if inner in fields or kind != 2: raise _Unsupported
+                        fields[inner] = span
+                ids, lat, lon = (_deltas(np, _sint64(np, data[slice(*fields[k])] if k in fields else data[:0])[0]) for k in (1, 8, 9))
+                if not len(ids) == len(lat) == len(lon): raise _Unsupported
+                visible = None
+                if 5 in fields:
+                    for inner, kind, span in _message(raw, *fields[5]):
+                        if inner == 6:
+                            if visible is not None or kind != 2: raise _Unsupported
+                            visible = _uvarints(np, data[slice(*span)])[0] if span[1] > span[0] else np.zeros(0, np.uint64)
+                    # Only canonical 0/1 bools; libosmium reads wider values as int32.
+                    if visible is not None and (len(visible) != len(ids) or np.any(visible > 1)): raise _Unsupported
+                    if visible is not None: visible = visible == 1
+                # libosmium: int32_t((c * granularity + offset) / 100) in int64, truncating toward zero.
+                xy = np.empty((len(ids), 2), np.int32)
+                for column, coordinate, offset in ((0, lon, lon_offset), (1, lat, lat_offset)):
+                    scaled = coordinate*np.int64(granularity)+np.int64(offset)
+                    quotient, remainder = np.divmod(scaled, np.int64(100))
+                    xy[:, column] = (quotient+((remainder != 0) & (scaled < 0))).astype(np.int32)
+                dense.append((ids, xy, visible))
+            elif number == 3 and ways and wire == 2:
+                # Inline field walk: millions of ways, only the ID and refs are needed.
+                identity, refs, (offset, stop) = None, None, value
+                while offset < stop:
+                    key = raw[offset]
+                    if key < 128: offset += 1
+                    else: key, offset = _uvarint(raw, offset, stop)
+                    kind = key & 7
+                    if kind == 0 or kind == 2:
+                        if offset < stop and raw[offset] < 128:
+                            span = raw[offset]
+                            offset += 1
+                        else:
+                            span, offset = _uvarint(raw, offset, stop)
+                        if kind == 2:
+                            if span > stop-offset: raise _Unsupported
+                            offset += span
+                    elif kind == 1 or kind == 5:
+                        offset += 8 if kind == 1 else 4
+                        if offset > stop: raise _Unsupported
+                    else:
+                        raise _Unsupported
+                    if key == 0x08 and identity is None: identity = _signed(span, 64)
+                    elif key == 0x42 and refs is None: refs = (offset-span, offset)
+                    elif key >> 3 in (1, 8): raise _Unsupported
+                if identity is None: raise _Unsupported
+                way_ids.append(identity)
+                way_refs.append(refs or (0, 0))
+    if not way_ids: return dense, None
+    spans = np.asarray(way_refs, dtype=np.int64)
+    lengths = spans[:, 1]-spans[:, 0]
+    offsets = np.concatenate(([0], np.cumsum(lengths)))
+    packed = data[np.repeat(spans[:, 0]-offsets[:-1], lengths)+np.arange(offsets[-1])]
+    values, counts = _sint64(np, packed, offsets)
+    return dense, (way_ids, counts.tolist(), _deltas(np, values, counts))
+
+
 def _frame(kind, payload):
     blob = b"\x0a" + _varint(len(payload)) + payload
     header = b"\x0a" + _varint(len(kind)) + kind + b"\x18" + _varint(len(blob))
@@ -148,7 +322,6 @@ def _scan(path, stage, event, size, osmium, entity_bits, callback, entity_filter
     pool = osmium.io.ThreadPool(1, 1)
     try:
         for kind, payload, offset in _blocks(path, stage, event, size, offsets=True):
-            if block_callback is not None: block_callback(offset)
             if kind == b"OSMHeader":
                 if header is not None or blocks: raise ValueError("duplicate/misplaced PBF header")
                 header = _frame(kind, payload)
@@ -158,8 +331,10 @@ def _scan(path, stage, event, size, osmium, entity_bits, callback, entity_filter
             else:
                 if header is None: raise ValueError("PBF data before header")
                 blocks += 1
+                # A block callback may narrow this block's Python entities (e.g. to tagged nodes).
+                block_filter = block_callback(offset, payload) if block_callback is not None else None
                 processor = osmium.FileProcessor(osmium.io.FileBuffer(header + _frame(kind, payload), "pbf"), entities=entity_bits, thread_pool=pool)
-                if entity_filter is not None: processor.with_filter(entity_filter)
+                if block_filter is not None or entity_filter is not None: processor.with_filter(block_filter or entity_filter)
                 iterator = iter(processor)
                 try:
                     for entity in iterator: callback(entity)
@@ -238,7 +413,10 @@ def _structure_closure(db, event, size, read_way=None):
         for ref in refs:
             if ref in nodes: continue
             nodes.add(ref)
-            for (peer,) in db.execute("SELECT way FROM road_nodes WHERE node=? ORDER BY way", (ref,)):
+            # A node without rows touches only this highway (shared-node index).
+            rows = db.execute("SELECT way FROM road_nodes WHERE node=? ORDER BY way", (ref,))
+            first = rows.fetchone()
+            for (peer,) in (chain((first,), rows) if first is not None else ((way,),)):
                 visits += 1
                 if visits > MAX_REFS: raise ValueError("OSM structure closure incidence budget exceeded")
                 if visits % 100 == 0: event("index_relations", size, size)
@@ -267,7 +445,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
     # Refuse before claiming ownership. Cleanup may only remove files created here.
     if any((directory / name).exists() for name in OWNED_FILES):
         raise ValueError("PBF stream workspace already contains owned filenames")
-    db, locations, lazy_pool = None, None, None
+    db, locations, shared, lazy_pool = None, None, None, None
     try:
         size, digest = _capture(source, directory, event)
         path = directory / "source.pbf"
@@ -311,15 +489,18 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             tag_count = len(entity.tags)
             # Most geographic nodes have no tags. In pyosmium, exhausting a tag
             # iterator crosses a C++ exception boundary even for an empty list.
-            # Do not pay that cost millions of times in a national snapshot.
+            # Do not pay that cost millions of times in a national snapshot:
+            # take exactly tag_count items instead of iterating to the end.
             if tag_count == 0: return {}
             failure = "more than 128 source tags are unsupported" if tag_count > 128 else ""
-            tags = {}
-            for tag in entity.tags:
-                if tag.k in tags or len(tag.k) > 512 or len(tag.v) > 512:
+            tags, iterator = {}, iter(entity.tags)
+            for _ in range(tag_count):
+                key, value = next(iterator)
+                oversized = len(key) > 512 or len(value) > 512
+                if oversized or key in tags:
                     failure = "duplicate or oversized source tag"
-                if len(tags) < 128 and len(tag.k) <= 512 and len(tag.v) <= 512:
-                    tags[tag.k] = tag.v
+                if not oversized and len(tags) < 128:
+                    tags[key] = value
             if failure:
                 # Unselected labels (e.g. multilingual country nodes) do not
                 # consume the selected-object tag quota. Retain an error marker:
@@ -338,7 +519,30 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             other = [x,y,x if east is None else east,y if north is None else north]
             return other if box is None else [min(box[0],other[0]),min(box[1],other[1]),max(box[2],other[2]),max(box[3],other[3])]
         tag_insert = db.cursor()
+        np, tagged_only = locations.np, osmium.filter.EmptyTagFilter()
+        # Dense blocks index IDs/locations without Python entities; ways take refs
+        # from the same decoded block, checked against libosmium's ID and length.
+        decoded = dict(dense=False, ids=None, counts=None, refs=None, way=0, ref=0)
+        def node_block(offset, payload):
+            nonlocal scanned
+            blocks = _decode_block(np, payload, nodes=True)
+            decoded["dense"] = blocks is not None
+            if blocks is None: return None
+            for ids, xy, visible in blocks[0]:
+                if not len(ids): continue
+                scanned += len(ids)
+                totals["nodes"] += len(ids)
+                if scanned > MAX_SCAN_ENTITIES or ids.min() <= 0 or (visible is not None and not visible.all()):
+                    raise ValueError("OSM scan entity budget/deleted or invalid ID")
+                if xy[:,0].min() < -1800000000 or xy[:,0].max() > 1800000000 or xy[:,1].min() < -900000000 or xy[:,1].max() > 900000000:
+                    raise ValueError("OSM invalid node location")
+                locations.add_many(ids, xy)
+            return tagged_only
         def node(entity):
+            if decoded["dense"]:
+                tags = scalar(entity, "nodes", counted=False)
+                if tags: tag_insert.execute("INSERT INTO node_tags VALUES(?,?)", (entity.id,json.dumps(tags)))
+                return
             tags = scalar(entity, "nodes")
             location = entity.location
             if not location.valid(): raise ValueError("OSM invalid node location")
@@ -348,22 +552,39 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             if tags: tag_insert.execute("INSERT INTO node_tags VALUES(?,?)", (entity.id,json.dumps(tags)))
         pending_ways, pending_refs, pending_bytes = [], 0, 0
         block_offset = 0
-        def block_start(offset):
+        def decoded_rest():
+            if decoded["ids"] is not None and decoded["way"] != len(decoded["ids"]): raise ValueError("PBF way decoding mismatch")
+        def way_block(offset, payload):
+            nonlocal block_offset
+            decoded_rest()
+            block_offset = offset
+            blocks = _decode_block(np, payload, ways=True)
+            ids, counts, refs = blocks[1] if blocks is not None and blocks[1] is not None else (None, None, None)
+            decoded.update(ids=ids, counts=counts, refs=refs, way=0, ref=0)
+        def block_start(offset, payload):
             nonlocal block_offset
             block_offset = offset
+        def city_payload(refs, tags):
+            raw = json.dumps([refs,tags])
+            if len(raw.encode("utf-8")) > WAY_BATCH_BYTES: raise ValueError("OSM way buffer byte budget exceeded")
+            return zlib.compress(raw.encode("utf-8"), 1)
         def flush_ways():
             nonlocal pending_refs, pending_bytes
             if not pending_ways: return
             boxes = locations.bounds_many([row[1] for row in pending_ways])
+            # City mode stores only selected payloads; the rest are source block pointers.
             db.executemany("INSERT INTO ways VALUES(?,?,?,?,?,?,?)",
-                ((identity,*(box or [None]*4),
-                  (zlib.compress(raw.encode("utf-8"), 1) if potential and intersects(box) else b"L"+struct.pack(">Q",offset)) if city else raw,int(potential))
-                 for (identity,refs,tags,raw,potential,offset),box in zip(pending_ways,boxes)))
+                [(identity,*(box or [None]*4),
+                  (city_payload(refs, tags) if potential and intersects(box) else b"L"+struct.pack(">Q",offset)) if city else raw,int(potential))
+                 for (identity,refs,tags,raw,potential,offset),box in zip(pending_ways,boxes)])
             # Only source graph evidence, never an inferred positional join.
             # Batches obey the same aggregate reference/disk/deadline caps.
-            db.executemany("INSERT OR IGNORE INTO road_nodes VALUES(?,?)",
-                ((ref,identity) for identity,refs,tags,raw,potential,offset in pending_ways
-                 if "highway" in tags for ref in refs))
+            if shared is not None:
+                shared.add([(identity,refs) for identity,refs,tags,raw,potential,offset in pending_ways if "highway" in tags])
+            else:
+                db.executemany("INSERT OR IGNORE INTO road_nodes VALUES(?,?)",
+                    ((ref,identity) for identity,refs,tags,raw,potential,offset in pending_ways
+                     if "highway" in tags for ref in refs))
             for (identity,refs,tags,raw,potential,offset),box in zip(pending_ways,boxes):
                 if "highway" in tags:
                     if any(tags.get(k, "no") not in ("no", "0") for k in ("bridge", "tunnel")):
@@ -376,12 +597,22 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         def way(entity):
             nonlocal pending_refs, pending_bytes
             tags = scalar(entity, "ways")
-            references(len(entity.nodes))
-            refs = [n.ref for n in entity.nodes]
+            count = len(entity.nodes)
+            references(count)
+            if decoded["ids"] is None:
+                refs = [n.ref for n in entity.nodes]
+            else:
+                index, start = decoded["way"], decoded["ref"]
+                if index >= len(decoded["ids"]) or decoded["ids"][index] != entity.id or decoded["counts"][index] != count:
+                    raise ValueError("PBF way decoding mismatch")
+                refs = decoded["refs"][start:start+count].tolist()
+                decoded["way"], decoded["ref"] = index+1, start+count
             potential = _potential(tags)
-            if potential and not len(entity.nodes): raise ValueError("OSM feature way has no referenced geometry")
-            raw = json.dumps([refs,tags]); size = len(raw.encode("utf-8"))
-            if size > WAY_BATCH_BYTES: raise ValueError("OSM way buffer byte budget exceeded")
+            if potential and not count: raise ValueError("OSM feature way has no referenced geometry")
+            raw, size = None, 0
+            if not city:
+                raw = json.dumps([refs,tags]); size = len(raw.encode("utf-8"))
+                if size > WAY_BATCH_BYTES: raise ValueError("OSM way buffer byte budget exceeded")
             if len(pending_ways) >= WAY_BATCH_ROWS or pending_refs + len(refs) > MAX_LOOKUP or pending_bytes + size > WAY_BATCH_BYTES:
                 flush_ways()
             pending_ways.append((entity.id,refs,tags,raw,potential,block_offset))
@@ -439,10 +670,18 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                         db.execute("INSERT INTO owners VALUES(?,?,?)", (ref,entity.id,int(not candidate)))
                         owned_members.add(ref)
                 if candidate and kind == "w": db.execute("INSERT OR IGNORE INTO chosen VALUES(?)", (ref,))
-        for stage, bits, callback in [("index_nodes",osmium.osm.NODE,node),("index_ways",osmium.osm.WAY,way),("index_relations",osmium.osm.RELATION,relation)]:
-            _scan(path, stage, event, size, osmium, bits, callback, block_callback=block_start)
-            if stage == "index_nodes": locations.seal()
-            if stage == "index_ways": flush_ways()
+        for stage, bits, callback, block in [("index_nodes",osmium.osm.NODE,node,node_block),("index_ways",osmium.osm.WAY,way,way_block),("index_relations",osmium.osm.RELATION,relation,block_start)]:
+            _scan(path, stage, event, size, osmium, bits, callback, block_callback=block)
+            if stage == "index_nodes":
+                locations.seal()
+                if locations.ordered and locations.count: shared = SharedRoadNodes(locations, directory)
+            if stage == "index_ways":
+                decoded_rest()
+                flush_ways()
+                if shared is not None:
+                    db.executemany("INSERT OR IGNORE INTO road_nodes VALUES(?,?)", shared.rows())
+                    shared.close()
+                    shared = None
             db.commit()
         lazy_header, resolved_blocks = None, 0
         def read_way(identity):
@@ -542,6 +781,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         raise ValueError("invalid/budget-exceeding PBF stream: " + str(exc)[:300]) from exc
     finally:
         if lazy_pool is not None: del lazy_pool
+        if shared is not None: shared.close()
         if locations is not None: locations.close()
         if db is not None: db.close()
         for name in OWNED_FILES:

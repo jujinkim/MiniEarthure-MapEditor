@@ -108,6 +108,101 @@ class Streaming(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"UNIQUE|duplicate"):
             self.extract(ET.tostring(snapshot,encoding="unicode"))
 
+    def test_plain_node_blocks_and_unsorted_closure_match_the_decoded_index(self):
+        import osmium
+        box=[9.0004,54.9999,9.0016,55.0001]
+        expected=self.extract(structural_xml(),box)
+        self.assertGreater(expected[2]["structure_closure"]["visits"],0)
+        # Plain (non-dense) node blocks stay on the per-entity path.
+        self.source.unlink()
+        with osmium.SimpleWriter(osmium.io.File(str(self.source),"pbf,pbf_dense_nodes=false")) as writer:
+            for entity in osmium.FileProcessor(osmium.io.FileBuffer(structural_xml().encode(),"osm")): writer.add(entity)
+        plain=stream.extract(self.source,box,self.directory)
+        self.assertEqual(plain[:2],expected[:2])
+        self.assertEqual({k:v for k,v in plain[2].items() if k not in ("source_bytes","source_sha256")},
+                         {k:v for k,v in expected[2].items() if k not in ("source_bytes","source_sha256")})
+        # Unsorted nodes keep every highway incidence in SQLite; the shared-node
+        # index must give the same closure, visit count included.
+        root=ET.fromstring(structural_xml())
+        nodes=root.findall("node")
+        remainder=[item for item in root if item.tag!="node"]
+        snapshot=ET.Element("osm",root.attrib);snapshot.extend(list(reversed(nodes))+remainder)
+        unsorted=self.extract(ET.tostring(snapshot,encoding="unicode"),box)
+        self.assertEqual(unsorted[:2],expected[:2])
+        self.assertEqual(unsorted[2]["structure_closure"],expected[2]["structure_closure"])
+
+    def test_decoded_blocks_follow_libosmium_granularity_offsets_and_refs(self):
+        import numpy as np
+        import osmium
+        def field(number,payload): return stream._varint(number<<3|2)+stream._varint(len(payload))+payload
+        def scalar(number,value): return stream._varint(number<<3)+stream._varint(value%2**64)
+        def packed(values):
+            previous,out=0,b""
+            for value in values:
+                delta,previous=value-previous,value
+                out+=stream._varint((delta<<1)^(delta>>63))
+            return out
+        ids=[5,9,10,4000000000]
+        lat=[-5,7,123456,-900000]
+        lon=[-123,99,-1,1800000]
+        dense=field(1,packed(ids))+field(8,packed(lat))+field(9,packed(lon))
+        ways=field(3,scalar(1,7)+field(8,packed([10,5,9,4000000000,5])))+field(3,scalar(1,8))
+        block=field(1,field(1,b""))+field(2,field(2,dense))+field(2,ways)+scalar(17,1000)+scalar(19,-123456789)+scalar(20,987654321)
+        pbf(self.source)
+        header=next(stream._blocks(self.source,"x",lambda *a:None,self.source.stat().st_size))
+        source=stream._frame(*header)+stream._frame(b"OSMData",block)
+        nodes,(way_ids,counts,refs)=stream._decode_block(np,block,nodes=True,ways=True)
+        located,decoded_ways=[],[]
+        for entity in osmium.FileProcessor(osmium.io.FileBuffer(source,"pbf")):
+            if entity.is_node(): located.append([entity.id,entity.location.x,entity.location.y])
+            else: decoded_ways.append((entity.id,[n.ref for n in entity.nodes]))
+        self.assertEqual(len(nodes),1)
+        self.assertIsNone(nodes[0][2])
+        self.assertEqual(np.column_stack((nodes[0][0],nodes[0][1])).tolist(),located)
+        self.assertEqual(list(zip(way_ids,[refs[sum(counts[:i]):sum(counts[:i+1])].tolist() for i in range(len(counts))])),decoded_ways)
+        self.assertEqual(decoded_ways[1],(8,[]))
+        # Anything but the canonical encoding stays on libosmium's per-entity path:
+        # truncation, unknown wire types, unterminated packed values, repeated or
+        # mismatched dense arrays, a repeated way ID, oversized blocks.
+        for broken in [block[:-1],block+b"\x0b",field(2,field(2,field(1,b"\x80"))),
+                       field(2,field(2,field(1,packed([1,2]))+field(8,packed([1]))+field(9,packed([1,2])))),
+                       field(2,field(2,field(1,packed([1]))+field(1,packed([2])))),
+                       field(2,field(3,scalar(1,7)+scalar(1,8))),
+                       field(2,field(2,field(1,packed([1]))+field(8,packed([1]))+field(9,packed([1]))+field(5,field(6,stream._varint(2**32))))),
+                       block+field(1,b"x"*stream.MAX_DECODED_BLOCK)]:
+            self.assertIsNone(stream._decode_block(np,broken,nodes=True,ways=True))
+        # libosmium's int64/int32 arithmetic: IDs beyond 2**52, wrapped coordinates,
+        # a granularity truncated to int32.
+        dense=field(1,packed([2**62+1]))+field(8,packed([550000000+2**32]))+field(9,packed([90000000]))
+        wrapped=field(1,field(1,b""))+field(2,field(2,dense))+field(2,field(3,scalar(1,2**62)+field(8,packed([2**62+1]))))+scalar(17,2**32+100)
+        nodes,(way_ids,counts,refs)=stream._decode_block(np,wrapped,nodes=True,ways=True)
+        located=[]
+        for entity in osmium.FileProcessor(osmium.io.FileBuffer(stream._frame(*header)+stream._frame(b"OSMData",wrapped),"pbf")):
+            located.append([entity.id,entity.location.x,entity.location.y] if entity.is_node() else [entity.id,[n.ref for n in entity.nodes]])
+        self.assertEqual([[int(nodes[0][0][0]),*nodes[0][1][0].tolist()],[way_ids[0],refs.tolist()]],located)
+
+    def test_shared_road_nodes_keep_only_nodes_two_ways_share(self):
+        import sqlite3
+        from osm_disk_nodes import DiskNodes, SharedRoadNodes
+        db=sqlite3.connect(":memory:")
+        db.execute("CREATE TABLE nodes(id INTEGER PRIMARY KEY, x INTEGER, y INTEGER)")
+        nodes=DiskNodes(self.directory,db,1024**2)
+        import numpy as np
+        nodes.add_many(np.arange(1,9,dtype=np.int64),np.zeros((8,2),dtype=np.int32))
+        nodes.seal()
+        shared=SharedRoadNodes(nodes,self.directory)
+        try:
+            shared.add([(20,[1,2,3,1]),(21,[3,4])])
+            shared.add([(22,[4,5,6]),(23,[])])
+            shared.add([(24,[7,8,7])])
+            shared.add([(100+way,[1]) for way in range(255)])  # One batch sharing a node never wraps.
+            self.assertEqual(sorted(shared.rows()),[(1,20)]+[(1,100+way) for way in range(255)]+[(3,20),(3,21),(4,21),(4,22)])
+        finally:
+            shared.close()
+            nodes.close()
+        self.assertFalse(any((self.directory/name).exists() for name in stream.NODE_FILES[2:]))
+        self.assertEqual(nodes.written,8*16)
+
     def test_selected_outside_semantics_and_complete_references(self):
         # Unsupported geometry outside candidate envelopes is a disclosed omission.
         root=ET.fromstring(XML)

@@ -6,7 +6,7 @@ path retains a Python/libosmium dictionary containing the country's locations.
 """
 from array import array
 
-FILES = ("node-ids.i64", "node-xy.i32")
+FILES = ("node-ids.i64", "node-xy.i32", "road-incidence.u8", "road-pairs.bin")
 BATCH = 4096
 MAX_LOOKUP = 20000
 PRECISION = 10000000.0
@@ -23,7 +23,7 @@ class DiskNodes:
         except ImportError as exc:
             raise ValueError("PBF streaming needs NumPy; install requirements-import.txt") from exc
         self.np, self.db, self.quota = np, db, quota
-        self.paths = [directory / name for name in FILES]
+        self.paths = [directory / name for name in FILES[:2]]
         self.ids_file = self.xy_file = None
         self.ids = self.xy = None
         self.count, self.written, self.last = 0, 0, 0
@@ -49,18 +49,45 @@ class DiskNodes:
         self.count += 1
         if len(self.keys) == BATCH: self._flush()
 
-    def _flush(self):
-        if not self.keys: return
-        amount = len(self.keys) * 16
+    def add_many(self, ids, xy):
+        """Same order, duplicate and flush semantics as add() for decoded int64 IDs/int32 pairs."""
+        if self.ready: raise ValueError("PBF node index is already sealed")
+        np = self.np
+        if not len(ids): return
+        previous = np.empty_like(ids)
+        previous[0] = self.last
+        previous[1:] = ids[:-1]
+        if np.any(ids == previous): raise ValueError("OSM duplicate node ID")
+        if np.any(ids < previous): self.ordered = False
+        self.last = int(ids[-1])
+        start = 0
+        while start < len(ids):
+            take = min(BATCH - len(self.keys), len(ids) - start)
+            self.keys.frombytes(ids[start:start+take].astype(np.int64).tobytes())
+            self.positions.frombytes(xy[start:start+take].astype(np.int32).tobytes())
+            self.count += take
+            start += take
+            if len(self.keys) == BATCH: self._flush()
+
+    def reserve(self, amount):
         pages = (self.quota - self.written - amount) // 4096
         if pages < self.db.execute("PRAGMA page_count").fetchone()[0]:
             raise ValueError("OSM combined node/SQLite index budget exceeded")
         # Reserve the binary bytes before writing them. SQLite cannot grow into
         # their reservation during later way/relation indexing.
         self.db.execute(f"PRAGMA max_page_count={pages}")
+        self.written += amount
+
+    def release(self, amount):
+        self.written -= amount
+        self.db.execute(f"PRAGMA max_page_count={(self.quota - self.written) // 4096}")
+
+    def _flush(self):
+        if not self.keys: return
+        amount = len(self.keys) * 16
+        self.reserve(amount)
         self.keys.tofile(self.ids_file)
         self.positions.tofile(self.xy_file)
-        self.written += amount
         self.keys = array("q")
         self.positions = array("i")
 
@@ -90,6 +117,16 @@ class DiskNodes:
             self.xy = self.np.memmap(self.paths[1], dtype=self.np.int32, mode="r", shape=(self.count, 2))
         self.ready = True
 
+    def indices(self, refs):
+        """Positions in the sorted file arrays (ordered snapshots only)."""
+        if not self.ready or not self.ordered: raise ValueError("PBF node index is not sealed/ordered")
+        if not 0 < len(refs) <= MAX_LOOKUP: raise ValueError("OSM node lookup reference budget exceeded")
+        if self.count == 0: self._missing()
+        wanted = self.np.asarray(refs, dtype=self.np.int64)
+        indices = self.ids.searchsorted(wanted)
+        if self.np.any(indices >= self.count) or self.np.any(self.ids[indices] != wanted): self._missing()
+        return indices
+
     def _points(self, refs):
         if not self.ready: raise ValueError("PBF node index is not sealed")
         if not 0 < len(refs) <= MAX_LOOKUP: raise ValueError("OSM node lookup reference budget exceeded")
@@ -97,11 +134,7 @@ class DiskNodes:
             rows = [self.db.execute("SELECT x,y FROM nodes WHERE id=?", (ref,)).fetchone() for ref in refs]
             if any(row is None for row in rows): self._missing()
             return self.np.asarray(rows, dtype=self.np.int32)
-        if self.count == 0: self._missing()
-        wanted = self.np.asarray(refs, dtype=self.np.int64)
-        indices = self.ids.searchsorted(wanted)
-        if self.np.any(indices >= self.count) or self.np.any(self.ids[indices] != wanted): self._missing()
-        return self.xy[indices]  # Bounded copy, never an escaping mmap view.
+        return self.xy[self.indices(refs)]  # Bounded copy, never an escaping mmap view.
 
     @staticmethod
     def _missing():
@@ -127,9 +160,9 @@ class DiskNodes:
         points = self._points(refs)
         lows = self.np.minimum.reduceat(points, starts, axis=0)
         highs = self.np.maximum.reduceat(points, starts, axis=0)
-        for owner, low, high in zip(owners, lows, highs):
-            result[owner] = [int(low[0])/PRECISION,int(low[1])/PRECISION,
-                             int(high[0])/PRECISION,int(high[1])/PRECISION]
+        # float64 division of the exact integers, as int(x)/PRECISION would give.
+        boxes = (self.np.concatenate((lows, highs), axis=1).astype(self.np.float64) / PRECISION).tolist()
+        for owner, box in zip(owners, boxes): result[owner] = box
         return result
 
     def point(self, ref):
@@ -142,3 +175,72 @@ class DiskNodes:
         for mapped in (self.ids, self.xy):
             if mapped is not None: mapped._mmap.close()
         self.ids_file = self.xy_file = self.ids = self.xy = None
+
+
+class SharedRoadNodes:
+    """Highway (node, way) incidences, kept only where two or more ways share a node.
+
+    Needs an ordered DiskNodes index. A per-node saturating counter and the raw pairs
+    are disk files inside the same quota; rows() yields the shared pairs once the
+    ways are complete, and close() releases both reservations.
+    """
+    def __init__(self, nodes, directory):
+        self.nodes, self.np = nodes, nodes.np
+        self.paths = [directory / name for name in FILES[2:]]
+        self.counter = self.pairs = None
+        self.reserved = 0
+        # 12-byte pairs: a uint32 position in the node arrays and the int64 way ID.
+        self.dtype = self.np.dtype([("node", "<u4"), ("way", "<i8")])
+        if nodes.count >= 2**32: raise ValueError("OSM node index budget exceeded")
+        nodes.reserve(nodes.count)
+        self.reserved = nodes.count
+        self.counter = self.np.memmap(self.paths[0], dtype=self.np.uint8, mode="w+", shape=(max(nodes.count, 1),))
+        self.pairs = self.paths[1].open("xb")
+        self.written = 0
+
+    def add(self, ways):
+        """`ways`: (way ID, refs) of one bounded batch (at most MAX_LOOKUP refs)."""
+        np = self.np
+        ways = [(identity, refs) for identity, refs in ways if refs]
+        if not ways: return
+        positions = self.nodes.indices([ref for _, refs in ways for ref in refs])
+        owners = np.repeat(np.asarray([identity for identity, _ in ways], dtype=np.int64), [len(refs) for _, refs in ways])
+        order = np.lexsort((owners, positions))
+        positions, owners = positions[order], owners[order]
+        unique = np.ones(len(positions), dtype=bool)
+        unique[1:] = (positions[1:] != positions[:-1]) | (owners[1:] != owners[:-1])
+        positions, owners = positions[unique], owners[unique]
+        # Saturate at 2 ways per node; increments are clipped first, so no batch size wraps uint8.
+        nodes, ways = np.unique(positions, return_counts=True)
+        self.counter[nodes] = np.minimum(self.counter[nodes].astype(np.int64)+ways, 2)
+        pairs = np.empty(len(positions), dtype=self.dtype)
+        pairs["node"], pairs["way"] = positions, owners
+        self.nodes.reserve(pairs.nbytes)
+        self.reserved += pairs.nbytes
+        pairs.tofile(self.pairs)
+        self.written += len(pairs)
+
+    def rows(self):
+        np = self.np
+        self.pairs.close()
+        self.pairs = None
+        with self.paths[1].open("rb") as source:
+            remaining = self.written
+            while remaining:
+                count = min(MAX_LOOKUP, remaining)
+                pairs = np.fromfile(source, dtype=self.dtype, count=count)
+                if len(pairs) != count: raise ValueError("OSM road incidence index is truncated")
+                remaining -= count
+                pairs = pairs[self.counter[pairs["node"]] >= 2]
+                if not len(pairs): continue
+                nodes = self.nodes.ids[pairs["node"]]
+                order = np.lexsort((pairs["way"], nodes))
+                yield from zip(nodes[order].tolist(), pairs["way"][order].tolist())
+
+    def close(self):
+        if self.pairs is not None: self.pairs.close()
+        if self.counter is not None: self.counter._mmap.close()
+        self.pairs = self.counter = None
+        for path in self.paths: path.unlink(missing_ok=True)
+        if self.reserved: self.nodes.release(self.reserved)
+        self.reserved = 0

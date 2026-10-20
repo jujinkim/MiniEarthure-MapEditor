@@ -138,7 +138,10 @@ is in **Activity → Operation details…**.
 | PBF scan | 100 million entities, 80 million references, 2 GiB disk index, 15 minutes |
 
 Exact mode performs no generalization. Disk index bytes are logical reservations,
-not RSS limits. The review candidate is immutable; source recheck and command
+not RSS limits. The scan reads dense node IDs/locations and way references straight
+from the captured blocks (each way checked against libosmium's ID and node count);
+only tagged nodes and way/relation tags become Python objects, and the road incidence
+index keeps only nodes that two or more highways share. The review candidate is immutable; source recheck and command
 preparation run in owned workers, and late or stale results are rejected. Adopt
 adds the whole layer in one Undo command; Discard releases the candidate. Layer
 visibility/lock are view state. Saving stays explicit. Compressed history and
