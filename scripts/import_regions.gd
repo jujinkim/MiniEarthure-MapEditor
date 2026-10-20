@@ -1,7 +1,9 @@
 extends RefCounted
+const LIMITS := preload("./limit_warnings.gd")
 ## Source polygons remain in provenance; only this adopted copy uses game cm.
-static func validate(regions: Variant) -> String:
-	if regions is not Array or regions.size() > 20000: return "Invalid OSM region count."
+static func validate(regions: Variant, notes: Array = []) -> String:
+	if regions is not Array: return "Invalid OSM region count."
+	LIMITS.over(notes, "osm_regions", regions.size(), 20000, "OSM generation regions")
 	var points := 0
 	var ids := {}
 	for region: Variant in regions:
@@ -11,11 +13,11 @@ static func validate(regions: Variant) -> String:
 		for ring: Variant in [region.polygon] + region.holes:
 			if ring is not Array or ring.size() < 3: return "Invalid OSM region ring."
 			points += ring.size()
-			if points > 200000: return "OSM region point budget exceeded."
 			for point: Variant in ring:
 				if point is not Array or point.size() != 2: return "Invalid OSM region point."
 				for value: Variant in point:
 					if (value is not int and value is not float) or not is_finite(float(value)) or abs(value) > 10000000: return "Invalid OSM region coordinate."
+	LIMITS.over(notes, "osm_region_points", points, 200000, "OSM generation region points")
 	return ""
 
 static func scaled(regions: Array) -> Array:

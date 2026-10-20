@@ -133,9 +133,12 @@ func run() -> void:
 	check(panel.candidate==null and state()==before,"changed source since review rejects without mutation")
 	panel.prepare()
 	var timed: RefCounted = ui.import_job
+	# A passed deadline only warns; Cancel stops the helper.
 	timed.poll(timed.deadline_ms)
+	check(not timed.cancelled and timed.limit_warnings.any(func(w): return w.code == "running_time"),"deadline warns without stopping the DEM child")
+	timed.cancel()
 	await wait_job()
-	check(timed.cancelled and state()==before,"deadline cancels DEM child")
+	check(timed.cancelled and state()==before,"Cancel stops a long DEM child")
 	panel.prepare()
 	var owned: RefCounted = ui.import_job
 	ui.store.dirty=false

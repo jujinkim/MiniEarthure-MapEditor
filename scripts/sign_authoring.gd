@@ -3,7 +3,10 @@ extends RefCounted
 const FILES := preload("./authoring_files.gd")
 const SURFACE := preload("res://addons/mapkit/godot/sign_asset.gd")
 const PIXELS := Vector2i(1024, 256)
-const MAX_FONT_BYTES := 32 * 1024 * 1024
+const LIMITS := preload("./limit_warnings.gd")
+# Font files are read only to bake the sign; memory guard, warn above the previous 32 MiB.
+const MAX_FONT_BYTES := 256 * 1024 * 1024
+const FONT_WARN_BYTES := 32 * 1024 * 1024
 
 class SignCanvas extends Control:
 	var line: TextLine
@@ -75,7 +78,9 @@ static func bake(parent: Node, spec: Dictionary, alive: Callable = Callable()) -
 	for key in ["text", "language", "direction", "alignment", "font_source", "font_license", "ink", "paper"]:
 		if spec.has(key): metadata[key] = spec[key]
 	metadata.merge({"kind":"text-sign-v1", "font_sha256":FILES.digest(source.bytes), "image_sha256":FILES.digest(bytes), "pixels":[PIXELS.x,PIXELS.y], "shaper":"Godot TextServer Advanced", "font_size":font_size}, true)
-	return {"bytes":bytes, "metadata":metadata, "glyphs":glyphs}
+	var warnings: Array = []
+	if source.bytes.size() > FONT_WARN_BYTES: LIMITS.note(warnings, "sign_font_bytes", source.bytes.size(), FONT_WARN_BYTES, "Sign font file is very large")
+	return {"bytes":bytes, "metadata":metadata, "glyphs":glyphs, "limit_warnings":warnings}
 
 static func record(id: String, metadata: Dictionary, width_cm: int = 300, height_cm: int = 110) -> Dictionary:
 	return {"id":id, "path":"pending.glb", "attribution":{"source":str(metadata.get("font_source", metadata.get("image_source", ""))), "license":str(metadata.get("font_license", metadata.get("image_license", ""))), "notice":JSON.stringify(metadata)},

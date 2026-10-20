@@ -1,6 +1,11 @@
 extends RefCounted
 ## Nine actual 32 m cells. Source data stay immutable; publication checks epochs.
 const DATA:=preload("res://addons/mapkit/godot/chunk_data.gd")
+const LIMITS:=preload("./limit_warnings.gd")
+# Display allowance and picking cap: above them cells are still shown, with a
+# warning, and cells past the picking cap cannot be picked.
+const DISPLAY_BYTES:=128*1024*1024
+const PICK_TRIANGLES:=40000
 var thread:=Thread.new()
 var token: RefCounted=ClassDB.instantiate("MapKitWorkToken")
 var request: Dictionary
@@ -15,7 +20,7 @@ func _run(document: Dictionary,path: String) -> Dictionary:
 	token.leave()
 	return result
 func _prepare(document: Dictionary,path: String) -> Dictionary:
-	var triangles: Array=[];var chunks: Array=[];var bytes:=0
+	var triangles: Array=[];var chunks: Array=[];var bytes:=0;var warnings: Array=[]
 	for dy in range(-1,2):
 		for dx in range(-1,2):
 			if token.is_cancelled():return {"error":"Preview cancelled"}
@@ -25,18 +30,19 @@ func _prepare(document: Dictionary,path: String) -> Dictionary:
 			var result: Dictionary=working.generate_packed(cell.x,cell.y,true)
 			if not result.ok:return {"error":str(result.error.code)+": "+str(result.error.message)}
 			bytes+=int(result.data.preview_bytes)
-			if bytes>128*1024*1024:return {"error":"E_BUDGET: nearby display resources exceed allowance"}
+			if bytes>DISPLAY_BYTES:LIMITS.note(warnings,"nearby_display",bytes,DISPLAY_BYTES,"Nearby display resources are very large")
 			var cell_triangles: Array=[]
 			var view: Dictionary=DATA.view(result.data.chunk)
-			for i in DATA.count(view):
+			var pickable:=triangles.size()+DATA.count(view)<=PICK_TRIANGLES
+			if not pickable:LIMITS.note(warnings,"nearby_picking",triangles.size()+DATA.count(view),PICK_TRIANGLES,"Too many nearby triangles; some cells cannot be picked")
+			for i in (DATA.count(view) if pickable else 0):
 				var values: PackedInt64Array=view.vertices_cm
 				var vertices: Array=[]
 				for j in 3:vertices.append(Array(values.slice(i*9+j*3,i*9+j*3+3)))
 				cell_triangles.append({"object_id":DATA.object_id(view,i),"spawnable":DATA.spawnable(view,i),"vertices":vertices})
 			triangles.append_array(cell_triangles)
-			if triangles.size()>40000:return {"error":"E_BUDGET: nearby picking triangle allowance exceeded"}
 			chunks.append({"cell":cell,"chunk":result.data.chunk,"hash":result.data.preview_signature,"triangles":cell_triangles})
-	return {"triangles":triangles,"chunks":chunks}
+	return {"triangles":triangles,"chunks":chunks,"limit_warnings":warnings}
 func cancel() -> void:token.cancel()
 func is_alive() -> bool:return thread.is_alive()
 func finish() -> Dictionary:return thread.wait_to_finish()

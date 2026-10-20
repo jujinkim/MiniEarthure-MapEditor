@@ -13,6 +13,10 @@ from overture_transportation_fixture import snapshot, scoped_snapshot, off_verte
 
 
 class TransportationTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def layer(self,value):
         raw=json.dumps(value).encode()
         parsed=a.parse(raw)
@@ -76,7 +80,7 @@ class TransportationTests(unittest.TestCase):
             elif mode=="off_vertex":value["features"][1]["geometry"]["coordinates"][1]+=0.00001
             elif mode=="same_vertex":p["connectors"][1]=copy.deepcopy(p["connectors"][0])
             elif mode=="outside":value["bbox"][0]=9.0001
-            elif mode=="bbox":value["bbox"][2]=9.1
+            elif mode=="bbox":value["bbox"][2]=9.3
             elif mode=="subtype":p["subtype"]="rail"
             elif mode=="class":p["class"]="footway"
             elif mode in ("bridge","tunnel"):p["road_flags"]=[dict(values=["is_"+mode])]
@@ -114,7 +118,15 @@ class TransportationTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.layer(value)
 
     def test_budgets(self):
-        for name,limit in [("MAX_FEATURES",5),("MAX_POINTS",8),("MAX_ROADS",2)]:
+        import import_layer
+        expected=self.layer(snapshot()).patches
+        # Former budgets warn and keep the whole graph; the raised ceilings refuse.
+        for name,limit,code in [("MAX_FEATURES",5,"transportation_features"),("MAX_POINTS",8,"transportation_points"),("MAX_ROADS",2,"transportation_roads")]:
+            import_layer.reset_limits()
+            with self.subTest(name=name),patch.object(a,name,limit):
+                self.assertEqual(self.layer(snapshot()).patches,expected)
+                self.assertIn(code,{e["code"] for e in import_layer.limit_entries()})
+        for name,limit in [("FEATURES_CEILING",5),("POINTS_CEILING",8)]:
             with self.subTest(name=name),patch.object(a,name,limit),self.assertRaises(ValueError):self.layer(snapshot())
 
     def test_scoped_geodetic_boundaries_and_provenance(self):
@@ -151,8 +163,11 @@ class TransportationTests(unittest.TestCase):
             [dict(value=6,when={})], [dict(value=None)], [dict(value=0.1)]]:
             value=snapshot();value["features"][4]["properties"]["width_rules"]=rules
             with self.subTest(rules=rules),self.assertRaises(ValueError): self.layer(value)
-        for name,limit in [("MAX_RULES",1),("MAX_OUTPUT_POINTS",11)]:
-            with patch.object(a,name,limit),self.assertRaises(ValueError): self.layer(scoped_snapshot())
+        import import_layer
+        for name,limit,code in [("MAX_RULES",1,"transportation_rules"),("MAX_OUTPUT_POINTS",11,"transportation_output_points")]:
+            with patch.object(a,name,limit): self.layer(scoped_snapshot())
+            self.assertIn(code,{e["code"] for e in import_layer.limit_entries()})
+        with patch.object(a,"RULES_CEILING",1),self.assertRaises(ValueError): self.layer(scoped_snapshot())
         value=scoped_snapshot();value["features"][4]["properties"]["width_rules"][0]["between"][1]=1e-10
         value["features"][4]["properties"]["width_rules"][1]["between"][0]=1e-10
         with self.assertRaisesRegex(ValueError,"collapse"):self.layer(value)
@@ -198,7 +213,10 @@ class TransportationTests(unittest.TestCase):
         changed = copy.deepcopy(value)
         changed["features"][4]["properties"]["connectors"][1]["at"] = 0.6
         with self.assertRaisesRegex(ValueError,"at disagrees"): self.layer(changed)
-        with patch.object(a,"MAX_CONNECTOR_EDGE_CHECKS",0),self.assertRaisesRegex(ValueError,"comparison budget"):
+        import import_layer
+        with patch.object(a,"MAX_CONNECTOR_EDGE_CHECKS",0): self.layer(value)
+        self.assertIn("transportation_connector_checks",{e["code"] for e in import_layer.limit_entries()})
+        with patch.object(a,"CONNECTOR_EDGE_CHECKS_CEILING",0),self.assertRaisesRegex(ValueError,"comparison ceiling"):
             self.layer(value)
         changed = copy.deepcopy(value)
         changed["features"][4]["properties"]["width_rules"] = [dict(value=6,between=[0,0.5]),dict(value=4,between=[0.5,1])]

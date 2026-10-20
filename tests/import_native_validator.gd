@@ -6,6 +6,7 @@ const FILES := preload("res://scripts/authoring_files.gd")
 class CancelDuringGeneration extends JOB:
 	var reached := false
 	var expire := false
+	var warned := false
 	var target_phase := 4
 	func _event(line: PackedByteArray) -> void:
 		super._event(line)
@@ -13,6 +14,12 @@ class CancelDuringGeneration extends JOB:
 			reached = true
 			if expire: deadline_ms = 0
 			else: cancel()
+	# A passed deadline only warns; the user then cancels with the job running.
+	func poll(now_ms: int = -1) -> void:
+		super.poll(now_ms)
+		if expire and reached and not done and not cancelled and limit_warnings.any(func(w): return w.code == "running_time"):
+			warned = true
+			cancel()
 
 class MissingNative extends JOB:
 	func _spawn(_path: String, _arguments: PackedStringArray) -> Dictionary: return {}
@@ -120,7 +127,7 @@ func run() -> void:
 		check(start(job) == "","start real native cancellation/deadline")
 		await wait_job(job)
 		check(job.reached and job.exited and not job.result.ok,"actual native validation is stopped and reaped")
-		check(job.failure.contains("timed out") if expire else job.failure == "","deadline/cancel reason")
+		check(job.failure == "" and job.warned == expire,"deadline warns without stopping; Cancel stops")
 		check(not DirAccess.dir_exists_absolute(job.directory),"partial snapshot removed only after native exit")
 		check(state() == before and ui.store.bridge.document_json() == bridge_before,"cancel/deadline retains loaded bridge/history")
 	# A new job succeeds after both kinds of retirement.
@@ -149,7 +156,7 @@ func run() -> void:
 	var bounded := JOB.new()
 	check(start(bounded) == "","start bounded payload check")
 	await wait_job(bounded)
-	check(bounded.result.ok and not bounded.result.data.ok and bounded.result.data.error.message.contains("64 MiB"),"native snapshot enforces 64 MiB before reading")
+	check(bounded.result.ok and not bounded.result.data.ok and bounded.result.data.error.message.contains("2 GiB"),"native snapshot enforces its 2 GiB memory guard before reading")
 	write(payload,original_payload)
 	# Selection revision at review and at completion is checked independently.
 	ui.pending_import = layer; ui.import_review_generation = ui.generation

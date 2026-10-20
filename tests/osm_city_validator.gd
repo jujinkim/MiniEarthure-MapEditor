@@ -49,7 +49,7 @@ func run() -> void:
 	if ui.pending_import==null: ui.queue_free(); await process_frame; quit(1); return
 	var raw: Dictionary=ui.pending_import.value.duplicate(true)
 	var meta: Dictionary=raw.coordinates.osm_city
-	check(ui.pending_import.requires_generation() and ui.pending_import.generation_cell_limit()==256,"all city cells require native generation, including sources without structures")
+	check(ui.pending_import.requires_generation() and ui.pending_import.generation_cell_warning()==256 and ui.pending_import.generation_cell_limit()==LAYER.MAX_CHECK_CELLS,"all city cells require native generation, including sources without structures; above 256 cells only warns")
 	check(meta.before.features>meta.after.features and meta.before.positions>meta.after.positions,"automatic aggregation reduces actual geometry")
 	check(meta.after.roads==1 and meta.after.buildings==3 and meta.after.areas>=2,"compatible chain/footprints/vegetation merge while named/tall buildings survive")
 	check(meta.painted_pedestrian_ways==1 and ui.import_summary.text.contains("painted as drivable ground"),"the footway is disclosed as ground paint, not a road")

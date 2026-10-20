@@ -14,6 +14,10 @@ def run(features, box=[0,0,0.01,0.01]):
     return crop(dict(type="FeatureCollection", features=features), box)
 
 class CropTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_line_crossings_no_inside_nodes_and_split(self):
         f=feature("LineString",[[-.001,.002],[.011,.002],[.011,.008],[-.001,.008]])
         result, meta=run([f])
@@ -95,7 +99,12 @@ class CropTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"Invalid OSM"): run([feature("Polygon",[[[1,1],[2,2],[1,2],[2,1],[1,1]]])])
         for b in [[0,0,0,1],[179,0,-179,1],[False,0,.01,.01],[0,0,float("nan"),.01]]:
             with self.subTest(b=b), self.assertRaises(ValueError): bounds(b)
-        with patch("osm_area.MAX_POINTS",1), self.assertRaisesRegex(ValueError,"budget"): run([feature("LineString",[[0,0],[.01,.01]])])
+        import import_layer
+        self.addCleanup(import_layer.reset_limits)
+        import_layer.reset_limits()
+        # The crop output budget warns; the source feature is kept.
+        with patch("osm_area.MAX_POINTS",1): out=run([feature("LineString",[[0,0],[.01,.01]])])
+        self.assertIn("crop_points", {e["code"] for e in import_layer.limit_entries()})
         with patch("osm_area.version",return_value="0"), self.assertRaisesRegex(ValueError,"requirements-import"): run([])
     def test_osm_xml_pbf_parity_and_cli(self):
         script=Path(__file__).resolve().parents[1]/"scripts/importers/geojson.py"

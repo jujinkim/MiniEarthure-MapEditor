@@ -140,9 +140,12 @@ func run() -> void:
 	# Surviving local helper lifetime: deadline, stale response, retry and owner close.
 	ui._start_import(source,LAYER.OVERTURE_TRANSPORTATION_LICENSE)
 	var owned: RefCounted = ui.import_job
+	# A passed deadline only warns; Cancel stops the local helper.
 	owned.poll(owned.deadline_ms)
+	check(not owned.cancelled and owned.limit_warnings.any(func(w): return w.code == "running_time"),"deadline warns without stopping the local helper")
+	owned.cancel()
 	await wait_job(ui)
-	check(owned.result.error.message.contains("timed out"),"deadline terminates local helper")
+	check(owned.result.error.code == "E_IMPORT_CANCELLED","Cancel stops a long local helper")
 	ui._start_import(source,LAYER.OVERTURE_TRANSPORTATION_LICENSE)
 	ui.generation += 1
 	await wait_job(ui)

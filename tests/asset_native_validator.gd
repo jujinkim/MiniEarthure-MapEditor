@@ -86,7 +86,12 @@ func run() -> void:
 		if job.done: continue
 		match mode:
 			"cancel": job.cancel()
-			"deadline": job.deadline_ms = 0
+			"deadline":
+				# A passed deadline only warns; Cancel then stops the paused child.
+				job.deadline_ms = 0
+				job.poll()
+				check(not job.cancelled and job.limit_warnings.any(func(w): return w.code == "running_time"), "asset deadline warns without stopping")
+				job.cancel()
 			"eof": job.stdio.close(); job.stdio = null; job.output_eof = true
 			"source":
 				write(source, PackedByteArray([1,2,3]))
@@ -115,12 +120,13 @@ func run() -> void:
 	var oversized := PackedByteArray(); oversized.resize(ui.store.HISTORY_BYTES + 1); write(source, oversized)
 	var over_file := JOB.new(); check(start(over_file) == "", "large asset file")
 	await wait_job(over_file)
-	check(not accepted(over_file) and str(over_file.result).contains("16 MiB") and state() == before, "asset file refused before decode/history allocation")
+	check(not accepted(over_file) and not str(over_file.result).contains("16 MiB") and not str(over_file.result).contains("Undo") and state() == before, "malformed asset over the Undo budget is refused by validation, not by Undo")
 	write(source, original)
 	oversized.clear()
-	var over_record := record.duplicate(true); over_record.attribution.notice = "x".repeat(JOB.REQUEST_LIMIT)
-	var over_request := JOB.new()
-	check(start(over_request, over_record).contains("24 MiB") and over_request.directory == "", "request refused before child directory")
+	# The 1.5 GiB request guard is exercised through the instance copy of the limit.
+	var over_request := JOB.new(); over_request.request_limit = 1024 * 1024
+	var over_record := record.duplicate(true); over_record.attribution.notice = "x".repeat(over_request.request_limit)
+	check(start(over_request, over_record).contains("1.5 GiB") and over_request.directory == "", "request refused before child directory")
 	over_record.clear()
 	for mode in ["cancel", "save", "owner", "gesture"]:
 		var ready := JOB.new(); check(start(ready) == "", "ready result " + mode)
@@ -200,6 +206,26 @@ func run() -> void:
 	ui.author_panel._start_asset(ui_record, source); await wait_ui()
 	check(ui.store.document.assets.size() == 2 and ui.author_panel.feedback.text.begins_with("Applied"), "UI applies one asset")
 	check(ui.store.undo() == "" and ui.store.redo() == "", "UI command supports undo and redo")
+	# A VALID asset over the 16 MiB Undo budget (PNG with a large ancillary
+	# chunk, no derivative helper) is adopted; earlier Undo is released.
+	var PNG := preload("res://scripts/terrain_png.gd")
+	var filler := PackedByteArray(); filler.resize(ui.store.HISTORY_BYTES + 1024); filler.fill(97)
+	var large: PackedByteArray = original.slice(0, 33) + PNG.chunk("tEXt", "Comment".to_ascii_buffer() + PackedByteArray([0]) + filler) + original.slice(33)
+	filler.clear()
+	check(Image.new().load_png_from_buffer(large) == OK, "large ancillary PNG fixture decodes")
+	write(source, large)
+	var large_record := record.duplicate(true); large_record.id = "large-asset"
+	var large_job := JOB.new(); check(start(large_job, large_record) == "", "large valid asset launch")
+	await wait_job(large_job)
+	check(accepted(large_job), "valid asset over the Undo budget is accepted: " + str(large_job.result).left(400))
+	if accepted(large_job):
+		var large_path: String = large_job.bundle.blob_paths[0]
+		check(large_job.commit(ui.store) == "" and large_job.history_released, "large asset installs without Undo")
+		check(ui.store.document.assets.any(func(asset): return asset.id == "large-asset") and FILES.read(project.path_join(large_path)).bytes == large, "large asset payload installed")
+		check(ui.store.undo_stack.is_empty() and ui.store.redo_stack.is_empty() and ui.store.history_bytes == 0 and ui.store.last_change_released, "earlier Undo/Redo released")
+		check(ui.store.limit_warnings.any(func(w): return w.code == "undo_history") and large_job.limit_warnings.any(func(w): return w.code == "undo_history"), "undo_history warning present")
+	write(source, original)
+	large.clear()
 	await finish()
 func finish() -> void:
 	ui.store.dirty = false; ui.queue_free(); await process_frame

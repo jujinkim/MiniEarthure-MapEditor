@@ -23,6 +23,19 @@ class EnvironmentTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls): cls.temp.cleanup()
 
+    def test_object_target_warns_without_dropping_objects(self):
+        import environment_generation
+        from unittest.mock import patch
+        self.assertFalse([e for e in self.result.diagnostics['limit_warnings'] if e['code']=='generated_objects'])
+        with patch.object(environment_generation,'MAX_OBJECTS',10):
+            warned=generate(self.request,new_context(self.request),KIT)
+        self.assertEqual(warned.document,self.result.document)
+        self.assertFalse(warned.diagnostics['errors'])
+        notes={e['code']:e for e in warned.diagnostics['limit_warnings']}
+        self.assertEqual(notes['generated_objects']['limit'],10)
+        self.assertEqual(notes['generated_objects']['actual'],len(warned.owned))
+        self.assertFalse(notes['generated_objects']['runtime_rejects'])
+
     def test_reproducible_metres_required_groups_and_seams(self):
         other=generate(self.request,new_context(self.request),KIT)
         self.assertEqual(other.document,self.result.document)

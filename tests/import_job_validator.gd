@@ -36,7 +36,12 @@ func run() -> void:
 				job.poll()
 				await process_frame
 			check(job.sequence == 1, "actual child progress before " + mode)
-			if mode == "timeout": job.poll(job.deadline_ms)
+			if mode == "timeout":
+				# A long run is a warning only; Cancel remains the way to stop it.
+				job.poll(job.deadline_ms)
+				check(not job.cancelled and job.failure == "" and job.limit_warnings.any(func(w): return w.code == "running_time"), "deadline warns without stopping the child")
+				check(job.limit_text().begins_with("Limit warnings:"), "running-time warning text")
+				job.cancel()
 			elif mode == "owner-close": job.shutdown()
 			else:
 				job.cancel()
@@ -51,7 +56,7 @@ func run() -> void:
 			check(not job.result.get("ok",false), "fault cannot publish " + mode)
 			check(job.pid == -1 and job.stdio == null and job.stderr_pipe == null, "joined pipes " + mode)
 			check(not DirAccess.dir_exists_absolute(job.directory), "owned scratch cleanup " + mode)
-			if mode == "timeout": check(job.result.error.message.contains("timed out"), "deadline failure distinct from cancel")
+			if mode == "timeout": check(job.result.error.code == "E_IMPORT_CANCELLED" and job.limit_warnings.is_empty(), "Cancel stops a long run; the running-time note ends with the job")
 			if mode == "crash": check(job.exit_code == 7 and job.result.error.message.contains("synthetic adapter crash"), "exit code/stderr captured")
 		var sequence := job.sequence
 		job.poll()

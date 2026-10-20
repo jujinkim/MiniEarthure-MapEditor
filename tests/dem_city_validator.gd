@@ -1,6 +1,7 @@
 extends SceneTree
 const STORE := preload("res://scripts/document_store.gd")
 const JOB := preload("res://scripts/dem_native_job.gd")
+const DEM := preload("res://scripts/dem_import_layer.gd")
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
@@ -79,14 +80,15 @@ func run() -> void:
 			subset.coordinates.origin[0]+=0.001
 			check(grounding_tool.prepare(ui.store,[first],{},subset).get("error","").contains("Projection"),"mismatched source frame rejects estimated grounding")
 			var excessive: Dictionary=panel.candidate_data.duplicate(true)
-			while excessive.outputs.size()<=256: excessive.outputs.append(excessive.outputs[0])
+			# Above 256 cells only warns; the 1024-cell bound still refuses before launch.
+			while excessive.outputs.size()<=DEM.MAX_CELLS: excessive.outputs.append(excessive.outputs[0])
 			var rejected := JOB.new()
-			check(rejected.start_dem(ui.store,excessive,panel.plan,panel.destination,false,"test","a".repeat(32)).contains("count") and rejected.directory=="","257 outputs reject before launch")
+			check(rejected.start_dem(ui.store,excessive,panel.plan,panel.destination,false,"test","a".repeat(32)).contains("count") and rejected.directory=="","1025 outputs reject before launch")
 			var history_size: int=ui.store.undo_stack.size()
 			panel.adopt()
 			var adopted: RefCounted=ui.import_job
 			await wait_job()
-			check(adopted.expected_cells==96 and adopted.generated_all and adopted.generation_limit==256,"96 actual road/terrain cells generated before adoption")
+			check(adopted.expected_cells==96 and adopted.generated_all and adopted.generation_limit==DEM.MAX_CELLS,"96 actual road/terrain cells generated before adoption")
 			check(ui.store.document.heightmaps.size()==96 and ui.store.undo_stack.size()==history_size+1,"entire DEM is one command")
 			var buildings:= {}
 			for building: Dictionary in ui.store.document.buildings: buildings[building.id]=building

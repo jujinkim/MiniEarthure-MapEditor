@@ -1,9 +1,14 @@
 extends "./heightmap_import_layer.gd"
 const LICENSE := "https://copernicus-dem-30m.s3.amazonaws.com/readme.html#license"
-const MAX_CELLS := 256
+## Hard bounds; above the former 256 cells, 4 tiles and 64 MiB per tile the
+## review warns. Every cell is still sampled and checked.
+const MAX_CELLS := 1024
+const WARN_CELLS := 256
 ## Each tile file is bounded; decoding is bounded by the reviewed block budget.
-const MAX_SOURCES := 4
-const MAX_SOURCE_BYTES := 64 * 1024 * 1024
+const MAX_SOURCES := 16
+const WARN_SOURCES := 4
+const MAX_SOURCE_BYTES := 256 * 1024 * 1024
+const WARN_SOURCE_BYTES := 64 * 1024 * 1024
 const NOTICE := "produced using Copernicus WorldDEM-%d © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved"
 
 func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String, context: Dictionary = {}) -> String:
@@ -18,7 +23,8 @@ func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, de
 
 func summary() -> String:
 	if value.is_empty(): return I18N.t("No DEM candidate.")
-	var text := I18N.t("Copernicus 2021 DSM · %d sources → %d cells\nAdopt all terrain cells atomically; one Undo restores every previous cell.\nEGM2008 height minus %s m at local zero; explicit bilinear sampling.\nSource accuracy unknown. Shared PNG quantization error ≤ %s cm.\nNo missing-data or seam repair. Save explicitly after adoption.\n") % [value.dem.receipt.sources.size(),value.heightmaps.size(),str(value.dem.sampling.vertical_zero_m),str(value.dem.sampling.max_quantization_error_cm)]
+	var limits := LIMITS.text(limit_warnings)
+	var text := (limits + "\n\n" if limits != "" else "") + I18N.t("Copernicus 2021 DSM · %d sources → %d cells\nAdopt all terrain cells atomically; one Undo restores every previous cell.\nEGM2008 height minus %s m at local zero; explicit bilinear sampling.\nSource accuracy unknown. Shared PNG quantization error ≤ %s cm.\nNo missing-data or seam repair. Save explicitly after adoption.\n") % [value.dem.receipt.sources.size(),value.heightmaps.size(),str(value.dem.sampling.vertical_zero_m),str(value.dem.sampling.max_quantization_error_cm)]
 	if value.dem.has("grounding"):
 		text+=I18N.t("\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n") % [value.dem.grounding.changes.size(),value.dem.grounding.skipped_partial]
 	for index in range(value.heightmaps.size()):
@@ -34,10 +40,10 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	var receipt: Dictionary = result.review
 	var raster: Dictionary = result.raster
 	if reviewed.get("sources") is not Array or reviewed.sources.is_empty() or reviewed.sources.size()>MAX_SOURCES or receipt.get("sources") is not Array or receipt.sources.size()!=reviewed.sources.size(): return "Invalid DEM mosaic sources."
+	LIMITS.over(limit_warnings, "dem_sources", reviewed.sources.size(), WARN_SOURCES, "DEM source tiles")
 	var contract := receipt.duplicate(true)
 	contract.sources = reviewed.sources
 	if JSON.stringify(contract) != JSON.stringify(reviewed) or reviewed.get("release")!="2021" or reviewed.get("license")!=LICENSE or reviewed.get("vertical_crs")!="EPSG:3855 / EGM2008 metres": return "DEM mosaic review changed."
-	var total := 0
 	for index in range(reviewed.sources.size()):
 		var expected: Dictionary = reviewed.sources[index]
 		var captured: Dictionary = receipt.sources[index]
@@ -55,13 +61,13 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		# The native worker already hashed this capture in the same process.
 		var verified: bool = context.get("verified_files", {}).get(path, {}).get("sha256", "") == captured.source.sha256
 		if size!=int(captured.source.bytes) or (not verified and FileAccess.get_sha256(path)!=captured.source.sha256): return "Captured DEM changed."
-		total+=size
-	if total>MAX_SOURCES*MAX_SOURCE_BYTES: return "Combined DEM source budget exceeded."
+		LIMITS.over(limit_warnings, "dem_tile_bytes", size, WARN_SOURCE_BYTES, "DEM tile size in bytes")
 	var options: Dictionary = reviewed.options
 	var doc: Dictionary = terrain.store.document
 	if options.cell_size_cm!=doc.cell_size_cm or options.map_min_cm!=doc.bounds.min or options.get("cell_count") is not Array or options.cell_count.size()!=2: return "DEM map grid changed."
 	if not TYPES._count(options.cell_count[0],MAX_CELLS) or not TYPES._count(options.cell_count[1],MAX_CELLS) or options.cell_count[0]<1 or options.cell_count[1]<1: return "Invalid DEM cell count."
-	if int(options.cell_count[0])*int(options.cell_count[1])>MAX_CELLS: return "DEM exceeds 256 candidate cells."
+	if int(options.cell_count[0])*int(options.cell_count[1])>MAX_CELLS: return "DEM exceeds 1024 candidate cells."
+	LIMITS.over(limit_warnings, "dem_cells", int(options.cell_count[0])*int(options.cell_count[1]), WARN_CELLS, "DEM terrain cells")
 	var expected_cells: Array = []
 	for y in range(int(options.cell_count[1])):
 		for x in range(int(options.cell_count[0])): expected_cells.append([float(options.cell[0])+x,float(options.cell[1])+y])
@@ -81,6 +87,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		var failure: String = layer.stage(terrain,path,cell,int(options.spacing_cm),int(raster.offset_cm),int(raster.step_cm),0,{"source":"Copernicus 2021 mosaic","license":LICENSE},false)
 		if failure!="":
 			layer.discard();discard();return failure
+		LIMITS.merge(limit_warnings, layer.limit_warnings)
 		records.append(layer.value.heightmap.duplicate(true))
 		previous.append(layer.value.previous)
 		_patches.append(layer._patches[0].duplicate(true))
@@ -89,7 +96,12 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		layer.discard()
 	# The stored notice names each source file with its size and hash; local and
 	# capture paths stay with the in-flight review and never enter the map.
+	# Helper warnings of the review and of this run join the candidate review;
+	# they never enter the stored attribution notice.
+	LIMITS.merge_texts(limit_warnings, reviewed.get("limit_warnings"))
+	LIMITS.merge_texts(limit_warnings, result.get("limit_warnings"))
 	var stored: Dictionary = receipt.duplicate(true)
+	stored.erase("limit_warnings")
 	stored.options.source = str(stored.options.source).trim_suffix("/").trim_suffix("\\").get_file()
 	for item: Dictionary in stored.sources:
 		item.source = {"name":str(item.source.path).get_file(),"bytes":item.source.bytes,"sha256":item.source.sha256}
@@ -97,6 +109,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	if context.get("ground_buildings",false):
 		var grounded:=preload("./dem_building_grounding.gd").prepare(terrain.store,records,_blobs,options)
 		if grounded.has("error"): discard();return grounded.error
+		LIMITS.merge(limit_warnings, grounded.get("limit_warnings"))
 		_patches.append_array(grounded.patches)
 		value.dem.grounding=grounded.receipt
 		if not doc.buildings.is_empty() and _cells.is_empty():

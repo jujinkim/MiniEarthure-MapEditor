@@ -26,7 +26,7 @@ func start_png(store: RefCounted, options: Dictionary, adopt: bool, selection: S
 			if not SNAPSHOT.safe_relative(str(record.path)): return "Unsafe PNG dependency path."
 			if record.path not in owned_payloads: owned_payloads.append(record.path)
 	var bytes := JSON.stringify(request).to_utf8_buffer()
-	if bytes.size() > REQUEST_LIMIT: return "PNG request exceeds 24 MiB."
+	if bytes.size() > request_limit: return "PNG request exceeds 1.5 GiB."
 	return _start_request(bytes)
 
 func cleanup() -> void:

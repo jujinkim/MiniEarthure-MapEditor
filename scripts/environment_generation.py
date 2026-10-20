@@ -28,7 +28,11 @@ from shapely.geometry import LineString, MultiPoint, Point, Polygon, box, mappin
 from shapely.ops import nearest_points, polygonize_full, unary_union
 from shapely.strtree import STRtree
 
-from asset_derivatives import asset as derive_asset
+# The staged helper has no importers/ package, so asset_derivatives' registry is
+# the helper-side equivalent of importers.import_layer.soft_limit: one entry per
+# code in the dict shape limit_warnings.gd.valid_entry accepts. Generator resets
+# it once per (short-lived, single-request) helper process.
+from asset_derivatives import asset as derive_asset, soft_limit, limit_warnings, reset_limits
 from environment_profiles import PROFILES, model_scale
 from environment_assets import library as module_library, support_module
 from environment_composition import Composition
@@ -39,7 +43,12 @@ from driving_features import place as driving_feature
 
 OWNER = "mapeditor-environment-v1"
 HISTORY_BYTES = 16 * 1024 * 1024
+# Above this many generated objects the result is kept and warned about.
 MAX_OBJECTS = 18000
+# MapKit v1 document object limit; the game refuses maps beyond it.
+RUNTIME_OBJECTS = 200000
+# Memory guard for the request file written by the Editor (raised, not a refusal of user data).
+MAX_REQUEST_BYTES = 1536 * 1024 * 1024
 TILE_METRES = 128
 FIELDS = ("nodes", "roads", "buildings", "zones", "placements", "surface_areas", "water_bodies", "gimmicks", "heightmaps", "assets")
 
@@ -133,6 +142,7 @@ class GenerationResult:
 
 class Generator(Composition):
     def __init__(self, request, context, kit):
+        reset_limits()
         request.validate()
         self.request, self.context, self.kit = request, context, Path(kit)
         self.profile = PROFILES[request.theme]
@@ -221,7 +231,8 @@ class Generator(Composition):
         self.identities[field].add(identity)
         if field in ("placements", "surface_areas"):
             self.owned.append(dict(field=field,id=identity,sha256=digest(stable_record(record)),anchor_cm=xy(anchor) if anchor else None))
-        if len(self.owned) > MAX_OBJECTS: raise ValueError("Generation exceeds 18000 objects; reduce density/area")
+        if len(self.owned) > MAX_OBJECTS:
+            soft_limit("generated_objects", len(self.owned), MAX_OBJECTS, "Generation creates many objects; preview and play may be slow")
         return True
 
     def raw_height(self,x,y):
@@ -578,7 +589,11 @@ class Generator(Composition):
         history=len(canonical(dict(label="Generate environment",patches=patches)))+sum(map(len,self.payloads.values()))
         diagnostics["history_bytes"]=history
         if self.request.mode=="fill" and history>HISTORY_BYTES:
-            diagnostics["errors"].append("Exceeds 16 MiB Undo budget; reduce the selected area")
+            soft_limit("undo_history", history, HISTORY_BYTES, "Applying this change releases earlier Undo history")
+        objects=sum(len(self.doc.get(f,[])) for f in ("pois","water_bodies","surface_areas","nodes","roads","buildings","zones","assets","placements","repetitions"))
+        if objects>RUNTIME_OBJECTS:
+            soft_limit("document_objects", objects, RUNTIME_OBJECTS, "Map has more objects than the game accepts", runtime_rejects=True)
+        diagnostics["limit_warnings"]=limit_warnings()
         return GenerationResult(self.doc,patches,self.payloads,self.owned,diagnostics,metadata,digest(self.original),fingerprint())
 
 
@@ -630,13 +645,13 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("request",type=Path);parser.add_argument("destination",type=Path);parser.add_argument("--kit",type=Path,required=True)
     args=parser.parse_args()
-    if args.request.stat().st_size>24*1024*1024: raise ValueError("Generation request exceeds 24 MiB")
+    if args.request.stat().st_size>MAX_REQUEST_BYTES: raise ValueError("Generation request exceeds 1.5 GiB")
     raw=json.loads(args.request.read_text());request=GenerationRequest(**raw["generation"])
     if raw.get("kind")=="environment":
         parent=os.getppid()
         def watch():
-            deadline=time.monotonic()+600
-            while os.getppid()==parent and time.monotonic()<deadline: time.sleep(.1)
+            # No deadline: long generations continue until Cancel or the parent exits.
+            while os.getppid()==parent: time.sleep(.1)
             os._exit(3)
         threading.Thread(target=watch,daemon=True).start()
     context=new_context(request) if request.mode=="new" else GenerationContext.from_document(raw["document"],raw.get("project",""),request.bounds_cm)

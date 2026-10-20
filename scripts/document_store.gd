@@ -8,12 +8,16 @@ signal lock_changed
 signal terrain_preview_changed(cells: Array)
 signal dirty_changed
 signal track_edit_finished(failure: String)
+## One formatted "Limit warnings:" text per newly noted warning (never a refusal).
+signal limit_warned(text: String)
 const TRACK_JOB := preload("./track_edit_job.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const FILES := preload("./document_files.gd")
 const HISTORY := preload("./history_codec.gd")
+const LIMITS := preload("./limit_warnings.gd")
 const HISTORY_BYTES := 16 * 1024 * 1024
+const UNDO_RELEASED := "This change cannot be undone; earlier Undo history was released."
 const HISTORY_COMMANDS := 200
 const RECORD_FIELDS := ["pois", "nodes", "roads", "buildings", "water_bodies", "surface_areas", "zones", "assets", "placements", "gimmicks", "repetitions", "heightmaps", "attributions", "courses", "grind_lines", "surface_attachments"]
 const VALUE_FIELDS := ["map_id", "free_roam", "backdrop", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment", "assembled_track"]
@@ -23,6 +27,10 @@ var undo_stack: Array[Dictionary] = []
 var redo_stack: Array[Dictionary] = []
 # Retained text/compressed memento budget shared by BOTH stacks (not process RSS).
 var history_bytes := 0
+# Limit warnings noted during this session (deduplicated by code, largest actual).
+var limit_warnings: Array = []
+## True when the most recent recorded change was applied without Undo.
+var last_change_released := false
 var dirty := false
 var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
 var files := FILES.new()
@@ -119,6 +127,7 @@ func start_track_edit(source: Dictionary, expected_epoch := -1, context: Diction
 	if has_gesture(): return "Finish or cancel the current gesture first."
 	var before := track_source()
 	if before == source:
+		last_change_released = false
 		retry_track_edit()
 		return ""
 	var command := {"label":"Track assembly", "patches":[], "track_before":before, "track_after":source.duplicate(true)}
@@ -127,8 +136,8 @@ func start_track_edit(source: Dictionary, expected_epoch := -1, context: Diction
 	if not draft_pending() and _needs_stored_track_memento(before):
 		command.track_before_document = document.duplicate(true)
 	command.bytes = JSON.stringify(command).to_utf8_buffer().size()
-	if command.bytes > HISTORY_BYTES: return "Command exceeds the 16 MiB undo budget; split this operation."
-	_record_command(command)
+	if command.bytes > HISTORY_BYTES: _release_history(command.bytes)
+	else: _record_command(command)
 	_accept_draft(command.track_after, context)
 	return ""
 
@@ -151,12 +160,34 @@ func _prepare_stored_track(candidate: Dictionary) -> Dictionary:
 	return {"candidate":validation.data.document, "signature":_signature(validation.data.document)}
 
 func _record_command(command: Dictionary) -> void:
+	last_change_released = false
 	for discarded: Dictionary in redo_stack: history_bytes -= int(discarded.bytes)
 	redo_stack.clear()
 	undo_stack.append(command)
 	history_bytes += int(command.bytes)
 	while undo_stack.size() + redo_stack.size() > HISTORY_COMMANDS or history_bytes > HISTORY_BYTES:
 		history_bytes -= int(undo_stack.pop_front().bytes)
+
+# A single change larger than the whole Undo budget is applied without Undo.
+func _release_history(bytes: int) -> void:
+	undo_stack.clear()
+	redo_stack.clear()
+	history_bytes = 0
+	last_change_released = true
+	note_limit("undo_history", bytes, HISTORY_BYTES, UNDO_RELEASED)
+
+func note_limit(code: String, actual: int, limit: int, message: String, runtime_rejects := false) -> void:
+	var single: Array = []
+	LIMITS.note(single, code, actual, limit, message, runtime_rejects)
+	LIMITS.note(limit_warnings, code, actual, limit, message, runtime_rejects)
+	limit_warned.emit(LIMITS.text(single))
+
+func note_limits(entries: Variant) -> void:
+	var received: Array = []
+	# Invalid entries are skipped; every valid one is still shown.
+	LIMITS.merge(received, entries)
+	for entry: Dictionary in received:
+		note_limit(entry.code, int(entry.actual), int(entry.limit), entry.message, entry.runtime_rejects)
 
 func _accept_draft(source: Dictionary, context: Dictionary = {}) -> void:
 	draft = source.duplicate(true)
@@ -320,6 +351,10 @@ func _poll_file() -> void:
 		dirty = false
 		dirty_changed.emit()
 		changed.emit()
+	if result.ok:
+		# Save workers report their store's notes; export reports the package notes.
+		note_limits(result.get("limit_warnings", []))
+		if result.get("data") is Dictionary: note_limits(result.data.get("limit_warnings", []))
 	_finish_file(result)
 
 func _finish_file(result: Dictionary) -> void:
@@ -385,6 +420,7 @@ func _reset_session() -> void:
 	undo_stack.clear()
 	redo_stack.clear()
 	history_bytes = 0
+	limit_warnings.clear()
 	_gesture.clear()
 	_saved_signature = ""
 	_disk_path = ""
@@ -592,16 +628,22 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 # The native job checks its one-shot ownership, epoch and immutable request first.
 func _install_command(prepared: Dictionary) -> String:
 	if editing_locked() or draft_pending(): return EDIT_BUSY
-	if prepared.get("noop", false): return ""
+	if prepared.get("noop", false):
+		last_change_released = false
+		return ""
 	var command: Dictionary = prepared.command
 	var candidate: Dictionary = prepared.candidate
-	for discarded: Dictionary in redo_stack:
-		history_bytes -= int(discarded.bytes)
-	redo_stack.clear()
-	undo_stack.append(command)
-	history_bytes += int(command.bytes)
-	while undo_stack.size() > HISTORY_COMMANDS or history_bytes > HISTORY_BYTES:
-		history_bytes -= int(undo_stack.pop_front().bytes)
+	if command.get("history_released", false):
+		_release_history(int(command.bytes))
+	else:
+		last_change_released = false
+		for discarded: Dictionary in redo_stack:
+			history_bytes -= int(discarded.bytes)
+		redo_stack.clear()
+		undo_stack.append(command)
+		history_bytes += int(command.bytes)
+		while undo_stack.size() > HISTORY_COMMANDS or history_bytes > HISTORY_BYTES:
+			history_bytes -= int(undo_stack.pop_front().bytes)
 	document = candidate
 	_after_edit(prepared.signature)
 	return ""
@@ -638,7 +680,7 @@ func _prepare_history(command: Dictionary, reverse: bool) -> Dictionary:
 	if command.has("binary_mementos"):
 		# Detect external changes; never restore by rewriting an original source.
 		for path: String in command.binary_mementos:
-			var payload_source := PAYLOADS.read(project_path.path_join(path), HISTORY_BYTES)
+			var payload_source := PAYLOADS.read(project_path.path_join(path), PAYLOADS.MAX_PAYLOAD_BYTES)
 			if payload_source.has("error") or payload_source.bytes != command.binary_mementos[path]:
 				return {"error":"History payload changed or is missing: " + path}
 	var native: RefCounted = working_snapshot().fork()
@@ -692,9 +734,7 @@ func stage_patches(patches: Array) -> String:
 			staged[index].after = _json_copy(patch.after)
 		else:
 			staged.append(_json_copy(patch))
-	var bytes := JSON.stringify({"label": _gesture.label, "patches": staged}).to_utf8_buffer().size()
-	if bytes > HISTORY_BYTES:
-		return "Gesture exceeds the 16 MiB undo budget."
+	# An oversized gesture still commits; it then releases Undo with a warning.
 	_gesture.patches = staged
 	return ""
 
@@ -740,6 +780,7 @@ func save_project(path: String) -> String:
 	if save_token != null and save_token.is_cancelled(): return "Operation cancelled; draft retained."
 	var captured := SNAPSHOT.capture_working(working_snapshot(), project_path, undo_stack + redo_stack)
 	if not captured.ok: return reason(captured)
+	note_limits(captured.data.get("limit_warnings", []))
 	if save_token != null and save_token.is_cancelled(): return "Operation cancelled; draft retained."
 	var failure := SNAPSHOT.publish(captured.data, absolute, expected, files, save_token)
 	if failure != "": return failure
@@ -787,6 +828,7 @@ func recover(path: String) -> String:
 	# Envelopes retain their original base to detect stale autosaves. Explicitly
 	# selected raw backups bind the current file; subsequent external edits conflict.
 	_disk_digest = str(value.get("base_sha256", "")) if envelope else files.digest(_disk_path)
+	note_limits(result.get("limit_warnings", []))
 	_after_edit()
 	if envelope and not value.draft.is_empty(): _accept_draft(value.draft)
 	return ""

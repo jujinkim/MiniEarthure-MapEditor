@@ -4,12 +4,51 @@ import hashlib
 import json
 from pathlib import Path
 
+from import_layer import BudgetExceeded, Progress, soft_limit, limit_entries, limit_text
 from osm_extract import dependency
 from osm_stream import _capture, _scan, OWNED_FILES, MAX_SCAN_ENTITIES
 
-MAX_MATCHES = 32
-MAX_REFS = 200_000
-MAX_PREVIEW_POINTS = 20_000
+MAX_MATCHES = 32  # Results shown; further matches are counted in a warning.
+MAX_REFS = 200_000  # Warn above.
+REFS_CEILING = 10_000_000  # Memory guard.
+MAX_PREVIEW_POINTS = 20_000  # Display only: the preview is thinned to fit.
+MAX_NAME = 256  # Longer names are shortened for display.
+MAX_PREVIEW_BYTES = 4 * 1024**2  # Warn above.
+PREVIEW_CEILING = 16 * 1024**2
+
+
+def _references(count):
+    if count > REFS_CEILING: raise BudgetExceeded("PBF boundary references exceed 10,000,000")
+    if count > MAX_REFS: soft_limit("place_references", count, MAX_REFS, "PBF boundary reference budget exceeded")
+
+
+def _thin(places, ways, nodes):
+    """Display outlines within MAX_PREVIEW_POINTS. Every way keeps its last point
+    while it fits; the exact extent (bbox) is never thinned."""
+    complete = [place for place in places if not place["issue"]]
+    if not complete: return
+    share = max(2, min(2000, MAX_PREVIEW_POINTS // len(complete)))
+    for place in complete:
+        refs = place["_refs"]
+        stride = max(1, (sum(len(ways[ref]) for ref in refs) + share - 1) // share)
+        lines = []
+        for ref in refs:
+            line = [nodes[n] for n in ways[ref][::stride]]
+            if line[-1] != nodes[ways[ref][-1]]: line.append(nodes[ways[ref][-1]])
+            lines.append(line)
+        place["outlines"] = lines
+    if sum(len(line) for place in complete for line in place["outlines"]) <= MAX_PREVIEW_POINTS: return
+    # Too many boundary ways for the display: keep a regular subset of them.
+    for place in complete:
+        used = sum(len(line) for line in place["outlines"])
+        if used > share:
+            lines, kept = [], 0
+            for line in place["outlines"][::(used + share - 1) // share]:
+                if lines and kept + len(line) > share: break
+                lines.append(line)
+                kept += len(line)
+            place["outlines"] = lines
+            soft_limit("place_preview_ways", used, share, "Boundary preview shows a subset of boundary ways")
 
 
 def lookup(source, query, directory, event=lambda *args: None):
@@ -29,7 +68,7 @@ def lookup(source, query, directory, event=lambda *args: None):
         def counted(index):
             counts[index] += 1
             if sum(counts) > MAX_SCAN_ENTITIES:
-                raise ValueError("PBF lookup scan entity budget exceeded")
+                soft_limit("place_scan_entities", sum(counts), MAX_SCAN_ENTITIES, "PBF lookup scan entity budget exceeded; scanning takes longer")
 
         def relation(entity):
             nonlocal references
@@ -37,9 +76,10 @@ def lookup(source, query, directory, event=lambda *args: None):
             if entity.tags.get("boundary") != "administrative": return
             names = [entity.tags.get(key, "") for key in ("name", "name:ko", "name:en", "official_name")]
             if not any(query.casefold() in name.casefold() for name in names): return
-            if len(places) >= MAX_MATCHES: raise ValueError("More than 32 matching areas; enter a more specific name")
             name = next((n for n in names if n), "")
-            if len(name) > 256: raise ValueError("PBF place name exceeds 256 characters")
+            if len(name) > MAX_NAME:
+                soft_limit("place_name", len(name), MAX_NAME, "PBF place name is shortened for display")
+                name = name[:MAX_NAME]
             refs, issue = [], ""
             for member in entity.members:
                 if member.role not in ("outer", ""): continue
@@ -48,7 +88,7 @@ def lookup(source, query, directory, event=lambda *args: None):
                     continue
                 refs.append(member.ref)
                 references += 1
-                if references > MAX_REFS: raise ValueError("PBF boundary reference budget exceeded")
+                _references(references)
             if not refs: issue = "No direct outer boundary ways in this source."
             places.append(dict(name=name, source_id=f"relation/{entity.id}", admin_level=entity.tags.get("admin_level", "")[:16], refs=refs, issue=issue,
                                rank=0 if any(query.casefold()==n.casefold() for n in names) else 1 if any(n.casefold().startswith(query.casefold()) for n in names) else 2))
@@ -60,7 +100,7 @@ def lookup(source, query, directory, event=lambda *args: None):
             if entity.id not in ways: return
             if ways[entity.id] is not None: raise ValueError("Duplicate boundary way")
             references += len(entity.nodes)
-            if references > MAX_REFS: raise ValueError("PBF boundary reference budget exceeded")
+            _references(references)
             refs = [node.ref for node in entity.nodes]
             ways[entity.id] = refs
             nodes.update((ref, None) for ref in refs)
@@ -78,7 +118,6 @@ def lookup(source, query, directory, event=lambda *args: None):
             # progress and the immutable capture still cover the whole source.
             selected_ids = None if ids is None else osmium.filter.IdFilter(ids)
             _scan(path, stage, event, size, osmium, bits, callback, selected_ids)
-        preview_points = 0
         for place in places:
             refs = place.pop("refs")
             place.update(bbox=[], outlines=[])
@@ -94,25 +133,25 @@ def lookup(source, query, directory, event=lambda *args: None):
             if box[0] >= box[2] or box[1] >= box[3] or box[2]-box[0] > 180:
                 place["issue"] = "Empty or dateline-crossing boundary is unsupported."
                 continue
-            # Exact extent, simplified display only. Retain endpoints of each way.
-            stride = max(1, (len(points)+1999)//2000)
-            lines = []
-            for ref in refs:
-                line = [nodes[n] for n in ways[ref][::stride]]
-                if line[-1] != nodes[ways[ref][-1]]: line.append(nodes[ways[ref][-1]])
-                preview_points += len(line)
-                if preview_points > MAX_PREVIEW_POINTS: raise ValueError("PBF boundary preview budget exceeded; use a more specific name")
-                lines.append(line)
-            place.update(bbox=box, outlines=lines)
+            # Exact extent; the outline is a thinned display only.
+            place.update(bbox=box, _refs=refs)
         places.sort(key=lambda p: (p["rank"], int(p["admin_level"]) if p["admin_level"].isdigit() else 100, p["name"], p["source_id"]))
+        if len(places) > MAX_MATCHES:
+            # Display truncation only: the best matches are listed.
+            soft_limit("place_matches", len(places), MAX_MATCHES, "More matching areas than shown; enter a more specific name")
+            places = places[:MAX_MATCHES]
         for place in places: place.pop("rank")
-        return dict(profile="pbf-place-preview-v1", query=query, source_name=source.name, source_sha256=digest, source_bytes=size, places=places)
+        _thin(places, ways, nodes)
+        for place in places: place.pop("_refs", None)
+        return dict(profile="pbf-place-preview-v1", query=query, source_name=source.name, source_sha256=digest, source_bytes=size, places=places,
+                    limit_warnings=[limit_text(entry) for entry in limit_entries()])
     finally:
         for name in ("source.pbf.part", "source.pbf"):
             (directory / name).unlink(missing_ok=True)
 
 
-MAX_REGION_AREAS = 8
+MAX_REGION_AREAS = 8  # Warn above.
+REGION_AREAS_CEILING = 64
 
 
 def region(path, relation_ids, osmium, event=lambda *args: None):
@@ -125,8 +164,10 @@ def region(path, relation_ids, osmium, event=lambda *args: None):
     from shapely.geometry import LineString
     from shapely.ops import polygonize, unary_union
     wanted = [int(v) for v in relation_ids]
-    if not wanted or len(wanted) > MAX_REGION_AREAS or len(set(wanted)) != len(wanted) or any(v <= 0 for v in wanted):
-        raise ValueError(f"Choose 1–{MAX_REGION_AREAS} distinct administrative areas")
+    if not wanted or len(wanted) > REGION_AREAS_CEILING or len(set(wanted)) != len(wanted) or any(v <= 0 for v in wanted):
+        raise ValueError(f"Choose 1–{REGION_AREAS_CEILING} distinct administrative areas")
+    if len(wanted) > MAX_REGION_AREAS:
+        soft_limit("region_areas", len(wanted), MAX_REGION_AREAS, "Many administrative areas are combined; the import takes longer")
     path = Path(path)
     size = path.stat().st_size
     found, ways, nodes, references = {}, {}, {}, 0
@@ -141,7 +182,7 @@ def region(path, relation_ids, osmium, event=lambda *args: None):
             if member.type != "w": raise ValueError(f"relation/{entity.id}: nested boundary members are unsupported")
             members.append((member.ref, member.role or "outer"))
             references += 1
-            if references > MAX_REFS: raise ValueError("PBF boundary reference budget exceeded")
+            _references(references)
         found[entity.id] = dict(name=next((entity.tags.get(k) for k in ("name", "name:ko", "name:en") if entity.tags.get(k)), "")[:256], members=members)
         ways.update((ref, None) for ref, _ in members)
 
@@ -149,7 +190,7 @@ def region(path, relation_ids, osmium, event=lambda *args: None):
         nonlocal references
         if entity.id not in ways: return
         references += len(entity.nodes)
-        if references > MAX_REFS: raise ValueError("PBF boundary reference budget exceeded")
+        _references(references)
         ways[entity.id] = [node.ref for node in entity.nodes]
         nodes.update((ref, None) for ref in ways[entity.id])
 
@@ -187,20 +228,21 @@ def main():
     parser.add_argument("--request", required=True)
     args = parser.parse_args()
     from geojson import watch_parent_lifetime
-    watch_parent_lifetime(900)
-    sequence = 0
+    watch_parent_lifetime()
+    progress = Progress(args.request)
     def event(stage, completed, total):
-        nonlocal sequence
-        sequence += 1
-        print(json.dumps(dict(request=args.request, seq=sequence, stage=stage, completed=completed, total=total, unit="bytes")), flush=True)
+        progress(stage, completed, total)
     value = lookup(args.source, args.query, args.output.parent, event)
     raw = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
-    if len(raw) > 4*1024**2: raise ValueError("Boundary preview exceeds 4 MiB")
+    if len(raw) > PREVIEW_CEILING: raise ValueError("Boundary preview exceeds 16 MiB")
+    if len(raw) > MAX_PREVIEW_BYTES:
+        soft_limit("place_preview_bytes", len(raw), MAX_PREVIEW_BYTES, "Boundary preview exceeds 4 MiB")
+        value["limit_warnings"] = [limit_text(entry) for entry in limit_entries()]
+        raw = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
     event("write", 0, len(raw))
     with args.output.open("xb") as output: output.write(raw)
     event("write", len(raw), len(raw))
-    sequence += 1
-    print(json.dumps(dict(request=args.request, seq=sequence, stage="complete", completed=len(raw), total=len(raw), unit="bytes", sha256=hashlib.sha256(raw).hexdigest())), flush=True)
+    progress("complete", len(raw), len(raw), sha256=hashlib.sha256(raw).hexdigest())
 
 
 if __name__ == "__main__":

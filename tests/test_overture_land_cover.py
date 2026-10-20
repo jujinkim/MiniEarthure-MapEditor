@@ -11,6 +11,10 @@ from overture_land_cover_fixture import snapshot
 from geojson import convert
 
 class LandCoverTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def layer(self,obj):
         raw=json.dumps(obj).encode(); value,meta=a.parse(raw)
         return a.finish(convert(value,"synthetic land cover",a.LICENSE,layer_id="a"*32,source_bytes=raw,
@@ -56,9 +60,20 @@ class LandCoverTests(unittest.TestCase):
                 polys[:]=[[[[9,55],[9+1e-9,55],[9+1e-9,55+1e-9],[9,55+1e-9],[9,55]]]]
             with self.subTest(change=change),self.assertRaises(ValueError):self.layer(obj)
     def test_budgets(self):
-        for module,key,limit in [(a,"MAX_FEATURES",2),(a,"MAX_POINTS",4),(a,"MAX_INPUT",20)]:
-            with patch.object(module,key,limit),self.assertRaises(ValueError):self.layer(snapshot())
-        with patch("polygon_geometry.MAX_TOPOLOGY_CHECKS",1),self.assertRaisesRegex(ValueError,"topology budget"):self.layer(snapshot())
-        with patch("import_layer.MAX_OUTPUT",100),self.assertRaises(ValueError):self.layer(snapshot())
+        import import_layer
+        def codes(): return {e["code"] for e in import_layer.limit_entries()}
+        expected=self.layer(snapshot()).patches
+        # Former budgets warn and keep every feature; the raised ceilings refuse.
+        for key,limit,code in [("MAX_FEATURES",2,"land_cover_features"),("MAX_POINTS",4,"land_cover_points"),("MAX_INPUT",20,"input_bytes")]:
+            import_layer.reset_limits()
+            with self.subTest(key=key),patch.object(a,key,limit):
+                self.assertEqual(self.layer(snapshot()).patches,expected)
+                self.assertIn(code,codes())
+        for key,limit in [("FEATURES_CEILING",2),("POINTS_CEILING",4),("INPUT_CEILING",20)]:
+            with self.subTest(key=key),patch.object(a,key,limit),self.assertRaises(ValueError):self.layer(snapshot())
+        with patch("polygon_geometry.MAX_TOPOLOGY_CHECKS",1):self.layer(snapshot())
+        with patch("polygon_geometry.TOPOLOGY_CEILING",1),self.assertRaisesRegex(ValueError,"topology check ceiling"):self.layer(snapshot())
+        with patch("import_layer.MAX_OUTPUT",100):self.layer(snapshot())
+        self.assertTrue({"topology_checks","import_output"}<=codes())
 
 if __name__=="__main__":unittest.main()

@@ -6,9 +6,14 @@ terrain. Original UTF-8 bytes are retained in the reviewed layer provenance.
 import copy
 import hashlib
 import math
-from import_layer import number, text, strict_json, MAX_POINTS
+from import_layer import number, text, strict_json, MAX_POINTS, soft_limit
 
-MAX_GRID_BYTES = 64 * 1024
+MAX_GRID_BYTES = 64 * 1024  # Warn above.
+GRID_BYTES_CEILING = 16 * 1024**2
+MAX_GRID_SIDE = 33  # Warn above.
+GRID_SIDE_CEILING = 1025
+MAX_GRID_DEGREES = 1  # Warn above.
+GRID_DEGREES_CEILING = 10
 CRS = {"EGM96": "EPSG:5773 / EGM96 metres", "EGM2008": "EPSG:3855 / EGM2008 metres"}
 ORDER = "source vertices before crop; target heights linearly interpolated at cuts; round once to cm"
 
@@ -17,8 +22,9 @@ def read_options(path):
     # CLI inputs are ordinary local files, never URLs/GDAL virtual paths.
     if not path.is_file(): raise ValueError("vertical request must be a local file")
     with path.open("rb") as stream:
-        raw = stream.read(MAX_GRID_BYTES * 2 + 1)
-    if len(raw) > MAX_GRID_BYTES * 2: raise ValueError("vertical request exceeds 128 KiB")
+        raw = stream.read(GRID_BYTES_CEILING * 2 + 1)
+    if len(raw) > GRID_BYTES_CEILING * 2: raise ValueError("vertical request exceeds 32 MiB")
+    if len(raw) > MAX_GRID_BYTES * 2: soft_limit("vertical_request_bytes", len(raw), MAX_GRID_BYTES * 2, "Vertical request exceeds 128 KiB")
     return strict_json(raw)
 
 
@@ -41,8 +47,10 @@ class Vertical:
             if options["grid"] is not None: raise ValueError("EGM96 offset must not specify a correction grid")
             return
         raw = options["grid"]
-        if not isinstance(raw, str) or not 0 < len(raw.encode("utf-8")) <= MAX_GRID_BYTES:
-            raise ValueError("EGM2008 requires a local UTF-8 correction grid of at most 64 KiB")
+        if not isinstance(raw, str) or not 0 < len(raw.encode("utf-8")) <= GRID_BYTES_CEILING:
+            raise ValueError("EGM2008 requires a local UTF-8 correction grid of at most 16 MiB")
+        if len(raw.encode("utf-8")) > MAX_GRID_BYTES:
+            soft_limit("vertical_grid_bytes", len(raw.encode("utf-8")), MAX_GRID_BYTES, "Correction grid exceeds 64 KiB")
         grid = strict_json(raw)
         required = {"format", "source", "license", "accuracy", "horizontal_crs", "source_crs", "target_crs", "quantity", "bbox", "columns", "rows", "values_m"}
         if not isinstance(grid, dict) or set(grid) != required:
@@ -52,14 +60,17 @@ class Vertical:
             if grid[key] != expected: raise ValueError("invalid correction grid " + key)
         for key in ("source", "license", "accuracy"): text(grid[key], "correction " + key)
         for key in ("columns", "rows"):
-            n = number(grid[key], "grid " + key, 2, 33)
+            n = number(grid[key], "grid " + key, 2, GRID_SIDE_CEILING)
             if int(n) != n: raise ValueError("grid dimensions must be integers")
             grid[key] = int(n)
+            if n > MAX_GRID_SIDE: soft_limit("vertical_grid_side", int(n), MAX_GRID_SIDE, "Correction grid has more than 33 columns or rows")
         bbox = grid["bbox"]
         if not isinstance(bbox, list) or len(bbox) != 4: raise ValueError("grid bbox requires west/south/east/north")
         for i, n in enumerate(bbox): number(n, "grid bbox", -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84)
-        if not 0 < bbox[2]-bbox[0] <= 1 or not 0 < bbox[3]-bbox[1] <= 1:
-            raise ValueError("grid bbox must be ordered, at most one degree per side, without dateline crossing")
+        if not 0 < bbox[2]-bbox[0] <= GRID_DEGREES_CEILING or not 0 < bbox[3]-bbox[1] <= GRID_DEGREES_CEILING:
+            raise ValueError("grid bbox must be ordered, at most ten degrees per side, without dateline crossing")
+        if max(bbox[2]-bbox[0], bbox[3]-bbox[1]) > MAX_GRID_DEGREES:
+            soft_limit("vertical_grid_degrees", max(bbox[2]-bbox[0], bbox[3]-bbox[1]), MAX_GRID_DEGREES, "Correction grid spans more than one degree")
         values = grid["values_m"]
         if not isinstance(values, list) or len(values) != grid["columns"] * grid["rows"]:
             raise ValueError("grid samples must fill every row and column")
@@ -96,7 +107,7 @@ class Vertical:
             converted = []
             for point, height in zip(coordinates, properties["elevations_m"]):
                 points += 1
-                if points > MAX_POINTS: raise ValueError("vertical point budget exceeded")
+                if points > MAX_POINTS: soft_limit("vertical_points", points, MAX_POINTS, "Vertical point budget exceeded")
                 delta = self.delta(point)
                 low = delta if low is None else min(low, delta)
                 high = delta if high is None else max(high, delta)

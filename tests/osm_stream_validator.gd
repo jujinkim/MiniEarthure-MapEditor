@@ -37,7 +37,12 @@ func run() -> void:
 	var source_hash := FileAccess.get_sha256(path)
 	var before: Dictionary=ui.store.document.duplicate(true)
 	ui._start_import(path,LAYER.OSM_LICENSE)
-	check(not ui.busy and ui.pending_import==null,"large source requires explicit streaming selection")
+	# Above the former 32 MiB a non-streaming import starts with a size warning.
+	check(ui.import_job!=null and ui.import_job.limit_warnings.any(func(w): return w.code=="source_bytes") and ui.status_label.text.contains("Limit warnings:"),"large non-streaming source starts with a size warning: "+ui.status_label.text)
+	if ui.import_job!=null:
+		ui._cancel_operation()
+		await wait_import(ui)
+	check(not ui.busy and ui.pending_import==null and ui.store.document==before,"cancelled large non-streaming import leaves the map unchanged")
 	ui.osm_panel.streaming.button_pressed=true
 	ui.osm_panel.city.button_pressed=false  # This suite verifies the exact source path.
 	check(ui.osm_panel.error()!="","streaming requires crop")
@@ -50,7 +55,7 @@ func run() -> void:
 	check(ui.osm_panel.dialog.size.x<=1024 and ui.osm_panel.dialog.size.y<=720,"stream selection fits minimum window")
 	ui.osm_panel.dialog.hide()
 	ui._start_import(path,LAYER.OSM_LICENSE)
-	check(ui.import_job!=null and ui.import_job.timeout_seconds==900,"stream job has explicit 15-minute deadline")
+	check(ui.import_job!=null and ui.import_job.streaming and ui.import_job.timeout_seconds==900,"stream job warns after 15 minutes")
 	var directory: String=ui.import_job.directory
 	await wait_import(ui)
 	check(not DirAccess.dir_exists_absolute(directory),"successful snapshot/index/job cleanup")
@@ -69,10 +74,15 @@ func run() -> void:
 			"profile": bad.coordinates.osm_stream.profile="forged"
 			"hash": bad.coordinates.osm_stream.source_sha256="0".repeat(64)
 			"passes": bad.coordinates.osm_stream.passes=2
-			"counts": bad.coordinates.osm_stream.selected.nodes=200001
+			"counts": bad.coordinates.osm_stream.selected.nodes=bad.coordinates.osm_stream.scan.nodes+1
 			"missing": bad.coordinates.erase("osm_stream")
 			"request": request.erase("osm_stream")
 		check(LAYER.new().load_value(bad,ui.import_identity,request)!="","reject streaming provenance "+mutation)
+	# Former selection budgets are limit warnings; scan consistency still refuses.
+	var over: Dictionary=raw.duplicate(true)
+	over.coordinates.osm_stream.scan.relations=100000001
+	var over_layer:=LAYER.new()
+	check(over_layer.load_value(over,ui.import_identity,ui.import_coordinates_request)=="" and over_layer.limit_warnings.any(func(w): return w.code=="pbf_scan_relations"),"scan count above the former budget is a limit warning")
 	ui._adopt_import()
 	await wait_import(ui)
 	check(ui.store.document.roads.size()==1 and ui.store.document.buildings.size()==3 and ui.store.document.zones.size()==3,"complete roads/multipart/hole/island atomic native adoption: "+ui.status_label.text)
@@ -102,9 +112,12 @@ func run() -> void:
 	check(ui.pending_import==null and ui.store.document==adopted and not DirAccess.dir_exists_absolute(directory),"index cancellation cleans owned files and retains accepted layer")
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	directory=ui.import_job.directory
+	# A passed deadline only warns; Cancel stops the stream and cleans up.
 	ui.import_job.poll(ui.import_job.deadline_ms)
+	check(not ui.import_job.cancelled and ui.import_job.limit_warnings.any(func(w): return w.code=="running_time"),"stream deadline warns without stopping")
+	ui._cancel_operation()
 	await wait_import(ui)
-	check(ui.pending_import==null and ui.store.document==adopted and not DirAccess.dir_exists_absolute(directory),"controlled deadline retains layer and cleans workspace")
+	check(ui.pending_import==null and ui.store.document==adopted and not DirAccess.dir_exists_absolute(directory),"Cancel after the deadline warning retains layer and cleans workspace")
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	ui.osm_panel.fields[0].value+=0.000001
 	ui.osm_panel.fields[0].value-=0.000001
@@ -132,7 +145,7 @@ func run() -> void:
 	for mode in ["skip","regress"]:
 		var job := JOB.new()
 		job.identity="a".repeat(32)
-		job.timeout_seconds=900
+		job.streaming=true
 		job.stages=["read","index_nodes","complete"]
 		job._event(JSON.stringify({"request":job.identity,"seq":1,"stage":"read","completed":5,"total":10,"unit":"bytes"}).to_utf8_buffer())
 		job._event(JSON.stringify({"request":job.identity,"seq":2,"stage":"index_nodes" if mode=="skip" else "read","completed":0,"total":10,"unit":"bytes"}).to_utf8_buffer())

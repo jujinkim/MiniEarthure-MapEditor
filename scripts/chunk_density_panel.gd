@@ -81,7 +81,7 @@ func _show_rows() -> void:
 		listing.add_item(I18N.t("%s · %.1f MiB estimated · %s") % [key,float(row.work_bytes)/1048576.0,row.warning])
 		listing.set_item_metadata(listing.item_count - 1,key)
 		if not row.warning.is_empty(): canvas.density_cells.append(row.cell)
-	details.text = I18N.t("Estimated work memory: warning at 192 MiB; limit 256 MiB. Warnings do not block Save or Export.")
+	details.text = I18N.t("Estimated work memory: warning at 192 MiB; preview allowance 256 MiB. Larger cells are still checked and reported as limit warnings.")
 	canvas.queue_redraw()
 
 func _select(index: int) -> void:

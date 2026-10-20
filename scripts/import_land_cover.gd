@@ -1,6 +1,7 @@
 extends RefCounted
+const LIMITS := preload("./limit_warnings.gd")
 ## Validate the selected classification, complete source mapping and fixed estimates.
-static func validate(raw: Dictionary, boundary: Script) -> String:
+static func validate(raw: Dictionary, boundary: Script, notes: Array = []) -> String:
 	var meta: Variant = raw.coordinates.get("overture_land_cover")
 	if raw.source.license != boundary.OVERTURE_LAND_COVER_LICENSE or raw.coordinates.mode != "wgs84-utm": return "Land cover requires WGS84 and source attribution."
 	if meta is not Dictionary or meta.get("provider") != "Overture" or meta.get("theme") != "base" or meta.get("type") != "land_cover" or meta.get("profile") != "forest-high-detail-v1" or meta.get("license") != raw.source.license: return "Invalid land cover profile."
@@ -11,9 +12,9 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 	if bbox is not Array or bbox.size() != 4: return "Invalid land cover area."
 	for i in range(4):
 		if not boundary._finite(bbox[i], -180 if i%2 == 0 else -80, 180 if i%2 == 0 else 84): return "Invalid land cover coordinate."
-	if bbox[0] >= bbox[2] or bbox[1] >= bbox[3] or bbox[2]-bbox[0] > 0.02 or bbox[3]-bbox[1] > 0.02: return "Invalid land cover area size."
-	if not boundary._count(meta.get("source_feature_count"),256) or meta.get("feature_sources") is not Array or meta.feature_sources.size() != meta.source_feature_count: return "Invalid land cover source count."
-	if not boundary._count(meta.get("source_point_count"),8192) or meta.source_point_count < raw.point_count: return "Invalid land cover point budget."
+	if not boundary._overture_area(notes, bbox): return "Invalid land cover area size."
+	if not boundary._soft(notes, "land_cover_features", meta.get("source_feature_count"), 256, "Land cover source features") or meta.get("feature_sources") is not Array or meta.feature_sources.size() != meta.source_feature_count: return "Invalid land cover source count."
+	if not boundary._soft(notes, "land_cover_points", meta.get("source_point_count"), 8192, "Land cover source points") or meta.source_point_count < raw.point_count: return "Invalid land cover point count."
 	var ids := {}
 	var zones := {}
 	var selected := 0
@@ -25,11 +26,12 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 		var detail: bool = f.min_zoom == 8 and f.max_zoom == 15
 		if not detail and f.max_zoom >= 8: return "Unsupported land cover resolution."
 		var disposition := "forest" if f.subtype == "forest" and detail else "other-subtype" if f.subtype != "forest" else "lower-detail"
-		if f.get("disposition") != disposition or f.get("zone_ids") is not Array or not boundary._count(f.get("part_count"),256) or f.part_count < 1: return "Invalid land cover disposition/mapping."
+		if f.get("disposition") != disposition or f.get("zone_ids") is not Array or not boundary._soft(notes, "land_cover_parts", f.get("part_count"), 256, "Parts of one land cover feature") or f.part_count < 1: return "Invalid land cover disposition/mapping."
 		if f.get("hole_counts") is not Array or f.hole_counts.size() != f.part_count: return "Invalid forest hole mapping."
 		for holes in f.hole_counts:
 			if not boundary._count(holes,16): return "Invalid forest hole count."
-		if f.get("sources") is not Array or f.sources.is_empty() or f.sources.size() > 128: return "Missing land cover sources."
+		if f.get("sources") is not Array or f.sources.is_empty(): return "Missing land cover sources."
+		LIMITS.over(notes, "land_cover_sources", f.sources.size(), 128, "Source datasets of one land cover feature")
 		for entry in f.sources:
 			if entry is not Dictionary or not boundary._text(entry.get("dataset")): return "Invalid land cover attribution."
 			if entry.get("license") != null and not boundary._text(entry.license): return "Invalid source license."

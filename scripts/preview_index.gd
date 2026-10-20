@@ -1,7 +1,15 @@
 extends RefCounted
 ## Editor invalidation index, never generation or physics. Native queries own cells.
 const EDIT := preload("./workbench_edit.gd")
+const LIMITS := preload("./limit_warnings.gd")
+# Above this many references (or for an object wider than one native query)
+# the index falls back to invalidating every cell on any edit, with a warning.
 const MAX_REFERENCES := 200000
+
+static func _whole_map(document: Dictionary, references: int, limit: int) -> Dictionary:
+	var warnings: Array = []
+	LIMITS.note(warnings, "preview_index", references, limit, "Preview index is too large; every cell is refreshed after each edit")
+	return {"ok": true, "data": {"cells": {}, "references": references, "all": JSON.stringify(document).sha256_text(), "limit_warnings": warnings}}
 
 static func build(native: RefCounted, document: Dictionary, cancelled: Callable = Callable()) -> Dictionary:
 	var cells := {}
@@ -35,17 +43,18 @@ static func build(native: RefCounted, document: Dictionary, cancelled: Callable 
 		low -= Vector2.ONE * margin
 		high += Vector2.ONE * margin
 		var queried: Dictionary = JSON.parse_string(native.query_cells(int(low.x), int(low.y), int(high.x), int(high.y), 16384))
+		if not queried.ok and str(queried.error.code) == "E_BUDGET": return _whole_map(document, 16385, 16384)
 		if not queried.ok: return queried
 		for cell: Dictionary in queried.data.occupancy_cells:
 			var key := "%d/%d" % [cell.x, cell.y]
 			if not cells.has(key): cells[key] = []
 			cells[key].append(entry)
 			references += 1
-			if references > MAX_REFERENCES:
-				return {"ok": false, "error": {"code": "E_INDEX_BUDGET", "message": "Preview index exceeds 200000 references; reduce the working map."}}
+			if references > MAX_REFERENCES: return _whole_map(document, references, MAX_REFERENCES)
 	return {"ok": true, "data": {"cells": cells, "references": references}}
 
 static func signature(document: Dictionary, hashes: Dictionary, index: Dictionary, cell: Vector2i) -> String:
+	if index.has("all"): return JSON.stringify([index.all, hashes, [cell.x, cell.y]]).sha256_text()
 	var local: Array = index.cells.get("%d/%d" % [cell.x, cell.y], [])
 	var source := {}
 	for field in ["map_id", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "assets", "assembled_track", "surface_attachments"]:

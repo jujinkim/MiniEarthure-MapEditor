@@ -50,12 +50,14 @@ footprints or roads.
 
 Text uses Godot TextServer Advanced shaping with **one selected font** and no system
 fallback. Missing glyphs and overflow are diagnostics, never shrink or clip. Limits:
-one line of 1–128 characters, 12–160 px, 1024×256 raster, fonts ≤32 MiB. Text
+one line of 1–128 characters, 12–160 px, 1024×256 raster, fonts ≤256 MiB (warning
+above 32 MiB). Text
 rasterization needs a rendering display; PNG import also works headless.
 
 MapKit `godot/sign_asset.gd` embeds the PNG in a static GLB with one normalized UV
-rectangle; the result passes the native PNG/glTF validator and the 16 MiB binary Undo
-budget. Creation uses the cancellable asset worker; changed controls, closed panels
+rectangle; the result passes the native PNG/glTF validator (MapKit refuses sign
+images above 16 MiB). A change over the 16 MiB Undo budget is applied without Undo.
+Creation uses the cancellable asset worker; changed controls, closed panels
 or document changes prevent adoption. Temporary bakes live in `user://sign-bakes/`.
 
 ## Save, reopen and share

@@ -3,8 +3,22 @@ extends RefCounted
 const SNAPSHOT := preload("./project_snapshot.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const INDEX := preload("./preview_index.gd")
+const LIMITS := preload("./limit_warnings.gd")
+# Preview work allowance: above it a cell is still shown or checked, with a warning.
 const PREVIEW_BYTES := 256 * 1024 * 1024
-const OVERVIEW_BYTES := 4 * 1024 * 1024
+# Export-report overview: warn above OVERVIEW_WARN_BYTES, omit it above OVERVIEW_BYTES.
+const OVERVIEW_BYTES := 64 * 1024 * 1024
+const OVERVIEW_WARN_BYTES := 4 * 1024 * 1024
+# Native whole-map queries accept at most 16384 cells; larger maps are queried in windows.
+const QUERY_CELLS := 16384
+const QUERY_WINDOW_CELLS := 96
+# Memory allowance for restoring and auditing the user's own package.
+const REOPEN_MIN_BYTES := 1024 * 1024 * 1024
+const REOPEN_MAX_BYTES := 8 * 1024 * 1024 * 1024
+## MapKit core per-cell generation budgets (mapkit-core generation, roads,
+## occupancy, courtyards, water). The game generates cells with the same core
+## and refuses these cells; any other E_BUDGET is an Editor-side check budget.
+const RUNTIME_CELL_BUDGETS := ["chunk triangle budget", "occupancy limit", "occupied solid budget", "road local ", "road sampling limit", "road subdivision work", "road paint exceeds", "sidewalk fragments", "courtyard topology", "water shoreline work"]
 var regional_side_cells := 0
 var working: RefCounted
 var mutex := Mutex.new()
@@ -76,7 +90,9 @@ func _memory_preview(document: Dictionary, operation: String, cell: Vector2i, fu
 		var measured := materialized_preview_cost(cost.data, result.data)
 		if measured.is_empty(): return failure("E_PREVIEW_BUDGET", "Generated counts exceed the admitted preview estimate.")
 		result.data.charge = work_bytes(measured) + result.data.preview_bytes
-		if result.data.charge > PREVIEW_BYTES: return failure("E_PREVIEW_BUDGET", "Cell exceeds preview allowance.")
+		if result.data.charge > PREVIEW_BYTES:
+			result.data.limit_warnings = []
+			LIMITS.note(result.data.limit_warnings, "preview_work", int(result.data.charge), PREVIEW_BYTES, "Cell preview needs more work memory than the preview allowance")
 		result.data.generation_seconds = (Time.get_ticks_usec()-started)/1000000.0
 		result.data.seconds = result.data.generation_seconds
 		return result
@@ -113,11 +129,12 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 		update("Building affected-object / cell index")
 		index = INDEX.build(native, snapshot.document, stopped)
 		if not index.ok: return index
+	var warnings: Array = index.data.get("limit_warnings", []).duplicate(true)
 	if operation == "preview":
 		var signature := INDEX.signature(snapshot.document, snapshot.hashes, index.data, cell)
 		if cached.get("signature", "") == signature:
 			return {"ok": true, "data": {"reused": true, "signature": signature, "cell": cell}}
-		var cost := allowance(native, cell)
+		var cost := allowance(native, cell, warnings)
 		if not cost.ok: return cost
 		var charge := int(cost.data)
 		if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
@@ -129,29 +146,46 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 		generated.data.signature = signature
 		generated.data.cell = cell
 		generated.data.charge = charge
+		if not warnings.is_empty(): generated.data.limit_warnings = warnings
 		generated.data.generation_seconds = (Time.get_ticks_usec() - generation_started) / 1000000.0
 		return generated
 	var report: Dictionary = staged.inspection.duplicate(true)
+	report.limit_warnings = snapshot.get("limit_warnings", []).duplicate(true) + warnings
 	var density := density_report(native, snapshot, index.data, cached, operation != "export")
 	if not density.ok: return density
 	report.chunk_costs = density.data
 	if operation == "density": return {"ok":true,"data":report}
 	update("Preparing 2D overview")
-	var overview: Dictionary = JSON.parse_string(native.overview_json(OVERVIEW_BYTES))
-	if not overview.ok: return overview
-	report.overview = overview.data
+	var overview_text: String = native.overview_json(OVERVIEW_BYTES)
+	var overview: Dictionary = JSON.parse_string(overview_text)
+	if not overview.ok and str(overview.error.code) != "E_MEMORY_BUDGET": return overview
+	if overview.ok:
+		report.overview = overview.data
+		if overview_text.length() > OVERVIEW_WARN_BYTES: LIMITS.note(report.limit_warnings, "overview_bytes", overview_text.length(), OVERVIEW_WARN_BYTES, "2D overview is very large")
+	else: LIMITS.note(report.limit_warnings, "overview_bytes", OVERVIEW_BYTES + 1, OVERVIEW_BYTES, "2D overview is too large and was omitted from the report")
 	report.full_generation_cells = 0
 	if full:
-		var bounds: Dictionary = snapshot.document.bounds
-		var query: Dictionary = JSON.parse_string(native.query_cells(int(bounds.min[0]), int(bounds.min[1]), int(bounds.max[0]), int(bounds.max[1]), 16384))
+		var query := whole_map_cells(native, snapshot.document)
 		if not query.ok: return query
-		for target: Dictionary in query.data.geometry_cells:
+		var over_cells := 0
+		var other_budget_cells := 0
+		for target: Dictionary in query.data:
 			if stopped(): return failure("E_CANCELLED", "Full generation check cancelled.")
 			update("Optional 3D check %d / %d" % [report.full_generation_cells + 1, report.cell_count])
-			var budget := allowance(native, Vector2i(int(target.x), int(target.y)))
+			var budget := allowance(native, Vector2i(int(target.x), int(target.y)), report.limit_warnings)
 			if not budget.ok: return budget
 			var generated: Dictionary = native.generate_chunk_packed(int(target.x), int(target.y))
-			if not generated.ok: return generated
+			# MapKit's per-cell generation budgets are the game's own: it refuses
+			# such a cell at play time. Report the count of cells; other native
+			# budget errors are plain warnings, every other error stays fatal.
+			if not generated.ok and str(generated.error.code) == "E_BUDGET":
+				if runtime_cell_budget(str(generated.error.get("message", ""))):
+					over_cells += 1
+					LIMITS.note(report.limit_warnings, "runtime_cell_generation", over_cells, 0, "Number of cells over the game's per-cell generation budget", true)
+				else:
+					other_budget_cells += 1
+					LIMITS.note(report.limit_warnings, "cell_generation_budget", other_budget_cells, 0, "Number of cells over an Editor generation check budget")
+			elif not generated.ok: return generated
 			report.full_generation_cells += 1
 	if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
 	update("Compressing validated package")
@@ -160,9 +194,10 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 		var regional_path: String = staged.path.path_join("result.mkregions")
 		var packed: Dictionary = JSON.parse_string(regional.export_project(staged.path,regional_path,regional_side_cells))
 		if not packed.ok: return packed
-		var opened: Dictionary = JSON.parse_string(regional.open_index(regional_path,1024*1024*1024,""))
+		var budget := reopen_budget(regional_path)
+		var opened: Dictionary = JSON.parse_string(regional.open_index(regional_path,budget,""))
 		if not opened.ok: return opened
-		var audited: Dictionary = JSON.parse_string(regional.audit(1024*1024*1024,regional.begin_request()))
+		var audited: Dictionary = JSON.parse_string(regional.audit(budget,regional.begin_request()))
 		if not audited.ok: return audited
 		report.merge(audited.data,true)
 		report.erase("overview_json")
@@ -209,12 +244,38 @@ static func compressed_assets(path: String, assets: Array) -> Dictionary:
 		file.seek(file.get_position() + header.decode_u16(30) + header.decode_u16(32))
 	return {"ok": true, "data": total}
 
-func allowance(native: RefCounted, cell: Vector2i) -> Dictionary:
+# Over the preview allowance the cell is still generated; the caller gets a warning.
+func allowance(native: RefCounted, cell: Vector2i, warnings: Array = []) -> Dictionary:
 	var cost: Dictionary = JSON.parse_string(native.estimate_chunk(cell.x, cell.y))
 	if not cost.ok: return cost
 	var charge := work_bytes(cost.data)
-	if charge > PREVIEW_BYTES: return failure("E_PREVIEW_BUDGET", "Cell estimate %d exceeds the %d-byte preview work allowance." % [charge, PREVIEW_BYTES])
+	if charge > PREVIEW_BYTES: LIMITS.note(warnings, "preview_work", charge, PREVIEW_BYTES, "Cell preview needs more work memory than the preview allowance")
 	return {"ok": true, "data": charge}
+
+# Native queries cap one request at 16384 cells (including a small halo), so
+# larger regional maps are queried in aligned windows and merged in row order.
+func whole_map_cells(native: RefCounted, document: Dictionary) -> Dictionary:
+	var bounds: Dictionary = document.bounds
+	var size := int(document.cell_size_cm)
+	var step := size * QUERY_WINDOW_CELLS
+	var seen := {}
+	var cells: Array = []
+	var y := int(bounds.min[1])
+	while y <= int(bounds.max[1]):
+		var x := int(bounds.min[0])
+		while x <= int(bounds.max[0]):
+			if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
+			var query: Dictionary = JSON.parse_string(native.query_cells(x, y, mini(x + step, int(bounds.max[0])), mini(y + step, int(bounds.max[1])), QUERY_CELLS))
+			if not query.ok: return query
+			for target: Dictionary in query.data.geometry_cells:
+				var key := "%d/%d" % [int(target.x), int(target.y)]
+				if seen.has(key): continue
+				seen[key] = true
+				cells.append(target)
+			x += step
+		y += step
+	cells.sort_custom(func(a: Dictionary, b: Dictionary): return int(a.y) < int(b.y) or (int(a.y) == int(b.y) and int(a.x) < int(b.x)))
+	return {"ok": true, "data": cells}
 
 static func work_bytes(cost: Dictionary) -> int:
 	return int(cost.get("gimmick_bytes",0)) + int(cost.generation_scratch_bytes) + int(cost.triangles) * (256 + int(cost.max_object_id_bytes)) + int(cost.objects) * 1024 + int(cost.presentation_bytes) * 4
@@ -234,11 +295,10 @@ static func materialized_preview_cost(cost: Dictionary, data: Dictionary) -> Dic
 	return refined
 
 func density_report(native: RefCounted, snapshot: Dictionary, index: Dictionary, cached: Dictionary, use_cache: bool = true) -> Dictionary:
-	var bounds: Dictionary = snapshot.document.bounds
-	var query: Dictionary = JSON.parse_string(native.query_cells(int(bounds.min[0]),int(bounds.min[1]),int(bounds.max[0]),int(bounds.max[1]),16384))
+	var query := whole_map_cells(native, snapshot.document)
 	if not query.ok: return query
 	var rows := {}
-	for target: Dictionary in query.data.geometry_cells:
+	for target: Dictionary in query.data:
 		if stopped(): return failure("E_CANCELLED", "Density analysis cancelled.")
 		var cell := Vector2i(int(target.x), int(target.y))
 		var key := "%d/%d" % [cell.x,cell.y]
@@ -261,15 +321,32 @@ func reopen_package(path: String, destination: String) -> Dictionary:
 	if path.get_extension().to_lower() == "memap":
 		update("Validating package before restoring a new project directory")
 		var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
-		var validated: Dictionary = JSON.parse_string(bridge.open_package_budgeted(path, 1024*1024*1024))
+		var validated: Dictionary = JSON.parse_string(bridge.open_package_budgeted(path, reopen_budget(path)))
 		if not validated.ok: return validated
 		if stopped(): return failure("E_CANCELLED", "Reopen cancelled.")
 		return JSON.parse_string(bridge.unpack_source(destination))
 	if path.get_extension().to_lower() != "mkregions":
 		return failure("E_FORMAT", "Choose a .memap or .mkregions package.")
 	var native: RefCounted = ClassDB.instantiate("MapKitRegionReader")
-	var opened: Dictionary = JSON.parse_string(native.open_index(path,1024*1024*1024,""))
+	var budget := reopen_budget(path)
+	var opened: Dictionary = JSON.parse_string(native.open_index(path,budget,""))
 	if not opened.ok: return opened
 	update("Auditing regional source and restoring a new project directory")
-	var result: Dictionary = JSON.parse_string(native.unpack_source(destination,1024*1024*1024,native.begin_request()))
+	var result: Dictionary = JSON.parse_string(native.unpack_source(destination,budget,native.begin_request()))
 	return result
+
+# The user's own package: size the memory allowance from the file and the machine,
+# never below the previous 1 GiB. Runtime readers keep their own defaults.
+static func reopen_budget(path: String) -> int:
+	var file := FileAccess.open(path, FileAccess.READ)
+	var length := file.get_length() if file != null else 0
+	if file != null: file.close()
+	var physical := int(OS.get_memory_info().get("physical", 0))
+	var ceiling := REOPEN_MAX_BYTES if physical <= 0 else clampi(physical / 2, REOPEN_MIN_BYTES, REOPEN_MAX_BYTES)
+	return clampi(length * 8, REOPEN_MIN_BYTES, ceiling)
+
+
+static func runtime_cell_budget(message: String) -> bool:
+	for prefix: String in RUNTIME_CELL_BUDGETS:
+		if message.contains(prefix): return true
+	return false

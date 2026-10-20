@@ -6,6 +6,7 @@ const PNG := preload("res://scripts/terrain_png.gd")
 class StopNative extends JOB:
 	var reached := false
 	var expire := false
+	var warned := false
 	var target_phase := 1
 	func _event(line: PackedByteArray) -> void:
 		super._event(line)
@@ -13,6 +14,12 @@ class StopNative extends JOB:
 			reached = true
 			if expire: deadline_ms = 0
 			else: cancel()
+	# A passed deadline only warns; the user then cancels with the job running.
+	func poll(now_ms: int = -1) -> void:
+		super.poll(now_ms)
+		if expire and reached and not done and not cancelled and limit_warnings.any(func(w): return w.code == "running_time"):
+			warned = true
+			cancel()
 
 class MissingNative extends JOB:
 	func _spawn(_path: String, _arguments: PackedStringArray) -> Dictionary: return {}
@@ -85,7 +92,7 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 		check(start(stopped)=="","start real raster validation cancel/deadline")
 		await await_native(stopped)
 		check(stopped.reached and stopped.cancelled and not accepted(stopped),"native admission yields cancellation")
-		check(stopped.failure.contains("timed out") if expire else stopped.failure=="","DEM native cancellation reason")
+		check(stopped.failure=="" and stopped.warned==expire,"DEM native deadline warns; Cancel stops")
 		check(not DirAccess.dir_exists_absolute(stopped.directory) and state()==before,"retire only owned snapshot; no partial terrain")
 	var initial:=JOB.new()
 	check(start(initial)=="","fresh raster retry")
@@ -159,9 +166,11 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	DirAccess.remove_absolute(unknown.directory.path_join(unknown.PRESENCE.MARKER))
 	DirAccess.remove_absolute(unknown.directory)
 	var oversized:=JOB.new()
-	var large:=raster_result.duplicate(true);large.extension="x".repeat(JOB.REQUEST_LIMIT)
-	check(oversized.start_dem(ui.store,large,source_plan,capture,false,"test",token()).contains("64 MiB") and oversized.directory=="","request budget before scratch/launch")
-	# Four tiles may exceed 64 MiB together; each tile file stays within 64 MiB.
+	# The 1.5 GiB memory guard is exercised through the instance copy of the limit.
+	oversized.request_limit = 1024 * 1024
+	var large:=raster_result.duplicate(true);large.extension="x".repeat(oversized.request_limit)
+	check(oversized.start_dem(ui.store,large,source_plan,capture,false,"test",token()).contains("1.5 GiB") and oversized.directory=="","request guard before scratch/launch")
+	# Four tiles may exceed 64 MiB together; a tile over 64 MiB only warns.
 	var sparse := ProjectSettings.globalize_path("user://sparse-dem")
 	DirAccess.make_dir_recursive_absolute(sparse)
 	var budget_sources: Array = []
@@ -175,10 +184,14 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 		"data":{"outputs":[{"png_path":raster_result.outputs[0].png_path, "png_bytes":raster_result.outputs[0].png_bytes, "png_sha256":raster_result.outputs[0].png_sha256}]}}
 	var budget: Dictionary = preload("res://scripts/dem_native_worker.gd").inputs(budget_request)
 	check(not budget.has("error") and budget.files.size() == 9, "four 17 MiB tiles and captures pass the per-tile source budget: " + str(budget.get("error", "")))
-	var tile_file := FileAccess.open(budget_sources[0].source.path, FileAccess.WRITE)
-	tile_file.seek(64 * 1024 * 1024); tile_file.store_8(0); tile_file.close()
-	budget_sources[0].source.bytes = 64 * 1024 * 1024 + 1
-	check(preload("res://scripts/dem_native_worker.gd").inputs(budget_request).get("error", "") != "", "one tile over 64 MiB is still refused")
+	for size in [64 * 1024 * 1024 + 1, DEM.MAX_SOURCE_BYTES + 1]:
+		for path: String in [budget_sources[0].source.path, sparse.path_join("capture.source-0.tif")]:
+			var tile_file := FileAccess.open(path, FileAccess.WRITE)
+			tile_file.seek(size - 1); tile_file.store_8(0); tile_file.close()
+		budget_sources[0].source.bytes = size
+		var checked: Dictionary = preload("res://scripts/dem_native_worker.gd").inputs(budget_request)
+		if size <= DEM.MAX_SOURCE_BYTES: check(not checked.has("error") and checked.limit_warnings.any(func(w): return w.code == "dem_tile_bytes"), "one tile over 64 MiB passes with a limit warning: " + str(checked.get("error", "")))
+		else: check(checked.get("error", "") != "", "one tile over the 256 MiB guard is refused")
 	for index in range(4):
 		DirAccess.remove_absolute(sparse.path_join("tile-%d.tif" % index))
 		DirAccess.remove_absolute(sparse.path_join("capture.source-%d.tif" % index))

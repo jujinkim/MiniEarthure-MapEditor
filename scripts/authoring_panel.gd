@@ -124,10 +124,10 @@ func _start_asset(record: Dictionary, source: String) -> void:
 	editor.busy = true
 	editor.import_progress.visible = true
 	asset_cancel.visible = true
-	feedback.text = I18N.t("Checking asset and preparing Undo · 120s deadline · Cancel preserves the map.")
+	feedback.text = I18N.t("Checking asset and preparing Undo · no time limit · Cancel preserves the map.")
 
 func asset_progress(progress: Dictionary) -> void:
-	if not progress.is_empty(): feedback.text = I18N.t("Asset %s · %d / %d %s · 120s deadline") % [I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
+	if not progress.is_empty(): feedback.text = I18N.t("Asset %s · %d / %d %s") % [I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
 
 func finish_asset(job: RefCounted, result: Dictionary) -> void:
 	asset_cancel.visible = false
@@ -140,7 +140,7 @@ func finish_asset(job: RefCounted, result: Dictionary) -> void:
 	if result.get("ok", false) and result.get("data", {}).get("ok", false) and not job.bundle.is_empty(): failure = job.commit(editor.store)
 	elif not result.get("ok", false) or not result.get("data", {}).get("ok", false): failure = editor.store.reason(result.get("data", result))
 	_discard_asset()
-	report(failure)
+	report(failure, job.history_released, job.limit_text())
 
 func _invalidate_heightmap() -> void:
 	heightmap_revision += 1
@@ -195,11 +195,11 @@ func _start_heightmap(adopting: bool) -> void:
 	editor.busy = true
 	editor.import_progress.visible = true
 	heightmap_cancel.visible = true
-	feedback.text = I18N.t("Checking PNG before %s · 120s deadline · Cancel preserves the map.") % (I18N.t("adoption") if adopting else I18N.t("review"))
+	feedback.text = I18N.t("Checking PNG before %s · no time limit · Cancel preserves the map.") % (I18N.t("adoption") if adopting else I18N.t("review"))
 
 func heightmap_progress(progress: Dictionary) -> void:
 	if progress.is_empty(): return
-	feedback.text = I18N.t("PNG %s · %d / %d %s · 120s deadline") % [I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
+	feedback.text = I18N.t("PNG %s · %d / %d %s") % [I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
 
 func finish_heightmap(job: RefCounted, result: Dictionary) -> void:
 	heightmap_cancel.visible = false
@@ -215,10 +215,12 @@ func finish_heightmap(job: RefCounted, result: Dictionary) -> void:
 	if job.adopting:
 		var failure: String = job.commit(editor.store)
 		_discard_heightmap()
-		report(failure)
+		report(failure, job.history_released, job.limit_text())
 		return
 	heightmap_candidate = HEIGHTMAP_LAYER.new()
 	heightmap_candidate.value = job.bundle.value.duplicate(true)
+	# Child warnings (re-encoded copy, notice length, payload sizes, Undo release).
+	heightmap_candidate.limit_warnings = job.limit_warnings.duplicate(true)
 	heightmap_payloads = result.data.payloads
 	heightmap_review_epoch = editor.store.command_epoch
 	heightmap_review_selection = heightmap_selection()
@@ -340,8 +342,11 @@ func button(box: Node, title: String, callback: Callable) -> Button:
 	box.add_child(control)
 	return control
 
-func report(failure: String) -> void:
-	feedback.text = I18N.diagnostic(failure) if failure != "" else I18N.t("Applied. Undo/Redo retain this as one operation.")
+func report(failure: String, history_released := false, limits := "") -> void:
+	# An oversized change is applied without Undo; never claim Undo then.
+	var released: bool = history_released or editor.store.last_change_released
+	feedback.text = I18N.diagnostic(failure) if failure != "" else I18N.t("Applied. This change cannot be undone; earlier Undo history was released.") if released else I18N.t("Applied. Undo/Redo retain this as one operation.")
+	if limits != "": feedback.text += "\n" + limits
 	feedback.modulate = Color("ffab91") if failure != "" else Color("c5e1a5")
 	editor._status(feedback.text)
 	if failure == "": session_signature = editor.store._signature(editor.store.document)

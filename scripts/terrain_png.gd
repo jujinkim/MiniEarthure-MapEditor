@@ -1,7 +1,9 @@
 extends RefCounted
 ## Lossless bounded PNG16 adapter for authoring. MapKit remains the acceptance gate.
 const MAX_SIDE := 513
-const MAX_BYTES := 4 * 1024 * 1024
+# Memory guard for one PNG file; above WARN_BYTES callers re-encode it canonically and warn.
+const MAX_BYTES := 256 * 1024 * 1024
+const WARN_BYTES := 4 * 1024 * 1024
 const SIGNATURE := [137, 80, 78, 71, 13, 10, 26, 10]
 
 static func u32(bytes: PackedByteArray, at: int) -> int:
@@ -10,11 +12,18 @@ static func u32(bytes: PackedByteArray, at: int) -> int:
 static func be32(value: int) -> PackedByteArray:
 	return PackedByteArray([(value >> 24) & 255, (value >> 16) & 255, (value >> 8) & 255, value & 255])
 
+static var _crc_table := PackedInt64Array()
+
+# Standard table-driven CRC-32 (same result as the bitwise form, fast enough for large files).
 static func crc(bytes: PackedByteArray) -> int:
+	if _crc_table.is_empty():
+		_crc_table.resize(256)
+		for n in range(256):
+			var entry := n
+			for _bit in range(8): entry = (entry >> 1) ^ (0xedb88320 if entry & 1 else 0)
+			_crc_table[n] = entry
 	var value := 0xffffffff
-	for byte in bytes:
-		value ^= byte
-		for _bit in range(8): value = (value >> 1) ^ (0xedb88320 if value & 1 else 0)
+	for byte in bytes: value = _crc_table[(value ^ byte) & 255] ^ (value >> 8)
 	return value ^ 0xffffffff
 
 static func chunk(kind: String, bytes: PackedByteArray) -> PackedByteArray:

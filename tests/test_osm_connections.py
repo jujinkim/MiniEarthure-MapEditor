@@ -20,6 +20,10 @@ JOIN_BOX = [9.00075, 54.9999, 9.0015, 55.001]
 
 
 class Connections(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def parse(self, root=None):
         raw = connected_structures_xml().encode() if root is None else ET.tostring(root)
         return osm.parse(raw, "osm")
@@ -104,8 +108,13 @@ class Connections(unittest.TestCase):
             ET.SubElement(way,"tag",k="highway",v="service")
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)/"original.pbf"; raw = pbf(source,ET.tostring(root,encoding="unicode"))
-            with patch.object(stream,"MAX_REFS",20), self.assertRaisesRegex(ValueError,"incidence budget"):
+            import import_layer
+            self.addCleanup(import_layer.reset_limits)
+            import_layer.reset_limits()
+            # Dense incidence above the budget warns; the closure stays complete.
+            with patch.object(stream,"MAX_REFS",20):
                 stream.extract(source,BOX,directory)
+            self.assertIn("stream_closure_visits",{e["code"] for e in import_layer.limit_entries()})
             self.assertEqual(source.read_bytes(),raw)
             self.assertTrue(all(not (Path(directory)/n).exists() for n in stream.OWNED_FILES))
 
@@ -153,9 +162,15 @@ class Connections(unittest.TestCase):
     def test_closure_limits_cancel_retry_and_no_partial_output(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)/"original.pbf"; raw = pbf(source,connected_structures_xml())
-            for name,value in [("MAX_FEATURES",3),("MAX_REFS",5),("MAX_INPUT",20)]:
-                with self.subTest(name=name),patch.object(stream,name,value),self.assertRaisesRegex(ValueError,"budget"):
-                    stream.extract(source,BOX,directory)
+            import import_layer
+            self.addCleanup(import_layer.reset_limits)
+            expected = stream.extract(source,BOX,directory)
+            # Closure budgets warn; the selection and output are unchanged.
+            for name,value,code in [("MAX_FEATURES",3,"stream_closure_features"),("MAX_REFS",5,"stream_closure_references"),("MAX_INPUT",20,"stream_closure_bytes")]:
+                import_layer.reset_limits()
+                with self.subTest(name=name),patch.object(stream,name,value):
+                    self.assertEqual(stream.extract(source,BOX,directory)[0],expected[0])
+                    self.assertIn(code,{e["code"] for e in import_layer.limit_entries()})
                 self.assertTrue(all(not (Path(directory)/n).exists() for n in stream.OWNED_FILES))
             events = 0
             def cancel(stage,c,t,*unit):

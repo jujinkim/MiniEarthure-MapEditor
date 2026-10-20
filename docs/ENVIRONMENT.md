@@ -30,8 +30,11 @@ Configure the root `.venv` Python in Import settings. **Create → New region** 
 texture size and bounds, review composition and diagnostics, then apply. Bounds
 start around the selection, or the document bounds. New regions publish to a new
 absolute directory by sibling rename. Infill needs a saved free-roam project and is
-one Undo command; a result over the 16 MiB history limit is rejected with an
-area-reduction diagnostic. Payload hashes are rechecked on apply; preview, cancel,
+one Undo command; a result over the 16 MiB history limit is applied without Undo
+and releases earlier history with a warning. More than 18,000 generated objects
+warns and nothing is dropped; more than 200,000 warns that the game refuses the
+map. There is no time limit: after 600 s a running-time warning appears and Cancel
+remains. Payload hashes are rechecked on apply; preview, cancel,
 failure and stale documents publish nothing.
 
 `ThemeProfile` declares facility groups, functional hubs, district density ranges,
@@ -88,7 +91,9 @@ including embedded GLB images. `asset_bundle` derives the primary and optional
 `distant_path` with identical scaling and independent hashes; save, snapshots and
 Undo keep both. Originals are never upscaled or overwritten; identical contents
 share content-addressed paths and material atlases/UVs survive. Standalone asset
-import accepts sources up to 64 MiB; the Undo command stays within 16 MiB.
+import accepts sources up to 1 GiB (warning above 64 MiB) and textures up to 128
+megapixels (warning above 16); a change over the 16 MiB Undo budget is applied
+without Undo.
 Placement adds `yaw_offset_mdeg` to the quarter-turn orientation, applied by MapKit
 to visuals, lights, collision and occupancy. No pedestrian/traffic simulation or
 building interiors are generated.

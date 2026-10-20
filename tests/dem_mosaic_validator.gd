@@ -119,9 +119,12 @@ func run() -> void:
 	panel.prepare();await wait_job()
 	panel.acquire()
 	var timed: RefCounted=ui.import_job
+	# A passed deadline only warns; Cancel stops the helper.
 	timed.poll(timed.deadline_ms)
+	check(not timed.cancelled and timed.limit_warnings.any(func(w): return w.code == "running_time"),"deadline warns without stopping the mosaic child")
+	timed.cancel()
 	await wait_job()
-	check(timed.cancelled and panel.candidate==null and state()==before,"deadline preserves complete document")
+	check(timed.cancelled and panel.candidate==null and state()==before,"Cancel after the deadline warning preserves complete document")
 	start_closing_work(panel)
 	var owned: RefCounted=ui.import_job
 	ui.store.dirty=false

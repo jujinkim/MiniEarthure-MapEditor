@@ -28,7 +28,7 @@ func setup(owner_ui: Control) -> void:
 	column.add_child(fields)
 	zero = ui._import_number(fields, "Target datum height at local zero (m)", -10000, 10000, 0, 0.01)
 	path = LineEdit.new()
-	path.placeholder_text = I18N.t("Local height-delta JSON grid (EGM2008 only; ≤64 KiB)")
+	path.placeholder_text = I18N.t("Local height-delta JSON grid (EGM2008 only; ≤16 MiB, warning above 64 KiB)")
 	column.add_child(path)
 	picker = FileDialog.new()
 	picker.access = FileDialog.ACCESS_FILESYSTEM
@@ -37,9 +37,9 @@ func setup(owner_ui: Control) -> void:
 	ui.add_child(picker)
 	picker.file_selected.connect(func(value): path.text = value; changed())
 	ui._button(column, "Choose local correction grid…", func(): picker.popup_centered(Vector2i(800,550)))
-	ui._label(column, "Grid values are H(EGM2008) − H(EGM96), in metres; rows run south to north.\nPrepare the bounded grid externally from licensed local datum material.\nReview retains its exact bytes, source, license and declared accuracy.\nNo download, extrapolation, nodata repair or accuracy certification. See docs/IMPORTS.md.")
+	ui._label(column, "Grid values are H(EGM2008) − H(EGM96), in metres; rows run south to north.\nPrepare the grid externally from licensed local datum material: up to 1025 rows/columns and 10° per side, warning above 33 and 1°.\nReview retains its exact bytes, source, license and declared accuracy.\nNo download, extrapolation, nodata repair or accuracy certification. See docs/IMPORTS.md.")
 	supplement_path = LineEdit.new()
-	supplement_path.placeholder_text = I18N.t("Optional local node-height JSON (EGM96; ≤256 KiB); empty disables")
+	supplement_path.placeholder_text = I18N.t("Optional local node-height JSON (EGM96; ≤16 MiB, warning above 256 KiB); empty disables")
 	column.add_child(supplement_path)
 	supplement_picker = FileDialog.new()
 	supplement_picker.access = FileDialog.ACCESS_FILESYSTEM
@@ -74,7 +74,7 @@ func capture() -> Dictionary:
 		var length := file.get_length()
 		if length <= 0 or length > preload("./import_vertical.gd").MAX_GRID_BYTES:
 			file.close()
-			return {"error":"Correction grid must be nonempty and at most 64 KiB."}
+			return {"error":"Correction grid must be nonempty and at most 16 MiB."}
 		var bytes := file.get_buffer(length)
 		var final_length := file.get_length()
 		file.close()
@@ -93,7 +93,7 @@ func capture_supplement() -> Dictionary:
 	var length := file.get_length()
 	if length <= 0 or length > preload("./import_height_supplement.gd").MAX_BYTES:
 		file.close()
-		return {"error":"Height supplement must be nonempty and at most 256 KiB."}
+		return {"error":"Height supplement must be nonempty and at most 16 MiB."}
 	var bytes := file.get_buffer(length)
 	var final_length := file.get_length()
 	file.close()

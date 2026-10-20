@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 import math
 import shapely
 
@@ -16,6 +17,10 @@ from polygon_geometry import Budget, SpatialBudget, group_rings
 
 
 class City(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def setup_city(self, origin=(9,55)):
         self.options = dict(mode="wgs84-utm", origin=list(origin), local_origin_m=[1000,1000])
         epsg = (32700 if origin[1] < 0 else 32600) + min(60, int((origin[0]+180)//6)+1)
@@ -154,7 +159,13 @@ class City(unittest.TestCase):
         ring=[[100*math.cos(i*2*math.pi/3000),100*math.sin(i*2*math.pi/3000)] for i in range(3000)]
         ring.append(ring[0])
         self.assertEqual(group_rings([ring],[],SpatialBudget()),[[ring]])
-        with self.assertRaisesRegex(ValueError,"budget"):
+        import import_layer, polygon_geometry
+        self.addCleanup(import_layer.reset_limits)
+        import_layer.reset_limits()
+        # Quadratic work above the former budget warns; the raised ceiling refuses.
+        self.assertEqual(group_rings([ring],[],Budget()),[[ring]])
+        self.assertIn("topology_checks",{e["code"] for e in import_layer.limit_entries()})
+        with patch.object(polygon_geometry,"TOPOLOGY_CEILING",polygon_geometry.MAX_TOPOLOGY_CHECKS),self.assertRaisesRegex(ValueError,"ceiling"):
             group_rings([ring],[],Budget())
         outer=[[0,0],[10,0],[10,10],[0,10],[0,0]]
         inner=[[2,2],[8,2],[8,8],[2,8],[2,2]]
@@ -357,6 +368,33 @@ class City(unittest.TestCase):
         self.assertEqual(runs[64][1]["source_ids"],sorted(f"way/{i}" for i in [1,2,4,5,30,*range(10,22)]))
         self.assertEqual(self.features,original)
 
+    def test_cached_stages_replay_their_limit_warnings_for_every_gap_sharing_the_tolerance(self):
+        import import_layer
+        from osm_generalize import candidates
+        from osm_review import Review
+        self.setup_city()
+        walk = lambda kind: dict(_city_road_tags=dict(highway=kind))
+        self.add(1,LineString([(0,0),(150,3),(300,0)]),width_m=8,_city_refs=[1,2,3],**walk("residential"))
+        self.add(2,LineString([(10,40),(290,40)]),_city_refs=[4,5],**walk("footway"))
+        for i in range(12):
+            self.add(10+i,box(70+i*14,8,80+i*14,30),height_m=9)
+        stages = dict(road_space="test_road_stage", prepare="test_prepare_stage", paint="test_paint_stage")
+        def injected(name, code):
+            original = getattr(Generalizer, name)
+            def run(worker, *args):
+                import_layer.soft_limit(code, 2, 1, "Injected stage limit")
+                return original(worker, *args)
+            return patch.object(Generalizer, name, run)
+        seen = {}
+        with injected("road_space", stages["road_space"]), injected("prepare", stages["prepare"]), injected("paint", stages["paint"]):
+            for candidate, meta in candidates(dict(type="FeatureCollection",features=deepcopy(self.features)),self.options,Review(True)):
+                self.assertIsNotNone(candidate, meta)
+                seen[meta["gap_m"]] = {e["code"] for e in import_layer.limit_entries()}
+        shared = [gap for gap in seen if min(4.0, gap/4) == 4.0]
+        self.assertEqual(sorted(shared),[16,32,64],"16-64 m gaps reuse the cached stages")
+        for gap, codes in seen.items():
+            self.assertTrue(set(stages.values()) <= codes, f"gap {gap}: {codes}")
+
     def test_candidates_start_from_the_largest_gap_and_drop_exclusions_of_a_replaced_road_space(self):
         from osm_generalize import candidates
         from osm_review import Review
@@ -435,5 +473,92 @@ class City(unittest.TestCase):
         self.assertEqual(meta["unmerged_numeric_groups"],1)
         self.assertGreater(building.bounds[1],9+1+0.8-0.05,"road clearance trim is kept")
         self.assertTrue(all(abs((v+1000)*12.5-round((v+1000)*12.5))<1e-6 for point in building.exterior.coords for v in point))
+
+    def run_city_cli(self, directory, layer_id):
+        import geojson
+        from osm_city_fixture import xml as city_xml
+        from osm_fixture import pbf
+        from osm_extract import LICENSE
+        source=Path(directory)/(layer_id+".pbf");pbf(source,city_xml())
+        output=Path(directory)/(layer_id+".json")
+        argv=["geojson.py",str(source),str(output),"--input-format","pbf","--coordinates","wgs84-utm","--origin","9","55",
+              "--local-origin","512","512","--license",LICENSE,"--layer-id",layer_id,"--osm-bbox","8.9999","54.9999","9.002","55.002",
+              "--osm-stream","--osm-city"]
+        events=[]
+        with patch.object(sys,"argv",argv),patch("builtins.print",lambda *a,**k:events.append(a)):
+            geojson.main()
+        return json.loads(output.read_bytes())
+
+    def test_city_ladder_adopts_the_largest_gap_with_warnings_when_no_gap_meets_targets(self):
+        import import_layer, tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            fitting=self.run_city_cli(directory,"a"*32)
+            self.assertFalse(any(w.startswith("Limit warning: ") for w in fitting["warnings"]))
+            import_layer.reset_limits()
+            # No gap can meet a one-feature target: the largest gap (smallest
+            # output) is adopted, every source is kept and the overrun warns.
+            with patch.object(import_layer,"CITY_FEATURES",1),patch.object(import_layer,"CITY_POINTS",1):
+                warned=self.run_city_cli(directory,"b"*32)
+        meta=warned["coordinates"]["osm_city"]
+        self.assertEqual(meta["gap_m"],max(json.loads(json.dumps(__import__("osm_generalize").LEVELS))))
+        self.assertEqual(meta["source_ids"],fitting["coordinates"]["osm_city"]["source_ids"])
+        self.assertEqual(len(warned["patches"]),len(fitting["patches"]))
+        texts=[w for w in warned["warnings"] if w.startswith("Limit warning: ")]
+        self.assertTrue(any("feature target" in w for w in texts) and any("position target" in w for w in texts),texts)
+        self.assertLessEqual(len(warned["warnings"]),50)
+        self.assertTrue(all(len(w)<=512 for w in warned["warnings"]))
+
+
+class LimitWarnings(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()
+        self.addCleanup(import_layer.reset_limits)
+
+    def test_one_entry_per_code_keeps_count_largest_actual_and_reserved_slots(self):
+        import import_layer
+        from import_layer import ImportLayer, Source, soft_limit
+        soft_limit("a", 5, 1, "First budget")
+        soft_limit("a", 3, 1, "First budget")
+        soft_limit("b", 7, 2, "Document limit", True)
+        entries={e["code"]:e for e in import_layer.limit_entries()}
+        self.assertEqual((entries["a"]["count"],entries["a"]["actual"]),(2,5))
+        self.assertEqual(import_layer.limit_text(entries["a"]),"Limit warning: First budget (5 > 1)")
+        self.assertEqual(import_layer.limit_text(entries["b"]),"Limit warning: Document limit (7 > 2); the game refuses maps beyond this")
+        layer=ImportLayer("c"*32,Source("s","0"*64,1,"MIT","unknown"),{})
+        for i in range(60): layer.warning(f"ordinary {i}")
+        first=layer.encode()
+        self.assertEqual(len(layer.warnings),50)
+        self.assertEqual(layer.warnings[-2:],[import_layer.limit_text(entries["a"]),import_layer.limit_text(entries["b"])])
+        self.assertEqual(layer.warning_count,62)
+        self.assertEqual(layer.encode(),first,"encoding is idempotent")
+        self.assertEqual(layer.warning_count,62)
+        soft_limit("x"*600,1,0,"y"*600)
+        layer.encode()
+        self.assertTrue(all(len(w)<=512 for w in layer.warnings))
+        snapshot=import_layer.limit_snapshot()
+        import_layer.reset_limits()
+        self.assertEqual(import_layer.limit_entries(),[])
+        import_layer.limit_restore(snapshot)
+        self.assertEqual(len(import_layer.limit_entries()),3)
+
+    def test_progress_is_throttled_per_stage_and_keeps_first_last_and_seq(self):
+        from import_layer import Progress, PROGRESS_INTERVAL
+        now, lines = [0.0], []
+        progress = Progress("r", clock=lambda: now[0], write=lines.append)
+        for completed in range(0, 1001):
+            progress("read", completed, 1000)  # One stage, no time passes.
+        progress("parse", 0, 5)
+        progress("parse", 1, 5)
+        now[0] += PROGRESS_INTERVAL
+        progress("parse", 2, 5)
+        progress("optimize", 0, 7, "steps")
+        progress("optimize", 1, 7, "steps", gap_m=64)  # Extra fields are never dropped.
+        progress("complete", 9, 9, sha256="0"*64)
+        events = [json.loads(line) for line in lines]
+        self.assertEqual([e["seq"] for e in events], list(range(1, len(events)+1)))
+        self.assertEqual([(e["stage"], e["completed"]) for e in events],
+                         [("read",0),("read",1000),("parse",0),("parse",2),("optimize",0),("optimize",1),("complete",9)])
+        self.assertEqual(events[-1]["sha256"], "0"*64)
 
 if __name__=="__main__": unittest.main()

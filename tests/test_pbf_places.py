@@ -11,6 +11,10 @@ from pbf_places_fixture import XML, pbf
 
 
 class PlaceLookup(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def run_lookup(self, query, xml=XML, event=lambda *args: None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -52,7 +56,13 @@ class PlaceLookup(unittest.TestCase):
             if stage == "index_ways": raise ValueError("controlled cancellation")
         with self.assertRaisesRegex(ValueError, "controlled cancellation"):
             self.run_lookup("가상", event=cancel)
-        with patch("pbf_places.MAX_REFS", 1), self.assertRaisesRegex(ValueError, "reference budget"):
+        expected = self.run_lookup("가상")
+        self.assertEqual(expected["limit_warnings"], [])
+        with patch("pbf_places.MAX_REFS", 1):
+            warned = self.run_lookup("가상")
+        self.assertEqual(warned["places"], expected["places"])
+        self.assertTrue(any(w.startswith("Limit warning: PBF boundary reference budget exceeded") for w in warned["limit_warnings"]))
+        with patch("pbf_places.REFS_CEILING", 1), self.assertRaisesRegex(ValueError, "references exceed"):
             self.run_lookup("가상")
         with self.assertRaisesRegex(ValueError,"name"):
             self.run_lookup("")

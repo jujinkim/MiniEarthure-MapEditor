@@ -2,7 +2,34 @@ extends RefCounted
 ## Detached, bounded file snapshots; only operation-owned scratch is removed.
 const PAYLOADS := preload("./authoring_files.gd")
 const FILES := preload("./document_files.gd")
-const MAX_BYTES := 64 * 1024 * 1024
+const LIMITS := preload("./limit_warnings.gd")
+# Memory guard for payloads held for Save, Export and Test Drive.
+const MAX_BYTES := 2 * 1024 * 1024 * 1024
+const WARN_BYTES := 64 * 1024 * 1024
+# MapKit v1 package profile: the game refuses larger entries and packages.
+const RUNTIME_ENTRY_BYTES := 128 * 1024 * 1024
+const RUNTIME_PACKAGE_BYTES := 512 * 1024 * 1024
+
+# Package-profile notes count only files the document references; retained
+# Undo versions add to the memory note but never to the package size.
+static func payload_warnings(list: Array, blobs: Dictionary, canonical: String, document: Dictionary) -> void:
+	var total := 0
+	for path: String in blobs: total += blobs[path].size()
+	var packaged := 0
+	var largest := 0
+	var counted := {}
+	for field in ["assets", "heightmaps"]:
+		for record: Variant in document.get(field, []):
+			if record is not Dictionary: continue
+			for path: String in PAYLOADS.paths(record):
+				if counted.has(path) or not blobs.has(path): continue
+				counted[path] = true
+				packaged += blobs[path].size()
+				largest = maxi(largest, blobs[path].size())
+	if largest > RUNTIME_ENTRY_BYTES: LIMITS.note(list, "package_entry", largest, RUNTIME_ENTRY_BYTES, "A project file is larger than the v1 package entry limit", true)
+	if packaged > RUNTIME_PACKAGE_BYTES: LIMITS.note(list, "package_bytes", packaged, RUNTIME_PACKAGE_BYTES, "Project files are larger than the v1 package limit", true)
+	if total > WARN_BYTES: LIMITS.note(list, "snapshot_memory", total, WARN_BYTES, "Project files are very large and need a lot of memory")
+	FILES.size_warnings(list, canonical.to_utf8_buffer().size())
 
 # Only explicit Save / Export / Test Drive call materialize. Preview never does.
 static func capture_working(working: RefCounted, source: String, history: Array = []) -> Dictionary:
@@ -29,13 +56,15 @@ static func capture_working(working: RefCounted, source: String, history: Array 
 		value.blobs[path] = read.bytes
 	for path: String in value.blobs:
 		bytes += value.blobs[path].size()
-		if bytes > MAX_BYTES: return error("Snapshot payloads exceed 64 MiB.")
+		if bytes > MAX_BYTES: return error("Snapshot payloads exceed 2 GiB.")
 		hashes[path] = PAYLOADS.digest(value.blobs[path])
 	for command: Dictionary in history:
 		for path: String in command.get("binary_mementos", {}):
 			if value.blobs.get(path) != command.binary_mementos[path]: return error("History payload changed: " + path)
 	value.hashes = hashes
 	value.bytes = bytes
+	value.limit_warnings = []
+	payload_warnings(value.limit_warnings, value.blobs, str(value.canonical), value.document if value.document is Dictionary else {})
 	return {"ok":true,"data":value}
 
 static func publish(snapshot: Dictionary, destination: String, expected: String, writer: RefCounted, token: RefCounted = null) -> String:
@@ -101,8 +130,10 @@ static func capture(document: Dictionary, source: String, history: Array = []) -
 		for path: String in command.get("binary_mementos", {}):
 			if not blobs.has(path) or blobs[path] != command.binary_mementos[path]:
 				return error("History payload changed: " + path)
+	var warnings: Array = []
+	payload_warnings(warnings, blobs, str(checked.data.canonical), checked.data.document)
 	return {"ok": true, "data": {"canonical": checked.data.canonical, "document": checked.data.document,
-		"blobs": blobs, "hashes": hashes, "bytes": total}}
+		"blobs": blobs, "hashes": hashes, "bytes": total, "limit_warnings": warnings}}
 
 static func safe_relative(path: String) -> bool:
 	if path.is_absolute_path() or path.contains("\\") or path.contains(":"): return false

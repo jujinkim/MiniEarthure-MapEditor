@@ -2,6 +2,7 @@ extends AcceptDialog
 ## Shared new-region / semantic infill workflow. Preview and apply are separate.
 const JOB := preload("./generation_native_job.gd")
 const I18N := preload("./locale_text.gd")
+const LIMITS := preload("./limit_warnings.gd")
 const IDS := ["village","neon-harbor","deep-forest","red-canyon","snow-mountain","machine-factory","sky-park"]
 const NAMES := ["Village Driving Park","Neon Harbor","Deep Forest","Red Canyon","Snow Mountain","Machine Factory","Sky Amusement Park"]
 const SIZES := [Vector2i(1120,960),Vector2i(1920,1280),Vector2i(1760,1760),Vector2i(2400,1200),Vector2i(1600,2080),Vector2i(1440,1440),Vector2i(1920,1600)]
@@ -219,7 +220,12 @@ func _process(_delta: float) -> void:
 	var metrics: Dictionary=report.get("metrics",{})
 	if not metrics.is_empty(): message.text+="\n"+I18N.t("Core %.1f%% · Natural %.1f%% · Junctions %d")%[float(metrics.core_land_fraction)*100,float(metrics.natural_land_fraction)*100,int(metrics.road_graph.junctions)]
 	for error: String in report.errors: message.text+="\n"+I18N.diagnostic(error)
-	if generation_mode=="fill": message.text+="\n"+I18N.t("Apply is one Undo. Reduce the area if it exceeds 16 MiB.")
+	var limits: Array = []
+	LIMITS.merge(limits,report.get("limit_warnings"))
+	# Request and transfer sizes noted by the job and its owned child.
+	LIMITS.merge(limits,job.limit_warnings.filter(func(entry): return entry is Dictionary and entry.get("code")!=job.RUNNING_TIME))
+	if not limits.is_empty(): message.text+="\n"+LIMITS.text(limits)
+	if generation_mode=="fill": message.text+="\n"+I18N.t("Apply is one Undo up to 16 MiB; a larger result is applied without Undo.")
 	apply_button.disabled=not report.errors.is_empty()
 
 func apply_result() -> void:
@@ -227,10 +233,11 @@ func apply_result() -> void:
 	var target := destination.text.strip_edges()
 	var failure: String=job.commit(editor.store,target)
 	if failure!="": message.text=I18N.diagnostic(failure);return
+	var released: bool=job.history_released
 	discard()
 	hide()
 	if generation_mode=="new": editor._request_document_action("open",target)
-	else: editor._status(I18N.t("Environment applied. Undo restores the previous area."))
+	else: editor._status(I18N.t("Environment applied. This change cannot be undone; earlier Undo history was released.") if released else I18N.t("Environment applied. Undo restores the previous area."))
 
 func discard() -> void:
 	apply_button.disabled=true

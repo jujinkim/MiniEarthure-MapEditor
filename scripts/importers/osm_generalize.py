@@ -18,11 +18,16 @@ from shapely.errors import GEOSException
 
 from projection import Coordinates
 from osm_extract import PEDESTRIAN
+from import_layer import BudgetExceeded, soft_limit, limit_snapshot, limit_restore, limit_delta, limit_replay
 
 PROFILE = "scale-aware-city-v1"
 SCALE = 8
 MAX_GROUP = 128
-MAX_WORK = 4_000_000
+MAX_WORK = 4_000_000  # Soft: exceeding it records a limit warning.
+BUILDING_SPLIT_DEPTH = 16  # Warn above.
+BUILDING_SPLIT_CEILING = 24
+PAINT_SPLIT_DEPTH = 32  # Warn above.
+PAINT_SPLIT_CEILING = 48
 LEVELS = (0, 2, 4, 8, 16, 32, 64)  # Source metres, bounded by the local road/land barriers.
 SURFACES = {"asphalt":"asphalt", "concrete":"concrete", "dirt":"dirt", "gravel":"gravel", "grass":"grass",
             "paved":"asphalt", "paving_stones":"concrete", "sett":"concrete", "cobblestone":"concrete",
@@ -103,6 +108,7 @@ class Generalizer:
         self.collection = collection
         self.projection = Coordinates(options)
         self.remaining = MAX_WORK
+        self.work_over = False
         self.features = []
         self.surface_mappings = Counter()
         self.widened_roads = 0
@@ -171,9 +177,21 @@ class Generalizer:
         self.reviewed = len(self.review.excluded)
 
     def spend(self, count=1):
+        # Hot path: the limit is recorded once when first crossed; settle_work()
+        # records the final amount at the end of the candidate.
         self.remaining -= count
+        if self.remaining < 0 and not self.work_over:
+            self.work_over = True
+            self.settle_work()
+
+    def settle_work(self):
         if self.remaining < 0:
-            raise ValueError("City optimization spatial work budget exceeded; protected geometry was not discarded")
+            soft_limit("city_work", MAX_WORK - self.remaining, MAX_WORK, "City optimization spatial work budget exceeded; optimization takes longer")
+
+    def stage_limits(self, snapshot):
+        """Limits met while building a cached stage. city_work is excluded: the
+        replayed spend() records it."""
+        return limit_delta(snapshot, ("city_work",))
 
     @staticmethod
     def counts(items):
@@ -464,13 +482,16 @@ class Generalizer:
 
     def polygons(self, gap):
         if "groups" not in self.context:
-            start, retained = self.remaining, self.retained_groups
+            start, retained, limits = self.remaining, self.retained_groups, limit_snapshot()
             self.context.update(zip(("prepared", "fixed", "groups"), self.prepare()), trimmed=set(self.trimmed_buildings),
-                                prepare_work=start-self.remaining, prepare_retained=self.retained_groups-retained)
+                                prepare_work=start-self.remaining, prepare_retained=self.retained_groups-retained,
+                                prepare_limits=self.stage_limits(limits))
         else:
-            # Same road space: replay the work charges and disclosures. Review
-            # exclusions are already recorded (idempotent) in the shared sets.
+            # Same road space: replay the work charges, limit warnings and
+            # disclosures. Review exclusions are already recorded (idempotent)
+            # in the shared sets.
             self.spend(self.context["prepare_work"])
+            limit_replay(self.context["prepare_limits"])
             self.retained_groups += self.context["prepare_retained"]
             self.trimmed_buildings.update(self.context["trimmed"])
         self.prepared, groups = self.context["prepared"], self.context["groups"]
@@ -539,7 +560,8 @@ class Generalizer:
             if positions(part) <= 512 and len(part.interiors) <= 16 and strict_rings(part):
                 result.append(part)
                 continue
-            if depth >= 16: raise ValueError("City building partition budget exceeded")
+            if depth >= BUILDING_SPLIT_CEILING: raise BudgetExceeded("City building partition ceiling exceeded")
+            if depth >= BUILDING_SPLIT_DEPTH: soft_limit("city_building_partition", depth + 1, BUILDING_SPLIT_DEPTH, "City building partition depth budget exceeded")
             x0,y0,x1,y1 = part.bounds
             axis = 0 if x1-x0 >= y1-y0 else 1
             middle = round(((x0+x1) if axis == 0 else (y0+y1))/2/0.08)*0.08
@@ -559,7 +581,8 @@ class Generalizer:
             if not holes and positions(part) <= PAINT_VERTICES + 1:
                 result.append(part)
                 continue
-            if depth >= 32: raise ValueError("City paint partition budget exceeded")
+            if depth >= PAINT_SPLIT_CEILING: raise BudgetExceeded("City paint partition ceiling exceeded")
+            if depth >= PAINT_SPLIT_DEPTH: soft_limit("city_paint_partition", depth + 1, PAINT_SPLIT_DEPTH, "City paint partition depth budget exceeded")
             x0,y0,x1,y1 = holes[0].bounds if holes else part.bounds
             axis = 0 if x1-x0 >= y1-y0 else 1
             cut = math.floor(((x0+x1) if axis == 0 else (y0+y1))/2)
@@ -689,7 +712,14 @@ class Generalizer:
         return [(f,g) for f,g in roads if not is_walking(f, structural)], [(f,g) for f,g in roads if is_walking(f, structural)]
 
     def candidate(self, gap):
+        try:
+            return self._candidate(gap)
+        finally:
+            self.settle_work()
+
+    def _candidate(self, gap):
         self.remaining = MAX_WORK
+        self.work_over = False
         self.retained_groups = 0
         self.trimmed_buildings = set()
         # Road space depends on the gap only through the line tolerance, equal for
@@ -699,16 +729,17 @@ class Generalizer:
         tolerance = min(4.0, gap/4)
         if self.context.get("tolerance") == tolerance:
             self.spend(self.context["road_work"])
+            limit_replay(self.context["road_limits"])
             for name in shared:
                 setattr(self, name, self.context[name])
         else:
             # Exclusions come only from the road space of the candidate kept.
             self.excluded_sources = set()
             self.review.restore(self.reviewed)
-            start = self.remaining
+            start, limits = self.remaining, limit_snapshot()
             driving, walking = self.road_space(gap)
             self.context = dict(tolerance=tolerance, driving=driving, walking=walking, road_work=start-self.remaining,
-                                **{name: getattr(self, name) for name in shared})
+                                road_limits=self.stage_limits(limits), **{name: getattr(self, name) for name in shared})
         driving, walking = self.context["driving"], self.context["walking"]
         items = driving + self.polygons(gap)
         # A multipart source remains fully represented by separate native
@@ -730,10 +761,11 @@ class Generalizer:
         items = self.resolve_buildings(items)
         if "paint" in self.context:
             self.spend(self.context["paint_work"])
+            limit_replay(self.context["paint_limits"])
         else:
-            start, self.paint_ways = self.remaining, 0
+            start, self.paint_ways, limits = self.remaining, 0, limit_snapshot()
             self.context.update(paint=self.paint(walking))
-            self.context.update(paint_work=start-self.remaining, paint_ways=self.paint_ways)
+            self.context.update(paint_work=start-self.remaining, paint_ways=self.paint_ways, paint_limits=self.stage_limits(limits))
         self.paint_ways = self.context["paint_ways"]
         # Output features are completed in place below; cached paint gets copies.
         items += [(dict(f, properties=dict(f["properties"], _city_sources=list(f["properties"]["_city_sources"]))), g) for f,g in self.context["paint"]]
@@ -793,18 +825,23 @@ class Generalizer:
 
 def candidates(collection, options, review=None):
     """Largest gap first: it merges and simplifies most. Callers take the first
-    candidate that fits; smaller gaps are built only after a failure. A gap whose
-    work budgets or road space cannot be met yields (None, failure) instead."""
+    candidate that meets the targets; smaller gaps are built only after a miss or
+    failure. A gap whose partition ceilings or road space cannot be met yields
+    (None, failure) instead. Soft budgets met while building a gap are recorded
+    as limit warnings of that gap only."""
     worker = Generalizer(collection, options, review)
+    # Limit warnings belong to the candidate they were met in.
+    base = limit_snapshot()
     # Dense sources skip the 0–2 m gaps: a 4 m source gap is only 0.5 m on the
     # 1:8 map; all protected geometry and final admission still apply.
     for gap in reversed(LEVELS[2 if worker.before["features"] > 20000 else 0:]):
+        limit_restore(base)
         try:
             result = worker.candidate(gap)
         except ValueError as exc:
-            # Own work/partition budgets, or a building the straighter road covers; a
-            # smaller gap keeps more bends. The review's aggregate quota stays fatal.
-            if not (str(exc).startswith("City ") and "budget" in str(exc)) and "Explicit source exclusion is required" not in str(exc):
+            # Own partition ceilings, or a building the straighter road covers; a
+            # smaller gap keeps more bends. The review's aggregate ceiling stays fatal.
+            if not (isinstance(exc, BudgetExceeded) and str(exc).startswith("City ")) and "Explicit source exclusion is required" not in str(exc):
                 raise
             result = None, dict(gap_m=gap, failure=str(exc))
         yield result

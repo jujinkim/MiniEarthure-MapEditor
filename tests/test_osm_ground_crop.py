@@ -28,6 +28,10 @@ def run(features, box=None):
 
 
 class GroundCrop(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_complete_structures_clipped_approaches_and_source_parity(self):
         raw=structural_xml().encode()
         value,_=osm.parse(raw,"osm")
@@ -120,7 +124,11 @@ class GroundCrop(unittest.TestCase):
 
     def test_caps_and_zero_source_segment_reject(self):
         f=road([[-.001,.002],[.011,.002]],[0,1])
-        with patch("osm_area.MAX_POINTS",1),self.assertRaisesRegex(ValueError,"budget"): run([f])
+        import import_layer
+        self.addCleanup(import_layer.reset_limits)
+        import_layer.reset_limits()
+        with patch("osm_area.MAX_POINTS",1): run([f])  # The crop budget warns.
+        self.assertIn("crop_points",{e["code"] for e in import_layer.limit_entries()})
         f=road([[-.001,.002],[-.001,.002],[.011,.002]],[0,1,2])
         with self.assertRaisesRegex(ValueError,"zero-length"): run([f])
 

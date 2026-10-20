@@ -17,8 +17,35 @@ import struct
 from PIL import Image
 
 PROFILES = (128, 256, 512)
-MAX_SOURCE = 64 * 1024 * 1024
-MAX_PIXELS = 16 * 1024 * 1024
+# Memory guards, raised for local authoring; above the WARN values the helper
+# still works and records a limit warning in its report.
+MAX_SOURCE = 1024 * 1024 * 1024
+MAX_PIXELS = 128 * 1024 * 1024
+WARN_SOURCE = 64 * 1024 * 1024
+WARN_PIXELS = 16 * 1024 * 1024
+# Helper-side limit registry (same entry shape as importers.import_layer.soft_limit
+# and limit_warnings.gd); also used by environment_generation.py in its process.
+_LIMIT_WARNINGS = {}
+
+
+def soft_limit(code, actual, limit, message, runtime_rejects=False):
+    """Record one warning per code, keeping the count and the largest actual value."""
+    entry = _LIMIT_WARNINGS.get(code)
+    if entry is None:
+        _LIMIT_WARNINGS[code] = dict(code=code, actual=actual, limit=limit, message=message,
+                                     runtime_rejects=runtime_rejects, count=1)
+    else:
+        entry["count"] += 1
+        entry["actual"] = max(entry["actual"], actual)
+        entry["runtime_rejects"] = entry["runtime_rejects"] or bool(runtime_rejects)
+
+
+def limit_warnings():
+    return [dict(entry) for _, entry in sorted(_LIMIT_WARNINGS.items())]
+
+
+def reset_limits():
+    _LIMIT_WARNINGS.clear()
 
 
 def digest(data):
@@ -28,7 +55,10 @@ def digest(data):
 def image_bytes(data, size):
     with Image.open(io.BytesIO(data)) as image:
         if image.width * image.height > MAX_PIXELS:
-            raise ValueError("Texture decode exceeds 16 megapixels")
+            raise ValueError("Texture decode exceeds 128 megapixels")
+        if image.width * image.height > WARN_PIXELS:
+            soft_limit("texture_pixels", image.width * image.height, WARN_PIXELS,
+                       "Texture is very large and needs a lot of memory to resize")
         image.load()
         image = image.convert("RGBA")
         image.thumbnail((size, size), Image.Resampling.LANCZOS)
@@ -67,7 +97,9 @@ def derive(data, extension, profile=256, scale=1.0):
     if profile not in PROFILES or not 0 < scale <= 16:
         raise ValueError("Choose 128/256/512 px and a bounded positive scale")
     if not data or len(data) > MAX_SOURCE:
-        raise ValueError("Asset source exceeds 64 MiB or is empty")
+        raise ValueError("Asset source exceeds 1 GiB or is empty")
+    if len(data) > WARN_SOURCE:
+        soft_limit("asset_source", len(data), WARN_SOURCE, "Asset source is very large and needs a lot of memory")
     decoded = 0
     if extension in ("png", "webp"):
         result, decoded = image_bytes(data, profile)
@@ -156,9 +188,10 @@ def main():
     args = parser.parse_args()
     if args.destination.exists() or args.source.resolve() == args.destination.resolve():
         raise FileExistsError("Choose a new derivative path; originals are immutable")
-    if args.source.stat().st_size > MAX_SOURCE: raise ValueError("Asset source exceeds 64 MiB")
+    if args.source.stat().st_size > MAX_SOURCE: raise ValueError("Asset source exceeds 1 GiB")
     result, report = derive(args.source.read_bytes(), args.source.suffix[1:].lower(), args.profile)
     with args.destination.open("xb") as out: out.write(result)
+    if _LIMIT_WARNINGS: report["limit_warnings"] = limit_warnings()
     print(json.dumps(report, sort_keys=True))
 
 

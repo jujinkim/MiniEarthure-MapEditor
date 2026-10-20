@@ -3,20 +3,25 @@ const FILES := preload("./authoring_files.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
 const INPUTS := preload("./dem_native_worker.gd")
 const COMMAND := preload("./import_command.gd")
+const HISTORY := preload("./history_codec.gd")
+const LIMITS := preload("./limit_warnings.gd")
 
 static func validate(request: Dictionary, directory: String, identity: String, progress: Callable) -> Dictionary:
 	var output := {"ok":false, "request":identity}
 	var failure := ""
 	if request.get("request") != identity or request.get("document") is not Dictionary or request.get("project") is not String or not request.project.is_absolute_path() or request.get("record") is not Dictionary or request.record.get("id") is not String or request.record.id.is_empty() or request.get("source") is not String: failure = "Invalid asset request."
 	var files := {}
+	var warnings: Array = []
 	if failure == "" and request.source != "":
 		if not request.source.is_absolute_path() or request.source.get_extension().to_lower() not in ["glb", "png", "webp"]: failure = "Choose a local GLB, PNG or WebP."
 		else:
 			var file := FileAccess.open(request.source, FileAccess.READ)
 			if file == null: failure = "Cannot read original asset."
-			elif file.get_length() > FILES.MAX_PAYLOAD_BYTES: failure = "Asset source exceeds 64 MiB."
-			elif request.get("python", "") == "" and file.get_length() > COMMAND.HISTORY_LIMIT: failure = "Asset source exceeds the 16 MiB Undo budget."
-			else: files[request.source] = {"bytes":file.get_length(), "sha256":""}
+			elif file.get_length() > FILES.MAX_PAYLOAD_BYTES: failure = "Asset source exceeds 2 GiB."
+			else:
+				# Over the Undo budget the adopted change releases Undo with a warning.
+				if file.get_length() > FILES.PAYLOAD_WARN_BYTES: LIMITS.note(warnings, "asset_source", file.get_length(), FILES.PAYLOAD_WARN_BYTES, "Asset source is very large and needs a lot of memory")
+				files[request.source] = {"bytes":file.get_length(), "sha256":""}
 			if file != null: file.close()
 	var total := 0
 	var counted := {}
@@ -40,7 +45,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 				files[path] = {"bytes":file.get_length(), "sha256":""}
 				file.close()
 				if total > FILES.MAX_PAYLOAD_BYTES:
-					failure = "Asset project payloads exceed 64 MiB."
+					failure = "Asset project payloads exceed 2 GiB."
 					break
 			if failure != "": break
 	if failure == "": failure = INPUTS.check_files(files, "source", progress)
@@ -63,16 +68,23 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 			var messages: Array = []
 			if failure == "" and OS.execute(request.python, PackedStringArray(["-B",module,source,derived,"--profile",str(int(request.get("texture_profile",256)))]),messages,true) != 0:
 				failure = "Asset derivative failed: " + str(messages).left(1000)
-			if failure == "": source = derived
+			if failure == "":
+				source = derived
+				_derivative_warnings(messages, warnings)
 		if failure != "":
 			output.error = {"code":"E_ASSET", "message":failure}
 			return output
-		failure = author.asset(request.record.duplicate(true), source, true, {"scratch":directory.path_join("candidate"), "hashes":{}, "prepared":prepared, "progress":progress, "expected_source":FileAccess.get_sha256(source) if source != "" else "", "register_output":register, "blob_paths":blob_paths})
+		failure = author.asset(request.record.duplicate(true), source, true, {"scratch":directory.path_join("candidate"), "hashes":{}, "prepared":prepared, "progress":progress, "expected_source":FileAccess.get_sha256(source) if source != "" else "", "register_output":register, "blob_paths":blob_paths, "limit_warnings":warnings})
+		if failure == "" and prepared.command.get("history_released", false):
+			LIMITS.note(warnings, "undo_history", int(prepared.command.bytes), HISTORY.RETAINED_LIMIT, store.UNDO_RELEASED)
 	if failure == "":
-		for path: String in prepared.command.get("binary_mementos", {}):
+		# authoring_files.apply sets prepared.retained to the binary set given to
+		# retain(); a released command keeps no binary_mementos of its own.
+		var mementos: Dictionary = prepared.command.get("binary_mementos", prepared.get("retained", {}))
+		for path: String in mementos:
 			if path in blob_paths: continue
 			var original: Dictionary = files.get(request.project.path_join(path), {})
-			if original.is_empty() or FILES.digest(prepared.command.binary_mementos[path]) != original.sha256:
+			if original.is_empty() or FILES.digest(mementos[path]) != original.sha256:
 				failure = "Previous asset changed while preparing Undo."
 				break
 	if failure == "":
@@ -80,5 +92,15 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 		if failure == "": output.payloads = fingerprint
 	if failure == "": failure = INPUTS.check_files(files, "recheck", progress)
 	output.ok = failure == ""
+	if not warnings.is_empty():
+		if output.get("limit_warnings") is not Array: output.limit_warnings = []
+		LIMITS.merge(output.limit_warnings, warnings)
 	if failure != "": output.error = {"code":"E_IMPORT_NATIVE", "message":failure.replace("DEM input", "Asset input").left(2000)}
 	return output
+
+# The derivative helper prints its JSON report last; it may carry limit notes.
+static func _derivative_warnings(messages: Array, warnings: Array) -> void:
+	if messages.is_empty(): return
+	var lines := str(messages[0]).strip_edges().split("\n")
+	var report: Variant = JSON.parse_string(lines[lines.size() - 1]) if not lines.is_empty() else null
+	if report is Dictionary: LIMITS.merge(warnings, report.get("limit_warnings"))

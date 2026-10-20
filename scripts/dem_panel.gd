@@ -2,6 +2,7 @@ extends ConfirmationDialog
 const I18N := preload("./locale_text.gd")
 const NATIVE_JOB := preload("./dem_native_job.gd")
 const LAYER := preload("./dem_import_layer.gd")
+const LIMITS := preload("./limit_warnings.gd")
 var editor: Control
 var fields := {}
 var mosaic: CheckBox
@@ -31,7 +32,7 @@ func _ready() -> void:
 	column.custom_minimum_size.x = 710
 	add_child(column)
 	var explanation := Label.new()
-	explanation.text = I18N.t("DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nUp to 256 cells within the sample budget; each ≤ 1024 m. Bilinear; no missing-data or seam repair.")
+	explanation.text = I18N.t("DSM includes buildings/vegetation. WGS84 → local UTM; EGM2008 heights.\nUp to 1024 cells (warning above 256); each ≤ 1024 m. Bilinear; no missing-data or seam repair.")
 	column.add_child(explanation)
 	var grid := GridContainer.new()
 	grid.columns = 4
@@ -98,7 +99,10 @@ func _mosaic_summary() -> String:
 		text+=I18N.t("\nTile %s · GLO-%d%s · %d bytes\n%s\n%s\n%s\n") % [str(item.tile),item.resolution_m,"",item.source.bytes,item.source.path,"SHA-256: "+str(item.source.sha256),item.notice]
 		var decode: Dictionary = item.source.get("decode", {})
 		text+=I18N.t("Decodes %d full-resolution blocks · %d bytes (%d compressed)\n") % [int(decode.get("blocks",0)),int(decode.get("decoded_bytes",0)),int(decode.get("compressed_bytes",0))]
-	return text+I18N.t("\nLicense: ")+LAYER.LICENSE+I18N.t("\nCompleted sources survive cancel/failure. Review expires after 10 minutes.")
+	var limits: Array = []
+	LIMITS.merge_texts(limits, plan.get("limit_warnings"))
+	if not limits.is_empty(): text = LIMITS.text(limits) + "\n\n" + text
+	return text+I18N.t("\nLicense: ")+LAYER.LICENSE+I18N.t("\nCompleted sources survive cancel/failure. A review older than 10 minutes is checked again with a warning.")
 
 func options() -> Dictionary:
 	var result := {"coordinates":{"mode":"wgs84-utm","origin":[fields.Longitude.value,fields.Latitude.value],"local_origin_m":[fields["Local origin x (m)"].value,fields["Local origin y (m)"].value]},"cell":[fields["Cell x"].value,fields["Cell y"].value],"cell_size_cm":editor.store.document.cell_size_cm,"map_min_cm":editor.store.document.bounds.min.duplicate(),"spacing_cm":fields["Spacing (cm)"].value,"vertical_zero_m":fields["EGM2008 at local zero (m)"].value,"source":source.text.strip_edges()}
@@ -122,7 +126,7 @@ func use_imported_frame() -> void:
 	var doc: Dictionary=editor.store.document
 	var columns:=ceili(float(doc.bounds.max[0]-doc.bounds.min[0])/doc.cell_size_cm)
 	var rows:=ceili(float(doc.bounds.max[1]-doc.bounds.min[1])/doc.cell_size_cm)
-	if columns*rows>LAYER.MAX_CELLS: editor._status(I18N.t("DEM exceeds 256 candidate cells."));return
+	if columns*rows>LAYER.MAX_CELLS: editor._status(I18N.t("DEM exceeds 1024 candidate cells."));return
 	mosaic.button_pressed=true
 	fields["Cell columns"].value=columns
 	fields["Cell rows"].value=rows
@@ -130,6 +134,10 @@ func use_imported_frame() -> void:
 	fields["Cell y"].value=0
 	if int(doc.cell_size_cm)%400==0: fields["Spacing (cm)"].value=400
 	invalidate()
+	if columns*rows>LAYER.WARN_CELLS:
+		var notes: Array = []
+		LIMITS.note(notes, "dem_cells", columns*rows, LAYER.WARN_CELLS, "DEM terrain cells")
+		editor._status(LIMITS.text(notes))
 
 func open() -> void:
 	if editor.busy: return
@@ -225,7 +233,7 @@ func _start_native(adopting: bool) -> void:
 	editor.worker_generation = editor.generation
 	editor.busy = true
 	editor.import_progress.visible = true
-	editor._status(I18N.t("Checking DEM files and terrain before %s · 120s deadline · Cancel preserves the map.") % (I18N.t("adoption") if adopting else I18N.t("review")))
+	editor._status(I18N.t("Checking DEM files and terrain before %s · no time limit · Cancel preserves the map.") % (I18N.t("adoption") if adopting else I18N.t("review")))
 
 func finish_native(job: RefCounted, result: Dictionary) -> void:
 	editor.dem_mode = ""
@@ -242,10 +250,13 @@ func finish_native(job: RefCounted, result: Dictionary) -> void:
 	if job.adopting:
 		var failure: String = job.commit(editor.store)
 		discard()
-		editor._status(I18N.t("DEM layer adopted; save explicitly.") if failure == "" else I18N.t("E_DEM: ") + failure)
+		var limits: String = job.limit_text()
+		var adopted := I18N.t("DEM layer adopted; save explicitly. This change cannot be undone; earlier Undo history was released.") if job.history_released else I18N.t("DEM layer adopted; save explicitly.")
+		editor._status((adopted + ("\n" + limits if limits != "" else "")) if failure == "" else I18N.t("E_DEM: ") + failure)
 		return
 	candidate = LAYER.new()
 	candidate.value = job.bundle.value.duplicate(true)
+	candidate.limit_warnings = job.limit_warnings.duplicate(true)
 	reviewed_payloads = result.data.payloads
 	review_generation = editor.generation
 	review_selection = native_selection()

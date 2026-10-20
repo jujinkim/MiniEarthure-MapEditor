@@ -28,6 +28,10 @@ def fixture():
 
 
 class Collections(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_order_parent_properties_exact_tree_mapping_and_no_source_mutation(self):
         value=fixture(); original=copy.deepcopy(value); raw=json.dumps(value).encode()
         layer=geojson.convert(value,"synthetic","MIT",layer_id="a"*32,source_bytes=raw)
@@ -58,16 +62,29 @@ class Collections(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"OSM graph"):geojson.convert(fixture(),"bad","MIT",osm_graph=True)
 
     def test_tree_depth_node_leaf_record_and_output_budgets(self):
+        import import_layer
+        self.addCleanup(import_layer.reset_limits)
         value=fixture(); leaf=dict(type="LineString",coordinates=[[1,2],[2,3]])
-        for _ in range(17): leaf=dict(type="GeometryCollection",geometries=[leaf])
+        for _ in range(65): leaf=dict(type="GeometryCollection",geometries=[leaf])
         value["features"][0]["geometry"]=leaf
         with self.assertRaisesRegex(ValueError,"nesting"):geojson.convert(value,"large","MIT")
-        for name,limit,message in [("MAX_COLLECTION_NODES",2,"node budget"),("MAX_COLLECTION_LEAVES",1,"leaf budget")]:
+        # Former budgets warn; the raised ceilings still refuse before projection.
+        for name,limit,code in [("MAX_COLLECTION_NODES",2,"collection_nodes"),("MAX_COLLECTION_LEAVES",1,"collection_leaves")]:
+            import_layer.reset_limits()
+            layer=geojson.convert(fixture(),"large","MIT")
+            self.assertEqual(import_layer.limit_entries(),[])
+            with patch.object(geojson,name,limit):layer=geojson.convert(fixture(),"large","MIT")
+            self.assertIn(code,{e["code"] for e in import_layer.limit_entries()})
+            self.assertTrue(any(w.startswith("Limit warning: ") for w in layer.warnings))
+        for name,limit,message in [("COLLECTION_NODES_CEILING",2,"node ceiling"),("COLLECTION_LEAVES_CEILING",1,"leaf ceiling")]:
             with patch.object(geojson,name,limit),patch.object(Coordinates,"point",side_effect=AssertionError("projected before tree admission")):
                 with self.assertRaisesRegex(ValueError,message):geojson.convert(fixture(),"large","MIT")
-        with patch("import_layer.MAX_RECORDS",3),self.assertRaisesRegex(ValueError,"record budget"):geojson.convert(fixture(),"large","MIT")
-        with patch("import_layer.MAX_POINTS",4),self.assertRaisesRegex(ValueError,"coordinate budget"):geojson.convert(fixture(),"large","MIT")
-        with patch("import_layer.MAX_OUTPUT",128),self.assertRaisesRegex(ValueError,"12 MiB"):geojson.convert(fixture(),"large","MIT")
+        for name,limit,code in [("MAX_RECORDS",3,"import_records"),("MAX_POINTS",4,"import_coordinates"),("MAX_OUTPUT",128,"import_output")]:
+            import_layer.reset_limits()
+            with patch("import_layer."+name,limit):layer=geojson.convert(fixture(),"large","MIT")
+            entry=next(e for e in import_layer.limit_entries() if e["code"]==code)
+            self.assertGreater(entry["actual"],entry["limit"])
+            self.assertIn(import_layer.limit_text(entry),layer.warnings)
 
     def test_noncollection_output_and_fresh_namespaces(self):
         value=fixture();value["features"]=value["features"][1:]

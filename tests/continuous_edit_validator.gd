@@ -237,7 +237,8 @@ func budget_checks() -> void:
 		source.instances[0].position_cm[0] = i + 1
 		check(store.start_track_edit(source) == "", "bounded command " + str(i))
 	check(store.undo_stack.size() == 200 and store.history_bytes <= store.HISTORY_BYTES and not store.pending_track.is_empty(), "history and latest pending snapshot remain bounded")
-	var before := JSON.stringify([store.track_source(), store.undo_stack, store.redo_stack])
 	source.extra = "x".repeat(store.HISTORY_BYTES)
-	check(store.start_track_edit(source).contains("16 MiB") and JSON.stringify([store.track_source(), store.undo_stack, store.redo_stack]) == before, "oversized command rejected atomically")
+	check(store.start_track_edit(source) == "" and store.track_source().get("extra", "") == source.extra, "oversized command is still applied")
+	check(store.undo_stack.is_empty() and store.redo_stack.is_empty() and store.history_bytes == 0, "oversized command releases earlier Undo history")
+	check(store.limit_warnings.any(func(entry): return entry.code == "undo_history" and entry.message == store.UNDO_RELEASED), "released Undo history is a limit warning")
 	store.shutdown_track_edit()

@@ -2,6 +2,7 @@ extends RefCounted
 const I18N := preload("./locale_text.gd")
 ## Public environment authoring; commands retain ordinary undo/redo and validation.
 const PROFILE := preload("res://addons/mapkit/godot/environment_profile.gd")
+const LIMITS := preload("./limit_warnings.gd")
 var panel: PanelContainer
 var fields := {}
 var regions: TextEdit
@@ -73,9 +74,13 @@ func _apply() -> void:
 	if store.command_epoch != epoch:
 		panel.feedback.text = I18N.t("Document changed; reopen Environment before applying.")
 		return
-	if regions.text.length() > 131072 or lights.text.length() > 131072:
+	# Memory guard for the two text fields; above the previous 131072 characters only warn.
+	if regions.text.length() > 16777216 or lights.text.length() > 16777216:
 		panel.feedback.text = I18N.t("Environment metadata exceeds the editor budget.")
 		return
+	var limits: Array = []
+	var longest := maxi(regions.text.length(), lights.text.length())
+	if longest > 131072: LIMITS.note(limits, "environment_text", longest, 131072, "Environment regions or light bindings are very long")
 	var value := {"version":1,"regions":JSON.parse_string(regions.text),"lights":JSON.parse_string(lights.text)}
 	for key: String in fields: value[key] = fields[key].call()
 	if not value.regions is Array or not value.lights is Array:
@@ -84,6 +89,7 @@ func _apply() -> void:
 	var patches := [{"field":"environment","before":before,"after":value}]
 	var failure: String = store.apply_command("Environment design",patches)
 	panel.feedback.text = I18N.t("Environment saved in document · Undo is available") if failure.is_empty() else I18N.diagnostic(failure)
+	if failure.is_empty() and not limits.is_empty(): panel.feedback.text += "\n" + LIMITS.text(limits)
 	if failure.is_empty():
 		before = store.document.environment.duplicate(true)
 		epoch = store.command_epoch

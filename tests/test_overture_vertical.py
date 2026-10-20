@@ -13,6 +13,10 @@ from geojson import convert
 from overture_fixture import vertical_snapshot
 
 class VerticalTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def layer(self, value):
         raw = json.dumps(value).encode()
         normalized, meta = a.parse(raw)
@@ -62,9 +66,20 @@ class VerticalTests(unittest.TestCase):
             with self.subTest(mode=mode), self.assertRaises(ValueError): self.layer(value)
 
     def test_profile_budgets_and_elevated_standalone(self):
-        with patch.object(a, "MAX_VERTICAL_FEATURES", 2), self.assertRaisesRegex(ValueError,"256"):
+        import import_layer
+        def codes(): return {e["code"] for e in import_layer.limit_entries()}
+        expected = self.layer(vertical_snapshot()).patches
+        self.assertEqual(import_layer.limit_entries(), [])
+        # Former vertical budgets warn; the raised ceilings refuse.
+        with patch.object(a, "MAX_VERTICAL_FEATURES", 2):
+            self.assertEqual(self.layer(vertical_snapshot()).patches, expected)
+        self.assertIn("overture_vertical_features", codes())
+        with patch.object(a, "MAX_VERTICAL_POINTS", 10):
+            self.assertEqual(self.layer(vertical_snapshot()).patches, expected)
+        self.assertIn("overture_points", codes())
+        with patch.object(a, "VERTICAL_FEATURES_CEILING", 2), self.assertRaisesRegex(ValueError,"4096"):
             self.layer(vertical_snapshot())
-        with patch.object(a, "MAX_VERTICAL_POINTS", 10), self.assertRaisesRegex(ValueError,"point budget"):
+        with patch.object(a, "POINTS_CEILING", 10), self.assertRaisesRegex(ValueError,"2,000,000"):
             self.layer(vertical_snapshot())
         value = vertical_snapshot(); value["features"] = [value["features"][2]]
         p = value["features"][0]["properties"]; p.pop("building_id"); p["type"] = "building"

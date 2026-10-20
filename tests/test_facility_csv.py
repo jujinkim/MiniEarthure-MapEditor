@@ -6,6 +6,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/importers"
 from facility_csv import convert
 
 class Facilities(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def options(self):
         return dict(encoding="utf-8-sig", name_column="이름", latitude_column="위도", longitude_column="경도",
                     category="작은도서관", source_url="https://example.org/synthetic", bounds_cm=[0,0,102400,102400], source_denominator=8)

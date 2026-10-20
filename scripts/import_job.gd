@@ -5,7 +5,10 @@ var presence: RefCounted
 var import_kind := "vector"
 const LAYER := preload("./import_layer.gd")
 const FILES := preload("./document_files.gd")
-const PIPE_LIMIT := 1024 * 1024
+const LIMITS := preload("./limit_warnings.gd")
+## Total progress/diagnostic bytes over a whole job; lines stay framed at 4 KiB.
+const PIPE_LIMIT := 64 * 1024 * 1024
+const RUNNING_TIME := "running_time"
 const LINE_LIMIT := 4096
 const READ_BUDGET := 16384
 const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "osm_generalize.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
@@ -22,13 +25,19 @@ var exited := false
 var exit_code := -1
 var cancelled := false
 var failure := ""
+## Past this point the job keeps running with a warning; Cancel stops it.
 var deadline_ms := 0
 var timeout_seconds := 120
+## PBF streaming: every stage must complete before the next one starts.
+var streaming := false
+## Limits that warn instead of refusing (see limit_warnings.gd).
+var limit_warnings: Array = []
 var progress := {}
 var terminal := {}
 var sequence := 0
 var phase := -1
-var progress_limit := 32 * 1024 * 1024
+## Progress counters reach the written output size, bounded by its memory guard.
+var progress_limit: int = LAYER.MAX_BYTES
 var stages := ["read", "parse", "convert", "write", "complete"]
 var done := false
 var result := {}
@@ -49,10 +58,10 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	if input == null: return "Cannot open selected source."
 	var size := input.get_length()
 	input.close()
-	var streaming: bool = coordinates.get("osm_stream", false) == true
+	streaming = coordinates.get("osm_stream", false) == true
 	if coordinates.has("osm_stream") and (not streaming or input_format != "pbf" or not coordinates.has("osm_bbox")): return "PBF streaming requires PBF input and an explicit crop area."
 	if streaming:
-		progress_limit = 2 * 1024 * 1024 * 1024
+		progress_limit = LAYER.MAX_STREAM_SOURCE_BYTES
 		timeout_seconds = 900
 		stages = ["read", "index_nodes", "index_ways", "index_relations", "select", "parse", "convert", "write", "complete"]
 	if coordinates.has("osm_areas") and streaming:
@@ -61,7 +70,9 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	if coordinates.get("osm_city", false):
 		if not streaming: return "Automatic city optimization requires PBF streaming."
 		stages.insert(stages.find("convert"), "optimize")
-	if size <= 0 or size > progress_limit: return "Import source exceeds %s or is empty; PBF streaming needs an explicit crop area." % ("2 GiB" if streaming else "32 MiB")
+	if size <= 0 or size > (LAYER.MAX_STREAM_SOURCE_BYTES if streaming else LAYER.MAX_SOURCE_BYTES): return "Import source exceeds %s or is empty; PBF streaming needs an explicit crop area." % ("64 GiB" if streaming else "256 MiB")
+	if streaming: LIMITS.over(limit_warnings, "stream_source_bytes", size, LAYER.WARN_STREAM_SOURCE_BYTES, "PBF source size in bytes")
+	else: LIMITS.over(limit_warnings, "source_bytes", size, LAYER.WARN_SOURCE_BYTES, "Import source size in bytes")
 	var reservation := _reserve_directory(token)
 	if reservation != "": return reservation
 	var files := FILES.new()
@@ -88,9 +99,10 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		arguments.append("--osm-bbox")
 		for value in coordinates.osm_bbox: arguments.append(JSON.stringify(value, "", false, true))
 	if coordinates.has("osm_areas"):
-		if not coordinates.has("osm_stream") or coordinates.osm_areas is not Array or coordinates.osm_areas.is_empty() or coordinates.osm_areas.size() > 8:
+		if not coordinates.has("osm_stream") or coordinates.osm_areas is not Array or coordinates.osm_areas.is_empty() or coordinates.osm_areas.size() > LAYER.MAX_AREAS:
 			cleanup()
-			return "Administrative area crops need PBF streaming and 1–8 areas."
+			return "Administrative area crops need PBF streaming and 1–64 areas."
+		LIMITS.over(limit_warnings, "osm_areas", coordinates.osm_areas.size(), LAYER.WARN_AREAS, "Combined administrative areas")
 		arguments.append("--osm-areas")
 		for value in coordinates.osm_areas: arguments.append(str(int(value)))
 	if coordinates.has("csv"):
@@ -105,7 +117,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		if not streaming: cleanup(); return "Object exclusion review requires PBF streaming."
 		arguments.append("--osm-review-exclusions")
 	if coordinates.has("vertical"):
-		var vertical_error: String = preload("./import_vertical.gd").options_error(coordinates.vertical)
+		var vertical_error: String = preload("./import_vertical.gd").options_error(coordinates.vertical, limit_warnings)
 		if input_format not in ["osm", "pbf"] or vertical_error != "":
 			cleanup()
 			return vertical_error if vertical_error != "" else "Vertical conversion requires OSM input."
@@ -116,7 +128,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 			return write_error
 		arguments.append_array(PackedStringArray(["--vertical-request", request_path]))
 	if coordinates.has("height_supplement"):
-		var height_error: String = preload("./import_height_supplement.gd").source_error(coordinates.height_supplement)
+		var height_error: String = preload("./import_height_supplement.gd").source_error(coordinates.height_supplement, limit_warnings)
 		if input_format not in ["osm", "pbf"] or height_error != "":
 			cleanup()
 			return height_error if height_error != "" else "Height supplements require OSM input."
@@ -169,6 +181,10 @@ func _fail(message: String) -> void:
 	if failure == "": failure = message
 	cancel()
 
+## Status text for the warnings of this job (empty when none).
+func limit_text() -> String:
+	return LIMITS.text(limit_warnings)
+
 func cancel() -> void:
 	if cancelled or done: return
 	cancelled = true
@@ -200,7 +216,7 @@ func _event(line: PackedByteArray) -> void:
 	if index == phase and (raw.total != progress.total or raw.completed < progress.completed):
 		_fail("Import progress regressed.")
 		return
-	if timeout_seconds == 900 and index > phase and phase >= 0 and progress.completed != progress.total:
+	if streaming and index > phase and phase >= 0 and progress.completed != progress.total:
 		_fail("Incomplete PBF streaming stage.")
 		return
 	if raw.get("unit") != ("features" if raw.get("stage") == "convert" else "entities" if raw.get("stage") == "select" else "steps" if raw.get("stage") == "optimize" else "samples" if raw.get("stage") == "sample" else "bytes"):
@@ -220,7 +236,7 @@ func _read() -> void:
 		buffer.append_array(bytes)
 		output_eof = stdio.get_error() == ERR_FILE_EOF or (exited and bytes.is_empty())
 		if received > PIPE_LIMIT:
-			_fail("Import IPC exceeds 1 MiB.")
+			_fail("Import IPC exceeds 64 MiB.")
 			buffer.clear()
 		else:
 			var newline := buffer.find(10)
@@ -234,13 +250,17 @@ func _read() -> void:
 		received += bytes.size()
 		errors = (errors + bytes.get_string_from_utf8()).right(4096)
 		error_eof = stderr_pipe.get_error() == ERR_FILE_EOF or (exited and bytes.is_empty())
-		if received > PIPE_LIMIT: _fail("Import IPC exceeds 1 MiB.")
+		if received > PIPE_LIMIT: _fail("Import IPC exceeds 64 MiB.")
 
 func poll(now_ms: int = -1) -> void:
 	if presence != null: presence.poll()
 	if done or pid <= 0: return
 	_read()
-	if not cancelled and (Time.get_ticks_msec() if now_ms < 0 else now_ms) >= deadline_ms: _fail("Import timed out after %d seconds; use a smaller source or retry." % timeout_seconds)
+	var now := Time.get_ticks_msec() if now_ms < 0 else now_ms
+	# A long run is not a failure: warn and keep Cancel available.
+	if not cancelled and now >= deadline_ms:
+		var started := deadline_ms - timeout_seconds * 1000
+		LIMITS.note(limit_warnings, RUNNING_TIME, maxi(timeout_seconds, int((now - started) / 1000)), timeout_seconds, "Running time in seconds; Cancel stops it")
 	if not exited:
 		exited = not OS.is_process_running(pid)
 		if exited: exit_code = OS.get_process_exit_code(pid)
@@ -256,13 +276,15 @@ func poll(now_ms: int = -1) -> void:
 		if file == null or file.get_length() != int(terminal.total):
 			result = {"ok": false, "error": {"code": "E_IMPORT_OUTPUT", "message": "Import output missing or has wrong size."}}
 		else:
-			var bytes := file.get_buffer(LAYER.MAX_BYTES + 1)
+			var bytes := file.get_buffer(int(terminal.total))
 			var digest := HashingContext.new()
 			digest.start(HashingContext.HASH_SHA256)
 			digest.update(bytes)
 			result = {"ok": true, "data": JSON.parse_string(bytes.get_string_from_utf8())} if digest.finish().hex_encode() == terminal.sha256 else {"ok": false, "error": {"code": "E_IMPORT_OUTPUT", "message": "Import output hash mismatch."}}
 		if file != null: file.close()
 	done = true
+	# The running-time note describes a live job only.
+	limit_warnings = limit_warnings.filter(func(entry): return entry.get("code") != RUNNING_TIME)
 	_close()
 	_finish_result()
 	cleanup()

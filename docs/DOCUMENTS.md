@@ -49,18 +49,21 @@ identity and producer provenance are not editable values.
 Each retained command stores only touched records' first-before and final-after
 values after native normalization, plus affected immutable binary payloads. Undo and
 Redo share **200 commands / 16 MiB** of patches and sparse height deltas. A new
-branch releases redo, then evicts the oldest undo entries; one oversized command is
-rejected before publication. This is a serialized budget, not an RSS claim.
+branch releases redo, then evicts the oldest undo entries. A single command over
+16 MiB is still applied; it releases all Undo/Redo history and warns "This change
+cannot be undone; earlier Undo history was released." This is a serialized budget,
+not an RSS claim.
 
 Commands with at least 1 MiB of text use a private lossless Zstandard envelope when
-smaller (expanded ≤48 MiB; length, SHA-256 and shape checked). Detached import
-transfer is limited to 24 MiB compressed / 96 MiB expanded; the native document
-stays at 32 MiB. Large city imports remain one atomic command.
+smaller (expanded ≤512 MiB; length, SHA-256 and shape checked). Detached import
+transfer warns above 24 MiB compressed / 96 MiB expanded and is refused above
+512 MiB / 1 GiB; a document above 32 MiB warns that the game refuses it. Large city
+imports remain one atomic command.
 
 `begin_gesture(label)` → `stage_patches(batch)` → `commit_gesture()` coalesces
 repeated edits into one command. Each staged `before` must match the previous staged
-`after`; staging never changes the committed document and pending mementos have
-their own 16 MiB cap. Cancel discards pending work; Save and history travel require
+`after`; staging never changes the committed document, and an oversized gesture
+still commits, then releases history with the same warning. Cancel discards pending work; Save and history travel require
 finishing or cancelling the gesture. Escape, tool/focus change and document
 replacement discard a gesture; old mouse releases cannot modify a new document.
 New/Open/Recover reset history; returning by Undo to saved content clears dirty.
@@ -82,6 +85,12 @@ the primary with one rename. Expected SHA-256 checks detect external changes bef
 and during saving. Failure keeps the dirty state, old primary and interrupted
 candidates. Command source identities stay separate from published PNG descriptors,
 so import → Undo/Redo chains survive Save.
+
+Save limits on the user's own project show a limit warning in the status line and
+continue. The document snapshot warns above 64 MiB (memory) and above 32 MiB (the
+game refuses maps beyond this) and is refused above 1 GiB. Project files warn above
+64 MiB in total, above 128 MiB per file and above 512 MiB per package (the last two:
+the game refuses maps beyond this) and are refused above 2 GiB.
 
 **Save As** requires a directory without a document and copies current plus
 Undo/Redo-only asset and heightmap payloads, validates the candidate and publishes

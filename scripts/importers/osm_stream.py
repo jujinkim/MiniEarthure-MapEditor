@@ -17,24 +17,30 @@ import zlib
 from collections import deque
 from itertools import chain
 
-from import_layer import MAX_INPUT, MAX_POINTS
+from import_layer import MAX_INPUT, MAX_POINTS, BudgetExceeded, soft_limit
 from osm_review import Review
 from osm_disk_nodes import DiskNodes, SharedRoadNodes, MissingNode, FILES as NODE_FILES, MAX_LOOKUP
 from osm_area import bounds
-from osm_extract import dependency, category, build_features, MAX_ENTITIES, MAX_REFS, MAX_FEATURES
+from osm_extract import dependency, category, build_features, MAX_ENTITIES, MAX_REFS, MAX_FEATURES, MAX_TAGS, TAG_CEILING, TAG_TEXT
 
-MAX_SOURCE = 2 * 1024**3
-MAX_INDEX = 2 * 1024**3
-MAX_SCAN_ENTITIES = 100_000_000
-MAX_SCAN_REFS = 80_000_000
-MAX_ENTITY_REFS = 20_000
+# Source-work budgets warn (soft_limit) and the import continues. The CEILING
+# values and the disk-sized index quota are memory/disk guards and still refuse.
+MAX_SOURCE = 2 * 1024**3  # Warn above.
+SOURCE_CEILING = 64 * 1024**3  # u64 block pointers, uint32 node positions.
+MAX_INDEX = 2 * 1024**3  # Minimum index quota; warn when the index grows beyond it.
+INDEX_PER_SOURCE = 3  # The quota grows with the source, within free disk.
+MAX_SCAN_ENTITIES = 100_000_000  # CPU time only: warn.
+MAX_SCAN_REFS = 80_000_000  # CPU time only: warn.
+MAX_ENTITY_REFS = 20_000  # Warn above.
+ENTITY_REFS_CEILING = 1_000_000  # Memory guard per entity.
 MAX_BLOB = 32 * 1024**2
 MAX_HEADER = 64 * 1024
 COPY_BLOCK = 1024**2
 PROFILE = "pbf-area-stream-v1"
 OWNED_FILES = ("source.pbf.part", "source.pbf", "source-index.sqlite", *NODE_FILES)
 WAY_BATCH_ROWS = 128
-WAY_BATCH_BYTES = 4 * 1024**2
+WAY_BATCH_BYTES = 4 * 1024**2  # Batch flush size; a single way warns above it.
+WAY_PAYLOAD_CEILING = 64 * 1024**2  # Memory guard for one way payload.
 
 # Only the explicit city-generalization path can stage more original geometry.
 # Final ImportLayer/Undo/native limits are unchanged. These are source-work caps,
@@ -50,9 +56,9 @@ def _payload(raw):
     """Private scratch compression, bounded to the existing per-way allowance."""
     if not isinstance(raw, bytes): return raw
     inflater = zlib.decompressobj()
-    decoded = inflater.decompress(raw, WAY_BATCH_BYTES + 1)
-    if len(decoded) > WAY_BATCH_BYTES or not inflater.eof or inflater.unused_data or inflater.unconsumed_tail:
-        raise ValueError("OSM index payload budget exceeded")
+    decoded = inflater.decompress(raw, WAY_PAYLOAD_CEILING + 1)
+    if len(decoded) > WAY_PAYLOAD_CEILING or not inflater.eof or inflater.unused_data or inflater.unconsumed_tail:
+        raise BudgetExceeded("OSM index payload ceiling exceeded")
     return decoded.decode("utf-8")
 
 
@@ -352,11 +358,15 @@ def _signature(info):
 def _capture(source, directory, event):
     with source.open("rb") as reader:
         before = os.fstat(reader.fileno())
-        if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= MAX_SOURCE:
-            raise ValueError("PBF stream requires a regular nonempty source up to 2 GiB")
+        if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= SOURCE_CEILING:
+            raise ValueError("PBF stream requires a regular nonempty source up to 64 GiB")
         size = before.st_size
-        if shutil.disk_usage(directory).free < size + MAX_INDEX + 64*COPY_BLOCK:
-            raise ValueError("PBF stream needs source bytes + 2 GiB index + 64 MiB free workspace")
+        if size > MAX_SOURCE:
+            soft_limit("stream_source_bytes", size, MAX_SOURCE, "PBF source exceeds 2 GiB; indexing takes longer and needs more disk")
+        free = shutil.disk_usage(directory).free
+        if free < size + MAX_INDEX + 64*COPY_BLOCK:
+            # A real out-of-space error during capture or indexing still fails.
+            soft_limit("stream_free_disk", size + MAX_INDEX + 64*COPY_BLOCK, free, "Little free workspace disk for the PBF copy and index; the import stops if the disk fills")
         digest, completed, last_report = hashlib.sha256(), 0, 0
         event("read", 0, size)
         with (directory / "source.pbf.part").open("xb") as writer:
@@ -383,19 +393,26 @@ def _potential(tags):
     return bool(tags.get("highway") or tags.get("building", "no") != "no" or "building:part" in tags or tags.get("landuse") or tags.get("natural") in ("wood","water","wetland","bare_rock","scrub","grassland") or tags.get("leisure") in ("park","nature_reserve") or tags.get("boundary")=="protected_area")
 
 
-def _structure_closure(db, event, size, read_way=None):
+def _structure_closure(db, event, size, read_way=None, limits=None):
     """Visit all incident highways at structural/loop nodes; transit both kinds.
 
-    Open ground approaches are included whole but are not traversal edges. A separate
-    operation cap bounds dense incidence, in addition to payload/index quotas.
+    Open ground approaches are included whole but are not traversal edges. Work
+    above the budgets (city-sized in city mode) records limit warnings.
     """
-    if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
-        raise ValueError("OSM selected entity budget exceeded")
+    input_limit, ref_limit, entity_limit, feature_limit = limits or (MAX_INPUT, MAX_REFS, MAX_ENTITIES, MAX_FEATURES)
+    def entities():
+        chosen = db.execute("SELECT count(*) FROM chosen").fetchone()[0]
+        if chosen > entity_limit:
+            soft_limit("stream_selected_entities", chosen, entity_limit, "OSM selected entity budget exceeded")
+    def feature(count):
+        if count > feature_limit:
+            soft_limit("stream_closure_features", count, feature_limit, "OSM selected approach/feature budget exceeded")
+    entities()
     pending, admitted = deque(), set()
     # Probe only admitted IDs. A whole-source UNION could build an unbudgeted
     # temporary set containing millions of unrelated ways before first yield.
     for (way,) in db.execute("SELECT c.id FROM chosen c WHERE EXISTS (SELECT 1 FROM structural_ways s WHERE s.id=c.id) OR EXISTS (SELECT 1 FROM loop_ways l WHERE l.id=c.id) ORDER BY c.id"):
-        if len(admitted) >= MAX_FEATURES: raise ValueError("OSM selected approach/feature budget exceeded")
+        feature(len(admitted) + 1)
         admitted.add(way)
         pending.append(way)
     nodes, payload_bytes, references, visits, structures, loops = set(), 0, 0, 0, 0, 0
@@ -404,10 +421,10 @@ def _structure_closure(db, event, size, read_way=None):
         way = pending.popleft()
         raw = read_way(way) if read_way is not None else _payload(db.execute("SELECT data FROM ways WHERE id=?", (way,)).fetchone()[0])
         payload_bytes += len(raw.encode("utf-8"))
-        if payload_bytes > MAX_INPUT: raise ValueError("OSM structure closure payload budget exceeded")
+        if payload_bytes > input_limit: soft_limit("stream_closure_bytes", payload_bytes, input_limit, "OSM structure closure payload budget exceeded")
         refs, _ = json.loads(raw)
         references += len(refs)
-        if references > MAX_REFS: raise ValueError("OSM structure closure reference budget exceeded")
+        if references > ref_limit: soft_limit("stream_closure_references", references, ref_limit, "OSM structure closure reference budget exceeded")
         structures += bool(db.execute("SELECT 1 FROM structural_ways WHERE id=?", (way,)).fetchone())
         loops += bool(db.execute("SELECT 1 FROM loop_ways WHERE id=?", (way,)).fetchone())
         for ref in refs:
@@ -418,17 +435,16 @@ def _structure_closure(db, event, size, read_way=None):
             first = rows.fetchone()
             for (peer,) in (chain((first,), rows) if first is not None else ((way,),)):
                 visits += 1
-                if visits > MAX_REFS: raise ValueError("OSM structure closure incidence budget exceeded")
+                if visits > ref_limit: soft_limit("stream_closure_visits", visits, ref_limit, "OSM structure closure incidence budget exceeded")
                 if visits % 100 == 0: event("index_relations", size, size)
                 if peer in admitted: continue
-                if len(admitted) >= MAX_FEATURES: raise ValueError("OSM selected approach/feature budget exceeded")
+                feature(len(admitted) + 1)
                 admitted.add(peer)
                 db.execute("INSERT OR IGNORE INTO chosen VALUES(?)", (peer,))
                 if db.execute("SELECT 1 FROM structural_ways WHERE id=? UNION ALL SELECT 1 FROM loop_ways WHERE id=?", (peer,peer)).fetchone():
                     pending.append(peer)
         event("index_relations", size, size)
-    if db.execute("SELECT count(*) FROM chosen").fetchone()[0] > MAX_ENTITIES:
-        raise ValueError("OSM selected entity budget exceeded")
+    entities()
     return dict(profile="loop-structural-incidence-v1" if loops else "structural-incidence-v1",
                 ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits, **(dict(loops=loops) if loops else {}))
 
@@ -457,10 +473,12 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             w, s_, e, n = region.bounds
             if w < selected[0] or s_ < selected[1] or e > selected[2] or n > selected[3]:
                 raise ValueError("Selected areas extend beyond the crop rectangle; use their combined extent")
+        # The disk quota grows with the source, within the free workspace disk.
+        quota = max(MAX_INDEX, min(INDEX_PER_SOURCE * size, shutil.disk_usage(directory).free - 64*COPY_BLOCK))
         db = sqlite3.connect(directory / "source-index.sqlite")
         db.executescript(f"""
             PRAGMA page_size=4096;
-            PRAGMA max_page_count={MAX_INDEX//4096};
+            PRAGMA max_page_count={quota//4096};
             PRAGMA cache_size=-8192;
             PRAGMA mmap_size=0;
             PRAGMA journal_mode=OFF;
@@ -476,7 +494,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             CREATE TABLE loop_ways(id INTEGER PRIMARY KEY);
 
         """)
-        locations = DiskNodes(directory, db, MAX_INDEX)
+        locations = DiskNodes(directory, db, quota)
         totals = dict(nodes=0, ways=0, relations=0, references=0)
         scanned = 0
         def scalar(entity, key, *, counted=True):
@@ -484,35 +502,43 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             if counted:
                 scanned += 1
                 totals[key] += 1
-            if scanned > MAX_SCAN_ENTITIES or entity.id <= 0 or not entity.visible:
-                raise ValueError("OSM scan entity budget/deleted or invalid ID")
+            if entity.id <= 0 or not entity.visible:
+                raise ValueError("OSM deleted or invalid ID")
+            if scanned > MAX_SCAN_ENTITIES:
+                soft_limit("stream_scan_entities", scanned, MAX_SCAN_ENTITIES, "OSM scan entity budget exceeded; scanning takes longer")
             tag_count = len(entity.tags)
             # Most geographic nodes have no tags. In pyosmium, exhausting a tag
             # iterator crosses a C++ exception boundary even for an empty list.
             # Do not pay that cost millions of times in a national snapshot:
             # take exactly tag_count items instead of iterating to the end.
             if tag_count == 0: return {}
-            failure = "more than 128 source tags are unsupported" if tag_count > 128 else ""
+            if tag_count > MAX_TAGS:
+                soft_limit("osm_tags", tag_count, MAX_TAGS, "OSM object has many source tags")
+            failure = "more than 1024 source tags are unsupported" if tag_count > TAG_CEILING else ""
             tags, iterator = {}, iter(entity.tags)
             for _ in range(tag_count):
                 key, value = next(iterator)
-                oversized = len(key) > 512 or len(value) > 512
+                oversized = len(key) > TAG_TEXT or len(value) > TAG_TEXT
                 if oversized or key in tags:
                     failure = "duplicate or oversized source tag"
-                if not oversized and len(tags) < 128:
+                if not oversized and len(tags) < TAG_CEILING:
                     tags[key] = value
             if failure:
                 # Unselected labels (e.g. multilingual country nodes) do not
                 # consume the selected-object tag quota. Retain an error marker:
                 # any geometry referencing this object must reject or review it.
                 keys = {"type", "highway", "building", "building:part", "landuse", "natural", "leisure", "boundary", "bridge", "tunnel"}
-                tags = {t.k:t.v[:512] for t in entity.tags if t.k in keys}
+                tags = {t.k:t.v[:TAG_TEXT] for t in entity.tags if t.k in keys}
                 tags["_source_error"] = f"{entity.type_str()}/{entity.id}: {failure}"
             return tags
         def references(count):
             totals["references"] += count
-            if count > MAX_ENTITY_REFS or totals["references"] > MAX_SCAN_REFS:
-                raise ValueError("OSM scan reference budget exceeded")
+            if count > ENTITY_REFS_CEILING:
+                raise BudgetExceeded("OSM source object exceeds 1,000,000 references")
+            if count > MAX_ENTITY_REFS:
+                soft_limit("stream_entity_references", count, MAX_ENTITY_REFS, "OSM source object has many references")
+            if totals["references"] > MAX_SCAN_REFS:
+                soft_limit("stream_scan_references", totals["references"], MAX_SCAN_REFS, "OSM scan reference budget exceeded; scanning takes longer")
         def intersects(box):
             return box is not None and box[0] <= selected[2] and box[2] >= selected[0] and box[1] <= selected[3] and box[3] >= selected[1]
         def envelope(box, x, y, east=None, north=None):
@@ -532,8 +558,10 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                 if not len(ids): continue
                 scanned += len(ids)
                 totals["nodes"] += len(ids)
-                if scanned > MAX_SCAN_ENTITIES or ids.min() <= 0 or (visible is not None and not visible.all()):
-                    raise ValueError("OSM scan entity budget/deleted or invalid ID")
+                if ids.min() <= 0 or (visible is not None and not visible.all()):
+                    raise ValueError("OSM deleted or invalid ID")
+                if scanned > MAX_SCAN_ENTITIES:
+                    soft_limit("stream_scan_entities", scanned, MAX_SCAN_ENTITIES, "OSM scan entity budget exceeded; scanning takes longer")
                 if xy[:,0].min() < -1800000000 or xy[:,0].max() > 1800000000 or xy[:,1].min() < -900000000 or xy[:,1].max() > 900000000:
                     raise ValueError("OSM invalid node location")
                 locations.add_many(ids, xy)
@@ -564,9 +592,12 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         def block_start(offset, payload):
             nonlocal block_offset
             block_offset = offset
+        def payload_size(size):
+            if size > WAY_PAYLOAD_CEILING: raise BudgetExceeded("OSM way buffer byte ceiling exceeded")
+            if size > WAY_BATCH_BYTES: soft_limit("stream_way_bytes", size, WAY_BATCH_BYTES, "OSM way buffer byte budget exceeded")
         def city_payload(refs, tags):
             raw = json.dumps([refs,tags])
-            if len(raw.encode("utf-8")) > WAY_BATCH_BYTES: raise ValueError("OSM way buffer byte budget exceeded")
+            payload_size(len(raw.encode("utf-8")))
             return zlib.compress(raw.encode("utf-8"), 1)
         def flush_ways():
             nonlocal pending_refs, pending_bytes
@@ -612,7 +643,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             raw, size = None, 0
             if not city:
                 raw = json.dumps([refs,tags]); size = len(raw.encode("utf-8"))
-                if size > WAY_BATCH_BYTES: raise ValueError("OSM way buffer byte budget exceeded")
+                payload_size(size)
             if len(pending_ways) >= WAY_BATCH_ROWS or pending_refs + len(refs) > MAX_LOOKUP or pending_bytes + size > WAY_BATCH_BYTES:
                 flush_ways()
             pending_ways.append((entity.id,refs,tags,raw,potential,block_offset))
@@ -626,8 +657,14 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             potential = _potential(tags)
             if potential and not len(entity.members): raise ValueError("OSM feature relation has no referenced geometry")
             for m in entity.members:
-                if len(m.role) > 512 or m.ref <= 0: raise ValueError("OSM invalid relation reference/role")
-                members.append((m.type,m.ref,m.role))
+                if m.ref <= 0: raise ValueError("OSM invalid relation reference")
+                role = m.role
+                if len(role) > TAG_TEXT:
+                    # As with oversized tags: geometry using this relation rejects
+                    # (or is reviewed); an unselected relation does not refuse the import.
+                    role = role[:TAG_TEXT]
+                    tags.setdefault("_source_error", f"relation/{entity.id}: oversized relation member role")
+                members.append((m.type,m.ref,role))
                 if area and m.type == "w":
                     if m.ref in member_ways:
                         unsupported = "area relation repeats a way member; original topology is not repaired"
@@ -708,27 +745,34 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                 for entity in iterator:
                     if found is not None: raise ValueError("Duplicate indexed way")
                     found = json.dumps([[n.ref for n in entity.nodes],scalar(entity,"ways",counted=False)])
-                    if len(found.encode("utf-8")) > WAY_BATCH_BYTES: raise ValueError("OSM indexed way payload budget exceeded")
+                    payload_size(len(found.encode("utf-8")))
             finally:
                 iterator.close()
             if found is None: raise ValueError("Indexed source way is missing")
             db.execute("UPDATE ways SET data=? WHERE id=?",(zlib.compress(found.encode("utf-8"),1),identity))
             resolved_blocks += 1
             return found
-        closure = _structure_closure(db, event, size, read_way)
+        index_bytes = db.execute("PRAGMA page_count").fetchone()[0] * 4096 + locations.written
+        if index_bytes > MAX_INDEX:
+            soft_limit("stream_index_bytes", index_bytes, MAX_INDEX, "OSM disk index exceeds 2 GiB")
+        closure = _structure_closure(db, event, size, read_way, (input_limit, ref_limit, entity_limit, feature_limit))
         event("index_relations", size, size)
         nodes, node_tags, all_ways, ways, relations, blocked = {}, {}, {}, [], [], set()
         counts = dict(nodes=0,ways=0,relations=0,ignored_ways=0,ignored_relations=0,tagged_nodes=0,assembled_relations=0,outer_rings=0,inner_rings=0,member_ways=0)
         selection_bytes, selected_refs = 0, 0
         total = db.execute("SELECT count(*) FROM chosen").fetchone()[0] + db.execute("SELECT count(*) FROM relations WHERE candidate=1").fetchone()[0]
-        if total > entity_limit: raise ValueError("OSM selected entity budget exceeded")
+        if total > entity_limit: soft_limit("stream_selected_entities", total, entity_limit, "OSM selected entity budget exceeded")
         event("select", 0, total, "entities")
         def admit(raw, refs=0):
             nonlocal selection_bytes, selected_refs
             selection_bytes += len(raw.encode("utf-8"))
             selected_refs += refs
-            if selection_bytes > input_limit or selected_refs > ref_limit or len(nodes)+len(all_ways)+len(relations) > entity_limit:
-                raise ValueError("OSM selected payload/reference/entity budget exceeded")
+            if selection_bytes > input_limit:
+                soft_limit("stream_selected_bytes", selection_bytes, input_limit, "OSM selected payload budget exceeded")
+            if selected_refs > ref_limit:
+                soft_limit("stream_selected_references", selected_refs, ref_limit, "OSM selected reference budget exceeded")
+            if len(nodes)+len(all_ways)+len(relations) > entity_limit:
+                soft_limit("stream_selected_entities", len(nodes)+len(all_ways)+len(relations), entity_limit, "OSM selected entity budget exceeded")
         completed = 0
         # Iterate the integer primary key, then lookup one payload. Avoid a SQL
         # join/sorter that could materialize all payloads before byte admission.
@@ -745,10 +789,10 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                 kind = None
             if kind: ways.append((identity,kind,refs,tags))
             else: counts["ignored_ways"] += 1
-            if len(ways) > feature_limit: raise ValueError("OSM selected feature budget exceeded")
+            if len(ways) > feature_limit: soft_limit("osm_features", len(ways), feature_limit, "OSM selected feature budget exceeded")
             for ref in refs:
                 if ref in nodes: continue
-                if len(nodes) >= point_limit: raise ValueError("OSM selected node budget exceeded")
+                if len(nodes) >= point_limit: soft_limit("osm_nodes", len(nodes) + 1, point_limit, "OSM selected node budget exceeded")
                 x,y = locations.point(ref)
                 tagged = db.execute("SELECT tags FROM node_tags WHERE id=?", (ref,)).fetchone()
                 tags_at_node = json.loads(tagged[0]) if tagged else {}
@@ -763,7 +807,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             members,tags = json.loads(raw)
             admit("",len(members))
             relations.append((identity,category(tags),members,tags))
-            if len(ways)+len(relations) > feature_limit: raise ValueError("OSM selected feature budget exceeded")
+            if len(ways)+len(relations) > feature_limit: soft_limit("osm_features", len(ways)+len(relations), feature_limit, "OSM selected feature budget exceeded")
             completed += 1
             if completed % 100 == 0: event("select",completed,total,"entities")
         event("select",completed,total,"entities")

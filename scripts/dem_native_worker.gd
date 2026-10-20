@@ -3,9 +3,15 @@ const FILES := preload("./authoring_files.gd")
 const TYPES := preload("./import_layer.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
 const LAYER := preload("./dem_import_layer.gd")
+const LIMITS := preload("./limit_warnings.gd")
+## Hashed in 1 MiB blocks, never loaded whole: derived PNGs and project
+## payloads only warn above the former 64 MiB.
+const GROUP_LIMIT := 2 * 1024 * 1024 * 1024
+const WARN_GROUP_BYTES := 64 * 1024 * 1024
 
 static func inputs(request: Dictionary) -> Dictionary:
 	var files := {}
+	var notes: Array = []
 	var groups := {"original":0, "capture":0, "png":0, "project":0}
 	var reviewed: Dictionary = request.reviewed
 	var data: Dictionary = request.data
@@ -37,13 +43,14 @@ static func inputs(request: Dictionary) -> Dictionary:
 		if file == null: return {"error":"DEM input is missing: " + path}
 		var size := file.get_length()
 		file.close()
-		if entry[3] != "project" and (not TYPES._count(entry[1], FILES.MAX_PAYLOAD_BYTES) or size != int(entry[1]) or not TYPES._hex(entry[2], 64)): return {"error":"DEM input identity changed."}
+		var tile: bool = entry[3] in ["original", "capture"]
+		if entry[3] != "project" and (not TYPES._count(entry[1], LAYER.MAX_SOURCE_BYTES if tile else FILES.MAX_PAYLOAD_BYTES) or size != int(entry[1]) or not TYPES._hex(entry[2], 64)): return {"error":"DEM input identity changed."}
 		groups[entry[3]] += size
-		if entry[3] in ["original", "capture"]:
-			if groups[entry[3]] > LAYER.MAX_SOURCES * LAYER.MAX_SOURCE_BYTES: return {"error":"DEM source tiles exceed their budget."}
-		elif groups[entry[3]] > FILES.MAX_PAYLOAD_BYTES: return {"error":"DEM input group exceeds 64 MiB."}
+		if tile: LIMITS.over(notes, "dem_tile_bytes", size, LAYER.WARN_SOURCE_BYTES, "DEM tile size in bytes")
+		elif groups[entry[3]] > GROUP_LIMIT: return {"error":"DEM input group exceeds 2 GiB."}
+		else: LIMITS.over(notes, "dem_input_group_bytes", groups[entry[3]], WARN_GROUP_BYTES, "Derived terrain or project payload bytes checked for DEM")
 		files[path] = {"bytes":size, "sha256":entry[2]}
-	return {"files":files}
+	return {"files":files, "limit_warnings":notes}
 
 static func check_files(files: Dictionary, stage: String, progress: Callable) -> String:
 	var total := 0
@@ -95,11 +102,17 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 		terrain.store = store
 		failure = layer.stage_dem(terrain, request.data, request.reviewed, request.destination,
 			{"layer_id":request.layer_id, "scratch":directory.path_join("candidate"), "hashes":{}, "retained":retained, "prepared":prepared, "command_label":"Adopt DEM terrain", "progress":progress,"ground_buildings":request.get("ground_buildings",false),"verified_files":captured.files})
+	if failure == "" and prepared.command.get("history_released", false): prepared.retained = retained
 	if failure == "":
 		var command := preload("./import_command.gd")
 		failure = command.write_bundle(directory, {"value":layer.value, "prepared":command.encode(prepared), "blob_paths":layer._blobs.keys()}, output)
 		if failure == "": output.payloads = fingerprint
 	if failure == "": failure = check_files(captured.files, "recheck", progress)
+	var notes: Array = []
+	for list: Variant in [captured.get("limit_warnings", []), layer.limit_warnings, output.get("limit_warnings", [])]: LIMITS.merge(notes, list)
+	if failure == "" and prepared.get("command", {}).get("history_released", false):
+		LIMITS.note(notes, "undo_history", int(prepared.command.bytes), preload("./history_codec.gd").RETAINED_LIMIT, "Applying this change releases earlier Undo history")
+	output.limit_warnings = notes
 	layer.discard()
 	output.ok = failure == ""
 	if failure != "": output.error = {"code":"E_IMPORT_NATIVE", "message":failure.left(2000)}

@@ -25,7 +25,7 @@ elif mode == "over-cells":
     event("validate", 1, 1, "steps")
     event("snapshot")
     event("open", 1, 1, "steps")
-    event("generate", 0, 17, "cells")
+    event("generate", 0, 16385, "cells")  # Beyond every cell-list bound (16384).
 elif mode in ("zero-cells-success", "unexpected-cells"):
     event()
     event("validate", 1, 1, "steps")

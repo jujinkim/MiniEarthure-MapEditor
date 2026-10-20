@@ -24,20 +24,24 @@ validation generates cells in memory. Compressed sizes exist only after export.
 
 | Bound | Limit |
 | --- | --- |
-| Unique source resources | 64 MiB |
-| Preview work | 256 MiB |
+| Unique source resources | 2 GiB; warning above 64 MiB |
+| Preview work | 256 MiB allowance; larger cells generate with a warning |
 | Cached storage cells | 4 / 256 MiB |
 
 Native scratch, triangles/IDs/objects and decoded presentation are charged. After
 generation, storage previews check actual triangle/object/prism counts against the
 admitted upper bounds and charge those counts; larger or invalid counts reject the
-result. These are admission bounds, not measured process/GPU memory. Over-budget work
-keeps the prior preview and reports a recoverable error.
+result. These are admission bounds, not measured process/GPU memory. A cell over the
+allowance is still generated and shown with a limit warning; MapKit's native work and
+triangle limits still refuse, keeping the prior preview with a recoverable error.
+Above 200,000 preview-index references every cell is refreshed after each edit, with
+a warning.
 
 ## Chunk density
 
 The density list reuses MapKit generation estimates and the 256 MiB preview work
-calculation: it warns at 192 MiB and flags cells above 256 MiB. Rows include
+calculation: it warns at 192 MiB and flags cells above 256 MiB, which are still
+checked and reported as limit warnings. Rows include
 triangle, prism, convex and presentation costs; selecting a row centres the 2D map
 on that cell. Analysis runs on a worker 350 ms after the last change; edits,
 Undo/Redo and cancellation clear rows immediately. Package preview/export waits for
@@ -60,8 +64,12 @@ Native file, seam, inventory and spatial validation always run. A malformed work
 result ends the operation once, reports failure and unlocks editing.
 
 The report separates compressed ZIP/base/asset bytes, expanded resources, native
-memory estimates and optional full-generation results. Conflict detection is
-single-user; it is not a filesystem lock or power-loss guarantee.
+memory estimates and optional full-generation results. Export records limit
+warnings: a cell over the game's per-cell generation budget (`E_BUDGET`) warns that
+the game refuses the map instead of failing export, and a 2D overview above 4 MiB
+warns (above 64 MiB it is omitted). Whole-map queries run in 96-cell windows.
+Conflict detection is single-user; it is not a filesystem lock or power-loss
+guarantee.
 
 ## Regional packages
 
@@ -72,7 +80,8 @@ regional sources from the immutable snapshot and audits all dependencies. The
 capacity report shows total transfer size, expanded records, shared asset bytes,
 audit peak, retained index/overview and the largest source validation allowance.
 
-**Reopen .mkregions** restores the canonical document and every original payload,
+**Reopen .mkregions** sizes its restore/audit memory from the file and RAM
+(1–8 GiB) and restores the canonical document and every original payload,
 including unused assets, into a new adjacent `<package>.source` directory, which must
 not exist. Adoption then follows the ordinary unsaved-document flow. A cancelled or
 stale reopen leaves a restored directory intact and reports its path. The Editor

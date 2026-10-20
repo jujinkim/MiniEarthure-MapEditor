@@ -46,7 +46,7 @@ Tool/focus/document/history changes cancel pending input. Each shape is one Undo
   rings (≤1 MiB, stable ID retained).
 
 Road creation and structural edits generate affected junction cells through MapKit
-before publication (≤16 cells). Heightmap imports with roads also regenerate affected
+before publication, in batches of 16 (more than 16 cells warns). Heightmap imports with roads also regenerate affected
 cells, so terrain cannot silently break a portal. Failures appear in validation status.
 
 ## Terrain and water
@@ -54,8 +54,9 @@ cells, so terrain cannot silently break a portal. Failures appear in validation 
 Terrain comes from imported heightmaps and linked DEM; see [IMPORTS](IMPORTS.md).
 The Terrain tab stages an unsigned grayscale16 PNG with exact full-cell dimensions,
 explicit spacing/accuracy and attribution, using asynchronous review/adoption with
-progress and Cancel. Adoption is one Undo command; original files are never
-rewritten. Existing water bodies keep their surface, bottom and flow editable in
+progress and Cancel. PNGs up to 256 MiB are accepted; above 4 MiB the project
+stores a lossless re-encoded copy with the same samples, offset and step, with a
+warning. Adoption is one Undo command; original files are never rewritten. Existing water bodies keep their surface, bottom and flow editable in
 **Selected**.
 
 ## Assets and proxies
@@ -73,11 +74,13 @@ prepares attribution and the binary Undo command, and rechecks all inputs.
 Metadata-only edits reuse existing bytes. The parent binds the result to the store,
 command epoch, document, project and selection; changing a field, the selection,
 layers, closing authoring, a new gesture, save or document replacement invalidates
-it. The supervisor enforces a 120-second deadline, EOF termination, strict IPC and
-child reaping. Only then is the immutable file installed and one command published.
+it. The supervisor enforces EOF termination, strict IPC and child reaping; there is
+no time limit, and after 120 s a running-time warning appears while Cancel remains. Only then is the immutable file installed and one command published.
 
-Limits: one asset ID and at most one new GLB/PNG/WebP payload per job; 16 MiB shared
-history; 64 MiB candidate payloads; 24 MiB transfer. Output paths are registered in
+Limits: one asset ID and at most one new GLB/PNG/WebP payload per job; candidate
+payloads up to 2 GiB (warning above 64 MiB; a file above 128 MiB warns that the game
+refuses it); requests up to 1.5 GiB (warning above 64 MiB). A change over the shared
+16 MiB history is applied without Undo (see [DOCUMENTS](DOCUMENTS.md)). Output paths are registered in
 a request-owned marker before writing; cleanup removes only known paths after
 confirmed exit. `AuthoringTools.asset()` stays synchronous for scripts.
 

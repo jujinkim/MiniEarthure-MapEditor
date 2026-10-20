@@ -3,8 +3,14 @@ extends "./import_job.gd"
 const COMMAND := preload("./import_command.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
-const REQUEST_LIMIT := 64 * 1024 * 1024
+## request.json memory guard: the raised document plus ImportLayer limits.
+const REQUEST_LIMIT := 1536 * 1024 * 1024
+const WARN_REQUEST_BYTES := 64 * 1024 * 1024
 const RESULT_LIMIT := 4096
+## Instance copy so validators can exercise the guard without a 1.5 GiB request.
+var request_limit: int = REQUEST_LIMIT
+## True when the adopted command was too large for Undo (history released).
+var history_released := false
 var layer: RefCounted
 var adopting := false
 var editor_generation := -1
@@ -50,10 +56,11 @@ func start_validation(store: RefCounted, candidate: RefCounted, adopt: bool, sel
 			if path not in owned_payloads: owned_payloads.append(path)
 	var bytes := JSON.stringify({"request":token, "document":store.document, "layer":candidate.value,
 		"project":project_source, "source":source, "expected_payloads":candidate.native_payload_digest if adopt else ""}).to_utf8_buffer()
-	if bytes.size() > REQUEST_LIMIT: return "Native import request exceeds 64 MiB."
+	if bytes.size() > request_limit: return "Native import request exceeds 1.5 GiB."
 	return _start_request(bytes)
 
 func _start_request(bytes: PackedByteArray) -> String:
+	LIMITS.over(limit_warnings, "native_request_bytes", bytes.size(), WARN_REQUEST_BYTES, "Native validation request size in bytes")
 	var failure := _reserve_directory(identity)
 	if failure != "": return failure
 	failure = PAYLOADS.write_new(directory.path_join("request.json"), bytes)
@@ -104,7 +111,7 @@ func _event(line: PackedByteArray) -> void:
 		return
 	var index := stages.find(raw.get("stage"))
 	var terminal_event := index == stages.size() - 1
-	var limit := RESULT_LIMIT if terminal_event else (generation_limit if structural else 0) if raw.get("stage") == "generate" else PAYLOADS.MAX_PAYLOAD_BYTES if raw.get("stage") == "snapshot" else 2 * 1024 * 1024 * 1024 if raw.get("stage") in ["source", "recheck"] else 1
+	var limit := RESULT_LIMIT if terminal_event else (generation_limit if structural else 0) if raw.get("stage") == "generate" else PAYLOADS.MAX_PAYLOAD_BYTES if raw.get("stage") == "snapshot" else LAYER.MAX_STREAM_SOURCE_BYTES if raw.get("stage") in ["source", "recheck"] else 1
 	var unit := "cells" if raw.get("stage") == "generate" else "bytes" if raw.get("stage") in ["source", "snapshot", "recheck", "complete"] else "steps"
 	if index < 0 or index < phase or (not terminal_event and index > phase + 1) or raw.get("unit") != unit or not LAYER._count(raw.get("completed"), limit) or not LAYER._count(raw.get("total"), limit) or raw.completed > raw.total:
 		_fail("Invalid native validation progress budget/stage.")
@@ -143,16 +150,30 @@ func _finish_result() -> void:
 	var valid: bool = data is Dictionary and data.get("request") == identity and data.get("ok") is bool
 	if valid and data.ok: valid = generated_all and command_prepared and source_rechecked and LAYER._hex(data.get("payloads"), 64)
 	elif valid: valid = data.get("error") is Dictionary and data.error.get("code") == "E_IMPORT_NATIVE" and data.error.get("message") is String and data.error.message.length() <= 2000
+	# Child limit warnings travel with the hash-bound result; shape-checked here.
+	var child_notes: Array = []
+	if valid: valid = LIMITS.merge(child_notes, data.get("limit_warnings"))
 	if not valid: result = {"ok":false, "error":{"code":"E_IMPORT_NATIVE", "message":"Invalid or incomplete native validation result."}}
+	else:
+		LIMITS.merge(limit_warnings, child_notes)
+		if layer != null and "limit_warnings" in layer: LIMITS.merge(layer.limit_warnings, child_notes)
 
 	if result.get("ok", false) and data.ok: _decode_command(data)
 
 func _decode_command(output: Dictionary) -> void:
 	var bundle := COMMAND.read_bundle(directory, output)
 	_prepared = COMMAND.decode(bundle.get("prepared")) if not bundle.has("error") else bundle
+	LIMITS.merge(limit_warnings, _prepared.get("limit_warnings"))
 	if _prepared.has("error"):
 		result = {"ok":false, "error":{"code":"E_IMPORT_NATIVE", "message":_prepared.error}}
 		_prepared = {}
+		return
+	# The review shows job-level warnings (document size the game refuses,
+	# transfer and request sizes) and whether Adopt releases Undo, before Adopt.
+	if layer != null and "limit_warnings" in layer:
+		LIMITS.merge(layer.limit_warnings, limit_warnings.filter(func(entry): return entry is Dictionary and entry.get("code") != RUNNING_TIME))
+		if _prepared.command.get("history_released", false):
+			LIMITS.note(layer.limit_warnings, "undo_history", int(_prepared.command.bytes), COMMAND.HISTORY.RETAINED_LIMIT, "Applying this change releases earlier Undo history")
 
 func cancel() -> void:
 	if done and not _consumed:
@@ -169,7 +190,10 @@ func commit(store: RefCounted) -> String:
 	_consumed = true
 	var prepared := _prepared
 	_prepared = {}
-	return store._install_command(prepared)
+	history_released = prepared.get("command", {}).get("history_released", false) == true
+	var failure: String = store._install_command(prepared)
+	if failure == "" and store.has_method("note_limits"): store.note_limits(limit_warnings)
+	return failure
 
 func cleanup() -> void:
 	if not _owns_directory or (_child_started and not exited): return

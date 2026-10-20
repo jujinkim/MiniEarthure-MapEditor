@@ -17,6 +17,10 @@ BOX = [9.0005, 54.9999, 9.0016, 55.001]
 
 
 class StructureCrop(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_both_cut_grades_heights_clearance_source_ranges_and_determinism(self):
         value,_=osm.parse(structural_xml().encode(), "osm")
         original=copy.deepcopy(value)
@@ -77,7 +81,10 @@ class StructureCrop(unittest.TestCase):
         for a,b in zip(backwards,reversed(output["features"][:2])):
             self.assertEqual(a["geometry"]["coordinates"],list(reversed(b["geometry"]["coordinates"])))
             for actual,expected in zip(a["properties"]["elevations_m"],reversed(b["properties"]["elevations_m"])): self.assertAlmostEqual(actual,expected)
-        with patch("osm_area.MAX_POINTS",3),self.assertRaisesRegex(ValueError,"budget"): run([f])
+        import import_layer
+        self.assertEqual(import_layer.limit_entries(),[])
+        with patch("osm_area.MAX_POINTS",3): self.assertEqual(run([f])[0],run([f])[0])
+        self.assertIn("crop_points",{e["code"] for e in import_layer.limit_entries()})
 
     def test_existing_vertex_cut_and_retained_shared_junction(self):
         first=road([[-.005,.002],[0,.002],[.005,.002]],[0,5,5],[1,2,3])

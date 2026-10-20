@@ -9,14 +9,24 @@ import struct
 import sys
 import time
 import zlib
-from import_layer import number, strict_json
+from import_layer import Progress, number, strict_json, soft_limit, limit_entries, limit_text
 from projection import Coordinates
-# DEM is optional: a region beyond these limits keeps its flat terrain.
+# DEM is optional: a region beyond these ceilings keeps its flat terrain. Above
+# the former budgets (MAX_*) a DEM is still read and records limit warnings.
 KEEP_FLAT = "; the map keeps its flat terrain (DEM is optional for multi-district regions)"
 
-MAX_SOURCE = 64 * 1024 * 1024
+MAX_SOURCE = 64 * 1024 * 1024  # Warn above.
+SOURCE_CEILING = 256 * 1024 * 1024  # A full float32 3600² tile decodes to ~49 MiB.
 # Full-resolution COG blocks the bilinear support decodes, counted at review.
-MAX_DECODE = 64 * 1024 * 1024
+MAX_DECODE = 64 * 1024 * 1024  # Warn above.
+DECODE_CEILING = 512 * 1024 * 1024
+MAX_BLOCK = 2048 * 2048  # Warn above.
+BLOCK_CEILING = 4096 * 4096
+MAX_WINDOW = 1024 * 1024  # Warn above.
+WINDOW_CEILING = 4096 * 4096  # Covers a whole tile.
+MAX_REVIEW_AGE = 600  # Seconds; re-planning and hash checks still bind the review.
+MAX_REQUEST = 16384  # Warn above.
+REQUEST_CEILING = 1024 * 1024
 LICENSE_URL = "https://copernicus-dem-30m.s3.amazonaws.com/readme.html#license"
 NOTICE = "produced using Copernicus WorldDEM-{resolution} © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved"
 
@@ -109,7 +119,7 @@ def identity(path):
     with path.open("rb") as stream:
         while chunk := stream.read(65536):
             count += len(chunk)
-            if count > MAX_SOURCE: raise ValueError("DEM source exceeds 64 MiB" + KEEP_FLAT)
+            if count > SOURCE_CEILING: raise ValueError("DEM source exceeds 256 MiB" + KEEP_FLAT)
             digest.update(chunk)
     if not count: raise ValueError("Empty DEM")
     return {"bytes":count, "sha256":digest.hexdigest()}
@@ -156,9 +166,12 @@ def execute(request, scratch, progress):
     return execute_cells(request, scratch, progress)
 
 
-MAX_MOSAIC_SAMPLES = 1025 * 1025
-MAX_MOSAIC_SOURCES = 4
-MAX_MOSAIC_CELLS = 256
+MAX_MOSAIC_SAMPLES = 1025 * 1025  # Warn above.
+MOSAIC_SAMPLES_CEILING = 4096 * 4096  # int64 heights: ~134 MB.
+MAX_MOSAIC_SOURCES = 4  # Warn above.
+MOSAIC_SOURCES_CEILING = 16
+MAX_MOSAIC_CELLS = 256  # Warn above.
+MOSAIC_CELLS_CEILING = 1024  # MapKit's 16,384-cell document limit stays separate.
 
 
 def mosaic_grid(options):
@@ -166,12 +179,14 @@ def mosaic_grid(options):
     counts = base.pop("cell_count")
     if not isinstance(counts, list) or len(counts) != 2:
         raise ValueError("DEM cell_count must be [columns, rows]")
-    nx, ny = [integer(v, "cell count", 1, MAX_MOSAIC_CELLS) for v in counts]
-    if nx * ny > MAX_MOSAIC_CELLS: raise ValueError("DEM exceeds 256 candidate cells" + KEEP_FLAT)
+    nx, ny = [integer(v, "cell count", 1, MOSAIC_CELLS_CEILING) for v in counts]
+    if nx * ny > MOSAIC_CELLS_CEILING: raise ValueError("DEM exceeds 1024 candidate cells" + KEEP_FLAT)
+    if nx * ny > MAX_MOSAIC_CELLS: soft_limit("dem_cells", nx * ny, MAX_MOSAIC_CELLS, "DEM covers many candidate cells; sampling takes longer")
     size = integer(base["cell_size_cm"], "cell size", 200, 102400)
     spacing = integer(base["spacing_cm"], "spacing", 200, size)
     sample_count = nx * ny * (size // spacing + 1) ** 2
-    if sample_count > MAX_MOSAIC_SAMPLES: raise ValueError("DEM mosaic sample budget exceeded" + KEEP_FLAT)
+    if sample_count > MOSAIC_SAMPLES_CEILING: raise ValueError("DEM mosaic exceeds 4096² samples" + KEEP_FLAT)
+    if sample_count > MAX_MOSAIC_SAMPLES: soft_limit("dem_samples", sample_count, MAX_MOSAIC_SAMPLES, "DEM mosaic sample budget exceeded")
     cells, points, coordinates = [], [], None
     for y in range(ny):
         for x in range(nx):
@@ -186,7 +201,8 @@ def mosaic_grid(options):
     west, east = math.floor(min(p[0] for p in flat)), math.floor(max(p[0] for p in flat)+1/120)
     south, north = math.floor(min(p[1] for p in flat)-1/1200), math.floor(max(p[1] for p in flat))
     tiles = [[x,y] for y in range(south,north+1) for x in range(west,east+1)]
-    if len(tiles) > MAX_MOSAIC_SOURCES: raise ValueError("DEM supports at most four source tiles including interpolation support" + KEEP_FLAT)
+    if len(tiles) > MOSAIC_SOURCES_CEILING: raise ValueError("DEM supports at most 16 source tiles including interpolation support" + KEEP_FLAT)
+    if len(tiles) > MAX_MOSAIC_SOURCES: soft_limit("dem_tiles", len(tiles), MAX_MOSAIC_SOURCES, "DEM uses more than four source tiles")
     return coordinates, side, cells, points, tiles, zero
 
 
@@ -207,14 +223,17 @@ def _plan(options):
     for tile in tiles:
         path = local_source(selected / tile_filename(tile) if folder else selected)
         size = path.stat().st_size
-        if size > MAX_SOURCE: raise ValueError("DEM source exceeds 64 MiB" + KEEP_FLAT)
+        if size > SOURCE_CEILING: raise ValueError("DEM source exceeds 256 MiB" + KEEP_FLAT)
+        if size > MAX_SOURCE: soft_limit("dem_source_bytes", size, MAX_SOURCE, "DEM source tile exceeds 64 MiB")
         if not size: raise ValueError("Empty DEM")
         items.append(dict(tile=tile,resolution_m=30,fallback90=False))
         paths.append(path)
     # Only the blocks the reviewed samples touch count, never whole tile files.
     costs = decode_plan(paths, items, grid)
-    if sum(cost["decoded_bytes"] for cost in costs) > MAX_DECODE:
-        raise ValueError("DEM decode budget exceeded" + KEEP_FLAT)
+    decoded = sum(cost["decoded_bytes"] for cost in costs)
+    if decoded > DECODE_CEILING:
+        raise ValueError("DEM decode exceeds 512 MiB" + KEEP_FLAT)
+    if decoded > MAX_DECODE: soft_limit("dem_decode_bytes", decoded, MAX_DECODE, "DEM decode budget exceeded")
     sources = []
     for item, path, cost in zip(items, paths, costs):
         source = dict(identity(path), path=str(path), decode=cost)
@@ -241,7 +260,9 @@ def open_sources(stack, rasterio, paths, items):
             raise ValueError("Expected unscaled north-up WGS84 float32 single-band 2021 COG")
         if abs(t.a*ds.width-1)>1e-8 or abs(-t.e*ds.height-1)>1e-8 or abs(t.c+t.a/2-tile[0])>1e-8 or abs(t.f+t.e/2-(tile[1]+1))>1e-8:
             raise ValueError("COG sample-centre/tile alignment mismatch")
-        if any(h*w>2048*2048 for h,w in ds.block_shapes): raise ValueError("DEM decode block budget exceeded")
+        block = max(h*w for h,w in ds.block_shapes)
+        if block>BLOCK_CEILING: raise ValueError("DEM decode block exceeds 4096²")
+        if block>MAX_BLOCK: soft_limit("dem_block", block, MAX_BLOCK, "DEM decode block budget exceeded")
         datasets[tuple(tile)] = ds
     return datasets
 
@@ -299,7 +320,7 @@ def _sample(np, datasets, flat, windows, decode=True):
             if not inside.any(): continue
             cc,rr=cols[inside],rows[inside]
             left,top,right,bottom=int(cc.min()),int(rr.min()),int(cc.max()),int(rr.max())
-            if (right-left+1)*(bottom-top+1)>1024*1024: return None
+            if (right-left+1)*(bottom-top+1)>WINDOW_CEILING: return None
             box=(left,top,right,bottom) if box is None else (min(box[0],left),min(box[1],top),max(box[2],right),max(box[3],bottom))
         if box is None: return None
         window=Window(box[0],box[1],box[2]-box[0]+1,box[3]-box[1]+1)
@@ -315,7 +336,8 @@ def _sample(np, datasets, flat, windows, decode=True):
             cc,rr=cols[inside],rows[inside]
             left,top=int(cc.min()),int(rr.min())
             w,h=int(cc.max()-left+1),int(rr.max()-top+1)
-            if w*h>1024*1024: raise ValueError("DEM decode window budget exceeded")
+            if w*h>WINDOW_CEILING: raise ValueError("DEM decode window exceeds 4096²")
+            if w*h>MAX_WINDOW: soft_limit("dem_window", w*h, MAX_WINDOW, "DEM decode window budget exceeded")
             if not decode:
                 windows.append([*tile,left,top,w,h])
                 out[inside]=0
@@ -393,10 +415,16 @@ def captured_cost(paths, items, windows):
 
 def execute_cells(request,scratch,progress):
     review=request["plan"]
-    if not 0<=time.time()-review["checked_at"]<=600: raise ValueError("DEM review expired")
+    age=time.time()-review["checked_at"]
+    if age<0: raise ValueError("DEM review time is in the future; review again")
     current,grid=_plan(review["options"])
-    if {k:v for k,v in current.items() if k!="checked_at"}!={k:v for k,v in review.items() if k!="checked_at"}: raise ValueError("DEM options/source changed; review again")
+    # Re-planning and the source hash/decode checks bind the review, not its age.
+    if age>MAX_REVIEW_AGE: soft_limit("dem_review_age", int(age), MAX_REVIEW_AGE, "DEM review is older than 10 minutes; sources were checked again")
+    unbound=("checked_at","limit_warnings")
+    if {k:v for k,v in current.items() if k not in unbound}!={k:v for k,v in review.items() if k not in unbound}: raise ValueError("DEM options/source changed; review again")
     current["checked_at"]=review["checked_at"]
+    current.pop("limit_warnings",None)
+    if "limit_warnings" in review: current["limit_warnings"]=review["limit_warnings"]
     review=current
     raster_dependencies()
     destination=Path(request["destination"])
@@ -439,15 +467,17 @@ def main():
     parser.add_argument("--watch-parent",action="store_true")
     args = parser.parse_args()
     if args.watch_parent: watch_parent_lifetime()
-    if args.request.stat().st_size > 16384: raise ValueError("DEM request too large")
+    request_size = args.request.stat().st_size
+    if request_size > REQUEST_CEILING: raise ValueError("DEM request exceeds 1 MiB")
+    if request_size > MAX_REQUEST: soft_limit("dem_request_bytes", request_size, MAX_REQUEST, "DEM request is large")
     request = strict_json(args.request.read_bytes())
     if request.get("mode") not in ("dem-plan","dem"): raise ValueError("Invalid DEM mode")
-    sequence = 0
+    progress = Progress(args.layer_id)
     def event(stage, completed, total, **extra):
-        nonlocal sequence
-        sequence += 1
-        print(json.dumps(dict(request=args.layer_id,seq=sequence,stage=stage,completed=completed,total=total,unit="samples" if stage == "sample" else "bytes",**extra)),flush=True)
+        progress(stage, completed, total, "samples" if stage == "sample" else "bytes", **extra)
     result = execute(request,args.output.parent,event)
+    if limit_entries():
+        result["limit_warnings"] = [limit_text(entry) for entry in limit_entries()]
     encoded = json.dumps(result,sort_keys=True,allow_nan=False).encode()
     event("write",0,len(encoded))
     with args.output.open("xb") as stream: stream.write(encoded)

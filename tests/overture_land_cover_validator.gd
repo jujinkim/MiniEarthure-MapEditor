@@ -43,7 +43,7 @@ func run() -> void:
 	check(ui.import_summary.text.contains("2026-08-19.0") and preload("res://tests/import_review_helpers.gd").source_readable(ui, "overture_land_cover", "feature_sources") and ui.import_summary.text.contains("WorldCover"),"release/source/estimate review")
 	check(raw.patches.size()==3 and raw.patches[0].after.exclusions.size()==1,"forest parts and hole preserved")
 	check(raw.coordinates.overture_land_cover.feature_sources[1].disposition=="other-subtype" and raw.coordinates.overture_land_cover.feature_sources[2].disposition=="lower-detail","excluded classes and duplicate detail explicitly reviewed")
-	for field in ["license","adapter","profile","bbox","release","sources","missing","kind","spacing","density","unmapped","subtype","zoom","disposition","excluded","point_budget","estimates","holes","count"]:
+	for field in ["license","adapter","profile","bbox","release","sources","missing","kind","spacing","density","unmapped","subtype","zoom","disposition","excluded","estimates","holes","count"]:
 		var bad:=raw.duplicate(true)
 		var meta:Dictionary=bad.coordinates.overture_land_cover
 		if field=="license":bad.source.license="MIT"
@@ -61,11 +61,15 @@ func run() -> void:
 		elif field=="zoom":meta.feature_sources[0].min_zoom=7
 		elif field=="disposition":meta.feature_sources[1].disposition="forest"
 		elif field=="excluded":meta.feature_sources[1].zone_ids=[bad.patches[0].id]
-		elif field=="point_budget":meta.source_point_count=8193
 		elif field=="holes":bad.patches[0].after.exclusions=[]
 		elif field=="estimates":bad.estimates.vegetation_spacing_density=0
 		else:meta.source_feature_count=1
 		check(LAYER.new().load_value(bad,raw.layer_id,ui.import_coordinates_request)!="","forged "+field+" rejected")
+	# Former size budgets are limit warnings; the mapping checks above still refuse.
+	var over:=raw.duplicate(true)
+	over.coordinates.overture_land_cover.source_point_count=8193
+	var over_layer:=LAYER.new()
+	check(over_layer.load_value(over,raw.layer_id,ui.import_coordinates_request)=="" and over_layer.limit_warnings.any(func(w): return w.code=="land_cover_points") and over_layer.summary().contains("Limit warnings:"),"source points above 8192 are a reviewed limit warning")
 	var legacy:=STORE.new()
 	legacy.document=before.duplicate(true)
 	legacy.document.recipe_version=1
@@ -157,9 +161,12 @@ func run() -> void:
 	# Surviving local helper lifetime: deadline, stale response, retry and owner close.
 	ui._start_import(source,LAYER.OVERTURE_LAND_COVER_LICENSE)
 	var owned: RefCounted = ui.import_job
+	# A passed deadline only warns; Cancel stops the local helper.
 	owned.poll(owned.deadline_ms)
+	check(not owned.cancelled and owned.limit_warnings.any(func(w): return w.code == "running_time"),"deadline warns without stopping the local helper")
+	owned.cancel()
 	await wait_job(ui)
-	check(owned.result.error.message.contains("timed out"),"deadline terminates local helper")
+	check(owned.result.error.code == "E_IMPORT_CANCELLED","Cancel stops a long local helper")
 	ui._start_import(source,LAYER.OVERTURE_LAND_COVER_LICENSE)
 	ui.generation += 1
 	await wait_job(ui)

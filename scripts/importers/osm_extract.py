@@ -9,7 +9,7 @@ PEDESTRIAN = ("path", "footway", "cycleway", "pedestrian", "steps")
 HIGHWAYS = ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service", "road",
             "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link", "track", "path", "footway", "cycleway", "pedestrian")
 
-from import_layer import MAX_INPUT, MAX_POINTS
+from import_layer import MAX_INPUT, MAX_POINTS, INPUT_CEILING, soft_limit
 from polygon_geometry import Budget, SpatialBudget, group_rings
 from osm_review import Review, source_error
 
@@ -17,6 +17,10 @@ LICENSE = "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.or
 MAX_ENTITIES = 250_000
 MAX_REFS = 200_000
 MAX_FEATURES = 20_000
+CITY_STRUCTURE_REFS = 4_000_000  # City-mode warning threshold for structural incidence.
+MAX_TAGS = 128  # Warn above.
+TAG_CEILING = 1024  # Beyond this an entity carries a source-error marker.
+TAG_TEXT = 512  # Tag keys/values longer than this mark the entity (output text bound).
 
 
 def dependency():
@@ -420,12 +424,14 @@ def closed_road(properties):
     return properties.get("osm_closed_ground") or properties.get("osm_closed_structure")
 
 
-def structure_connections(roads, source_uses):
+def structure_connections(roads, source_uses, ref_limit=None, join_limit=None):
     """Prove explicit source incidence before crop, then let native test geometry.
 
     Interior source vertices contribute two directed arms. A star links each
     junction in linear space; dense input never allocates a peer cross-product.
     """
+    ref_limit = MAX_REFS if ref_limit is None else ref_limit
+    join_limit = MAX_FEATURES if join_limit is None else join_limit
     ground = {ref for f in roads if f["properties"]["road_kind"] == "ground" and "elevations_m" in f["properties"]
               for ref in f["properties"]["osm_node_refs"]}
     structures = {f["properties"]["osm_way_id"]: f["properties"] for f in roads
@@ -453,8 +459,10 @@ def structure_connections(roads, source_uses):
             raise ValueError("OSM structure endpoints require explicit-height ground connections or explicit structural peers; missing approaches are unsupported")
         if len(uses) == 1: continue  # Ordinary authored bend, not a graph junction.
         total_arms += len(arms)
-        if total_arms > MAX_REFS or len(joins) >= MAX_FEATURES:
-            raise ValueError("OSM structural source incidence budget exceeded")
+        if total_arms > ref_limit:
+            soft_limit("osm_structure_arms", total_arms, ref_limit, "OSM structural source incidence budget exceeded")
+        if len(joins) >= join_limit:
+            soft_limit("osm_structure_joins", len(joins) + 1, join_limit, "OSM structural junction budget exceeded")
         if len({a["clearance_cm"] for a in arms if a["kind"] == "tunnel"}) > 1:
             raise ValueError("OSM joined tunnel clearances must agree after centimetre quantization")
         ways = sorted(way for way, _ in uses)
@@ -483,7 +491,7 @@ def structure_connections(roads, source_uses):
     return joins
 
 
-def split_vertical_roads(features, source_uses=None, connections=None, feature_limit=None, review=None):
+def split_vertical_roads(features, source_uses=None, connections=None, feature_limit=None, review=None, ref_limit=None):
     """Join only shared source node IDs; split explicit roads at graph junctions."""
     feature_limit = MAX_FEATURES if feature_limit is None else feature_limit
     roads = [f for f in features if "osm_node_refs" in f["properties"]]
@@ -499,7 +507,7 @@ def split_vertical_roads(features, source_uses=None, connections=None, feature_l
     features = [f for f in features if f["properties"].get("osm_source_id") not in rejected]
     roads = [f for f in features if "osm_node_refs" in f["properties"]]
     uses = Counter(ref for f in roads for ref in set(f["properties"]["osm_node_refs"]))
-    joins = structure_connections(roads, uses if source_uses is None else source_uses)
+    joins = structure_connections(roads, uses if source_uses is None else source_uses, ref_limit, max(feature_limit, MAX_FEATURES))
     if connections is not None: connections.extend(joins)
     arms = Counter()
     for f in roads:
@@ -518,7 +526,7 @@ def split_vertical_roads(features, source_uses=None, connections=None, feature_l
         cuts = [0] + [i for i in range(1, len(refs)-1) if closed_road(p) or uses[refs[i]] > 1] + [len(refs)-1]
         for a,b in zip(cuts,cuts[1:]):
             if len(output) >= feature_limit:
-                raise ValueError("OSM split feature budget exceeded")
+                soft_limit("osm_split_features", len(output) + 1, feature_limit, "OSM split feature budget exceeded")
             properties = dict(p, osm_node_refs=refs[a:b+1])
             if "elevations_m" in p: properties["elevations_m"] = p["elevations_m"][a:b+1]
             if "osm_loop_range" in p: properties["osm_loop_range"] = [a,b]
@@ -612,8 +620,10 @@ def parse(raw, input_format, supplement=None, city=False):
     Bounds include ignored entities/references, so filtering cannot evade admission.
     No implicit libosmium location/area cache or unbounded sparse ID array is used.
     """
-    if not raw or len(raw) > MAX_INPUT or input_format not in ("pbf", "osm"):
-        raise ValueError("expected a nonempty OSM PBF/XML snapshot up to 32 MiB")
+    if not raw or len(raw) > INPUT_CEILING or input_format not in ("pbf", "osm"):
+        raise ValueError("expected a nonempty OSM PBF/XML snapshot up to 256 MiB")
+    if len(raw) > MAX_INPUT:
+        soft_limit("input_bytes", len(raw), MAX_INPUT, "OSM snapshot exceeds 32 MiB; PBF streaming with a bbox uses less memory")
     if input_format == "osm":
         xml = raw.decode("utf-8-sig")
         if "\x00" in xml or "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper() or "<osmChange" in xml:
@@ -631,33 +641,47 @@ def parse(raw, input_format, supplement=None, city=False):
         for entity in processor:
             kind = entity.type_str()
             identity = (kind, entity.id)
-            if len(seen) >= MAX_ENTITIES or identity in seen or entity.id <= 0 or not entity.visible:
-                raise ValueError("OSM entity budget, duplicate/history ID or deleted object")
+            if identity in seen or entity.id <= 0 or not entity.visible:
+                raise ValueError("OSM duplicate/history ID or deleted object")
+            if len(seen) >= MAX_ENTITIES:
+                soft_limit("osm_entities", len(seen) + 1, MAX_ENTITIES, "OSM entity budget exceeded")
             seen.add(identity)
-            if len(entity.tags) > 128:
-                raise ValueError("OSM tag budget exceeded")
-            tags = {}
+            tag_count = len(entity.tags)
+            if tag_count > MAX_TAGS:
+                soft_limit("osm_tags", tag_count, MAX_TAGS, "OSM object has many source tags")
+            tags, failure = {}, "more than 1024 source tags are unsupported" if tag_count > TAG_CEILING else ""
             for tag in entity.tags:
-                if tag.k in tags or len(tag.k) > 512 or len(tag.v) > 512:
-                    raise ValueError("OSM duplicate/oversized tag")
-                tags[tag.k] = tag.v
+                if tag.k in tags:
+                    raise ValueError("OSM duplicate tag")
+                if len(tag.k) > TAG_TEXT or len(tag.v) > TAG_TEXT:
+                    failure = "oversized source tag"
+                elif len(tags) < TAG_CEILING:
+                    tags[tag.k] = tag.v
+            if failure:
+                # As in PBF streaming: geometry using this object rejects (or is
+                # reviewed); an unselected label no longer refuses the import.
+                keys = {"type", "highway", "building", "building:part", "landuse", "natural", "leisure", "boundary", "bridge", "tunnel"}
+                tags = {k: v[:TAG_TEXT] for k, v in tags.items() if k in keys}
+                tags["_source_error"] = f"{kind}/{entity.id}: {failure}"
             if kind == "n":
                 counts["nodes"] += 1
                 counts["tagged_nodes"] += bool(tags)
-                if len(nodes) >= MAX_POINTS or not entity.location.valid():
-                    raise ValueError("OSM node budget or invalid location")
+                if not entity.location.valid():
+                    raise ValueError("OSM invalid location")
+                if len(nodes) >= MAX_POINTS:
+                    soft_limit("osm_nodes", len(nodes) + 1, MAX_POINTS, "OSM node budget exceeded")
                 nodes[entity.id] = [entity.lon, entity.lat]
                 if tags: node_tags[entity.id] = tags
             elif kind == "w":
                 counts["ways"] += 1
                 refs += len(entity.nodes)
                 if refs > MAX_REFS:
-                    raise ValueError("OSM reference budget exceeded")
+                    soft_limit("osm_references", refs, MAX_REFS, "OSM reference budget exceeded")
                 all_ways[entity.id] = ([n.ref for n in entity.nodes], tags)
                 selected = category(tags)
                 if selected:
                     if len(ways) + len(relations) >= MAX_FEATURES:
-                        raise ValueError("OSM selected feature budget exceeded")
+                        soft_limit("osm_features", len(ways) + len(relations) + 1, MAX_FEATURES, "OSM selected feature budget exceeded")
                     ways.append((entity.id, selected, [n.ref for n in entity.nodes], tags))
                 else:
                     counts["ignored_ways"] += 1
@@ -665,13 +689,13 @@ def parse(raw, input_format, supplement=None, city=False):
                 counts["relations"] += 1
                 refs += len(entity.members)
                 if refs > MAX_REFS:
-                    raise ValueError("OSM reference budget exceeded")
+                    soft_limit("osm_references", refs, MAX_REFS, "OSM reference budget exceeded")
                 selected = category(tags)
                 if selected:
                     if (tags.get("type") != "multipolygon" and not (selected=="region" and tags.get("type")=="boundary")) or selected == "road":
                         raise ValueError("OSM selected relation requires an area multipolygon or protected boundary")
                     if len(ways) + len(relations) >= MAX_FEATURES:
-                        raise ValueError("OSM selected feature budget exceeded")
+                        soft_limit("osm_features", len(ways) + len(relations) + 1, MAX_FEATURES, "OSM selected feature budget exceeded")
                     relations.append((entity.id, selected, [(m.type, m.ref, m.role) for m in entity.members], tags))
                 else:
                     if tags.get("type") in ("multipolygon", "boundary"):
@@ -845,7 +869,8 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             kind=p["road_kind"], clearance_cm=round(p["clearance_m"]*100) if p["road_kind"] == "tunnel" else None))
     connections = []
     features = split_vertical_roads(features,
-        Counter(ref for _, kind, refs, _ in ways if kind == "road" for ref in set(refs)), connections, feature_limit, review)
+        Counter(ref for _, kind, refs, _ in ways if kind == "road" for ref in set(refs)), connections, feature_limit, review,
+        CITY_STRUCTURE_REFS if city else MAX_REFS)
     retained_ways = {f["properties"].get("osm_way_id") for f in features}
     loop_sources = [s for s in loop_sources if int(s["way"]) in retained_ways]
     counts["explicit_height_roads"] = sum("elevations_m" in f["properties"] for f in features)
@@ -855,7 +880,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         if feature["properties"]["osm_source_id"] in layered: feature["properties"]["_city_layer_building"] = True
     features.extend(assembled)
     if len(features) > feature_limit:
-        raise ValueError("OSM selected feature budget exceeded")
+        soft_limit("osm_features", len(features), feature_limit, "OSM selected feature budget exceeded")
     if not features:
         raise ValueError("OSM extract contains no supported road/building/forest/orchard features")
     counts["structure_continuations"] = len(connections)
@@ -893,7 +918,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             if "_city_estimated_m" in p: props["_city_estimated_m"] = p["_city_estimated_m"][a:b+1]
             connected_features.append(dict(type="Feature", properties=props,
                 geometry=dict(type="LineString",coordinates=feature["geometry"]["coordinates"][a:b+1])))
-            if len(connected_features)>feature_limit: raise ValueError("OSM split feature budget exceeded")
+            if len(connected_features)>feature_limit: soft_limit("osm_split_features", len(connected_features), feature_limit, "OSM split feature budget exceeded")
     collection["features"] = connected_features
     if connections: collection["osm_connections"] = connections
     if loop_sources:

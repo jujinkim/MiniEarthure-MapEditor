@@ -9,7 +9,7 @@ func start_local(request: Dictionary, python: String, token: String) -> String:
 	if request.get("mode") not in ["dem-plan", "dem"]: return "Unsupported local DEM operation."
 	import_kind = request.mode
 	stages = ["acquire", "sample", "write", "complete"]
-	# Acquire progress counts whole tile bytes (at most four 64 MiB tiles).
+	# Acquire progress counts whole tile bytes (at most sixteen 256 MiB tiles).
 	progress_limit = DEM.MAX_SOURCES * DEM.MAX_SOURCE_BYTES
 	var reservation := _reserve_directory(token)
 	if reservation != "": return reservation
@@ -28,6 +28,6 @@ func start_local(request: Dictionary, python: String, token: String) -> String:
 	output_path = directory.path_join("layer.json")
 	if not _launch(python, PackedStringArray(["-B", "-u", directory.path_join("copernicus_dem.py"), directory.path_join("request.json"), output_path, "--layer-id", token, "--watch-parent"])):
 		return "Python could not start; choose a Python 3 executable."
-	deadline_ms = Time.get_ticks_msec() + 120000
+	deadline_ms = Time.get_ticks_msec() + timeout_seconds * 1000
 	progress = {"stage":"starting", "completed":0, "total":0, "unit":"bytes"}
 	return ""

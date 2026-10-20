@@ -6,9 +6,11 @@ path retains a Python/libosmium dictionary containing the country's locations.
 """
 from array import array
 
+from import_layer import BudgetExceeded
+
 FILES = ("node-ids.i64", "node-xy.i32", "road-incidence.u8", "road-pairs.bin")
 BATCH = 4096
-MAX_LOOKUP = 20000
+MAX_LOOKUP = 20000  # One vector lookup; longer requests are chunked.
 PRECISION = 10000000.0
 
 
@@ -72,7 +74,7 @@ class DiskNodes:
     def reserve(self, amount):
         pages = (self.quota - self.written - amount) // 4096
         if pages < self.db.execute("PRAGMA page_count").fetchone()[0]:
-            raise ValueError("OSM combined node/SQLite index budget exceeded")
+            raise BudgetExceeded("OSM combined node/SQLite index exceeds its disk quota (3x source, within free disk)")
         # Reserve the binary bytes before writing them. SQLite cannot grow into
         # their reservation during later way/relation indexing.
         self.db.execute(f"PRAGMA max_page_count={pages}")
@@ -120,7 +122,9 @@ class DiskNodes:
     def indices(self, refs):
         """Positions in the sorted file arrays (ordered snapshots only)."""
         if not self.ready or not self.ordered: raise ValueError("PBF node index is not sealed/ordered")
-        if not 0 < len(refs) <= MAX_LOOKUP: raise ValueError("OSM node lookup reference budget exceeded")
+        if not len(refs): raise ValueError("OSM node lookup requires references")
+        if len(refs) > MAX_LOOKUP:
+            return self.np.concatenate([self.indices(refs[i:i+MAX_LOOKUP]) for i in range(0, len(refs), MAX_LOOKUP)])
         if self.count == 0: self._missing()
         wanted = self.np.asarray(refs, dtype=self.np.int64)
         indices = self.ids.searchsorted(wanted)
@@ -129,7 +133,9 @@ class DiskNodes:
 
     def _points(self, refs):
         if not self.ready: raise ValueError("PBF node index is not sealed")
-        if not 0 < len(refs) <= MAX_LOOKUP: raise ValueError("OSM node lookup reference budget exceeded")
+        if not len(refs): raise ValueError("OSM node lookup requires references")
+        if len(refs) > MAX_LOOKUP:
+            return self.np.concatenate([self._points(refs[i:i+MAX_LOOKUP]) for i in range(0, len(refs), MAX_LOOKUP)])
         if not self.ordered:
             rows = [self.db.execute("SELECT x,y FROM nodes WHERE id=?", (ref,)).fetchone() for ref in refs]
             if any(row is None for row in rows): self._missing()
@@ -147,14 +153,11 @@ class DiskNodes:
         return [int(low[0])/PRECISION,int(low[1])/PRECISION,int(high[0])/PRECISION,int(high[1])/PRECISION]
 
     def bounds_many(self, groups):
-        """One bounded search for several ways, without mixing their envelopes."""
-        if len(groups) > 256: raise ValueError("OSM node lookup group budget exceeded")
+        """One chunked search for several ways, without mixing their envelopes."""
         refs, starts, owners = [], [], []
         result = [None] * len(groups)
         for owner, group in enumerate(groups):
             if not group: continue
-            if len(refs) + len(group) > MAX_LOOKUP:
-                raise ValueError("OSM node lookup reference budget exceeded")
             starts.append(len(refs)); owners.append(owner); refs.extend(group)
         if not refs: return result
         points = self._points(refs)
@@ -199,7 +202,7 @@ class SharedRoadNodes:
         self.written = 0
 
     def add(self, ways):
-        """`ways`: (way ID, refs) of one bounded batch (at most MAX_LOOKUP refs)."""
+        """`ways`: (way ID, refs) of one batch; lookups are chunked."""
         np = self.np
         ways = [(identity, refs) for identity, refs in ways if refs]
         if not ways: return

@@ -97,7 +97,12 @@ func run() -> void:
 		if paused.done: continue
 		match mode:
 			"cancel": paused.cancel()
-			"deadline": paused.deadline_ms = 0
+			"deadline":
+				# A passed deadline only warns; Cancel then stops the paused child.
+				paused.deadline_ms = 0
+				paused.poll()
+				check(not paused.cancelled and paused.limit_warnings.any(func(w): return w.code == "running_time"), "PNG deadline warns without stopping")
+				paused.cancel()
 			"eof": paused.stdio.close(); paused.stdio = null; paused.output_eof = true
 			"source":
 				var changed := original.duplicate(); changed[changed.size()-1] ^= 1
@@ -150,15 +155,16 @@ func run() -> void:
 	check(FileAccess.file_exists(unknown.directory.path_join("user-file")) and FileAccess.file_exists(unknown.directory.path_join(JOB.OUTPUT_MARKER)), "unknown and wrong-owner marker retained")
 	for file in ["user-file", JOB.OUTPUT_MARKER, unknown.PRESENCE.MARKER]: DirAccess.remove_absolute(unknown.directory.path_join(file))
 	DirAccess.remove_absolute(unknown.directory)
-	var large := options.duplicate(true); large.extension = "x".repeat(JOB.REQUEST_LIMIT)
-	var over := JOB.new()
-	check(over.start_png(ui.store, large, false, "test", token()).contains("24 MiB") and over.directory == "", "request cap before launch")
+	# The 1.5 GiB request guard is exercised through the instance copy of the limit.
+	var over := JOB.new(); over.request_limit = 1024 * 1024
+	var large := options.duplicate(true); large.extension = "x".repeat(over.request_limit)
+	check(over.start_png(ui.store, large, false, "test", token()).contains("1.5 GiB") and over.directory == "", "request guard before launch")
 	check(JOB.new().start_png(ui.store, options, true, "test", token()).contains("reviewed"), "no unreviewed adoption")
 	for mode in ["oversized", "png", "spacing", "cell", "attribution"]:
 		var saved := options.duplicate(true)
 		match mode:
 			"oversized":
-				var bytes := PackedByteArray(); bytes.resize(PNG.MAX_BYTES + 1); write(options.path, bytes)
+				var sparse := FileAccess.open(options.path, FileAccess.WRITE); sparse.seek(PNG.MAX_BYTES); sparse.store_8(0); sparse.close()
 			"png": write(options.path, PackedByteArray([1,2,3]))
 			"spacing": options.spacing = 3000
 			"cell": options.cell = null
@@ -258,6 +264,30 @@ func run() -> void:
 	var reopened := STORE.new()
 	check(reopened.open_project(project) == "" and reopened.document.attributions == ui.store.document.attributions, "reopen exact notices")
 	check(FileAccess.get_sha256(package) == package_hash and FILES.read(options.path).bytes == updated, "original package/input preserved")
+	# Raster transfer over the 16 MiB Undo budget. MapKit's native heightmap
+	# decoder bounds one PNG at 8 MiB, so a real single-tile adoption cannot
+	# reach the budget; the owned-child transfer is exercised directly instead.
+	var COMMAND := preload("res://scripts/import_command.gd")
+	var HISTORY := preload("res://scripts/history_codec.gd")
+	var blob := PackedByteArray(); blob.resize(ui.store.HISTORY_BYTES + 1024); blob.fill(7)
+	var blob_path := "editor/" + FILES.digest(blob) + ".png"
+	var command := {"label":"Adopt heightmap layer", "patches":[{"field":"heightmaps", "id":"cell", "before":null, "after":{"cell":{"x":0, "y":0}, "path":blob_path}}]}
+	var command_json := JSON.stringify(command)
+	var released_command := HISTORY.retain(command, command_json, {blob_path:blob})
+	check(released_command.get("history_released", false) and not released_command.has("binary_mementos"), "raster command over the Undo budget is released")
+	var transfer := JOB.new()
+	transfer.request = {"layer_id":token()}
+	transfer.directory = ProjectSettings.globalize_path("user://raster-released-transfer")
+	DirAccess.make_dir_recursive_absolute(transfer.directory)
+	var transfer_output := {}
+	var prepared := {"canonical":JSON.stringify(ui.store.document), "command_json":command_json, "signature":"a".repeat(64), "command":released_command, "retained":{blob_path:blob}}
+	check(COMMAND.write_bundle(transfer.directory, {"value":{"layer_id":transfer.request.layer_id}, "prepared":COMMAND.encode(prepared), "blob_paths":[blob_path]}, transfer_output) == "", "released raster transfer written")
+	transfer._decode_command(transfer_output)
+	check(not transfer.result.has("error") and not transfer.bundle.is_empty() and transfer._prepared.command.get("history_released", false), "released raster transfer decodes: " + str(transfer.result).left(300))
+	check(not transfer.bundle.is_empty() and transfer.bundle.retained.get(blob_path) == blob and transfer.bundle.patches.size() == 1, "released raster transfer keeps payload and patches")
+	DirAccess.remove_absolute(transfer.directory.path_join("bundle.bin"))
+	DirAccess.remove_absolute(transfer.directory)
+	blob.clear()
 	# Owner close shuts down actual native work, not a mock task.
 	ui.author_panel._stage_heightmap(options.path, Vector2i.ZERO, 3200, 0, 1, 500, options.attribution)
 	var closing: RefCounted = ui.import_job

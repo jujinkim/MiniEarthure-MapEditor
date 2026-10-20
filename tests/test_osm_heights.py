@@ -9,7 +9,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts/importers"))
-from osm_heights import Supplement, MAX_BYTES, MAX_NODES, read_source
+from osm_heights import Supplement, MAX_BYTES, MAX_NODES, BYTES_CEILING, read_source
 from osm_heights_fixture import missing, supplement
 from osm_extract import parse, LICENSE
 from osm_stream import extract
@@ -20,6 +20,10 @@ from osm_fixture import pbf, connected_structures_xml, structural_junctions_xml
 
 
 class HeightSupplementTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_missing_profiles_equal_explicit_source_without_mutation(self):
         for source in [xml(True),connected_structures_xml(),structural_junctions_xml(True)]:
             with self.subTest(source=source[:50]):
@@ -147,8 +151,12 @@ class HeightSupplementTests(unittest.TestCase):
                 before=output.read_bytes();self.assertNotEqual(subprocess.run(cmd,capture_output=True).returncode,0)
                 self.assertEqual(output.read_bytes(),before);self.assertEqual(source.read_bytes(),raw);self.assertEqual(height.read_bytes(),original)
             self.assertEqual(outputs[0],outputs[1]);self.assertEqual(outputs[0],outputs[2])
+            # Above the former 256 KiB a supplement is read (and warns); the
+            # raised 16 MiB ceiling still refuses before parsing.
             height.write_bytes(b" "*(MAX_BYTES+1))
-            with self.assertRaisesRegex(ValueError,"256 KiB"):read_source(height)
+            self.assertEqual(len(read_source(height)),MAX_BYTES+1)
+            height.write_bytes(b" "*(BYTES_CEILING+1))
+            with self.assertRaisesRegex(ValueError,"16 MiB"):read_source(height)
             height.write_bytes(b"\xff")
             with self.assertRaises(UnicodeError):read_source(height)
 

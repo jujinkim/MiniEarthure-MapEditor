@@ -15,7 +15,9 @@ NON_DISPLAY.update({
     "Copernicus 2021 mosaic#": "persisted source path prefix",
     "EPSG:3855 / EGM2008 metres": "persisted vertical datum contract",
     "EPSG:5773 / EGM96 metres": "persisted vertical datum contract",
+    "^(?:Limit warning: )?(.+) \\((\\d{1,15}) > (\\d{1,15})\\)(; the game refuses maps beyond this)?$": "limit warning text parser",
 })
+NON_DISPLAY.update({key: "MapKit per-cell budget error matcher" for key in ("chunk triangle budget", "occupancy limit", "occupied solid budget", "road local ", "road sampling limit", "road subdivision work", "road paint exceeds", "sidewalk fragments", "courtyard topology", "water shoreline work")})
 def unique(pairs):
     result = {}
     for key, value in pairs:

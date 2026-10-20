@@ -98,7 +98,7 @@ func run() -> void:
 	file.seek(FILES.MAX_BYTES)
 	file.store_8(0)
 	file.close()
-	check(store.recover(bad_path).contains("64 MiB") and state(store) == before, "oversized snapshot rejected before read")
+	check(store.recover(bad_path).contains("1 GiB") and state(store) == before, "oversized snapshot rejected before read")
 	# A snapshot missing the current v1 envelope is rejected without mutation.
 	write(bad_path, {"project_path": base, "document": valid.document})
 	check(store.recover(bad_path) != "" and state(store) == before, "missing recovery version is rejected without changing memory or primary")

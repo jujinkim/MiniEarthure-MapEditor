@@ -1,13 +1,24 @@
 extends RefCounted
 ## Atomic editor-owned file storage. Referenced source/asset files are immutable.
-const MAX_BYTES := 64 * 1024 * 1024
+const LIMITS := preload("./limit_warnings.gd")
+# Memory guard for one parsed snapshot; above WARN_BYTES the editor still works but warns.
+const MAX_BYTES := 1024 * 1024 * 1024
+const WARN_BYTES := 64 * 1024 * 1024
+# MapKit v1 package document limit; the game refuses larger documents.
+const RUNTIME_DOCUMENT_BYTES := 32 * 1024 * 1024
+
+static func size_warnings(list: Array, bytes: int) -> void:
+	if bytes > RUNTIME_DOCUMENT_BYTES: LIMITS.note(list, "document_bytes", bytes, RUNTIME_DOCUMENT_BYTES, "Document is larger than the v1 package document limit", true)
+	if bytes > WARN_BYTES: LIMITS.note(list, "document_memory", bytes, WARN_BYTES, "Document snapshot is very large and needs a lot of memory")
 
 func read_json(path: String) -> Dictionary:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return {"error": "Cannot read document: " + error_string(FileAccess.get_open_error())}
 	if file.get_length() > MAX_BYTES:
-		return {"error": "Document snapshot exceeds 64 MiB."}
+		return {"error": "Document snapshot exceeds 1 GiB."}
+	var warnings: Array = []
+	size_warnings(warnings, file.get_length())
 	var text := file.get_as_text()
 	var error := file.get_error()
 	file.close()
@@ -16,7 +27,7 @@ func read_json(path: String) -> Dictionary:
 	var parser := JSON.new()
 	if parser.parse(text) != OK or parser.data is not Dictionary:
 		return {"error": "Invalid document snapshot JSON."}
-	return {"value": parser.data}
+	return {"value": parser.data, "limit_warnings": warnings} if not warnings.is_empty() else {"value": parser.data}
 
 func digest(path: String) -> String:
 	return FileAccess.get_sha256(path) if FileAccess.file_exists(path) else ""
@@ -24,7 +35,7 @@ func digest(path: String) -> String:
 func write(path: String, text: String, expected_digest: String) -> String:
 	var absolute := ProjectSettings.globalize_path(path)
 	if text.to_utf8_buffer().size() > MAX_BYTES:
-		return "Document snapshot exceeds 64 MiB."
+		return "Document snapshot exceeds 1 GiB."
 	if (FileAccess.file_exists(absolute) and expected_digest == "") or digest(absolute) != expected_digest:
 		return "The file changed on disk. Open it again or Save As to a new directory."
 	var error := DirAccess.make_dir_recursive_absolute(absolute.get_base_dir())

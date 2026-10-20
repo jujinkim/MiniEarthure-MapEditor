@@ -6,6 +6,9 @@ from osm_fixture import pbf
 from osm_extract import parse,finish,LICENSE
 from geojson import convert
 class CourtyardTests(unittest.TestCase):
+ def setUp(self):
+  import import_layer
+  import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
  def test_xml_pbf_courtyard_parity_counts_and_originals(self):
   raw=xml().encode()
   with tempfile.TemporaryDirectory() as tmp:

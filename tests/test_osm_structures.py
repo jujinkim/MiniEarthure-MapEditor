@@ -15,6 +15,10 @@ def candidate(raw, fmt="osm"):
 
 
 class Structures(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_geometry_connections_clearance_and_parity(self):
         raw = structural_xml().encode()
         result = candidate(raw)
@@ -98,5 +102,8 @@ class Structures(unittest.TestCase):
         value,_=osm.parse(structural_xml().encode(),"osm")
         with self.assertRaisesRegex(ValueError,"no silent flattening"):
             convert(value,"source",osm.LICENSE,coordinates=OPTIONS)
-        with patch.object(osm,"MAX_FEATURES",5),self.assertRaisesRegex(ValueError,"budget"):
-            osm.split_vertical_roads(value["features"])
+        import import_layer
+        expected=osm.split_vertical_roads(value["features"])
+        with patch.object(osm,"MAX_FEATURES",5):
+            self.assertEqual(osm.split_vertical_roads(value["features"]),expected)  # Warns; nothing dropped.
+        self.assertIn("osm_split_features",{e["code"] for e in import_layer.limit_entries()})

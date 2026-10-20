@@ -18,6 +18,10 @@ from osm_fixture import XML, pbf
 
 
 class VerticalTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def options(self, values=None, zero=102):
         return dict(target="EGM2008",zero_m=zero,grid=json.dumps(grid(values),ensure_ascii=False))
 
@@ -75,13 +79,21 @@ class VerticalTests(unittest.TestCase):
         for change in [dict(target="ellipsoid"),dict(zero_m=True),dict(zero_m=float("nan")),dict(zero_m=0.001),dict(grid=None),dict(grid="x"*(MAX_GRID_BYTES+1)),dict(extra=1)]:
             with self.subTest(change=list(change)),self.assertRaises(ValueError): Vertical(dict(self.options(),**change))
         with self.assertRaises(ValueError): Vertical(dict(target="EGM96",zero_m=0,grid="{}"))
-        for key,val in [("source_crs",CRS["EGM2008"]),("quantity","N_EGM2008-minus-N_EGM96"),("accuracy",""),("license",""),("columns",True),("rows",34),("values_m",[1,2,None,4]),("values_m",[1,2,3]),("values_m",[1,2,3,201]),("bbox",[9.5,55.5,11,56]),("bbox",[9.5,55.5,9,56]),("horizontal_crs","EPSG:3857")]:
+        for key,val in [("source_crs",CRS["EGM2008"]),("quantity","N_EGM2008-minus-N_EGM96"),("accuracy",""),("license",""),("columns",True),("rows",34),("values_m",[1,2,None,4]),("values_m",[1,2,3]),("values_m",[1,2,3,201]),("bbox",[9.5,55.5,20,56]),("bbox",[9.5,55.5,9,56]),("horizontal_crs","EPSG:3857")]:
             g=grid();g[key]=val
             with self.subTest(key=key,val=val),self.assertRaises(ValueError): Vertical(dict(self.options(),grid=json.dumps(g)))
         with self.assertRaisesRegex(ValueError,"duplicate JSON"):
             Vertical(dict(self.options(),grid=self.options()["grid"].replace('"columns": 2','"columns": 2, "columns": 2')))
         value,_=parse(xml().encode(),"osm")
-        with patch("vertical.MAX_POINTS",2),self.assertRaisesRegex(ValueError,"point budget"): Vertical(self.options()).apply(value)
+        import import_layer
+        import_layer.reset_limits()
+        expected=Vertical(self.options()).apply(value)
+        with patch("vertical.MAX_POINTS",2): self.assertEqual(Vertical(self.options()).apply(value),expected)
+        self.assertIn("vertical_points",{e["code"] for e in import_layer.limit_entries()})
+        # A grid wider than one degree (up to ten) warns instead of refusing.
+        g=grid();g["bbox"]=[9.5,55.5,11,56]
+        Vertical(dict(self.options(),grid=json.dumps(g)))
+        self.assertIn("vertical_grid_degrees",{e["code"] for e in import_layer.limit_entries()})
 
     def test_full_source_coverage_and_missing_height_rejection(self):
         value,_=parse(xml().encode(),"osm")

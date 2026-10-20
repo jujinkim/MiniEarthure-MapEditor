@@ -2,6 +2,7 @@ extends RefCounted
 ## Ordinary roads share native surface frames, attachments and command history.
 const PREVIEW := preload("res://addons/mapkit/godot/track_authoring_preview.gd")
 const I18N := preload("./locale_text.gd")
+const LIMITS := preload("./limit_warnings.gd")
 const RENDER:=preload("res://addons/mapkit/godot/chunk_renderer.gd")
 var bench: Node
 var selected := ""
@@ -312,6 +313,9 @@ func poll() -> void:
 	if not is_instance_valid(environment):
 		environment=Node3D.new();environment.name="RoadTerrainPreview";bench.editor.preview_world.add_child(environment)
 	clear_pending()
+	# Display size and pick-triangle warnings: the preview continues regardless.
+	var limits: Variant=result.get("limit_warnings")
+	if limits is Array and not limits.is_empty(): bench.editor._status(LIMITS.text(limits))
 	render_pending={"cells":rendered.duplicate() if job.request.has("only") else {},"triangles":result.triangles,"request":job.request}
 	for cell: Dictionary in result.chunks:
 		if rendered.has(cell.cell) and rendered[cell.cell].hash==cell.hash:

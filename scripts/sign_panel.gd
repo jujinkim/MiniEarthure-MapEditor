@@ -2,6 +2,7 @@ extends RefCounted
 const I18N := preload("./locale_text.gd")
 const SIGNS := preload("./sign_authoring.gd")
 const FILES := preload("./authoring_files.gd")
+const LIMITS := preload("./limit_warnings.gd")
 var panel: PanelContainer
 var controls := {}
 var revision := 0
@@ -65,6 +66,7 @@ func _bake() -> void:
 	if result.has("error"):
 		panel.report(result.error)
 		return
+	if not result.get("limit_warnings", []).is_empty(): panel.editor._status(LIMITS.text(result.limit_warnings))
 	# Asset preparation, cancellation and adoption use the existing killable worker.
 	_stage(spec, result.bytes, result.metadata)
 

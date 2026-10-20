@@ -1,4 +1,5 @@
 extends RefCounted
+const LIMITS := preload("./limit_warnings.gd")
 ## Original node identity and traversal survive deterministic split and bbox cuts.
 static func source_ref(value: Variant) -> bool:
 	if value is not String or value.length() < 1 or value.length() > 19 or value[0] == "0": return false
@@ -6,7 +7,7 @@ static func source_ref(value: Variant) -> bool:
 		if c not in "0123456789": return false
 	return true
 
-static func validate(raw: Dictionary, boundary: Script) -> String:
+static func validate(raw: Dictionary, boundary: Script, notes: Array = []) -> String:
 	var meta: Variant = raw.coordinates.get("osm_ground_loops")
 	var roads := {}
 	var nodes := {}
@@ -14,7 +15,8 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 		if patch.field == "roads" and patch.id.ends_with("-loop"): roads[patch.id] = patch.after
 		if patch.field == "nodes": nodes[patch.id] = patch.after
 	if meta == null: return "Missing OSM loop provenance." if not roads.is_empty() else ""
-	if raw.adapter != "osm-extract-v1" or meta is not Dictionary or meta.size() != 3 or meta.get("profile") != "source-node-segments-v1" or meta.get("sources") is not Array or meta.sources.is_empty() or meta.sources.size() > 20000 or meta.get("retained") is not Array or meta.retained.size() != roads.size(): return "Invalid OSM loop profile."
+	if raw.adapter != "osm-extract-v1" or meta is not Dictionary or meta.size() != 3 or meta.get("profile") != "source-node-segments-v1" or meta.get("sources") is not Array or meta.sources.is_empty() or meta.get("retained") is not Array or meta.retained.size() != roads.size(): return "Invalid OSM loop profile."
+	LIMITS.over(notes, "osm_loop_sources", meta.sources.size(), 20000, "OSM loop source ways")
 	var sources := {}
 	var source_uses := {}
 	var loop_nodes := {}
@@ -29,7 +31,6 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 		if previous_way != "" and (entry.way.length() < previous_way.length() or (entry.way.length() == previous_way.length() and entry.way <= previous_way)): return "Invalid OSM loop source order."
 		previous_way = entry.way
 		reference_count += entry.refs.size()
-		if reference_count > 200000: return "OSM loop source reference budget exceeded."
 		var unique := {}
 		for i in range(entry.refs.size()):
 			var ref: Variant = entry.refs[i]
@@ -42,6 +43,7 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 		sources[entry.way] = entry
 		for ref: String in unique: source_uses[ref] = int(source_uses.get(ref,0))+1
 	if loop_nodes.is_empty(): return "Missing closed OSM source way."
+	LIMITS.over(notes, "osm_loop_references", reference_count, 200000, "OSM loop node references")
 	for entry: Dictionary in meta.sources:
 		var incident := false
 		for ref: String in entry.refs:

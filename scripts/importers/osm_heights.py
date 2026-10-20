@@ -5,26 +5,30 @@ no height, datum or connectivity is inferred. Public MIT; offline only.
 """
 import hashlib
 import re
-from import_layer import number, text, strict_json
+from import_layer import number, text, strict_json, soft_limit
 from vertical import CRS
 
-MAX_BYTES = 256 * 1024
-MAX_NODES = 4096
+MAX_BYTES = 256 * 1024  # Warn above.
+BYTES_CEILING = 16 * 1024**2
+MAX_NODES = 4096  # Warn above.
+NODES_CEILING = 1_000_000
 ORDER = "fill missing original nodes before graph normalization, datum conversion and crop"
 
 
 def read_source(path):
     if not path.is_file(): raise ValueError("height supplement must be a local file")
     with path.open("rb") as stream:
-        raw = stream.read(MAX_BYTES + 1)
-    if not 0 < len(raw) <= MAX_BYTES: raise ValueError("height supplement requires 1..256 KiB")
+        raw = stream.read(BYTES_CEILING + 1)
+    if not 0 < len(raw) <= BYTES_CEILING: raise ValueError("height supplement requires 1 byte..16 MiB")
     return raw.decode("utf-8")
 
 
 class Supplement:
     def __init__(self, raw):
-        if not isinstance(raw, str) or not 0 < len(raw.encode("utf-8")) <= MAX_BYTES:
-            raise ValueError("height supplement requires UTF-8 JSON of at most 256 KiB")
+        if not isinstance(raw, str) or not 0 < len(raw.encode("utf-8")) <= BYTES_CEILING:
+            raise ValueError("height supplement requires UTF-8 JSON of at most 16 MiB")
+        if len(raw.encode("utf-8")) > MAX_BYTES:
+            soft_limit("height_supplement_bytes", len(raw.encode("utf-8")), MAX_BYTES, "Height supplement exceeds 256 KiB")
         value = strict_json(raw)
         keys = {"format", "osm_sha256", "source", "license", "accuracy", "vertical_crs", "nodes"}
         if not isinstance(value, dict) or set(value) != keys:
@@ -35,8 +39,10 @@ class Supplement:
             raise ValueError("height supplement requires the exact OSM snapshot SHA-256")
         for key in ("source", "license", "accuracy"): text(value[key], "height supplement " + key)
         entries = value["nodes"]
-        if not isinstance(entries, list) or not 0 < len(entries) <= MAX_NODES:
-            raise ValueError("height supplement requires 1..4096 nodes")
+        if not isinstance(entries, list) or not 0 < len(entries) <= NODES_CEILING:
+            raise ValueError("height supplement requires 1..1,000,000 nodes")
+        if len(entries) > MAX_NODES:
+            soft_limit("height_supplement_nodes", len(entries), MAX_NODES, "Height supplement lists more than 4096 nodes")
         self.heights = {}
         for entry in entries:
             if not isinstance(entry, dict) or set(entry) != {"node_id", "height_m"}:

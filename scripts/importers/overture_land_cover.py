@@ -1,13 +1,18 @@
 """Bounded, reviewed forest-only Overture base/land_cover adapter (MIT)."""
 import json
 import overture_area as area
-from import_layer import MAX_INPUT, number, text, strict_json
+from import_layer import MAX_INPUT, INPUT_CEILING, number, text, strict_json, soft_limit
 from polygon_geometry import Budget, group_rings
 
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; ESA WorldCover (CC-BY-4.0); © ESA WorldCover project 2020 / Contains modified Copernicus Sentinel data (2020) processed by ESA WorldCover consortium; https://docs.overturemaps.org/attribution/#base"
 SUBTYPES = ("barren", "crop", "forest", "grass", "mangrove", "moss", "shrub", "snow", "urban", "wetland")
+# Warn above the MAX_* budgets; the CEILING values are memory guards.
 MAX_FEATURES = 256
+FEATURES_CEILING = 4096
 MAX_POINTS = 8192
+POINTS_CEILING = 1_000_000
+MAX_PARTS = 256
+PARTS_CEILING = 4096
 
 
 def plan(release, bbox):
@@ -21,7 +26,8 @@ def checked_plan(value):
 
 
 def parse(raw):
-    if len(raw) > MAX_INPUT: raise ValueError("Land cover snapshot exceeds 32 MiB")
+    if len(raw) > INPUT_CEILING: raise ValueError("Land cover snapshot exceeds 256 MiB")
+    if len(raw) > MAX_INPUT: soft_limit("input_bytes", len(raw), MAX_INPUT, "Land cover snapshot exceeds 32 MiB")
     value = strict_json(raw)
     if not isinstance(value, dict) or value.get("snapshot_version") != 1:
         raise ValueError("Expected land cover snapshot version 1")
@@ -29,8 +35,9 @@ def parse(raw):
     if set(value) != set(query) | {"snapshot_version", "features"} or any(value[k] != v for k,v in query.items()):
         raise ValueError("Land cover review contract/license changed")
     features = value["features"]
-    if not isinstance(features, list) or not 1 <= len(features) <= MAX_FEATURES:
-        raise ValueError("Land cover supports 1..256 source features")
+    if not isinstance(features, list) or not 1 <= len(features) <= FEATURES_CEILING:
+        raise ValueError("Land cover supports 1..4096 source features")
+    if len(features) > MAX_FEATURES: soft_limit("land_cover_features", len(features), MAX_FEATURES, "Land cover source feature budget exceeded")
     output, records, seen = [], [], set()
     budget, points = Budget(), 0
     w,s,e,n = query["bbox"]
@@ -61,14 +68,16 @@ def parse(raw):
         if not isinstance(g,dict) or g.get("type") not in ("Polygon","MultiPolygon"):
             raise ValueError("Land cover requires Polygon/MultiPolygon")
         polygons = [g.get("coordinates")] if g["type"] == "Polygon" else g.get("coordinates")
-        if not isinstance(polygons,list) or not 1 <= len(polygons) <= 256: raise ValueError("Invalid land cover parts")
+        if not isinstance(polygons,list) or not 1 <= len(polygons) <= PARTS_CEILING: raise ValueError("Invalid land cover parts")
+        if len(polygons) > MAX_PARTS: soft_limit("land_cover_parts", len(polygons), MAX_PARTS, "Land cover feature has many parts")
         positions = []
         for rings in polygons:
             if not isinstance(rings,list) or not 1 <= len(rings) <= 17: raise ValueError("At most 16 exclusion holes per part")
             for ring in rings:
                 if not isinstance(ring,list) or len(ring) < 4 or ring[0] != ring[-1]: raise ValueError("Invalid closed land cover ring")
                 points += len(ring)
-                if points > MAX_POINTS: raise ValueError("Land cover point budget exceeded")
+                if points > POINTS_CEILING: raise ValueError("Land cover points exceed 1,000,000")
+                if points > MAX_POINTS: soft_limit("land_cover_points", points, MAX_POINTS, "Land cover point budget exceeded")
                 for pos in ring:
                     if not isinstance(pos,list) or len(pos) != 2: raise ValueError("Expected 2D WGS84 position")
                     number(pos[0], "longitude", -180,180); number(pos[1], "latitude", -80,84)

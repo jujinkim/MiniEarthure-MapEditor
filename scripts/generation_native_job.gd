@@ -11,15 +11,19 @@ func start_generation(store: RefCounted, generation: Dictionary, python: String)
 	import_kind = "native"
 	adopting = true
 	structural = true
+	# Progress sanity bound only: every generated cell is still checked.
+	generation_limit = LAYER.MAX_CHECK_CELLS
 	document_signature = JSON.stringify(store.document).sha256_text()
 	document_epoch = store.command_epoch
 	_store_id = store.get_instance_id()
 	project_source = store.project_path
 	request = {"kind":"environment","request":identity,"document":store.document.duplicate(true),"project":project_source,"generation":generation.duplicate(true),"python":python}
 	var bytes := JSON.stringify(request).to_utf8_buffer()
-	if bytes.size() > REQUEST_LIMIT: return "Generation request exceeds 24 MiB; reduce the selected area."
+	if bytes.size() > request_limit: return "Generation request exceeds 1.5 GiB; reduce the selected area."
 	var failure := _start_request(bytes)
-	deadline_ms = Time.get_ticks_msec()+600000
+	# Generation may take longer; past this point it only warns (Cancel stays).
+	timeout_seconds = 600
+	deadline_ms = Time.get_ticks_msec()+timeout_seconds*1000
 	return failure
 
 func _source_bytes() -> int: return 0
@@ -53,7 +57,10 @@ func commit(store: RefCounted, destination: String = "") -> String:
 			var failure := FILES_INSTALL(store.project_path.path_join(path),bundle.payloads[path])
 			if failure != "": return failure
 		_consumed = true
-		return store._install_command(_prepared)
+		history_released = _prepared.command.get("history_released", false) == true
+		var installed: String = store._install_command(_prepared)
+		if installed == "" and store.has_method("note_limits"): store.note_limits(limit_warnings)
+		return installed
 	if not destination.is_absolute_path() or DirAccess.dir_exists_absolute(destination) or FileAccess.file_exists(destination): return "Choose a new project directory."
 	# A new sibling directory is published with one rename. Until this succeeds
 	# neither the live document nor the selected destination is changed.

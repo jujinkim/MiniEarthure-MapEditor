@@ -2,7 +2,10 @@ extends RefCounted
 ## Explicit DSM estimate for zero-base OSM buildings. Never structural roads.
 const TYPES := preload("./import_layer.gd")
 const PROFILE := "osm-dsm-min-perimeter-v1"
-const MAX_SAMPLES := 1000000
+const LIMITS := preload("./limit_warnings.gd")
+## Work guard; above the former one million samples grounding only warns.
+const MAX_SAMPLES := 16000000
+const WARN_SAMPLES := 1000000
 
 static func layers(document: Dictionary) -> Dictionary:
 	var result := {}
@@ -50,7 +53,7 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 			skipped+=1
 			continue
 		samples+=points.size()
-		if samples>MAX_SAMPLES: return {"error":"Building grounding exceeds one million terrain samples."}
+		if samples>MAX_SAMPLES: return {"error":"Building grounding exceeds 16 million terrain samples."}
 		eligible.append([building,points])
 	# MapKit samples the newly reviewed DEM. The thin view excludes road grading;
 	# final candidate admission still validates the full map and all selected cells.
@@ -76,7 +79,9 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 		after.base_cm=base
 		patches.append({"field":"buildings","id":before.id,"before":before.duplicate(true),"after":after})
 		changes.append({"id":before.id,"before_cm":before.base_cm,"after_cm":base})
-	return {"patches":patches,"receipt":{"profile":PROFILE,"estimated":true,"samples":samples,"skipped_partial":skipped,"changes":changes}}
+	var notes: Array = []
+	LIMITS.over(notes, "dem_grounding_samples", samples, WARN_SAMPLES, "Terrain samples for building grounding")
+	return {"patches":patches,"receipt":{"profile":PROFILE,"estimated":true,"samples":samples,"skipped_partial":skipped,"changes":changes},"limit_warnings":notes}
 
 static func valid_patch(patch: Dictionary, enabled: bool) -> bool:
 	if not enabled or patch.get("field")!="buildings" or patch.get("before") is not Dictionary or patch.get("after") is not Dictionary: return false

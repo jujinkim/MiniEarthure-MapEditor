@@ -1,27 +1,31 @@
 extends RefCounted
 const I18N := preload("./locale_text.gd")
+const LIMITS := preload("./limit_warnings.gd")
 ## Validate worker claims and complete source/record coverage before adoption.
-static func validate(raw: Dictionary, requested: Dictionary, boundary: Script) -> String:
+static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, notes: Array = []) -> String:
 	var meta: Variant = raw.coordinates.get("osm_city")
 	if meta == null: return "Missing requested city optimization." if requested.get("osm_city", false) else ""
 	if raw.adapter != "osm-extract-v1" or not raw.coordinates.has("osm_stream") or meta is not Dictionary or meta.get("profile") != "scale-aware-city-v1" or meta.get("scale_denominator") != 8: return "Invalid city optimization profile."
 	if not requested.is_empty() and requested.get("osm_city") != true: return "Unrequested city optimization."
 	if not boundary._finite(meta.get("grid_m"),0.079999999,0.080000001) or not boundary._count(meta.get("gap_m"),64) or int(meta.gap_m) not in [0,2,4,8,16,32,64]: return "Invalid city approximation settings."
 	if not boundary._finite(meta.get("line_tolerance_m"),0,4) or not boundary._finite(meta.get("polygon_tolerance_m"),0,8) or not is_equal_approx(float(meta.line_tolerance_m),minf(4.0,float(meta.gap_m)/4.0)) or not is_equal_approx(float(meta.polygon_tolerance_m),minf(8.0,float(meta.gap_m)/4.0)): return "Invalid city approximation settings."
+	var count_text := {"before":{"features":"City source features", "positions":"City source positions", "roads":"City source roads", "buildings":"City source buildings", "areas":"City source areas"},
+		"after":{"features":"City output features", "positions":"City output positions", "roads":"City output roads", "buildings":"City output buildings", "areas":"City output areas"}}
 	for key in ["before", "after"]:
 		var counts: Variant = meta.get(key)
 		if counts is not Dictionary: return "Missing city geometry counts."
 		for field in ["features", "positions", "roads", "buildings", "areas"]:
-			if not boundary._count(counts.get(field), (2000000 if field == "positions" else 250000) if key == "before" else (800000 if field == "positions" else 100000)): return "City geometry count budget exceeded."
+			if not boundary._soft(notes, "city_%s_%s" % [key, field], counts.get(field), (2000000 if field == "positions" else 250000) if key == "before" else (800000 if field == "positions" else 100000), count_text[key][field]): return "Invalid city geometry counts."
 		if counts.features != counts.roads+counts.buildings+counts.areas: return "City geometry category mismatch."
 	if meta.after.features != raw.get("feature_count") or meta.after.positions < raw.get("point_count", 0) or not boundary._count(meta.get("protected_buildings"), meta.after.buildings): return "City output count mismatch."
-	if not boundary._count(meta.get("unmerged_numeric_groups"),250000): return "Invalid city retained group count."
+	if not boundary._soft(notes, "city_unmerged_groups", meta.get("unmerged_numeric_groups"), 250000, "Unmerged city groups"): return "Invalid city retained group count."
 	if not boundary._count(meta.get("painted_pedestrian_ways"),meta.before.roads): return "Invalid city ground paint count."
 	if not boundary._count(meta.get("level_structures"),meta.before.roads): return "Invalid city ground-level structure count."
 	if not boundary._count(meta.get("layered_buildings"),meta.before.buildings): return "Invalid city layered building count."
 	if not boundary._count(meta.get("estimated_structure_roads"),meta.after.roads) or int(meta.estimated_structure_roads) != raw.coordinates.get("osm_estimated_structures",[]).size(): return "Invalid city estimated structure count."
 	if meta.get("vegetation_spacing_m") != 32 or meta.get("vegetation_density_per_mille") != 750: return "Invalid city vegetation estimates."
-	if not boundary._count(meta.get("widened_roads"),meta.before.roads) or meta.get("minimum_road_width_m") != 1.6 or meta.get("surface_mappings") is not Array or meta.surface_mappings.size() > 512: return "Invalid city road approximations."
+	if not boundary._count(meta.get("widened_roads"),meta.before.roads) or meta.get("minimum_road_width_m") != 1.6 or meta.get("surface_mappings") is not Array: return "Invalid city road approximations."
+	LIMITS.over(notes, "city_surface_mappings", meta.surface_mappings.size(), 512, "City road surface mappings")
 	var mapped := {}
 	var mapped_count := 0
 	for entry: Variant in meta.surface_mappings:
@@ -63,7 +67,6 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script) -
 			for name: Variant in group.names:
 				if not boundary._text(name): return "Invalid city aggregation mapping."
 		references += group.sources.size()
-		if references > 2000000: return "City mapping reference budget exceeded."
 		var local_sources := {}
 		for index: Variant in group.sources:
 			if not boundary._count(index,meta.source_ids.size()-1) or local_sources.has(int(index)): return "Unknown/duplicate city aggregation source."
@@ -73,6 +76,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script) -
 		next_record += int(group.records[1])
 		if next_record > record_count: return "City output mapping exceeds records."
 	if false in sources.values() or next_record != record_count: return "Incomplete city source/output coverage."
+	LIMITS.over(notes, "city_mapping_references", references, 2000000, "City source mapping references")
 	return ""
 
 static func summary(meta: Dictionary) -> String:

@@ -6,18 +6,23 @@ This profile retains whole in-area segments and refuses unsupported semantics.
 from bisect import bisect_right
 import hashlib
 import json
-from import_layer import ImportLayer, Source, MAX_INPUT, number, text, strict_json
+from import_layer import ImportLayer, Source, MAX_INPUT, INPUT_CEILING, number, text, strict_json, soft_limit
 from projection import Coordinates
 import overture_area as area
 
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation"
+# Warn above the MAX_* budgets; the CEILING values are memory/CPU guards.
 MAX_FEATURES = 1024
+FEATURES_CEILING = 65536
 MAX_POINTS = 8192
+POINTS_CEILING = 1_000_000
 MAX_ROADS = 2048
 MAX_RULES = 1024
+RULES_CEILING = 65536
 MAX_OUTPUT_POINTS = 16384
 CONNECTOR_TOLERANCE_M = 0.001
 MAX_CONNECTOR_EDGE_CHECKS = 65536
+CONNECTOR_EDGE_CHECKS_CEILING = 4_000_000
 CLASSES = {"motorway", "trunk", "primary", "secondary", "tertiary", "residential", "living_street", "service", "unclassified"}
 COMMON = {"id", "bbox", "theme", "type", "version", "sources"}
 SEGMENT = COMMON | {"subtype", "class", "connectors", "road_flags", "road_surface", "width_rules", "level", "level_rules", "subclass", "subclass_rules", "names", "routes", "destinations", "speed_limits"}
@@ -60,8 +65,9 @@ def physical_rules(properties, key):
     """Canonical complete partition. Gaps/overlap never acquire guessed priority."""
     rules = properties.get(key)
     if rules is None or rules == []: return [(0, 1, None)]
-    if not isinstance(rules, list) or not 1 <= len(rules) <= MAX_RULES:
-        raise ValueError(f"{key}: physical rule budget exceeded")
+    if not isinstance(rules, list) or not 1 <= len(rules) <= RULES_CEILING:
+        raise ValueError(f"{key}: physical rule ceiling exceeded")
+    if len(rules) > MAX_RULES: soft_limit("transportation_rules", len(rules), MAX_RULES, "Transportation physical rule budget exceeded")
     result = []
     for rule in rules:
         if not isinstance(rule, dict) or set(rule) - {"value", "between"} or "value" not in rule:
@@ -121,8 +127,10 @@ def connection_position(point, at, coords, lengths, geod, budget):
             raise ValueError("Connector at disagrees with WGS84 geodetic vertex fraction")
         return fractions[index], index, 0.0
     budget[0] += len(coords)-1
+    if budget[0] > CONNECTOR_EDGE_CHECKS_CEILING:
+        raise ValueError("Connector edge comparison ceiling exceeded")
     if budget[0] > MAX_CONNECTOR_EDGE_CHECKS:
-        raise ValueError("Connector edge comparison budget exceeded")
+        soft_limit("transportation_connector_checks", budget[0], MAX_CONNECTOR_EDGE_CHECKS, "Connector edge comparison budget exceeded; import takes longer")
     candidates = []
     for i, (a,b) in enumerate(zip(coords,coords[1:])):
         azimuth, _, distance = geod.inv(*a,*b)
@@ -172,7 +180,8 @@ def connection_position(point, at, coords, lengths, geod, budget):
 def parse(raw):
     from pyproj import Geod
     from shapely.geometry import LineString
-    if len(raw) > MAX_INPUT: raise ValueError("Overture snapshot exceeds 32 MiB")
+    if len(raw) > INPUT_CEILING: raise ValueError("Overture snapshot exceeds 256 MiB")
+    if len(raw) > MAX_INPUT: soft_limit("input_bytes", len(raw), MAX_INPUT, "Overture snapshot exceeds 32 MiB")
     value = strict_json(raw)
     if not isinstance(value, dict) or number(value.get("snapshot_version"),"snapshot version",1,1) != 1:
         raise ValueError("Expected Overture transportation snapshot version 1")
@@ -180,8 +189,9 @@ def parse(raw):
     if set(value) != set(query) | {"snapshot_version", "features"} or any(value[k] != v for k,v in query.items()):
         raise ValueError("Invalid transportation source contract/license")
     features = value["features"]
-    if not isinstance(features, list) or not 1 <= len(features) <= MAX_FEATURES:
-        raise ValueError("Transportation feature budget exceeded (1..1024)")
+    if not isinstance(features, list) or not 1 <= len(features) <= FEATURES_CEILING:
+        raise ValueError("Transportation features must be 1..65536")
+    if len(features) > MAX_FEATURES: soft_limit("transportation_features", len(features), MAX_FEATURES, "Transportation feature budget exceeded")
     segments, connectors, provenance, seen = {}, {}, {}, set()
     total_points = 0
     w,s,e,n = query["bbox"]
@@ -220,7 +230,7 @@ def parse(raw):
             total_points += 1
             connectors[fid] = position(coords)
         else:
-            if g.get("type") != "LineString" or not isinstance(coords,list) or not 2 <= len(coords) <= MAX_POINTS:
+            if g.get("type") != "LineString" or not isinstance(coords,list) or not 2 <= len(coords) <= POINTS_CEILING:
                 raise ValueError("Segment requires bounded LineString")
             total_points += len(coords)
             coords = [position(pos) for pos in coords]
@@ -245,7 +255,8 @@ def parse(raw):
             widths = physical_rules(p,"width_rules")
             surfaces = physical_rules(p,"road_surface")
             segments[fid] = dict(coords=coords, properties=p, widths=widths, surfaces=surfaces)
-        if total_points > MAX_POINTS: raise ValueError("Transportation point budget exceeded")
+        if total_points > POINTS_CEILING: raise ValueError("Transportation points exceed 1,000,000")
+        if total_points > MAX_POINTS: soft_limit("transportation_points", total_points, MAX_POINTS, "Transportation point budget exceeded")
     if not segments or not connectors: raise ValueError("Requires complete segments and connectors")
     geod = Geod(ellps="WGS84")
     used, roads = set(), []
@@ -254,7 +265,7 @@ def parse(raw):
     for fid, segment in sorted(segments.items()):
         coords, p = segment["coords"], segment["properties"]
         refs = p.get("connectors")
-        if not isinstance(refs,list) or not 2 <= len(refs) <= MAX_FEATURES: raise ValueError("Missing/bounded connector references")
+        if not isinstance(refs,list) or not 2 <= len(refs) <= FEATURES_CEILING: raise ValueError("Missing/bounded connector references")
         lengths = [0.0]
         for a,b in zip(coords,coords[1:]):
             lengths.append(lengths[-1] + geod.inv(*a,*b)[2])
@@ -278,10 +289,10 @@ def parse(raw):
         indices = {at:i for i,at in enumerate(fractions)}
         provenance[fid].update(road_spans=[], source_fractions=[v/lengths[-1] for v in lengths], physical_rules=dict(width_rules=segment["widths"], road_surface=segment["surfaces"]))
         for left,right in zip(linked,linked[1:]):
-            if len(roads) >= MAX_ROADS: raise ValueError("Transportation split-road budget exceeded")
+            if len(roads) >= MAX_ROADS: soft_limit("transportation_roads", len(roads) + 1, MAX_ROADS, "Transportation split-road budget exceeded")
             a,b = indices[left[0]], indices[right[0]]
             output_points += b-a+1
-            if output_points > MAX_OUTPUT_POINTS: raise ValueError("Transportation output point budget exceeded")
+            if output_points > MAX_OUTPUT_POINTS: soft_limit("transportation_output_points", output_points, MAX_OUTPUT_POINTS, "Transportation output point budget exceeded")
             roads.append(dict(source_id=fid, start=left[1], end=right[1], coords=points[a:b+1],
                               fractions=fractions[a:b+1], widths=widths[a:b], surfaces=surfaces[a:b]))
     if used != set(connectors): raise ValueError("Unreferenced connectors; incomplete graph is not adopted")

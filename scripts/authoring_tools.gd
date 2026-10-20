@@ -130,7 +130,8 @@ func apply(label: String, patches: Array, check_roads: bool = false) -> String:
 					for cy in [maxi(0, (y - 1) / size), mini(y / size, ceili(float(candidate.bounds.max[1] - candidate.bounds.min[1]) / size) - 1)]:
 						var cell := Vector2i(cx, cy)
 						if cell not in cells: cells.append(cell)
-		if cells.size() > 16: return "Road junction check exceeds 16 cells; author shorter connected roads."
+		# Every affected cell is still checked, in native batches of 16.
+		if cells.size() > 16: FILES.note(store, {}, "road_check_cells", cells.size(), 16, "Road junction check covers many cells and takes longer")
 	if check_roads or not candidate.heightmaps.is_empty() or not candidate.assets.is_empty():
 		failure = FILES.validate(store, candidate, {}, cells)
 		if failure != "": return failure
@@ -167,7 +168,7 @@ func asset(record: Dictionary, source_path: String = "", validate_only: bool = f
 	var before: Variant = store._get_value(store.document, "assets", str(record.id))
 	var blobs := {}
 	if source_path != "":
-		var source := FILES.read(source_path, store.HISTORY_BYTES)
+		var source := FILES.read(source_path, FILES.MAX_PAYLOAD_BYTES)
 		if source.has("error"): return source.error
 		var extension := source_path.get_extension().to_lower()
 		if extension not in ["glb", "png", "webp"]: return "Choose a static GLB, PNG or WebP."

@@ -190,10 +190,10 @@ func run() -> void:
 	await finish()
 	check(ui.pending_import == null and ui.store.document.buildings.is_empty(), "cancel prevents late adoption")
 	before = state()
-	ui._operation_status("Import stopped", "E_IMPORT: Could not import the source\nOperation details: Import timed out after 900 seconds; use a smaller source or retry.")
+	ui._operation_status("Import stopped", "E_IMPORT: Could not import the source\nOperation details: Import IPC exceeds 64 MiB.")
 	await click(button(ui, "Operation details…"))
 	var details := ui.get_node("StatusDetails") as AcceptDialog
-	check(details.visible and details.get_node("Text").text.contains("timed out after 900 seconds"), "full multiline failure is readable beyond the one-line status")
+	check(details.visible and details.get_node("Text").text.contains("Import IPC exceeds 64 MiB."), "full multiline failure is readable beyond the one-line status")
 	check(not details.get_node("Text").editable and state() == before, "diagnostic text is read-only and leaves the map unchanged")
 	await click(details.get_ok_button())
 	ui._set_tool("Select")

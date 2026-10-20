@@ -3,13 +3,21 @@ import datetime
 import hashlib
 import json
 import re
-from import_layer import MAX_INPUT, MAX_POINTS, number, text, strict_json
+from import_layer import MAX_INPUT, INPUT_CEILING, MAX_POINTS, number, text, strict_json, soft_limit
 from polygon_geometry import Budget, group_rings
 
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
+# Warn above the MAX_* budgets; the CEILING values are memory guards.
 MAX_FEATURES = 20000
+FEATURES_CEILING = 200_000
 MAX_VERTICAL_FEATURES = 256
+VERTICAL_FEATURES_CEILING = 4096
 MAX_VERTICAL_POINTS = 8192
+POINTS_CEILING = 2_000_000
+MAX_PARTS = 256
+PARTS_CEILING = 4096
+MAX_DEGREES = 0.02
+DEGREES_CEILING = 0.2
 
 
 def plan(release, bbox, include_parts=False, ground_m=0):
@@ -19,8 +27,10 @@ def plan(release, bbox, include_parts=False, ground_m=0):
     if not isinstance(bbox, list) or len(bbox) != 4:
         raise ValueError("Area requires west,south,east,north")
     w, s, e, n = [number(v, "bbox", -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84) for i, v in enumerate(bbox)]
-    if not w < e or not s < n or e-w > 0.02 or n-s > 0.02:
-        raise ValueError("Select a non-crossing area at most 0.02 degrees per side")
+    if not w < e or not s < n or e-w > DEGREES_CEILING or n-s > DEGREES_CEILING:
+        raise ValueError("Select a non-crossing area at most 0.2 degrees per side")
+    if max(e-w, n-s) > MAX_DEGREES:
+        soft_limit("overture_area_degrees", round(max(e-w, n-s), 6), MAX_DEGREES, "Overture area is larger than 0.02 degrees per side")
     if type(include_parts) is not bool: raise ValueError("Invalid building-parts selection")
     result = dict(provider="Overture", release=release, bbox=[w,s,e,n], theme="buildings", type="building", license=LICENSE)
     if include_parts:
@@ -33,7 +43,8 @@ def checked_plan(value):
 
 
 def parse(raw):
-    if len(raw) > MAX_INPUT: raise ValueError("Overture snapshot exceeds 32 MiB")
+    if len(raw) > INPUT_CEILING: raise ValueError("Overture snapshot exceeds 256 MiB")
+    if len(raw) > MAX_INPUT: soft_limit("input_bytes", len(raw), MAX_INPUT, "Overture snapshot exceeds 32 MiB")
     value = strict_json(raw)
     if not isinstance(value, dict) or value.get("snapshot_version") != 1:
         raise ValueError("Expected an Overture area snapshot version 1")
@@ -41,10 +52,12 @@ def parse(raw):
     if set(value) != set(query) | {"snapshot_version", "features"} or any(value[k] != v for k,v in query.items()):
         raise ValueError("Invalid Overture source contract/license")
     features = value["features"]
-    if not isinstance(features, list) or not 1 <= len(features) <= MAX_FEATURES:
-        raise ValueError("Expected 1..20000 Overture buildings")
+    if not isinstance(features, list) or not 1 <= len(features) <= FEATURES_CEILING:
+        raise ValueError("Expected 1..200000 Overture buildings")
+    if len(features) > MAX_FEATURES: soft_limit("overture_features", len(features), MAX_FEATURES, "Overture building budget exceeded")
     vertical = query.get("include_parts", False)
-    if vertical and len(features) > MAX_VERTICAL_FEATURES: raise ValueError("Vertical profile supports at most 256 source features")
+    if vertical and len(features) > VERTICAL_FEATURES_CEILING: raise ValueError("Vertical profile supports at most 4096 source features")
+    if vertical and len(features) > MAX_VERTICAL_FEATURES: soft_limit("overture_vertical_features", len(features), MAX_VERTICAL_FEATURES, "Vertical profile source feature budget exceeded")
     output, provenance, seen, total_points = [], [], set(), 0
     parents, members, shapes = {}, {}, {}
     w,s,e,n = query["bbox"]
@@ -76,8 +89,9 @@ def parse(raw):
         if kind not in ("Polygon", "MultiPolygon") or not isinstance(coordinates, list):
             raise ValueError("Expected Polygon or MultiPolygon building footprint")
         polygons = [coordinates] if kind == "Polygon" else coordinates
-        if not 1 <= len(polygons) <= 256:
-            raise ValueError("Expected 1..256 footprint parts per Overture feature")
+        if not 1 <= len(polygons) <= PARTS_CEILING:
+            raise ValueError("Expected 1..4096 footprint parts per Overture feature")
+        if len(polygons) > MAX_PARTS: soft_limit("overture_parts", len(polygons), MAX_PARTS, "Overture feature has many footprint parts")
         positions = []
         for rings in polygons:
             if not isinstance(rings, list) or not 1 <= len(rings) <= 17:
@@ -88,7 +102,9 @@ def parse(raw):
                     raise ValueError("Invalid closed building ring")
                 total_points += len(ring)
                 vertices += len(ring)-1
-                if total_points > (min(MAX_POINTS, MAX_VERTICAL_POINTS) if vertical else MAX_POINTS): raise ValueError("Overture point budget exceeded")
+                budget = min(MAX_POINTS, MAX_VERTICAL_POINTS) if vertical else MAX_POINTS
+                if total_points > POINTS_CEILING: raise ValueError("Overture points exceed 2,000,000")
+                if total_points > budget: soft_limit("overture_points", total_points, budget, "Overture point budget exceeded")
                 for pos in ring:
                     if not isinstance(pos, list) or len(pos) != 2: raise ValueError("Expected 2D WGS84 position")
                     number(pos[0], "longitude", -180, 180)

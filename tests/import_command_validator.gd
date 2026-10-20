@@ -77,7 +77,12 @@ func run() -> void:
 		if job.done: continue
 		match mode:
 			"cancel": job.cancel()
-			"deadline": job.deadline_ms = 0
+			"deadline":
+				# A passed deadline only warns; Cancel then stops the paused child.
+				job.deadline_ms = 0
+				job.poll()
+				check(not job.cancelled and job.limit_warnings.any(func(w): return w.code == "running_time"), "preparation deadline warns without stopping")
+				job.cancel()
 			"eof": job.stdio.close(); job.stdio = null; job.output_eof = true
 			"source":
 				write(source, original.get_string_from_utf8().replace('"height_m":12', '"height_m":13').to_utf8_buffer())
@@ -113,7 +118,7 @@ func run() -> void:
 	# The accepted worker channel is bounded even if a child writes malformed data.
 	var prepared: Dictionary = store._prepare_command("Fixture", layer.patches(store))
 	var envelope := COMMAND.encode(prepared)
-	for mode in ["version", "canonical", "command", "json", "missing", "path", "binary", "budget"]:
+	for mode in ["version", "canonical", "command", "json", "missing", "path", "binary"]:
 		var bad := envelope.duplicate(true)
 		match mode:
 			"version": bad.version = 2
@@ -123,10 +128,13 @@ func run() -> void:
 			"command": bad.command_json = '{"label":"bad","patches":[1]}'
 			"path": bad.retained["../source"] = PackedByteArray([1])
 			"binary": bad.retained["editor/source.png"] = "wrong type"
-			"budget":
-				var bytes := PackedByteArray(); bytes.resize(COMMAND.HISTORY_LIMIT)
-				bad.retained["editor/source.png"] = bytes
 		check(COMMAND.decode(bad).has("error"), "reject malformed prepared envelope " + mode)
+	# A transfer above the 16 MiB Undo budget is installed without Undo, not refused.
+	var released := envelope.duplicate(true)
+	var released_bytes := PackedByteArray(); released_bytes.resize(COMMAND.HISTORY_LIMIT)
+	released.retained["editor/source.png"] = released_bytes
+	var released_command: Dictionary = COMMAND.decode(released)
+	check(not released_command.has("error") and released_command.command.get("history_released", false) and released_command.retained.has("editor/source.png") and not released_command.patches.is_empty(), "over-budget transfer releases Undo and keeps its patches and payloads")
 	for extent: Variant in [null,[],{"min":[0],"max":[1,1]},{"min":["bad",0],"max":[1,1]}]:
 		var bad := envelope.duplicate(true)
 		var document: Dictionary = JSON.parse_string(bad.canonical); document.bounds = extent
@@ -143,8 +151,8 @@ func run() -> void:
 	check(oversized.commit(store) != "" and state() == before,"cancelled compressed review cannot install history")
 	layer.value.erase("test_large_provenance")
 	var binary := PackedByteArray(); binary.resize(COMMAND.HISTORY_LIMIT)
-	var rejected: Dictionary = store._prepare_command("Over binary budget", layer.patches(store), {"editor/fixture.png":binary})
-	check(str(rejected.get("error", "")).contains("16 MiB") and state() == before, "shared preparation charges binary plus text before history mutation")
+	var over_budget: Dictionary = store._prepare_command("Over binary budget", layer.patches(store), {"editor/fixture.png":binary})
+	check(not over_budget.has("error") and over_budget.command.get("history_released", false) and state() == before, "shared preparation charges binary plus text and marks Undo released without history mutation")
 	var ready := JOB.new()
 	check(start(ready) == "", "fresh successful retry")
 	await wait_job(ready)

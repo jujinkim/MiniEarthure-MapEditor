@@ -3,28 +3,37 @@ extends RefCounted
 const FILES := preload("./authoring_files.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
 const TYPES := preload("./import_layer.gd")
-const BUNDLE_LIMIT := 24 * 1024 * 1024
+const LIMITS := preload("./limit_warnings.gd")
+## Memory guards of the owned-child transfer; the former 24/96 MiB only warn.
+const BUNDLE_LIMIT := 512 * 1024 * 1024
+const WARN_BUNDLE_BYTES := 24 * 1024 * 1024
 const HISTORY_LIMIT := 16 * 1024 * 1024
 const HISTORY := preload("./history_codec.gd")
-const EXPANDED_BUNDLE_LIMIT := 96 * 1024 * 1024
+const EXPANDED_BUNDLE_LIMIT := 1024 * 1024 * 1024
+const WARN_EXPANDED_BYTES := 96 * 1024 * 1024
+## v1 package document size (MapKit MAX_DOCUMENT_BYTES); the game refuses larger maps.
+const DOCUMENT_LIMIT := 32 * 1024 * 1024
 
 static func encode(prepared: Dictionary) -> Dictionary:
+	# A command released from Undo no longer holds its payloads; callers then
+	# pass them as prepared.retained so the transfer still carries every blob.
 	return {"version":1, "canonical":prepared.canonical, "command_json":prepared.command_json,
-		"signature":prepared.signature, "retained":prepared.command.get("binary_mementos", {})}
+		"signature":prepared.signature, "retained":prepared.command.get("binary_mementos", prepared.get("retained", {}))}
 
 static func decode(value: Variant, allow_assets: bool = false, allow_generation: bool = false) -> Dictionary:
 	if value is not Dictionary or value.get("version") != 1 or value.get("canonical") is not String or value.get("command_json") is not String or value.get("retained") is not Dictionary or not TYPES._hex(value.get("signature"), 64):
 		return {"error":"Invalid prepared import command transfer."}
 	# Charge the actual text and bytes, never a size asserted by the result.
 	var size: int = value.command_json.to_utf8_buffer().size()
-	if value.canonical.to_utf8_buffer().size() > 32 * 1024 * 1024 or size > HISTORY.TEXT_LIMIT:
+	if size > HISTORY.TEXT_LIMIT:
 		return {"error":"Prepared command exceeds its text budget."}
-	var binary_size := 0
+	var notes: Array = []
+	LIMITS.over(notes, "document_bytes", value.canonical.to_utf8_buffer().size(), DOCUMENT_LIMIT, "Map document size in bytes", true)
+	# A command above the Undo budget is still installed; the store then
+	# releases earlier history (history_codec marks it) and warns.
 	for path: Variant in value.retained:
 		if path is not String or not SNAPSHOT.safe_relative(path) or value.retained[path] is not PackedByteArray:
 			return {"error":"Invalid prepared binary memento."}
-		binary_size += value.retained[path].size()
-		if binary_size >= HISTORY_LIMIT: return {"error":"Prepared command exceeds the 16 MiB Undo budget."}
 	var document_parser := JSON.new()
 	var command_parser := JSON.new()
 	if document_parser.parse(value.canonical) != OK or command_parser.parse(value.command_json) != OK:
@@ -73,15 +82,20 @@ static func decode(value: Variant, allow_assets: bool = false, allow_generation:
 			continue
 		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]) or patch.field not in fields or patch.id is not String or patch.id.is_empty() or (patch.after is not Dictionary and not (allow_generation and patch.after == null)) or (patch.before != null and patch.before is not Dictionary):
 			return {"error":"Invalid prepared command memento."}
+	var patches: Array = command.patches
 	command = HISTORY.retain(command,value.command_json,value.retained)
 	if command.has("error"): return command
-	return {"candidate":candidate, "command":command, "signature":value.signature}
+	# Patches and binary payloads stay available even when Undo was released.
+	return {"candidate":candidate, "command":command, "signature":value.signature, "patches":patches, "retained":value.retained, "limit_warnings":notes}
 
 static func write_bundle(directory: String, bundle: Dictionary, output: Dictionary) -> String:
 	var bytes := var_to_bytes(bundle)
-	if bytes.size() > EXPANDED_BUNDLE_LIMIT: return "Prepared import transfer exceeds 96 MiB expanded."
+	if bytes.size() > EXPANDED_BUNDLE_LIMIT: return "Prepared import transfer exceeds 1 GiB expanded."
+	if not output.has("limit_warnings"): output.limit_warnings = []
+	LIMITS.over(output.limit_warnings, "transfer_expanded_bytes", bytes.size(), WARN_EXPANDED_BYTES, "Prepared change size in bytes")
 	bytes = var_to_bytes({"expanded":bytes.size(),"packed":bytes.compress(FileAccess.COMPRESSION_ZSTD)})
-	if bytes.size() > BUNDLE_LIMIT: return "Prepared import transfer exceeds 24 MiB."
+	if bytes.size() > BUNDLE_LIMIT: return "Prepared import transfer exceeds 512 MiB."
+	LIMITS.over(output.limit_warnings, "transfer_bytes", bytes.size(), WARN_BUNDLE_BYTES, "Compressed prepared change size in bytes")
 	var failure := FILES.write_new(directory.path_join("bundle.bin"), bytes)
 	if failure == "": output.merge({"bundle_bytes":bytes.size(), "bundle_sha256":FILES.digest(bytes)})
 	return failure

@@ -6,10 +6,30 @@ import unittest
 
 from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from unittest.mock import patch
+import asset_derivatives
 from asset_derivatives import derive, pack, unpack, asset, asset_bundle
 
 
 class AssetDerivativesTest(unittest.TestCase):
+    def test_large_source_and_texture_warn_instead_of_refusing(self):
+        stream = io.BytesIO()
+        Image.new("RGBA", (64, 64), (27, 53, 82, 255)).save(stream, format="PNG")
+        picture = stream.getvalue()
+        asset_derivatives.reset_limits()
+        with patch.object(asset_derivatives, "WARN_SOURCE", len(picture) - 1), patch.object(asset_derivatives, "WARN_PIXELS", 64 * 64 - 1):
+            result, report = derive(picture, "png", 128)
+            derive(picture, "png", 128)
+        self.assertTrue(result)
+        notes = {entry["code"]: entry for entry in asset_derivatives.limit_warnings()}
+        self.assertEqual(set(notes), {"asset_source", "texture_pixels"})
+        self.assertEqual(notes["asset_source"]["count"], 2)
+        self.assertEqual(notes["asset_source"]["actual"], len(picture))
+        self.assertFalse(notes["texture_pixels"]["runtime_rejects"])
+        asset_derivatives.reset_limits()
+        with patch.object(asset_derivatives, "MAX_SOURCE", len(picture) - 1), self.assertRaises(ValueError):
+            derive(picture, "png", 128)
+
     def test_lod_pair_scale_hash_and_source_preservation(self):
         model = dict(asset={"version":"2.0"}, buffers=[dict(byteLength=0)],
             scenes=[dict(nodes=[0])], nodes=[dict(translation=[1,2,3],scale=[2,1,1])])

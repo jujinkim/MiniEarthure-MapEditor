@@ -1,6 +1,8 @@
 extends RefCounted
+const LIMITS := preload("./limit_warnings.gd")
 ## Recheck complete source-to-node/road mapping before native candidate validation.
-static func validate(raw: Dictionary, guard: Script) -> String:
+## Former size budgets only warn; every mapping and consistency check stays.
+static func validate(raw: Dictionary, guard: Script, notes: Array = []) -> String:
 	var meta: Variant = raw.coordinates.get("overture_transportation")
 	if raw.source.license != guard.OVERTURE_TRANSPORTATION_LICENSE or raw.coordinates.mode != "wgs84-utm": return "Transportation requires WGS84 and attribution."
 	if meta is not Dictionary or meta.get("provider") != "Overture" or meta.get("theme") != "transportation" or meta.get("type") != "segment" or meta.get("profile") != "ground-graph-v1" or meta.get("license") != guard.OVERTURE_TRANSPORTATION_LICENSE: return "Invalid transportation profile."
@@ -12,10 +14,11 @@ static func validate(raw: Dictionary, guard: Script) -> String:
 	if bbox is not Array or bbox.size() != 4: return "Invalid transportation bbox."
 	for i in range(4):
 		if not guard._finite(bbox[i], -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84): return "Invalid transportation bbox."
-	if bbox[0] >= bbox[2] or bbox[1] >= bbox[3] or bbox[2]-bbox[0] > 0.02 or bbox[3]-bbox[1] > 0.02: return "Invalid transportation area size."
+	if not guard._overture_area(notes, bbox): return "Invalid transportation area size."
 	var segments: Variant = meta.get("segment_sources")
 	var connectors: Variant = meta.get("connector_sources")
-	if segments is not Array or segments.is_empty() or connectors is not Array or connectors.is_empty() or segments.size()+connectors.size() > 1024 or segments.size()+connectors.size() != raw.get("feature_count"): return "Invalid transportation source counts."
+	if segments is not Array or segments.is_empty() or connectors is not Array or connectors.is_empty() or segments.size()+connectors.size() != raw.get("feature_count"): return "Invalid transportation source counts."
+	LIMITS.over(notes, "transportation_features", segments.size()+connectors.size(), 1024, "Transportation segments and connectors")
 	if meta.get("connection_profile") != "explicit-position-v1": return "Invalid connection position profile."
 	var source_ids := {}
 	var connector_nodes := {}
@@ -24,7 +27,8 @@ static func validate(raw: Dictionary, guard: Script) -> String:
 	for entry in connectors + segments:
 		if entry is not Dictionary or not guard._text(entry.get("id")) or source_ids.has(entry.id) or not guard._count(entry.get("version"), 2147483647) or entry.version < 1: return "Invalid/duplicate transportation identity."
 		source_ids[entry.id] = true
-		if entry.get("sources") is not Array or entry.sources.is_empty() or entry.sources.size() > 128: return "Missing transportation sources."
+		if entry.get("sources") is not Array or entry.sources.is_empty(): return "Missing transportation sources."
+		LIMITS.over(notes, "transportation_sources", entry.sources.size(), 128, "Source datasets of one transportation feature")
 		for source in entry.sources:
 			if source is not Dictionary or not guard._text(source.get("dataset")): return "Invalid transportation attribution."
 	for entry in connectors:
@@ -42,9 +46,10 @@ static func validate(raw: Dictionary, guard: Script) -> String:
 		if not entry.has("road_spans"): return "Missing physical spans."
 		var refs: Variant = entry.get("connectors")
 		var road_ids: Variant = entry.get("road_ids")
-		if refs is not Array or refs.size() < 2 or refs.size() > 8192 or road_ids is not Array or road_ids.size() != refs.size()-1: return "Incomplete segment mapping."
+		if refs is not Array or refs.size() < 2 or road_ids is not Array or road_ids.size() != refs.size()-1: return "Incomplete segment mapping."
+		LIMITS.over(notes, "transportation_connectors", refs.size(), 8192, "Connectors of one segment")
 		var previous_at := -1.0
-		if (entry.get("source_fractions") is not Array or entry.source_fractions.size() < 2 or entry.source_fractions.size() > 8192): return "Missing connection source fractions."
+		if (entry.get("source_fractions") is not Array or entry.source_fractions.size() < 2): return "Missing connection source fractions."
 		var previous_vertex := -1
 		var previous_resolved := -1.0
 		var unique := {}
@@ -62,15 +67,18 @@ static func validate(raw: Dictionary, guard: Script) -> String:
 		if refs[0].vertex != 0 or refs[0].at > 0.0000001 or refs[-1].at < 0.9999999: return "Missing segment endpoint connectors."
 		if refs[-1].vertex != entry.source_fractions.size()-1 or refs[0].resolved_at != 0 or refs[-1].resolved_at != 1: return "Missing positioned endpoints."
 		source_points += entry.source_fractions.size()
-		var error := validate_spans(entry, guard)
+		var error := validate_spans(entry, guard, notes)
 		if error != "": return error
 		for i in range(road_ids.size()):
 			var rid: Variant = road_ids[i]
-			if not guard._text(rid) or expected_roads.has(rid) or expected_roads.size() >= 2048: return "Invalid/duplicate split-road mapping."
+			if not guard._text(rid) or expected_roads.has(rid): return "Invalid/duplicate split-road mapping."
 			var span: Dictionary = entry.road_spans[i]
 			expected_roads[rid] = {"from":connector_nodes[refs[i].connector_id], "to":connector_nodes[refs[i+1].connector_id], "widths":span.widths_cm, "surfaces":span.surfaces, "geometry":span.points_cm, "points":span.points_cm.size()}
 			output_points += int(expected_roads[rid].points)
-	if output_points > 16384 or source_points > 8192 or meta.get("source_position_count") != source_points or raw.get("point_count") != output_points: return "Transportation point budget/count mismatch."
+	if meta.get("source_position_count") != source_points or raw.get("point_count") != output_points: return "Transportation point count mismatch."
+	LIMITS.over(notes, "transportation_roads", expected_roads.size(), 2047, "Transportation road parts")
+	LIMITS.over(notes, "transportation_output_points", output_points, 16384, "Transportation road points")
+	LIMITS.over(notes, "transportation_source_points", source_points, 8192, "Transportation source positions")
 	if used.size() != connectors.size(): return "Unreferenced connector mapping."
 	if raw.patches.size() != expected_nodes.size()+expected_roads.size(): return "Incomplete transportation patches."
 	for patch in raw.patches:
@@ -90,12 +98,13 @@ static func validate(raw: Dictionary, guard: Script) -> String:
 	return ""
 
 ## Current spans include complete source and physical boundaries.
-static func validate_spans(entry: Dictionary, guard: Script) -> String:
+static func validate_spans(entry: Dictionary, guard: Script, notes: Array = []) -> String:
 	var spans: Variant = entry.road_spans
 	var physical: Variant = entry.get("physical_rules")
 	var source: Variant = entry.get("source_fractions")
 	if spans is not Array or spans.size() != entry.road_ids.size() or physical is not Dictionary: return "Incomplete physical spans."
-	if source is not Array or source.size() < 2 or source.size() != entry.connectors[-1].vertex+1 or source.size() > 8192: return "Invalid source fractions."
+	if source is not Array or source.size() < 2 or source.size() != entry.connectors[-1].vertex+1: return "Invalid source fractions."
+	LIMITS.over(notes, "transportation_fractions", source.size(), 8192, "Source positions of one segment")
 	var last := -1.0
 	for at in source:
 		if not guard._finite(at,0,1) or at <= last: return "Invalid source fraction order."
@@ -104,7 +113,8 @@ static func validate_spans(entry: Dictionary, guard: Script) -> String:
 	var boundaries := {}
 	for key in ["width_rules", "road_surface"]:
 		var rules: Variant = physical.get(key)
-		if rules is not Array or rules.is_empty() or rules.size() > 1024: return "Invalid physical rules."
+		if rules is not Array or rules.is_empty(): return "Invalid physical rules."
+		LIMITS.over(notes, "transportation_rules", rules.size(), 1024, "Physical rules of one segment")
 		last = 0
 		for rule in rules:
 			if rule is not Array or rule.size() != 3 or not guard._finite(rule[0],0,1) or not guard._finite(rule[1],0,1) or rule[0] != last or rule[1] <= rule[0]: return "Physical rule gap/overlap."
@@ -122,9 +132,8 @@ static func validate_spans(entry: Dictionary, guard: Script) -> String:
 		var span: Variant = spans[i]
 		if span is not Dictionary or span.get("road_id") != entry.road_ids[i]: return "Invalid span identity."
 		var fractions: Variant = span.get("fractions")
-		if fractions is not Array or fractions.size() < 2 or fractions.size() > 16384: return "Invalid span fractions."
+		if fractions is not Array or fractions.size() < 2: return "Invalid span fractions."
 		count += fractions.size()
-		if count > 16384: return "Span point budget exceeded."
 		var start: Variant = entry.connectors[i].resolved_at
 		var end: Variant = entry.connectors[i+1].resolved_at
 		if fractions[0] != start or fractions[-1] != end: return "Span connector range changed."
@@ -153,4 +162,5 @@ static func validate_spans(entry: Dictionary, guard: Script) -> String:
 					if span.surfaces[j] != surface: return "Span surface mapping changed."
 	for at in source + boundaries.keys():
 		if not seen.has(at): return "Missing source/physical boundary."
+	LIMITS.over(notes, "transportation_span_points", count, 16384, "Span points of one segment")
 	return ""

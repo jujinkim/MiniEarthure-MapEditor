@@ -19,6 +19,10 @@ BOX = [9,55,9+100/64000,55+100/111000]
 
 
 class Loops(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def layer(self, value, counts):
         return osm.finish(convert(value,"synthetic",osm.LICENSE,coordinates=OPTIONS,osm_graph=True,layer_id="a"*32),counts)
 
@@ -104,7 +108,9 @@ class Loops(unittest.TestCase):
             def stop(stage,current,total,*unit):
                 if stage=="index_relations" and current==total: raise InterruptedError("loop cancelled")
             with self.assertRaises(InterruptedError): stream.extract(source,BOX,d,stop)
-            with patch.object(stream,"MAX_FEATURES",1),self.assertRaisesRegex(ValueError,"budget"): stream.extract(source,BOX,d)
+            import import_layer
+            with patch.object(stream,"MAX_FEATURES",1): stream.extract(source,BOX,d)
+            self.assertIn("stream_closure_features",{e["code"] for e in import_layer.limit_entries()})
             self.assertTrue(all(not (Path(d)/n).exists() for n in stream.OWNED_FILES))
             self.assertEqual(stream.extract(source,BOX,d)[1]["closed_ground_ways"],1)
             self.assertEqual(source.read_bytes(),raw)
@@ -205,10 +211,17 @@ class Loops(unittest.TestCase):
     def test_source_topology_split_output_and_native_arm_budgets(self):
         import polygon_geometry as geometry
         import import_layer
-        with patch.object(geometry,"MAX_TOPOLOGY_CHECKS",1),self.assertRaisesRegex(ValueError,"topology budget"):osm.parse(xml().encode(),"osm")
-        with patch.object(osm,"MAX_FEATURES",5),self.assertRaisesRegex(ValueError,"split feature budget"):osm.parse(xml().encode(),"osm")
+        def codes(): return {e["code"] for e in import_layer.limit_entries()}
+        expected=osm.parse(xml().encode(),"osm")
+        with patch.object(geometry,"MAX_TOPOLOGY_CHECKS",1):self.assertEqual(osm.parse(xml().encode(),"osm"),expected)
+        self.assertIn("topology_checks",codes())
+        with patch.object(geometry,"TOPOLOGY_CEILING",1),self.assertRaisesRegex(ValueError,"topology check ceiling"):osm.parse(xml().encode(),"osm")
+        with patch.object(osm,"MAX_FEATURES",5):self.assertEqual(osm.parse(xml().encode(),"osm"),expected)
+        self.assertIn("osm_split_features",codes())
         value,counts=osm.parse(xml().encode(),"osm")
-        with patch.object(import_layer,"MAX_RECORDS",3),self.assertRaisesRegex(ValueError,"record budget"):self.layer(value,counts)
+        with patch.object(import_layer,"MAX_RECORDS",3):layer=self.layer(value,counts)
+        self.assertIn("import_records",codes())
+        self.assertTrue(any(w.startswith("Limit warning: Import record budget exceeded") for w in layer.warnings))
         root=ET.fromstring(xml());way=root.find("way[@id='2']")
         for i in range(30):
             peer=copy.deepcopy(way);peer.set("id",str(100+i));root.append(peer)

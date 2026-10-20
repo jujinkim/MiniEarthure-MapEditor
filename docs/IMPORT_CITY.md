@@ -68,9 +68,12 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   space: road-trimmed sources, protected buildings, aggregation groups and
   pedestrian paint are built once and charge the same work budget as a fresh
   build. Only gap filling and the overlap partition are rebuilt per gap.
-- Candidates are built largest gap first and the first one that fits the output
-  limits and converts is kept. A smaller gap is built only after a failure: a work
-  budget, an unreviewed building inside road space, the output limits or conversion.
+- Candidates are built largest gap first and the first one that meets the output
+  targets and converts is kept. A smaller gap is built only when a larger one misses
+  a target (output counts or Editor bytes, work or partition budgets) or fails
+  conversion or a typed topology check (for example an unreviewed building inside
+  road space). When no gap meets the targets, the largest converted gap (smallest
+  output) is kept with limit warnings; a hard ceiling fails the whole import.
   Building a new road space drops the exclusions of the replaced one, so review
   lists only the kept candidate's exclusions.
 - Named, public, landmark and tall buildings are protected from aggregation. Road
@@ -101,21 +104,25 @@ space fails that candidate with its source ID unless exclusion review is enabled
 the whole source is excluded with a warning and the inspected-exclusions checkbox is
 required.
 
-Every map cell (≤256) is generated sequentially before review and adoption with the
-120-second child timeout; batches of 16 reuse native preparation. The Map authoring
+Every map cell is generated sequentially before review and adoption (warning above
+256 cells, at most 16,384); after 120 s a running-time warning appears and Cancel
+remains. Batches of 16 reuse native preparation. The Map authoring
 page exposes cell size: smaller cells reduce per-cell work without changing extent or
 scale. Terrain tiles and assembled tracks block resizing. Resizing is one Undo command.
-If protected geometry or budgets do not fit, the whole candidate fails.
+If protected geometry cannot be preserved, the whole candidate fails.
 
 ## Limits
 
-| Bound | City profile |
+| Bound | City profile: warning above |
 | --- | --- |
 | Source work | 250,000 features, 2 million positions/entities, 4 million references, 256 MiB selected JSON |
 | Output | 100,000 features, 800,000 positions, 180,000 records, 32 MiB wire and Editor JSON |
-| Shared | 50 warning samples, whole-candidate native validation, 16 MiB retained Undo |
+| Partition depth | 16 building / 32 paint levels (refused at 24 / 48) |
+| Shared | 50 warning samples (limit warnings always kept), whole-candidate native validation, 16 MiB retained Undo |
 
-Output is also bounded by MapKit's 32 MiB document, 200,000 objects and 1 million
-vertices. Large-PBF scanning shares the 2 GiB disk index of the exact profile; the
-20,000-feature selection ceiling applies only to exact mode. City approximation never
+Exceeding a bound records a limit warning; a larger adoption is applied without
+Undo ([DOCUMENTS](DOCUMENTS.md)). Output above the 32 MiB document warns that the game
+refuses the map; MapKit's native 200,000-object / 1 million-vertex document gate
+still refuses. Large-PBF scanning shares the disk index of the exact profile; the
+20,000-feature selection warning applies only to exact mode. City approximation never
 supplies missing structural heights or repairs invalid original topology.

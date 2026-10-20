@@ -3,17 +3,34 @@
 Conservative profile: simple disjoint boundaries only (touching rings reject).
 The same checks run on source coordinates and projected integer centimetres.
 """
-MAX_TOPOLOGY_CHECKS = 2_000_000
+from import_layer import BudgetExceeded, soft_limit
+
+MAX_TOPOLOGY_CHECKS = 2_000_000  # Warn above; every check still runs.
+TOPOLOGY_CEILING = 200_000_000  # CPU-time guard: an unfinished check is never skipped.
 
 
 class Budget:
     def __init__(self):
-        self.remaining = MAX_TOPOLOGY_CHECKS
+        self.limit, self.ceiling, self.used = MAX_TOPOLOGY_CHECKS, TOPOLOGY_CEILING, 0
+        self.threshold = min(self.limit, self.ceiling)
 
     def spend(self, count=1):
-        self.remaining -= count
-        if self.remaining < 0:
-            raise ValueError("polygon topology budget exceeded; use a smaller extract")
+        # Hot path (once per segment pair): a single comparison until the next
+        # threshold. The soft limit is recorded once when first crossed; settle()
+        # records the final count when a ring check finishes.
+        self.used += count
+        if self.used > self.threshold:
+            self.crossed()
+
+    def crossed(self):
+        if self.used > self.ceiling:
+            raise BudgetExceeded("polygon topology check ceiling exceeded; use a smaller extract")
+        self.threshold = self.ceiling
+        self.settle()
+
+    def settle(self):
+        if self.used > self.limit:
+            soft_limit("topology_checks", self.used, self.limit, "Polygon topology checks exceed their budget; import takes longer")
 
 
 class SpatialBudget(Budget):
@@ -22,6 +39,13 @@ class SpatialBudget(Budget):
 
 
 def spatial_rings(outers, inners, budget):
+    try:
+        return _spatial_rings(outers, inners, budget)
+    finally:
+        budget.settle()
+
+
+def _spatial_rings(outers, inners, budget):
     from shapely.geometry import Polygon
     from shapely.strtree import STRtree
     if not outers: raise ValueError("multipolygon requires an outer ring")
@@ -91,6 +115,13 @@ def group_rings(outers, inners, budget):
     """
     if getattr(budget, "spatial", False):
         return spatial_rings(outers, inners, budget)
+    try:
+        return _group_rings(outers, inners, budget)
+    finally:
+        budget.settle()
+
+
+def _group_rings(outers, inners, budget):
     if not outers:
         raise ValueError("multipolygon requires an outer ring")
     rings = outers + inners

@@ -286,7 +286,9 @@ func run() -> void:
 	check(captured.ok, "budget fixture document")
 	var staged := SNAPSHOT.stage(captured.data)
 	check(staged.ok, "budget fixture native")
-	check(not WORK.new().allowance(staged.data.bridge,Vector2i.ZERO).ok, "estimate rejects oversized preview work")
+	var preview_warnings: Array = []
+	var allowed: Dictionary = WORK.new().allowance(staged.data.bridge,Vector2i.ZERO,preview_warnings)
+	check(allowed.ok and int(allowed.data) > WORK.PREVIEW_BYTES and preview_warnings.size() == 1 and preview_warnings[0].code == "preview_work", "oversized preview work is a limit warning, not a refusal")
 	FILES.remove_scratch(staged.data.path)
 	print("E04 metrics: ", JSON.stringify(ui.preview_stats))
 	ui.store.dirty = false

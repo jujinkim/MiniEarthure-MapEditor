@@ -41,7 +41,7 @@ units. Undo/Redo/save operate on adopted coordinates and never reapply the facto
 | --- | --- | --- |
 | GeoJSON `geojson-v1` | Local metres or WGS84; LineString/MultiLineString ground roads; Polygon/MultiPolygon buildings or forest/orchard with holes; bounded nested GeometryCollection | Point semantics, legacy CRS, Z, structural heights/graph IDs, empty/unsupported leaves |
 | OSM XML/PBF `osm-extract-v1` | Bounded snapshot or selected-area streaming; supported highways/buildings/vegetation; source-node loops; explicit bridge/tunnel heights with ground anchors | Unsupported tags, missing metric heights without a supplement, heights inferred from `layer`, invalid original topology |
-| Local Overture | Building parts/courtyards, ground transportation with exact spans/connectors, forest land cover | Structural transportation without metric height/datum/clearance, unbounded selections |
+| Local Overture | Building parts/courtyards, ground transportation with exact spans/connectors, forest land cover; areas ≤0.2° per side (warning above 0.02°) | Structural transportation without metric height/datum/clearance, unbounded selections |
 | PNG heightmap | 16-bit full-cell PNG with explicit extent, offset/step and shared-edge validation | Undeclared units, bad cell edges, arbitrary CRS/resampling |
 | Copernicus COG `copernicus-dem-v1` | One bounded array of local COGs (single file or atomic mosaic) | Remote acquisition, arbitrary raster/nodata/warp profiles |
 | Facility CSV `facility-csv-v1` | UTF-8/CP949/EUC-KR, header mapping, WGS84 name/position/category/source | Invalid coordinates become review rows; nothing is geocoded or guessed |
@@ -53,16 +53,19 @@ extent, counts, estimates and bounded warning samples are retained.
 
 ## DEM mosaics and building bases
 
-Copernicus mosaics allow up to 256 cells of any aspect ratio, four source tiles of
-at most 64 MiB each, 64 MiB of decoded full-resolution COG blocks, 1025² total
-samples, 513 samples per cell side, 64 MiB output and a 120-second native deadline.
-Review reads only the tile headers to find the blocks the sample support touches and
-refuses an excess before hashing or copying; the review lists each tile's blocks and
-decoded/compressed bytes, and the captured copies must touch the same blocks. Whole
+Copernicus mosaics allow up to 1024 cells of any aspect ratio, 16 source tiles of
+at most 256 MiB each, 512 MiB of decoded full-resolution COG blocks, 4096² total
+samples, 513 samples per cell side and 2 GiB of derived terrain. Above 256 cells,
+four tiles, 64 MiB per tile, 64 MiB decoded, 1025² samples or 64 MiB derived terrain
+the review records limit warnings and continues. There is no time limit; after 120 s
+a running-time warning appears and Cancel remains. A review older than 10 minutes is
+checked again with a warning. Review reads only the tile headers to find the blocks
+the sample support touches and refuses a hard excess before hashing or copying; the
+review lists each tile's blocks and decoded/compressed bytes, and the captured copies must touch the same blocks. Whole
 tiles are still hashed and copied for their identity. The adopted source notice names each tile
 file with its bytes and SHA-256; local source and capture paths stay out of the map
-(the capture folder keeps its own review sidecars). DEM is optional: a multi-district region
-beyond these limits is refused with that explanation and keeps its flat terrain. **Use imported OSM coordinates and full
+(the capture folder keeps its own review sidecars). DEM is optional: a region beyond
+the hard bounds is refused with that explanation and keeps its flat terrain. **Use imported OSM coordinates and full
 map extent** copies the imported frame, selects all cells and uses 4 m map spacing
 when the grid allows.
 
@@ -79,13 +82,15 @@ Open **Import vector source → OSM crop**, choose the PBF (the picker's `*.pbf`
 filter also accepts `.osm.pbf`), enter an administrative name or recorded alias and
 press **Find area by name**. If an English search fails, try the local name; no
 translation is invented. Results show relation IDs, exact extents and simplified
-outlines (≤32 matches, 200,000 references, 20,000 display points); missing outer
-geometry is reported, never guessed.
+outlines (the best 32 matches; outlines thinned to 20,000 display points; names over
+256 characters shortened). More matches, thinning and more than 200,000 boundary
+references warn; 10 million references are refused. Missing outer geometry is
+reported, never guessed.
 
 Selecting a result fills outward-rounded W/S/E/N fields and centres the WGS84
-origin. **Add selected area** combines up to eight results (for example neighbouring
-districts): the fields become their combined extent and the PBF streaming import
-clips to the exact union of their boundaries, read from the same captured PBF
+origin. **Add selected area** combines up to 64 results (warning above eight; for
+example neighbouring districts): the fields become their combined extent and the PBF
+streaming import clips to the exact union of their boundaries, read from the same captured PBF
 (`--osm-areas`, crop `region` `administrative-union-v1` with the area IDs and names in
 the receipt). Missing or open boundaries, or areas outside the rectangle, reject the
 import. Click the diagram to move the origin or drag a rectangle; dragging returns
@@ -104,7 +109,9 @@ Choose **Facility CSV**, set license, source reference and encoding, map the
 name/latitude/longitude headers and supply the category. **Use imported OSM
 coordinates** reuses the existing origin. Rows share the import origin and the
 map's 1:1 or 1:8 scale; the OSM crop can filter rows besides map bounds. Invalid
-rows must be explicitly excluded. Limits: 20,000 rows, 32 MiB.
+rows must be explicitly excluded. More than 20,000 rows, files above 32 MiB, fields
+above 16 KiB or more than 128 columns warn; 256 MiB files, 1 MiB fields and 1024
+columns are refused.
 
 Facilities appear in the Facilities list and the shared pin/label renderer.
 Current-v1 `pois` keep names, classes, local coordinates and source/row
@@ -113,51 +120,65 @@ collision.
 
 ## Topology, structures and heights
 
-GeoJSON multipart lines keep independent endpoints and are never welded by
-position. Collections preserve order and inherited properties (16 levels, 40,000
-nodes, 20,000 leaves). OSM connections use original node identity; crop cuts get
-local IDs and cannot connect by position. Original topology and heights are
-validated before cropping, including incident ways outside the area.
+GeoJSON multipart lines keep independent endpoints and are never welded by position.
+Collections preserve order and inherited properties (64 levels; warning above 40,000
+nodes / 20,000 leaves, refused at 4 million / 2 million). OSM connections use
+original node identity; crop cuts get local IDs and cannot connect by position.
+Original topology and heights are validated before cropping, including incident ways
+outside the area.
 
 Structures need explicit source heights, vertical datum, clearance and two ground
 anchors per connected component; the city profile levels those crossing no other road
 and estimates heights for the rest ([IMPORT_CITY](IMPORT_CITY.md)). Snapshot-bound local height supplements may fill
-missing values but never override source heights. Native generation checks every
-affected corridor (≤16 cells) at review and adoption. WGS84 height conversion
-needs explicit reference metadata; a bounded EGM96→EGM2008 delta grid must cover
-every vertex. Preparing grids from arbitrary geoid formats is unsupported.
+missing values but never override source heights (≤16 MiB and 1 million nodes;
+warning above 256 KiB / 4096 nodes). Native generation checks every affected
+corridor at review and adoption (warning above 16 cells, at most 16,384). WGS84
+height conversion needs explicit reference metadata; an EGM96→EGM2008 delta grid
+(≤16 MiB, 1025 rows/columns and 10° per side; warning above 64 KiB, 33 and 1°) must
+cover every vertex. Preparing grids from arbitrary geoid formats is unsupported.
 
 ## Worker, review and limits
 
 One ImportJob owns one helper, request ID and scratch directory. Progress uses real
-stage/count events; IPC is bounded (events ≤4 KiB, total ≤1 MiB, stderr ≤4 KiB).
-Cancellation terminates the child and removes only its scratch. Full failure text
-is in **Activity → Operation details…**.
+stage/count events; IPC is bounded (events ≤4 KiB, total ≤64 MiB, stderr ≤4 KiB).
+There is no time limit: after 120 s (PBF streaming: 15 minutes) a running-time
+warning appears and Cancel remains. Cancellation terminates the child and removes
+only its scratch. Full failure text is in **Activity → Operation details…**.
 
-| Bound | Exact profile |
-| --- | --- |
-| Snapshot input | 32 MiB |
-| Result | 12 MiB, 20,000 features, 200,000 positions, 60,000 records |
-| Native check | 16 cells |
-| PBF scan | 100 million entities, 80 million references, 2 GiB disk index, 15 minutes |
+Limits on the user's own data warn instead of refusing: each exceeded budget adds one
+`Limit warning: <message> (<actual> > <limit>)`, listed first in the review, and the
+import continues. A limit the game enforces adds "; the game refuses maps beyond
+this" (for example over 200,000 objects or 1 million vertices). Only memory/parser
+guards refuse, plus MapKit's native document gate (200,000 objects / 1 million
+vertices) and work limits at review and adoption. Malformed or unsupported data,
+identity and topology errors still reject.
+
+| Bound | Exact profile: warning above | Refused above |
+| --- | --- | --- |
+| Snapshot input | 32 MiB (PBF streaming 2 GiB) | 256 MiB (PBF streaming 64 GiB) |
+| Result | 12 MiB, 20,000 features, 200,000 positions, 60,000 records | 1 GiB |
+| Native check | 16 cells | 16,384 cells |
+| PBF scan | 100 million entities, 80 million references, 2 GiB disk index | Disk quota: 3× source (≥2 GiB) within free disk |
 
 Exact mode performs no generalization. Disk index bytes are logical reservations,
-not RSS limits. The scan reads dense node IDs/locations and way references straight
-from the captured blocks (each way checked against libosmium's ID and node count);
-only tagged nodes and way/relation tags become Python objects, and the road incidence
-index keeps only nodes that two or more highways share. The review candidate is immutable; source recheck and command
-preparation run in owned workers, and late or stale results are rejected. Adopt
-adds the whole layer in one Undo command; Discard releases the candidate. Layer
-visibility/lock are view state. Saving stays explicit. Compressed history and
-native transfer limits are in [DOCUMENTS](DOCUMENTS.md); PNG/asset adoption
-follows [AUTHORING](AUTHORING.md).
+not RSS limits; low free disk warns, and a full disk fails the import. The scan
+reads dense node IDs/locations and way references straight from the captured blocks
+(each way checked against libosmium's ID and node count); only tagged nodes and
+way/relation tags become Python objects, and the road incidence index keeps only
+nodes that two or more highways share. The review candidate is immutable; source
+recheck and command preparation run in owned workers, and late or stale results are
+rejected. Adopt adds the whole layer in one Undo command (a command over 16 MiB is
+applied without Undo); Discard releases the candidate. Layer visibility/lock are
+view state. Saving stays explicit. Compressed history and native transfer limits are
+in [DOCUMENTS](DOCUMENTS.md); PNG/asset adoption follows [AUTHORING](AUTHORING.md).
 
 The importer needs Python 3.12+ with `requirements-import.txt` (NumPy 2.5.3).
 
 ## Known limits
 
-- City output stays within 32 MiB ([IMPORT_CITY](IMPORT_CITY.md)); four Suwon
-  districts adopt at 24.1 MB, which is not a claim for every city.
+- City output above 32 MiB warns that the game refuses the map
+  ([IMPORT_CITY](IMPORT_CITY.md)); four Suwon districts adopt at 24.1 MB, which is
+  not a claim for every city.
 - A DEM cannot yet be adopted onto a city map with estimated bridges or tunnels:
   their ground anchors sit on the flat terrain base, so native generation rejects
   the junction aprons (`E_GEOMETRY`, 1 cm terrain match). Ground roads, levelled

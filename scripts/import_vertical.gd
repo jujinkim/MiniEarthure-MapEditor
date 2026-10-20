@@ -1,7 +1,13 @@
 extends RefCounted
 const I18N := preload("./locale_text.gd")
+const LIMITS := preload("./limit_warnings.gd")
 ## Import provenance only. No changes to authored terrain or MapKit coordinates.
-const MAX_GRID_BYTES := 64 * 1024
+## Memory guards, equal to Python vertical.py ceilings; the former 64 KiB,
+## 33 nodes and one degree only warn.
+const MAX_GRID_BYTES := 16 * 1024 * 1024
+const WARN_GRID_BYTES := 64 * 1024
+const MAX_GRID_SIDE := 1025
+const MAX_GRID_DEGREES := 10.0
 const CRS := {"EGM96":"EPSG:5773 / EGM96 metres", "EGM2008":"EPSG:3855 / EGM2008 metres"}
 const ORDER := "source vertices before crop; target heights linearly interpolated at cuts; round once to cm"
 
@@ -17,27 +23,31 @@ static func bounded_text(v: Variant) -> bool:
 		if c.unicode_at(0) < 32: return false
 	return true
 
-static func options_error(o: Variant) -> String:
+static func options_error(o: Variant, notes: Array = []) -> String:
 	if o is not Dictionary or o.size() != 3 or not o.has_all(["target", "zero_m", "grid"]) or o.target not in CRS: return "Select a supported vertical datum."
 	if not finite(o.zero_m, -10000, 10000) or abs(o.zero_m * 100 - round(o.zero_m * 100)) > 0.00000001: return "Vertical zero must be finite whole centimetres within ±10000 m."
 	if o.target == "EGM96": return "" if o.grid == null else "EGM96 offset must not include a grid."
-	if o.grid is not String or o.grid.to_utf8_buffer().is_empty() or o.grid.to_utf8_buffer().size() > MAX_GRID_BYTES: return "Select a local UTF-8 correction grid of at most 64 KiB."
+	var grid_bytes: int = o.grid.to_utf8_buffer().size() if o.grid is String else 0
+	if o.grid is not String or grid_bytes == 0 or grid_bytes > MAX_GRID_BYTES: return "Select a local UTF-8 correction grid of at most 16 MiB."
+	LIMITS.over(notes, "vertical_grid_bytes", grid_bytes, WARN_GRID_BYTES, "Correction grid size in bytes")
 	var g: Variant = JSON.parse_string(o.grid)
 	var keys := ["format", "source", "license", "accuracy", "horizontal_crs", "source_crs", "target_crs", "quantity", "bbox", "columns", "rows", "values_m"]
 	if g is not Dictionary or g.size() != keys.size() or not g.has_all(keys): return "Invalid correction grid fields."
 	if g.format != "miniearthure-height-delta-v1" or g.horizontal_crs != "EPSG:4326" or g.source_crs != CRS.EGM96 or g.target_crs != CRS.EGM2008 or g.quantity != "H_EGM2008-minus-H_EGM96": return "Unsupported correction grid datum, axes or sign."
 	for key in ["source", "license", "accuracy"]:
 		if not bounded_text(g[key]): return "Grid source, license and accuracy descriptions are required."
-	if not count(g.columns, 2, 33) or not count(g.rows, 2, 33) or g.values_m is not Array or g.values_m.size() != g.columns * g.rows: return "Grid requires 2..33 complete rows and columns."
+	if not count(g.columns, 2, MAX_GRID_SIDE) or not count(g.rows, 2, MAX_GRID_SIDE) or g.values_m is not Array or g.values_m.size() != g.columns * g.rows: return "Grid requires 2..1025 complete rows and columns."
+	LIMITS.over(notes, "vertical_grid_nodes", int(maxf(g.columns, g.rows)), 33, "Correction grid rows or columns")
 	if g.bbox is not Array or g.bbox.size() != 4: return "Invalid correction grid bounds."
 	for i in range(4):
 		if not finite(g.bbox[i], -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84): return "Invalid correction grid bounds."
-	if g.bbox[2] <= g.bbox[0] or g.bbox[3] <= g.bbox[1] or g.bbox[2] - g.bbox[0] > 1 or g.bbox[3] - g.bbox[1] > 1: return "Grid bounds must be ordered and at most one degree per side."
+	if g.bbox[2] <= g.bbox[0] or g.bbox[3] <= g.bbox[1] or g.bbox[2] - g.bbox[0] > MAX_GRID_DEGREES or g.bbox[3] - g.bbox[1] > MAX_GRID_DEGREES: return "Grid bounds must be ordered and at most 10 degrees per side."
+	LIMITS.over(notes, "vertical_grid_degrees", ceili(maxf(g.bbox[2] - g.bbox[0], g.bbox[3] - g.bbox[1])), 1, "Correction grid side in degrees")
 	for n in g.values_m:
 		if not finite(n, -200, 200): return "Grid deltas must be finite metres within ±200; nodata is unsupported."
 	return ""
 
-static func validate(raw: Dictionary, requested: Dictionary) -> String:
+static func validate(raw: Dictionary, requested: Dictionary, notes: Array = []) -> String:
 	var v: Variant = raw.coordinates.get("vertical")
 	if not raw.coordinates.has("vertical"): return "Missing requested vertical conversion." if requested.has("vertical") else ""
 	var keys := ["profile", "source_crs", "target_crs", "vertical_zero_m", "order", "method", "grid_source", "explicit_points", "explicit_roads", "delta_range_m"]
@@ -50,7 +60,7 @@ static func validate(raw: Dictionary, requested: Dictionary) -> String:
 		if s.json.to_utf8_buffer().size() > MAX_GRID_BYTES or s.bytes != s.json.to_utf8_buffer().size() or s.sha256 != s.json.sha256_text(): return "Correction source identity changed."
 		o.grid = s.json
 	elif v.grid_source != null: return "Offset conversion must not contain a correction grid."
-	var failure := options_error(o)
+	var failure := options_error(o, notes)
 	if failure != "": return failure
 	if v.method != ("offset" if o.target == "EGM96" else "bilinear-local-delta-grid-v1"): return "Incorrect vertical method."
 	if requested.has("vertical"):
@@ -58,7 +68,9 @@ static func validate(raw: Dictionary, requested: Dictionary) -> String:
 		for key in ["target", "zero_m", "grid"]:
 			if requested.vertical[key] != o[key]: return "Vertical selection differs from captured request."
 	elif not requested.is_empty() and (o.target != "EGM96" or o.zero_m != 0 or o.grid != null): return "Unrequested vertical conversion."
-	if not count(v.explicit_points, 0, 200000) or not count(v.explicit_roads, 0, 20000) or v.explicit_points < v.explicit_roads * 2: return "Invalid vertical conversion counts."
+	if not count(v.explicit_points, 0, 1000000000000) or not count(v.explicit_roads, 0, 1000000000000) or v.explicit_points < v.explicit_roads * 2: return "Invalid vertical conversion counts."
+	LIMITS.over(notes, "vertical_points", int(v.explicit_points), 200000, "Source vertices with explicit heights")
+	LIMITS.over(notes, "vertical_roads", int(v.explicit_roads), 20000, "Roads with explicit heights")
 	if v.explicit_points == 0:
 		if v.explicit_roads != 0 or v.delta_range_m != null or o.target != "EGM96" or o.zero_m != 0: return "Conversion requires explicit source heights."
 	else:

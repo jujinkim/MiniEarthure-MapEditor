@@ -22,6 +22,10 @@ def layer(raw, fmt="osm", token="a" * 32):
 
 
 class OsmTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_generation_regions_source_ids_holes_and_protection(self):
         import xml.etree.ElementTree as ET
         root=ET.fromstring(multipolygon_xml().replace('k="landuse" v="forest"','k="landuse" v="residential"'))
@@ -113,7 +117,12 @@ class OsmTests(unittest.TestCase):
         for name, action in variants.items():
             with self.subTest(name=name), self.assertRaises(ValueError): layer(change(action))
         import polygon_geometry as geometry
-        with patch.object(geometry, "MAX_TOPOLOGY_CHECKS", 1), self.assertRaisesRegex(ValueError, "topology budget"):
+        import import_layer
+        expected = layer(multipolygon_xml().encode()).patches
+        with patch.object(geometry, "MAX_TOPOLOGY_CHECKS", 1):
+            self.assertEqual(layer(multipolygon_xml().encode()).patches, expected)
+        self.assertIn("topology_checks", {e["code"] for e in import_layer.limit_entries()})
+        with patch.object(geometry, "TOPOLOGY_CEILING", 1), self.assertRaisesRegex(ValueError, "topology check ceiling"):
             layer(multipolygon_xml().encode())
 
     def test_invalid_multipolygon_cli_never_publishes(self):
@@ -156,9 +165,17 @@ class OsmTests(unittest.TestCase):
         with self.assertRaises(ValueError): osm.parse(XML.encode("utf-16"), "osm")
 
     def test_bounds_and_dependency_failure(self):
-        for key in ["MAX_INPUT", "MAX_POINTS", "MAX_ENTITIES", "MAX_REFS", "MAX_FEATURES"]:
-            with self.subTest(key=key), patch.object(osm, key, 1), self.assertRaises(ValueError):
-                osm.parse(XML.encode(), "osm")
+        import import_layer
+        expected = osm.parse(XML.encode(), "osm")
+        # Former budgets warn and keep every source object; the input ceiling refuses.
+        for key, code in [("MAX_INPUT", "input_bytes"), ("MAX_POINTS", "osm_nodes"), ("MAX_ENTITIES", "osm_entities"),
+                          ("MAX_REFS", "osm_references"), ("MAX_FEATURES", "osm_features")]:
+            import_layer.reset_limits()
+            with self.subTest(key=key), patch.object(osm, key, 1):
+                self.assertEqual(osm.parse(XML.encode(), "osm"), expected)
+                self.assertIn(code, {e["code"] for e in import_layer.limit_entries()})
+        with patch.object(osm, "INPUT_CEILING", 1), self.assertRaisesRegex(ValueError, "256 MiB"):
+            osm.parse(XML.encode(), "osm")
         with patch.object(osm, "version", return_value="0"), self.assertRaisesRegex(ValueError, "requirements-import"):
             osm.dependency()
 

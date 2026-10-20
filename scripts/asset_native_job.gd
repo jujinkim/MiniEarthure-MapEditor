@@ -25,7 +25,7 @@ func start_asset(store: RefCounted, record: Dictionary, source: String, selectio
 			if not SNAPSHOT.safe_relative(str(payload.path)): return "Unsafe asset dependency path."
 			if payload.path not in owned_payloads: owned_payloads.append(payload.path)
 	var bytes := JSON.stringify(request).to_utf8_buffer()
-	if bytes.size() > REQUEST_LIMIT: return "Asset request exceeds 24 MiB."
+	if bytes.size() > request_limit: return "Asset request exceeds 1.5 GiB."
 	return _start_request(bytes)
 
 func matches(store: RefCounted, selection: String) -> bool:
@@ -45,15 +45,15 @@ func _decode_command(output: Dictionary) -> void:
 		_prepared = COMMAND.decode(decoded.get("prepared"), true)
 		failure = str(_prepared.get("error", ""))
 	if failure == "":
-		decoded.retained = _prepared.command.get("binary_mementos", {})
+		# decode() keeps the transferred payloads and patches, also when the
+		# command was too large for Undo and its history mementos were released.
+		decoded.retained = _prepared.get("retained", {})
 		for path: Variant in decoded.blob_paths:
 			if path is not String or path.get_extension() not in ["glb", "png", "webp"] or not decoded.retained.has(path) or path != "editor/" + PAYLOADS.digest(decoded.retained[path]) + "." + path.get_extension():
 				failure = "Invalid immutable asset transfer."
 				break
 	if failure == "":
-		var unpacked := COMMAND.HISTORY.unpack(_prepared.command)
-		failure = str(unpacked.get("error", ""))
-		decoded.patches = unpacked.get("patches", [])
+		decoded.patches = _prepared.get("patches", [])
 	if failure == "":
 		var asset_count := 0
 		for patch: Dictionary in decoded.patches:
@@ -82,7 +82,10 @@ func commit(store: RefCounted) -> String:
 	var prepared := _prepared
 	_prepared = {}
 	bundle = {}
-	return store._install_command(prepared)
+	history_released = prepared.command.get("history_released", false) == true
+	var installed: String = store._install_command(prepared)
+	if installed == "" and store.has_method("note_limits"): store.note_limits(limit_warnings)
+	return installed
 
 func cleanup() -> void:
 	if not _owns_directory or (_child_started and not exited): return

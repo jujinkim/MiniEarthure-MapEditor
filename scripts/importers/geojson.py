@@ -9,15 +9,19 @@ import sys
 import uuid
 import os
 import threading
-import time
-from import_layer import ImportLayer, Source, MAX_INPUT, MAX_RECORDS, number, text, strict_json
+from import_layer import ImportLayer, Source, Progress, MAX_INPUT, INPUT_CEILING, MAX_RECORDS, BudgetExceeded, number, text, strict_json, soft_limit, limit_snapshot, limit_restore
 from projection import Coordinates
 from polygon_geometry import Budget, SpatialBudget, group_rings
 
 
-MAX_COLLECTION_DEPTH = 16
-MAX_COLLECTION_NODES = 40000
-MAX_COLLECTION_LEAVES = 20000
+MAX_COLLECTION_DEPTH = 64  # Recursion guard, well below Python's limit.
+MAX_COLLECTION_NODES = 40000  # Warn above.
+MAX_COLLECTION_LEAVES = 20000  # Warn above.
+COLLECTION_NODES_CEILING = 4_000_000
+COLLECTION_LEAVES_CEILING = 2_000_000
+MAX_FEATURES = 20_000  # Warn above (CITY_FEATURES in city mode).
+MAX_CSV_REQUEST = 65536  # Warn above.
+CSV_REQUEST_CEILING = 1024 * 1024
 
 
 def collection_features(features):
@@ -27,8 +31,8 @@ def collection_features(features):
     def visit(geometry, properties, depth):
         nonlocal visited
         visited += 1
-        if depth > MAX_COLLECTION_DEPTH or visited > MAX_COLLECTION_NODES:
-            raise ValueError("GeometryCollection nesting/node budget exceeded")
+        if depth > MAX_COLLECTION_DEPTH or visited > COLLECTION_NODES_CEILING:
+            raise ValueError("GeometryCollection nesting/node ceiling exceeded")
         if not isinstance(geometry, dict) or "crs" in geometry:
             raise ValueError("GeometryCollection requires geometry objects without legacy CRS")
         kind = geometry.get("type")
@@ -37,13 +41,17 @@ def collection_features(features):
             if not isinstance(children, list) or not children or "coordinates" in geometry:
                 raise ValueError("GeometryCollection requires a nonempty geometries array, without coordinates")
             # Admission precedes allocation and recursion into the children.
+            if visited + len(children) > COLLECTION_NODES_CEILING:
+                raise ValueError("GeometryCollection node ceiling exceeded")
             if visited + len(children) > MAX_COLLECTION_NODES:
-                raise ValueError("GeometryCollection node budget exceeded")
+                soft_limit("collection_nodes", visited + len(children), MAX_COLLECTION_NODES, "GeometryCollection node budget exceeded")
             return [visit(child, properties, depth+1) for child in children]
         if kind not in ("LineString", "MultiLineString", "Polygon", "MultiPolygon"):
             raise ValueError("GeometryCollection contains unsupported geometry; no partial import")
+        if len(output) >= COLLECTION_LEAVES_CEILING:
+            raise ValueError("GeometryCollection leaf ceiling exceeded")
         if len(output) >= MAX_COLLECTION_LEAVES:
-            raise ValueError("GeometryCollection leaf budget exceeded")
+            soft_limit("collection_leaves", len(output) + 1, MAX_COLLECTION_LEAVES, "GeometryCollection leaf budget exceeded")
         index = len(output)
         output.append(dict(type="Feature", properties=properties, geometry=geometry))
         leaves.append(dict(feature=index, geometry=kind))
@@ -69,9 +77,11 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     layer = ImportLayer(layer_id or uuid.uuid4().hex, captured_source or Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v1")
     features = value.get("features")
     from import_layer import CITY_FEATURES
-    limit = CITY_FEATURES if city else 20_000
-    if not isinstance(features, list) or not 1 <= len(features) <= limit:
-        raise ValueError(f"expected 1..{limit} features")
+    limit = CITY_FEATURES if city else MAX_FEATURES
+    if not isinstance(features, list) or not features:
+        raise ValueError("expected at least one feature")
+    if len(features) > limit:
+        soft_limit("import_features", len(features), limit, "Import feature budget exceeded")
     collections = any(isinstance(f, dict) and isinstance(f.get("geometry"), dict) and
                       f["geometry"].get("type") == "GeometryCollection" for f in features)
     if collections:
@@ -119,7 +129,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 if osm_graph or any(key in properties for key in ("osm_node_refs", "elevations_m", "road_kind", "clearance_m")):
                     raise ValueError("MultiLineString does not support structural/OSM graph metadata")
                 if len(layer.patches) + 3 * len(lines) > MAX_RECORDS:
-                    raise ValueError("import record budget exceeded by MultiLineString parts")
+                    soft_limit("import_records", len(layer.patches) + 3 * len(lines), MAX_RECORDS, "Import record budget exceeded")
                 mapping = dict(feature=index, road_ids=[], point_counts=[])
                 layer.coordinates.setdefault("geojson_multilines", dict(profile="disconnected-parts-v1", features=[]))["features"].append(mapping)
             for part, line in enumerate(lines):
@@ -279,17 +289,21 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     return layer
 
 
-def watch_parent_lifetime(timeout=120):
-    # EOF terminates this helper if its owner exits/crashes. No grandchildren.
+# Soft budgets that made the city ladder try a smaller gap before they warned.
+TARGET_CODES = frozenset(("import_records", "import_coordinates", "import_output", "city_work", "city_building_partition", "city_paint_partition"))
+
+
+def watch_parent_lifetime(timeout=None):
+    """EOF terminates this helper if its owner exits/crashes. No grandchildren.
+
+    There is no deadline kill: a long import keeps running while its owner
+    shows the elapsed time and offers Cancel. `timeout` is accepted for older
+    callers and ignored."""
     def watch_parent():
         while os.read(sys.stdin.fileno(), 1):
             pass
         os._exit(3)
     threading.Thread(target=watch_parent, daemon=True).start()
-    def watchdog():
-        time.sleep(timeout)
-        os._exit(4)
-    threading.Thread(target=watchdog, daemon=True).start()
 
 
 def main():
@@ -334,12 +348,8 @@ def main():
         from osm_area import projected_bounds
         projected_bounds(args.osm_bbox, dict(mode=args.coordinates, origin=args.origin, local_origin_m=args.local_origin))
     if args.watch_parent:
-        watch_parent_lifetime(900 if args.osm_stream else 120)
-    sequence = 0
-    def event(stage, completed, total, unit="bytes", **extra):
-        nonlocal sequence
-        sequence += 1
-        print(json.dumps(dict(request=args.layer_id, seq=sequence, stage=stage, completed=completed, total=total, unit=unit, **extra)), flush=True)
+        watch_parent_lifetime()
+    event = Progress(args.layer_id)
     supplement = None
     if args.height_supplement is not None:
         from osm_heights import Supplement, read_source
@@ -347,10 +357,11 @@ def main():
     size = args.source.stat().st_size
     raw = None
     if not args.osm_stream:
-        if size > MAX_INPUT: raise ValueError("input exceeds 32 MiB; select PBF streaming with a bbox")
+        if size > INPUT_CEILING: raise ValueError("input exceeds 256 MiB; select PBF streaming with a bbox")
+        if size > MAX_INPUT: soft_limit("input_bytes", size, MAX_INPUT, "Input exceeds 32 MiB and is read whole; PBF streaming with a bbox uses less memory")
         event("read", 0, size)
         with args.source.open("rb") as stream:
-            raw = stream.read(MAX_INPUT + 1)
+            raw = stream.read(INPUT_CEILING + 1)
         if len(raw) != size: raise ValueError("source size changed during read; retry")
         event("read", len(raw), size)
         event("parse", 0, size)
@@ -420,19 +431,22 @@ def main():
         from osm_extract import finish
         for index, feature in enumerate(value["features"]):
             feature["properties"]["_city_crop_feature"] = index
-        error = "City geometry cannot fit the current output budget while preserving protected objects"
+        error = "City geometry cannot be optimized while preserving protected objects"
         event("optimize", 0, len(LEVELS), "steps")
-        result = None
+        result = fallback = None
         # Candidates come largest gap first; a smaller gap is built only when a
-        # larger one does not fit the output limits or convert.
+        # larger one misses the output selection targets or does not convert.
+        # When no gap meets the targets, the largest converted gap (smallest
+        # output) is adopted with limit warnings; no source object is dropped.
         for attempt, (candidate, metadata) in enumerate(candidates(value, options, review)):
             if candidate is None:
                 event("optimize", attempt+1, len(LEVELS), "steps", gap_m=metadata["gap_m"])
                 error = metadata["failure"]
                 continue
             event("optimize", attempt+1, len(LEVELS), "steps", features=metadata["after"]["features"], positions=metadata["after"]["positions"], gap_m=metadata["gap_m"], categories=metadata["after"])
-            if metadata["after"]["features"] > OUTPUT_FEATURES or metadata["after"]["positions"] > OUTPUT_POINTS:
-                continue
+            over_targets = metadata["after"]["features"] > OUTPUT_FEATURES or metadata["after"]["positions"] > OUTPUT_POINTS
+            if over_targets and fallback is not None:
+                continue  # A larger gap already gave a smaller output to fall back on.
             try:
                 trial = convert(candidate, args.source_name or args.source.name, args.license, layer_id=args.layer_id,
                     accuracy=args.accuracy, coordinates=options, osm_graph=True, captured_source=captured_source, city=True)
@@ -454,29 +468,45 @@ def main():
                 trial = finish(trial, osm_counts)
                 trial.warning(f"Automatic city optimization at 1:8: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Gap filling up to {metadata['gap_m']} source metres; inspect approximated blocks and heights.")
                 if len(osm_stream.get("areas", [])) > 1:
-                    trial.warning(f"Combined {len(osm_stream['areas'])} administrative areas at their exact boundaries. DEM terrain is optional; Copernicus tiles beyond 64 MiB, four tiles or 1025² samples are refused and the map stays flat.")
+                    trial.warning(f"Combined {len(osm_stream['areas'])} administrative areas at their exact boundaries. DEM terrain is optional; Copernicus tiles beyond 256 MiB, 16 tiles or 4096² samples are refused and the map stays flat.")
                 trial.warning("City source-block indexing retains complete selected ways, relation members and source graph closure. Original PBF hash, every retained source ID and output mapping are preserved; unsupported exclusions are separate. Crop ends are artificial; no bridge/tunnel heights are inferred.")
                 encoded_trial = trial.encode()
                 # Godot's JSON representation includes separator spaces. Its
                 # boundary budget applies to that representation as well as
                 # the compact wire file, so measure both before selecting.
                 editor_bytes = len(json.dumps(trial.data(), sort_keys=True, ensure_ascii=False, allow_nan=False).encode())
-                if editor_bytes > CITY_OUTPUT - 65536:
-                    raise ValueError(f"City Editor representation budget exceeded ({editor_bytes} bytes)")
             except ValueError as exc:
-                if not any(reason in str(exc).lower() for reason in ("budget", "multipolygon", "polygon ring", "boundaries intersect", "ring is")):
+                if isinstance(exc, BudgetExceeded) or not any(reason in str(exc).lower() for reason in ("multipolygon", "polygon ring", "boundaries intersect", "ring is")):
                     raise
                 error = str(exc)
                 continue
-            result, city_meta, encoded = trial, metadata, encoded_trial
-            break
+            # Budgets met by this gap: the selection targets and every soft
+            # budget that previously refused a gap.
+            missed = TARGET_CODES.intersection(limit_snapshot())
+            if not over_targets and not missed and editor_bytes <= CITY_OUTPUT - 65536:
+                result, city_meta, encoded = trial, metadata, encoded_trial
+                break
+            if fallback is None:
+                fallback = (trial, metadata, editor_bytes, limit_snapshot())
+        if result is None and fallback is not None:
+            result, city_meta, editor_bytes, state = fallback
+            limit_restore(state)
+            after = city_meta["after"]
+            if after["features"] > OUTPUT_FEATURES:
+                soft_limit("city_features", after["features"], OUTPUT_FEATURES, "City output exceeds the feature target at the largest gap")
+            if after["positions"] > OUTPUT_POINTS:
+                soft_limit("city_positions", after["positions"], OUTPUT_POINTS, "City output exceeds the position target at the largest gap")
+            if editor_bytes > CITY_OUTPUT - 65536:
+                soft_limit("city_editor_bytes", editor_bytes, CITY_OUTPUT - 65536, "City Editor representation exceeds its budget")
+            encoded = result.encode()
         if result is None:
             raise ValueError(error + "; no supported object was silently dropped")
         event("optimize", len(LEVELS), len(LEVELS), "steps")
         event("convert", result.feature_count, result.feature_count, "features")
     elif args.input_format == "csv":
         from facility_csv import convert as convert_csv
-        if args.csv_request is None or args.csv_request.stat().st_size > 65536: raise ValueError("CSV mapping is required and must be bounded")
+        if args.csv_request is None or args.csv_request.stat().st_size > CSV_REQUEST_CEILING: raise ValueError("CSV mapping is required and must be at most 1 MiB")
+        if args.csv_request.stat().st_size > MAX_CSV_REQUEST: soft_limit("csv_request_bytes", args.csv_request.stat().st_size, MAX_CSV_REQUEST, "CSV mapping request is large")
         result = convert_csv(raw, args.source_name or args.source.name, args.license, args.accuracy,
             args.layer_id, options, strict_json(args.csv_request.read_bytes()), lambda c,t:event("convert",c,t,"features"))
     elif args.input_format == "overture-transportation":

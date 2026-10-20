@@ -22,12 +22,17 @@ func _decode_command(output: Dictionary) -> void:
 	if failure == "":
 		_prepared = COMMAND.decode(decoded.get("prepared"))
 		failure = str(_prepared.get("error", ""))
-	if failure == "":
+	if failure == "" and _prepared.command.get("history_released", false):
+		# Over the Undo budget the command holds no history; decode() still
+		# returns the transferred patches and immutable payloads.
+		decoded.patches = _prepared.get("patches", [])
+		decoded.retained = _prepared.get("retained", {})
+	elif failure == "":
 		var unpacked := COMMAND.HISTORY.unpack(_prepared.command)
 		failure = str(unpacked.get("error", ""))
 		decoded.patches = unpacked.get("patches", [])
-	if failure == "":
 		decoded.retained = _prepared.command.get("binary_mementos", {})
+	if failure == "":
 		for path: Variant in decoded.blob_paths:
 			if path is not String or not decoded.retained.has(path) or path != "editor/" + PAYLOADS.digest(decoded.retained[path]) + ".png":
 				failure = "Invalid immutable raster payload."
@@ -67,4 +72,7 @@ func commit(store: RefCounted) -> String:
 	var prepared := _prepared
 	_prepared = {}
 	bundle = {}
-	return store._install_command(prepared)
+	history_released = prepared.command.get("history_released", false) == true
+	var installed: String = store._install_command(prepared)
+	if installed == "" and store.has_method("note_limits"): store.note_limits(limit_warnings)
+	return installed

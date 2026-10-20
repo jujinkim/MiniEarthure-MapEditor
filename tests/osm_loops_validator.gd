@@ -6,12 +6,19 @@ const JOB := preload("res://scripts/import_native_job.gd")
 class CancelGeneration extends JOB:
 	var reached := false
 	var expire := false
+	var warned := false
 	func _event(line: PackedByteArray) -> void:
 		super._event(line)
 		if phase == 4 and not reached:
 			reached = true
 			if expire: deadline_ms = 0
 			else: cancel()
+	# A passed deadline only warns; the user then cancels with the job running.
+	func poll(now_ms: int = -1) -> void:
+		super.poll(now_ms)
+		if expire and reached and not done and not cancelled and limit_warnings.any(func(w): return w.code == "running_time"):
+			warned = true
+			cancel()
 var failures: Array[String] = []
 var checks := 0
 func check(condition: bool, message: String) -> void:
@@ -120,7 +127,7 @@ func run() -> void:
 		while not job.done and Time.get_ticks_msec()<deadline:
 			job.poll()
 			await process_frame
-		check(job.reached and job.done and job.exited and job.structural and not job.result.ok,"loop generation admission/cancel/deadline reaps child")
+		check(job.reached and job.done and job.exited and job.structural and not job.result.ok and job.warned == expire,"loop generation admission/cancel (also after a deadline warning) reaps child")
 		check(not DirAccess.dir_exists_absolute(job.directory) and ui.store.document == before,"cancel/deadline preserves map and retires scratch")
 		if not job.done: job.shutdown()
 	await capture("review")

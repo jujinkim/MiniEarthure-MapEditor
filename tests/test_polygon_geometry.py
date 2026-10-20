@@ -16,6 +16,10 @@ def convert_polygons(polygons, properties=None):
 
 
 class PolygonTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_exclusions_island_and_multiple_parts(self):
         outer, hole, island = square(0,0,100), square(20,20,60), square(40,40,20)
         self.assertEqual(group_rings([outer,island],[hole],Budget()), [[outer,hole],[island]])
@@ -55,7 +59,11 @@ class PolygonTests(unittest.TestCase):
             convert_polygons([[square(0,0,10)], [square(10.004,0,5)]])
         with self.assertRaisesRegex(ValueError,"repeated positions"):
             convert_polygons([[square(0,0,0.001)]])
-        with patch("polygon_geometry.MAX_TOPOLOGY_CHECKS", 1), self.assertRaisesRegex(ValueError,"budget"):
+        import import_layer
+        with patch("polygon_geometry.MAX_TOPOLOGY_CHECKS", 1):
+            convert_polygons([[square(0,0,10)]])  # Every check still runs; the overrun warns.
+        self.assertIn("topology_checks", {e["code"] for e in import_layer.limit_entries()})
+        with patch("polygon_geometry.TOPOLOGY_CEILING", 1), self.assertRaisesRegex(ValueError,"ceiling"):
             convert_polygons([[square(0,0,10)]])
         # A continued collinear boundary is valid; backtracking was rejected above.
         ring = [[0,0],[5,0],[10,0],[10,10],[0,10],[0,0]]

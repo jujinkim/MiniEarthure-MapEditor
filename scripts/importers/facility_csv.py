@@ -3,15 +3,20 @@ import csv
 import hashlib
 import io
 import json
-from import_layer import ImportLayer, Source, MAX_INPUT, number, text
+from import_layer import ImportLayer, Source, MAX_INPUT, INPUT_CEILING, number, text, soft_limit
 from projection import Coordinates
 
-MAX_ROWS = 20_000
+MAX_ROWS = 20_000  # Warn above; rows become POIs.
+MAX_FIELD = 16384  # Warn above.
+FIELD_CEILING = 1024 * 1024
+MAX_COLUMNS = 128  # Warn above.
+COLUMNS_CEILING = 1024
 ENCODINGS = ("utf-8-sig", "cp949", "euc-kr")
 
 
 def convert(raw, name, license_name, accuracy, layer_id, coordinates, options, progress=None):
-    if len(raw) > MAX_INPUT: raise ValueError("CSV exceeds 32 MiB")
+    if len(raw) > INPUT_CEILING: raise ValueError("CSV exceeds 256 MiB")
+    if len(raw) > MAX_INPUT: soft_limit("input_bytes", len(raw), MAX_INPUT, "CSV exceeds 32 MiB and is read whole")
     required = {"encoding", "name_column", "latitude_column", "longitude_column", "category", "source_url", "bounds_cm", "source_denominator"}
     if not isinstance(options, dict) or set(options) - {"geographic_bbox"} != required: raise ValueError("Invalid CSV mapping options")
     selected = options.get("geographic_bbox")
@@ -29,19 +34,23 @@ def convert(raw, name, license_name, accuracy, layer_id, coordinates, options, p
     if projection.mode != "wgs84-utm": raise ValueError("CSV facilities require WGS84 coordinates")
     try: decoded = raw.decode(options["encoding"], errors="strict")
     except UnicodeError as exc: raise ValueError("CSV encoding does not match the selected encoding") from exc
-    csv.field_size_limit(16384)
+    csv.field_size_limit(FIELD_CEILING)
     reader = csv.reader(io.StringIO(decoded, newline=""), strict=True)
     try:
         headers = next(reader)
-        if not 1 <= len(headers) <= 128 or any(not h.strip() for h in headers) or len(set(headers)) != len(headers):
-            raise ValueError("CSV header must contain unique nonempty column names")
+        if not 1 <= len(headers) <= COLUMNS_CEILING or any(not h.strip() for h in headers) or len(set(headers)) != len(headers):
+            raise ValueError("CSV header must contain 1..1024 unique nonempty column names")
+        if len(headers) > MAX_COLUMNS: soft_limit("csv_columns", len(headers), MAX_COLUMNS, "CSV has many columns")
         columns = [text(options[k], k, 256) for k in ("name_column", "latitude_column", "longitude_column")]
         if len(set(columns)) != 3 or any(c not in headers for c in columns): raise ValueError("CSV mapping requires three distinct existing columns: " + ", ".join(headers))
         indices = [headers.index(c) for c in columns]
         rows = []
+        longest = max(map(len, headers))
         for row in reader:
-            if len(rows) >= MAX_ROWS: raise ValueError("CSV row budget exceeded (20,000)")
+            if len(rows) >= MAX_ROWS: soft_limit("csv_rows", len(rows) + 1, MAX_ROWS, "CSV row budget exceeded")
+            longest = max(longest, max(map(len, row), default=0))
             rows.append((reader.line_num, row))
+        if longest > MAX_FIELD: soft_limit("csv_field", longest, MAX_FIELD, "CSV has very long fields")
     except (csv.Error, StopIteration) as exc: raise ValueError("Malformed or empty CSV: " + str(exc)) from exc
     source = Source(name, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy)
     layer = ImportLayer(layer_id, source, dict(projection.metadata), adapter="facility-csv-v1")

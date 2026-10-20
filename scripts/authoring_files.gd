@@ -1,6 +1,11 @@
 extends RefCounted
 ## Immutable project payloads; disposable native candidate validation.
-const MAX_PAYLOAD_BYTES := 64 * 1024 * 1024
+const LIMITS := preload("./limit_warnings.gd")
+# Memory guard for candidate payloads loaded for validation; warn above WARN_BYTES.
+const MAX_PAYLOAD_BYTES := 2 * 1024 * 1024 * 1024
+const PAYLOAD_WARN_BYTES := 64 * 1024 * 1024
+# MapKit v1 package entry limit: the game refuses larger project files.
+const RUNTIME_ENTRY_BYTES := 128 * 1024 * 1024
 
 static func paths(record: Dictionary) -> Array[String]:
 	var result: Array[String] = [str(record.path)]
@@ -33,6 +38,11 @@ static func write_new(path: String, bytes: PackedByteArray) -> String:
 	file.close()
 	return "" if failure == OK else "Payload write failed."
 
+# Workers collect into context.limit_warnings; in-editor callers note on the store.
+static func note(store: RefCounted, context: Dictionary, code: String, actual: int, limit: int, message: String, runtime_rejects := false) -> void:
+	if context.get("limit_warnings") is Array: LIMITS.note(context.limit_warnings, code, actual, limit, message, runtime_rejects)
+	elif store != null and store.has_method("note_limit"): store.note_limit(code, actual, limit, message, runtime_rejects)
+
 static func _progress(context: Dictionary, stage: String, completed: int, total: int) -> void:
 	if context.has("progress"): context.progress.call(stage, completed, total)
 
@@ -52,13 +62,13 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 					counted[path] = true
 					if blobs.has(path):
 						total += blobs[path].size()
-						if total > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
+						if total > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 2 GiB authoring payload memory limit."
 						continue
 					var file := FileAccess.open(store.project_path.path_join(path), FileAccess.READ)
 					if file == null: return "Cannot read candidate payload."
 					total += file.get_length()
 					file.close()
-					if total > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
+					if total > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 2 GiB authoring payload memory limit."
 	_progress(context, "snapshot", 0, total)
 	for field in ["assets", "heightmaps"]:
 		for record: Dictionary in document.get(field, []):
@@ -67,13 +77,15 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 				var source: Dictionary = {"bytes": blobs[path]} if blobs.has(path) else read(store.project_path.path_join(path), MAX_PAYLOAD_BYTES - size)
 				if source.has("error"): return source.error
 				size += source.bytes.size()
-				if size > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 64 MiB authoring payload budget."
+				if size > MAX_PAYLOAD_BYTES: return "Candidate exceeds the 2 GiB authoring payload memory limit."
+				if source.bytes.size() > RUNTIME_ENTRY_BYTES: note(store, context, "payload_entry", source.bytes.size(), RUNTIME_ENTRY_BYTES, "A terrain or asset file is larger than the v1 package entry limit", true)
 				payloads[path] = source.bytes
 				if context.has("hashes") and not blobs.has(path):
 					context.hashes[path] = digest(source.bytes)
 					if FileAccess.get_sha256(store.project_path.path_join(path)) != context.hashes[path]: return "Source changed during native candidate snapshot."
 				_progress(context, "snapshot", size, total)
 	if context.get("expected_payloads", "") != "" and JSON.stringify(context.hashes).sha256_text() != context.expected_payloads: return "Project payload changed since import review; import again."
+	if size > PAYLOAD_WARN_BYTES: note(store, context, "authoring_payloads", size, PAYLOAD_WARN_BYTES, "Terrain and asset files are very large and need a lot of memory")
 	_progress(context, "open", 0, 1)
 	var native: RefCounted = store.working_snapshot().fork()
 	result = JSON.parse_string(native.set_document(JSON.stringify(document),store.project_path))
@@ -127,12 +139,10 @@ static func apply(store: RefCounted, label: String, patches: Array, blobs: Dicti
 			if value == null: continue
 			for path: String in paths(value):
 				if retained.has(path): continue
-				var source := read(store.project_path.path_join(path), store.HISTORY_BYTES)
+				var source := read(store.project_path.path_join(path), MAX_PAYLOAD_BYTES)
 				if source.has("error"): return source.error
 				retained[path] = source.bytes
-	var bytes := JSON.stringify({"label": label, "patches": patches}).to_utf8_buffer().size()
-	for value: PackedByteArray in retained.values(): bytes += value.size()
-	if bytes > store.HISTORY_BYTES: return "Command exceeds the shared 16 MiB binary/text undo budget."
+	# A command over the shared Undo budget is applied without Undo (history_codec).
 	failure = validate(store, candidate, blobs, cells, context)
 	if failure != "": return failure
 	if context.has("retained"): context.retained.merge(retained, true)
@@ -142,6 +152,9 @@ static func apply(store: RefCounted, label: String, patches: Array, blobs: Dicti
 		if prepared.has("error"): return prepared.error
 		if prepared.get("noop", false): return "Import command has no changes."
 		context.prepared.merge(prepared, true)
+		# The exact binary set given to retain(): encode() carries it even when
+		# Undo was released, so the parent's decode reaches the same decision.
+		context.prepared.retained = retained
 		_progress(context, "prepare", 1, 1)
 	if validate_only: return ""
 	for path: String in blobs:

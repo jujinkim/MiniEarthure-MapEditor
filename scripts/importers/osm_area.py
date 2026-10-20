@@ -2,7 +2,7 @@
 from collections import Counter
 from importlib.metadata import version
 import json
-from import_layer import number, MAX_POINTS
+from import_layer import number, MAX_POINTS, soft_limit
 from polygon_geometry import Budget, SpatialBudget, group_rings
 
 VERTICAL_PROFILE = "explicit-ground-crop-v1"
@@ -206,8 +206,10 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region
             if isinstance(value[0], (int, float)): return 1
             return sum(count(v) for v in value)
         points += count(feature["geometry"]["coordinates"])
-        if points > point_limit or len(output) >= feature_limit:
-            raise ValueError("OSM crop output budget exceeded")
+        if points > point_limit:
+            soft_limit("crop_points", points, point_limit, "OSM crop output position budget exceeded")
+        if len(output) >= feature_limit:
+            soft_limit("crop_features", len(output) + 1, feature_limit, "OSM crop output feature budget exceeded")
         output.append(feature)
 
     def parts(geometry, expected):

@@ -3,6 +3,8 @@ extends RefCounted
 const FILES := preload("./authoring_files.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
 const COMMAND := preload("./import_command.gd")
+const LIMITS := preload("./limit_warnings.gd")
+const HISTORY := preload("./history_codec.gd")
 
 static func validate(request: Dictionary, directory: String, identity: String, progress: Callable) -> Dictionary:
 	var output := {"ok":false,"request":identity}
@@ -42,6 +44,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 	var prepared := {}
 	var hashes := {}
 	var cells: Array = []
+	var notes: Array = []
 	if failure == "":
 		var raw := preload("./document_files.gd").new().read_json(generated.path_join("generation.json"))
 		var source := preload("./document_files.gd").new().read_json(generated.path_join("document.json"))
@@ -64,7 +67,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 		var store := preload("./document_store.gd").new()
 		store.document = request.document
 		store.project_path = request.project
-		var context := {"scratch":directory.path_join("candidate"),"progress":progress,"hashes":hashes}
+		var context := {"scratch":directory.path_join("candidate"),"progress":progress,"hashes":hashes,"limit_warnings":notes}
 		if request.generation.mode == "new":
 			store.document = candidate
 			store.project_path = generated
@@ -93,6 +96,16 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 		for path: String in hashes:
 			var source_root: String = generated if request.generation.mode == "new" else request.project
 			if FileAccess.get_sha256(source_root.path_join(path)) != hashes[path]: failure = "Project changed during generation."
+	if failure == "":
+		# The prepared command, not the helper's size estimate, decides whether
+		# applying releases Undo; Godot-side authoring warnings join the report.
+		var diagnostics: Dictionary = report.diagnostics
+		var reported: Variant = diagnostics.get("limit_warnings")
+		var limits: Array = reported.filter(func(entry): return entry is not Dictionary or entry.get("code") != "undo_history") if reported is Array else []
+		if not prepared.is_empty() and prepared.command.get("history_released", false):
+			LIMITS.note(limits, "undo_history", int(prepared.command.bytes), HISTORY.RETAINED_LIMIT, "Applying this change releases earlier Undo history")
+		LIMITS.merge(limits, notes)
+		diagnostics.limit_warnings = limits
 	if failure == "":
 		# The prepared command/snapshot already carries ownership and patches.
 		# Keep one copy in the bounded transfer instead of repeating authoring JSON.

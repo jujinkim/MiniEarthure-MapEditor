@@ -23,6 +23,10 @@ def fixture():
 
 
 class MultiLineTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_part_identity_order_properties_and_source(self):
         value = fixture()
         original = copy.deepcopy(value)
@@ -103,18 +107,21 @@ class MultiLineTests(unittest.TestCase):
                 convert(value, "bad", "MIT")
 
     def test_existing_aggregate_budgets_include_all_parts(self):
-        # Record admission occurs before any projection or part allocation.
+        import import_layer
+        self.addCleanup(import_layer.reset_limits)
+        # Record admission counts every part before any projection; it warns.
         value = fixture()
         value["features"][0]["geometry"]["coordinates"] = [None] * 20001
         with patch.object(Coordinates, "point", side_effect=AssertionError("projected before admission")):
-            with self.assertRaisesRegex(ValueError, "record budget"):
+            with self.assertRaisesRegex(ValueError, "at least two positions"):
                 convert(value, "budget", "MIT", source_bytes=b"synthetic")
-        with patch("import_layer.MAX_POINTS", 6):
-            with self.assertRaisesRegex(ValueError, "coordinate budget"):
-                convert(fixture(), "budget", "MIT")
-        with patch("import_layer.MAX_OUTPUT", 32):
-            with self.assertRaisesRegex(ValueError, "12 MiB"):
-                convert(fixture(), "budget", "MIT")
+        self.assertIn("import_records", {e["code"] for e in import_layer.limit_entries()})
+        for name, limit, code in [("MAX_POINTS", 6, "import_coordinates"), ("MAX_OUTPUT", 32, "import_output")]:
+            import_layer.reset_limits()
+            with patch("import_layer." + name, limit):
+                layer = convert(fixture(), "budget", "MIT")
+            entry = next(e for e in import_layer.limit_entries() if e["code"] == code)
+            self.assertIn(import_layer.limit_text(entry), layer.warnings)
 
     def test_wgs84_matches_explicit_projected_parts(self):
         value = fixture()

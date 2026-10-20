@@ -18,6 +18,10 @@ EAST = [9.0015, 55, 9.0025, 55.0015]
 
 
 class Junctions(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def parse(self, interior=True):
         return osm.parse(structural_junctions_xml(interior).encode(), "osm")
 
@@ -125,8 +129,10 @@ class Junctions(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"32 native arms"): osm.structure_connections(roads,uses)
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)/"original.pbf";pbf(source,structural_junctions_xml(True))
-            with patch.object(stream,"MAX_FEATURES",2),self.assertRaisesRegex(ValueError,"budget"):
-                stream.extract(source,EAST,directory)
+            import import_layer
+            with patch.object(stream,"MAX_FEATURES",2):
+                self.assertEqual(stream.extract(source,EAST,directory)[1]["structure_continuations"],1)
+            self.assertIn("stream_closure_features",{e["code"] for e in import_layer.limit_entries()})
             self.assertTrue(all(not (Path(directory)/n).exists() for n in stream.OWNED_FILES))
             self.assertEqual(stream.extract(source,EAST,directory)[1]["structure_continuations"],1)
 
@@ -155,8 +161,11 @@ class Junctions(unittest.TestCase):
         from collections import Counter
         value,_ = self.parse(False)
         uses = Counter(ref for f in value["features"] for ref in f["properties"]["osm_node_refs"])
-        with patch.object(osm,"MAX_REFS",2),self.assertRaisesRegex(ValueError,"source incidence budget"):
-            osm.structure_connections(value["features"],uses)
+        import import_layer
+        expected = osm.structure_connections(value["features"],uses)
+        with patch.object(osm,"MAX_REFS",2):
+            self.assertEqual(osm.structure_connections(value["features"],uses),expected)
+        self.assertIn("osm_structure_arms",{e["code"] for e in import_layer.limit_entries()})
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)/"original.pbf";raw = pbf(source,structural_junctions_xml(True))
             events = 0
@@ -175,6 +184,10 @@ class Junctions(unittest.TestCase):
 if __name__ == "__main__": unittest.main()
 
 class PedestrianWays(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_footways_keep_independent_ends_and_never_split_vehicle_junctions(self):
         xml = """<osm version="0.6">
 <node id="1" lon="9" lat="55"/><node id="2" lon="9.001" lat="55"/><node id="3" lon="9.002" lat="55"/>
@@ -198,6 +211,10 @@ class PedestrianWays(unittest.TestCase):
 
 
 class LevelStructures(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def osm(self, crossing):
         cross = """<node id="7" lon="9.0015" lat="54.999"/><node id="8" lon="9.0015" lat="55.001"/>
 <way id="4"><nd ref="7"/><nd ref="8"/><tag k="highway" v="residential"/></way>""" if crossing else ""
@@ -224,6 +241,10 @@ class LevelStructures(unittest.TestCase):
         self.assertEqual(bridge["properties"]["_city_estimated_kind"], "bridge")
 
 class EstimatedStructures(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def osm(self, approach=0.002):
         # West ground approach, a layer-1 bridge over a north-south road, east approach.
         x = [0, approach, approach+0.002, 2*approach+0.002]
@@ -389,6 +410,10 @@ class EstimatedStructures(unittest.TestCase):
 
 
 class CitySteps(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def osm(self, *steps_tags):
         tags = "".join(f'<tag k="{k}" v="{v}"/>' for k, v in steps_tags)
         return f"""<osm version="0.6">
@@ -422,6 +447,10 @@ class CitySteps(unittest.TestCase):
 
 
 class CityLayersAndEntrances(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def osm(self, building_tags=(), entrance_tags=(("entrance", "yes"), ("level", "1")), building="yes"):
         kind, tags = building, "".join(f'<tag k="{k}" v="{v}"/>' for k, v in building_tags)
         entrance = "".join(f'<tag k="{k}" v="{v}"/>' for k, v in entrance_tags)

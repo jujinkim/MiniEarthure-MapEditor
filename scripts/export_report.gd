@@ -1,5 +1,6 @@
 extends AcceptDialog
 const I18N := preload("./locale_text.gd")
+const LIMITS := preload("./limit_warnings.gd")
 var summary: RichTextLabel
 var overview: Control
 var data := {}
@@ -22,7 +23,7 @@ func _ready() -> void:
 func show_report(value: Dictionary) -> void:
 	data = value
 	if data.get("memory_snapshot",false):
-		summary.text = I18N.t("Memory snapshot validated · %d cells. Package size is calculated only during explicit export.") % data.cell_count
+		summary.text = _limits() + I18N.t("Memory snapshot validated · %d cells. Package size is calculated only during explicit export.") % data.cell_count
 		overview.hide()
 		popup_centered()
 		return
@@ -50,6 +51,7 @@ func show_report(value: Dictionary) -> void:
 			data.cell_count,data.package_bytes,I18N.t("within goal") if data.base_target_met else I18N.t("over goal"),
 			data.user_asset_compressed_bytes,data.user_asset_bytes,data.expanded_bytes,
 			data.validation_peak_bytes,data.retained_memory_bytes,data.source_peak_bytes,data.seconds]
+	summary.text = _limits() + summary.text
 	for key: String in data.get("chunk_costs",{}):
 		var row: Dictionary = data.chunk_costs[key]
 		summary.text += I18N.t("\nCell %s: %d objects / %d triangles / %d prisms / %d convexes · display %.1f MiB · work %.1f MiB estimated · %s") % [key,row.objects,row.triangles,row.building_prisms,row.asset_convexes,float(row.presentation_bytes)/1048576.0,float(row.work_bytes)/1048576.0,row.warning]
@@ -57,6 +59,11 @@ func show_report(value: Dictionary) -> void:
 		if not row.signature.is_empty() and delay.get("signature","") == row.signature: summary.text += I18N.t(" · measured preview %.2fs") % delay.seconds
 	overview.queue_redraw()
 	popup_centered()
+
+# Limit warnings first: some name sizes the game refuses at load time.
+func _limits() -> String:
+	var limits: Variant = data.get("limit_warnings")
+	return LIMITS.text(limits) + "\n\n" if limits is Array and not limits.is_empty() else ""
 
 func _draw_overview() -> void:
 	overview.draw_rect(Rect2(Vector2.ZERO, overview.size), Color("15181e"))

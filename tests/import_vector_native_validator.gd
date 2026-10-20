@@ -11,9 +11,10 @@ func extra_faults(before: String) -> void:
 	check(unreviewed.start_validation(ui.store,layer,true,"test",source,token()).contains("reviewed payload"),"adoption requires reviewed payload identity before launch")
 	check(unreviewed.pid == -1 and unreviewed.directory == "","unreviewed request owns no scratch")
 	layer.native_payload_digest = digest
-	layer.value["oversized_test_extension"] = "x".repeat(JOB.REQUEST_LIMIT)
-	var oversized := JOB.new()
-	check(start(oversized).contains("24 MiB"),"request budget rejects before reserving child/scratch")
+	# The 1.5 GiB request guard is exercised through the instance copy of the limit.
+	var oversized := JOB.new(); oversized.request_limit = 1024 * 1024
+	layer.value["oversized_test_extension"] = "x".repeat(oversized.request_limit)
+	check(start(oversized).contains("1.5 GiB"),"request guard rejects before reserving child/scratch")
 	check(oversized.pid == -1 and oversized.directory == "","oversized request leaves no owned work")
 	layer.value.erase("oversized_test_extension")
 	# Keep source size constant to exercise the SHA check rather than length only.

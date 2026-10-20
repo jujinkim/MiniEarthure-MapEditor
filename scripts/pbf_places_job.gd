@@ -1,6 +1,10 @@
 extends "./import_job.gd"
 ## Reuses the bounded, cancelable worker transport without creating map records.
 var query := ""
+## Limit warnings the adapter already formatted ("Limit warning: …"), e.g. more
+## matches than the 32 shown or a thinned boundary preview. Shown as received.
+var adapter_texts: Array[String] = []
+const MAX_ADAPTER_TEXTS := 64
 
 func search(source: String, name: String, python: String, token: String) -> String:
 	if _attempted or cancelled: return "PBF search instances are single use."
@@ -13,10 +17,13 @@ func search(source: String, name: String, python: String, token: String) -> Stri
 	if input == null: return "Cannot open selected PBF."
 	var size := input.get_length()
 	input.close()
-	progress_limit = 2 * 1024 * 1024 * 1024
+	progress_limit = LAYER.MAX_STREAM_SOURCE_BYTES
 	timeout_seconds = 900
+	# The lookup streams the PBF as well: every pass must complete in order.
+	streaming = true
 	stages = ["read", "index_relations", "index_ways", "index_nodes", "write", "complete"]
-	if size <= 0 or size > progress_limit: return "Choose a nonempty local PBF up to 2 GiB."
+	if size <= 0 or size > progress_limit: return "Choose a nonempty local PBF up to 64 GiB."
+	LIMITS.over(limit_warnings, "stream_source_bytes", size, LAYER.WARN_STREAM_SOURCE_BYTES, "PBF source size in bytes")
 	var reservation := _reserve_directory(token)
 	if reservation != "": return reservation
 	var files := FILES.new()
@@ -31,10 +38,17 @@ func search(source: String, name: String, python: String, token: String) -> Stri
 	progress = {"stage":"starting", "completed":0, "total":size, "unit":"bytes"}
 	return ""
 
-static func validate(value: Variant, name: String) -> String:
+## Display bounds only: more matches or preview points warn, never refuse.
+## The adapter shows at most 32 matches and reports the rest in limit_warnings.
+static func validate(value: Variant, name: String, notes: Array = [], texts: Array = []) -> String:
 	if value is not Dictionary or value.get("profile") != "pbf-place-preview-v1" or value.get("query") != name: return "Invalid/stale PBF place preview."
-	if not LAYER._hex(value.get("source_sha256"),64) or not LAYER._count(value.get("source_bytes"),2*1024*1024*1024) or not LAYER._text(value.get("source_name")): return "Invalid PBF source receipt."
-	if value.get("places") is not Array or value.places.size() > 32: return "PBF search result budget exceeded."
+	if not LAYER._hex(value.get("source_sha256"),64) or not LAYER._count(value.get("source_bytes"),LAYER.MAX_STREAM_SOURCE_BYTES) or not LAYER._text(value.get("source_name")): return "Invalid PBF source receipt."
+	if value.get("places") is not Array: return "Invalid PBF place preview."
+	var adapter: Variant = value.get("limit_warnings", [])
+	if adapter is not Array or adapter.size() > MAX_ADAPTER_TEXTS: return "Invalid PBF place limit warnings."
+	for entry: Variant in adapter:
+		if not LAYER._text(entry): return "Invalid PBF place limit warnings."
+	texts.append_array(adapter)
 	var points := 0
 	var ids := {}
 	for place: Variant in value.places:
@@ -52,9 +66,9 @@ static func validate(value: Variant, name: String) -> String:
 		for line: Variant in place.outlines:
 			if line is not Array or line.is_empty(): return "Invalid boundary line."
 			points += line.size()
-			if points > 20000: return "Boundary preview budget exceeded."
 			for point: Variant in line:
 				if not _point(point) or point[0] < box[0] or point[0] > box[2] or point[1] < box[1] or point[1] > box[3]: return "Boundary point outside extent."
+	LIMITS.over(notes, "pbf_place_points", points, 20000, "Boundary preview points")
 	return ""
 
 static func _point(value: Variant) -> bool:
@@ -62,5 +76,5 @@ static func _point(value: Variant) -> bool:
 
 func _finish_result() -> void:
 	if not result.get("ok",false): return
-	var error := validate(result.get("data"), query)
+	var error := validate(result.get("data"), query, limit_warnings, adapter_texts)
 	if error != "": result = {"ok":false,"error":{"code":"E_PBF_SEARCH","message":error}}

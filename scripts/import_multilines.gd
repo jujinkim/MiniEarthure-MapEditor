@@ -1,6 +1,7 @@
 extends RefCounted
+const LIMITS := preload("./limit_warnings.gd")
 ## Editor-only provenance for independent GeoJSON road parts. No graph inference.
-static func validate(raw: Dictionary, boundary: Script) -> String:
+static func validate(raw: Dictionary, boundary: Script, notes: Array = []) -> String:
 	var meta: Variant = raw.coordinates.get("geojson_multilines")
 	if raw.adapter != "geojson-v1":
 		return "MultiLineString provenance requires GeoJSON." if meta != null else ""
@@ -24,11 +25,12 @@ static func validate(raw: Dictionary, boundary: Script) -> String:
 	for feature in meta.features:
 		if feature is not Dictionary or feature.size() != 3 or not boundary._count(feature.get("feature"), raw.feature_count - 1) or feature.feature <= previous: return "Invalid MultiLineString source feature order."
 		previous = int(feature.feature)
-		if feature.get("road_ids") is not Array or feature.road_ids.is_empty() or feature.road_ids.size() > 20000 or feature.get("point_counts") is not Array or feature.point_counts.size() != feature.road_ids.size(): return "Invalid MultiLineString part mapping."
+		if feature.get("road_ids") is not Array or feature.road_ids.is_empty() or feature.get("point_counts") is not Array or feature.point_counts.size() != feature.road_ids.size(): return "Invalid MultiLineString part mapping."
+		LIMITS.over(notes, "geojson_multiline_parts", feature.road_ids.size(), 20000, "Parts of one MultiLineString")
 		for part in range(feature.road_ids.size()):
 			var id := "import-%s-%d%s-part-%d" % [raw.layer_id, previous, "-collection" if raw.coordinates.has("geojson_collections") else "", part]
 			var count: Variant = feature.point_counts[part]
-			if feature.road_ids[part] != id or not roads.has(id) or not boundary._count(count, 200000) or count < 2: return "Invalid MultiLineString road mapping."
+			if feature.road_ids[part] != id or not roads.has(id) or not boundary._soft(notes, "geojson_multiline_points", count, 200000, "Points of one MultiLineString part") or count < 2: return "Invalid MultiLineString road mapping."
 			var road: Dictionary = roads[id]
 			if road.get("kind") != "ground" or road.get("clearance_cm") != null or road.get("points") is not Array or road.points.size() != count: return "Invalid MultiLineString ground part."
 			for end: String in ["from", "to"]:

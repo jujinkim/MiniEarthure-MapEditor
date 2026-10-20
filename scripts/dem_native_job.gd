@@ -37,7 +37,7 @@ func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destin
 		var path := "editor/" + str(output.png_sha256) + ".png"
 		if path not in owned_payloads: owned_payloads.append(path)
 	var bytes := JSON.stringify(request).to_utf8_buffer()
-	if bytes.size() > REQUEST_LIMIT: return "Native DEM request exceeds 64 MiB."
+	if bytes.size() > request_limit: return "Native DEM request exceeds 1.5 GiB."
 	return _start_request(bytes)
 
 func _additional_patch(patch: Dictionary) -> bool:

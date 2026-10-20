@@ -65,6 +65,9 @@ const CANVAS := preload("./map_canvas.gd")
 const GIMMICK_GEOMETRY := preload("res://addons/mapkit/godot/gimmick_geometry.gd")
 const RENDERER := preload("res://addons/mapkit/godot/chunk_renderer.gd")
 var store := STORE.new()
+const LIMITS := preload("./limit_warnings.gd")
+## Store limit warnings are shown after the operation's own status line.
+var _pending_limit_texts: Array[String] = []
 var canvas: Control
 var status_label: Label
 var project_label: Label
@@ -221,6 +224,7 @@ func _ready() -> void:
 	store.dirty_changed.connect(_draft_status_changed)
 	store.terrain_preview_changed.connect(func(_cells: Array): canvas.queue_redraw())
 	store.changed.connect(_document_changed)
+	store.limit_warned.connect(_limit_warned)
 	store.new_track()
 	_restore_workbench.call_deferred()
 	_show_start.call_deferred()
@@ -1381,7 +1385,10 @@ func _show_cached(cell: Vector2i) -> void:
 		preview_camera.frame(center, Vector3(35, 55, 45).length() * cell_size / 51200.0)
 		framed_cell = cell
 	validation_label.text = I18N.t("Preview ready · cell %d / %d") % [cell.x, cell.y]
-	_status(validation_label.text)
+	var limits: String = preview_cache[cell].get("limit_text", "")
+	_status(validation_label.text + ("\n" + limits if limits != "" else ""))
+	var lines := limits.split("\n")
+	if lines.size() > 1: validation_label.text += " · " + lines[1].trim_prefix("- ")
 
 func _package_finished(result: Dictionary) -> void:
 	var stale: bool = generation != worker_generation or package_work.stopped()
@@ -1461,7 +1468,8 @@ func _advance_attachment() -> void:
 				return
 			# Publish once; keep the old root visible throughout candidate attachment.
 			if preview_cache.has(package_cell): preview_cache[package_cell].root.queue_free()
-			preview_cache[package_cell] = {"root": render_staged, "signature": render_data.signature, "charge": render_data.charge, "used": cache_clock + 1}
+			preview_cache[package_cell] = {"root": render_staged, "signature": render_data.signature, "charge": render_data.charge, "used": cache_clock + 1,
+				"limit_text": LIMITS.text(render_data.limit_warnings) if render_data.get("limit_warnings") is Array else ""}
 			density_panel.record_preview(package_cell,render_data.signature,(Time.get_ticks_usec()-package_started_usec)/1000000.0)
 			RENDERER.dispose(render_job)
 			preview_resources.trim()
@@ -1545,7 +1553,8 @@ func _start_import(source: String, license_name: String) -> void:
 	busy = true
 	import_progress.value = 0
 	import_progress.visible = true
-	_status(I18N.t("Starting import · %d source bytes · %ds deadline. Cancel stops the child; Retry last source starts a new layer.") % [job.progress.total, job.timeout_seconds])
+	var limits: String = job.limit_text()
+	_status(I18N.t("Starting import · %d source bytes · no time limit. Cancel stops the child; Retry last source starts a new layer.") % job.progress.total + ("\n" + limits if limits != "" else ""))
 
 func _start_worker(operation: String, source: String, destination: String) -> void:
 	if operation == "import":
@@ -1602,6 +1611,8 @@ func _process(_delta: float) -> void:
 		if not progress.is_empty():
 			import_progress.value = 100.0 * float(progress.completed) / maxf(1.0, float(progress.total))
 			validation_label.text = "%s %s · %d / %d %s" % [I18N.t("DEM") if dem_mode.begins_with("dem") else I18N.t("Import"), I18N.builtin(progress.stage), progress.completed, progress.total, I18N.builtin(progress.unit)]
+			# Long runs and other limits warn here; Cancel stays available.
+			if not import_job.limit_warnings.is_empty(): validation_label.text += "\n" + import_job.limit_text()
 		if import_job.done:
 			var completed: RefCounted = import_job
 			var result: Dictionary = import_job.result
@@ -1700,7 +1711,7 @@ func _start_native_import(layer: RefCounted, adopting: bool) -> void:
 	busy = true
 	import_progress.visible = true
 	import_progress.value = 0
-	_status(I18N.t("Checking %s before %s · 120s deadline · Cancel retains the current map.") % [I18N.t("structural surfaces") if layer.has_structures() else I18N.t("import candidate"), "adoption" if adopting else "review"])
+	_status(I18N.t("Checking %s before %s · no time limit · Cancel retains the current map.") % [I18N.t("structural surfaces") if layer.has_structures() else I18N.t("import candidate"), "adoption" if adopting else "review"])
 
 func _finish_native_import(job: RefCounted, result: Dictionary) -> void:
 	if native_request_identity != job.identity or generation != job.editor_generation or not job.done or not job.exited or not job.matches(store, _import_selection_signature()):
@@ -1727,7 +1738,9 @@ func _finish_native_import(job: RefCounted, result: Dictionary) -> void:
 		# The owned child prepared the canonical document and exact Undo command.
 		# Commit once against its unchanged document/history epoch.
 		var failure: String = job.commit(store)
-		_status(I18N.diagnostic(failure) if failure != "" else I18N.t("Imported new layer. Undo removes only this adoption."))
+		var limits: String = job.limit_text()
+		var adopted := I18N.t("Imported new layer. This change cannot be undone; earlier Undo history was released.") if job.history_released else I18N.t("Imported new layer. Undo removes only this adoption.")
+		_status(I18N.diagnostic(failure) if failure != "" else adopted + ("\n" + limits if limits != "" else ""))
 	else:
 		job.layer.native_payload_digest = checked.payloads
 		_review_import(job.layer)
@@ -1813,6 +1826,26 @@ func _show_status_details() -> void:
 	details.confirmed.connect(details.queue_free)
 	details.close_requested.connect(details.queue_free)
 	details.popup_centered(Vector2i(760, 380))
+
+func _limit_warned(text: String) -> void:
+	if text.is_empty(): return
+	if _pending_limit_texts.is_empty(): _flush_limit_warnings.call_deferred()
+	_pending_limit_texts.append(text)
+
+# Deferred: the operation that caused the warning sets its status first.
+func _flush_limit_warnings() -> void:
+	var lines: Array[String] = []
+	for text: String in _pending_limit_texts:
+		for line: String in text.split("\n"):
+			if line.begins_with("- ") and line not in lines and not status_label.text.contains(line): lines.append(line)
+	_pending_limit_texts.clear()
+	if lines.is_empty(): return
+	var header := I18N.t("Limit warnings:")
+	status_label.text += ("\n" if not status_label.text.is_empty() else "") + ("" if status_label.text.contains(header) else header + "\n") + "\n".join(lines)
+	status_label.tooltip_text = status_label.text
+	if validation_label != null:
+		validation_label.text += " · " + lines[0].trim_prefix("- ")
+		validation_label.tooltip_text = status_label.text
 
 func _status(text: String) -> void:
 	if text.begins_with("E_") and is_instance_valid(output_tabs): output_tabs.show()

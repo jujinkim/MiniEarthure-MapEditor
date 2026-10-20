@@ -39,7 +39,9 @@ func _run(snapshot: Dictionary) -> Dictionary:
 		var failure: String = worker.save_project(request.path)
 		token.leave()
 		return {"ok":failure == "", "error":failure, "published":failure == "",
-			"path":worker.project_path, "digest":worker._disk_digest, "signature":worker._saved_signature, "canonical":worker._saved_canonical}
+			"path":worker.project_path, "digest":worker._disk_digest, "signature":worker._saved_signature, "canonical":worker._saved_canonical,
+			# Save-time warnings (package sizes the game refuses) reach the live store.
+			"limit_warnings":worker.limit_warnings.duplicate(true)}
 	var issues: Array = snapshot.document.get("assembled_track", {}).get("geometry_issues" if snapshot.document.get("free_roam",false) else "issues", [])
 	if not issues.is_empty(): return {"ok":false, "error":"Fix geometry or the selected race course before execution export: " + " / ".join(issues)}
 	package.regional_side_cells = int(request.options.get("regional_side_cells", 0))

@@ -1,9 +1,13 @@
 extends RefCounted
 const I18N := preload("./locale_text.gd")
-## Bounded supplemental source provenance; authored MapKit contracts are unchanged.
+const LIMITS := preload("./limit_warnings.gd")
+## Supplemental source provenance; authored MapKit contracts are unchanged.
+## MAX_* bound parsing; the former 256 KiB and 4096 nodes only warn.
 const VERTICAL := preload("./import_vertical.gd")
-const MAX_BYTES := 256 * 1024
-const MAX_NODES := 4096
+const MAX_BYTES := 16 * 1024 * 1024
+const MAX_NODES := 1000000
+const WARN_BYTES := 256 * 1024
+const WARN_NODES := 4096
 const ORDER := "fill missing original nodes before graph normalization, datum conversion and crop"
 
 static func hex_digest(v: Variant) -> bool:
@@ -31,8 +35,10 @@ static func unique_keys(raw: String) -> bool:
 			objects.back()[key] = true
 	return objects.is_empty()
 
-static func source_error(raw: Variant) -> String:
-	if raw is not String or raw.to_utf8_buffer().is_empty() or raw.to_utf8_buffer().size() > MAX_BYTES: return "Height supplement requires UTF-8 JSON of at most 256 KiB."
+static func source_error(raw: Variant, notes: Array = []) -> String:
+	var size: int = raw.to_utf8_buffer().size() if raw is String else 0
+	if raw is not String or size == 0 or size > MAX_BYTES: return "Height supplement requires UTF-8 JSON of at most 16 MiB."
+	LIMITS.over(notes, "height_supplement_bytes", size, WARN_BYTES, "Height supplement size in bytes")
 	var parser := JSON.new()
 	if parser.parse(raw) != OK: return "Invalid height supplement JSON."
 	var value: Variant = parser.data
@@ -43,7 +49,8 @@ static func source_error(raw: Variant) -> String:
 	if not hex_digest(value.osm_sha256): return "Height supplement requires the exact OSM snapshot SHA-256."
 	for key in ["source", "license", "accuracy"]:
 		if not VERTICAL.bounded_text(value[key]): return "Height source, license and declared accuracy are required."
-	if value.nodes is not Array or value.nodes.is_empty() or value.nodes.size() > MAX_NODES: return "Height supplement requires 1..4096 original nodes."
+	if value.nodes is not Array or value.nodes.is_empty() or value.nodes.size() > MAX_NODES: return "Height supplement requires 1..1000000 original nodes."
+	LIMITS.over(notes, "height_supplement_nodes", value.nodes.size(), WARN_NODES, "Height supplement nodes")
 	var seen := {}
 	var pattern := RegEx.new()
 	pattern.compile("^[1-9][0-9]{0,18}$")
@@ -55,7 +62,7 @@ static func source_error(raw: Variant) -> String:
 		if not VERTICAL.finite(node.height_m, -10000, 10000): return "Supplement heights must be finite metres within ±10000."
 	return ""
 
-static func validate(raw: Dictionary, requested: Dictionary) -> String:
+static func validate(raw: Dictionary, requested: Dictionary, notes: Array = []) -> String:
 	if not raw.coordinates.has("osm_height_supplement"):
 		return "Missing requested height supplement." if requested.has("height_supplement") else ""
 	var meta: Variant = raw.coordinates.osm_height_supplement
@@ -63,7 +70,7 @@ static func validate(raw: Dictionary, requested: Dictionary) -> String:
 	if meta.profile != "osm-node-heights-v1" or meta.order != ORDER: return "Unsupported height supplement order/profile."
 	var s: Variant = meta.source
 	if s is not Dictionary or s.size() != 3 or not s.has_all(["json", "bytes", "sha256"]): return "Missing height supplement snapshot."
-	var failure := source_error(s.json)
+	var failure := source_error(s.json, notes)
 	if failure != "": return failure
 	if s.bytes != s.json.to_utf8_buffer().size() or s.sha256 != s.json.sha256_text(): return "Height supplement source identity changed."
 	var source: Dictionary = JSON.parse_string(s.json)

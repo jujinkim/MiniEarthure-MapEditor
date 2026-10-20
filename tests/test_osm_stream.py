@@ -22,6 +22,8 @@ BOX = [8.9999,54.9999,9.006,55.006]
 
 class Streaming(unittest.TestCase):
     def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
@@ -99,7 +101,7 @@ class Streaming(unittest.TestCase):
             value,_,_=self.extract(ET.tostring(snapshot,encoding="unicode"))
             if expected is None: expected=value
             else: self.assertEqual(value,expected)
-        with patch.object(stream,"MAX_INDEX",65536),self.assertRaisesRegex(ValueError,"index budget"):
+        with patch.object(stream,"MAX_INDEX",65536),self.assertRaisesRegex(ValueError,"index exceeds its disk quota"):
             self.extract(ET.tostring(snapshot,encoding="unicode"))
         self.assertTrue(all(not (self.directory/name).exists() for name in stream.OWNED_FILES))
         # A duplicate far from its earlier occurrence cannot disappear in a
@@ -233,7 +235,10 @@ class Streaming(unittest.TestCase):
                 actual=self.extract(xml)
             if expected is None: expected=actual
             else: self.assertEqual(actual,expected)
-        with patch.object(stream,"WAY_BATCH_BYTES",1),self.assertRaisesRegex(ValueError,"buffer byte budget"):
+        import import_layer
+        with patch.object(stream,"WAY_BATCH_BYTES",1): self.assertEqual(self.extract(xml),expected)
+        self.assertIn("stream_way_bytes",{e["code"] for e in import_layer.limit_entries()})
+        with patch.object(stream,"WAY_PAYLOAD_CEILING",1),self.assertRaisesRegex(ValueError,"buffer byte ceiling"):
             self.extract(xml)
         root.find("way[@id='1259']/nd").set("ref","999999")
         with self.assertRaisesRegex(ValueError,"missing referenced node"):
@@ -260,8 +265,9 @@ class Streaming(unittest.TestCase):
 
     def test_partial_approach_closure_budget_and_cancellation(self):
         box=[9.0004,54.9999,9.0016,55.0001]
-        with patch.object(stream,"MAX_FEATURES",1),self.assertRaisesRegex(ValueError,"approach/feature budget"):
-            self.extract(structural_xml(),box)
+        import import_layer
+        with patch.object(stream,"MAX_FEATURES",1): self.extract(structural_xml(),box)
+        self.assertIn("stream_closure_features",{e["code"] for e in import_layer.limit_entries()})
         completed_relations=0
         def interrupt(stage,c,t,*unit):
             nonlocal completed_relations
@@ -275,13 +281,28 @@ class Streaming(unittest.TestCase):
         self.extract(structural_xml(),box)  # A fresh retry preserves the source.
 
     def test_limits_workspace_and_capture_mutation(self):
-        for name,value in [("MAX_SOURCE",1),("MAX_INDEX",4096),("MAX_SCAN_ENTITIES",1),
-                           ("MAX_SCAN_REFS",1),("MAX_ENTITY_REFS",1),("MAX_INPUT",1),
-                           ("MAX_POINTS",1),("MAX_ENTITIES",1),("MAX_FEATURES",1),("MAX_REFS",1)]:
+        import import_layer
+        def codes(): return {e["code"] for e in import_layer.limit_entries()}
+        expected=self.extract()[0]
+        # Source-work budgets warn and keep the whole selection.
+        for name,value,code in [("MAX_SOURCE",1,"stream_source_bytes"),("MAX_SCAN_ENTITIES",1,"stream_scan_entities"),
+                                ("MAX_SCAN_REFS",1,"stream_scan_references"),("MAX_ENTITY_REFS",1,"stream_entity_references"),
+                                ("MAX_INPUT",1,"stream_selected_bytes"),("MAX_POINTS",1,"osm_nodes"),
+                                ("MAX_ENTITIES",1,"stream_selected_entities"),("MAX_FEATURES",1,"osm_features"),
+                                ("MAX_REFS",1,"stream_selected_references")]:
+            import_layer.reset_limits()
+            with self.subTest(name=name),patch.object(stream,name,value):
+                self.assertEqual(self.extract()[0],expected)
+                self.assertIn(code,codes())
+            self.assertTrue(all(not (self.directory/n).exists() for n in stream.OWNED_FILES))
+        # Memory/disk guards still refuse.
+        for name,value in [("SOURCE_CEILING",1),("MAX_INDEX",4096),("ENTITY_REFS_CEILING",1)]:
             with self.subTest(name=name),patch.object(stream,name,value),self.assertRaises(ValueError): self.extract()
             self.assertTrue(all(not (self.directory/n).exists() for n in stream.OWNED_FILES))
-        with patch.object(stream.shutil,"disk_usage",return_value=type("Usage",(),{"free":0})()),self.assertRaisesRegex(ValueError,"free workspace"):
-            self.extract()
+        import_layer.reset_limits()
+        with patch.object(stream.shutil,"disk_usage",return_value=type("Usage",(),{"free":0})()):
+            self.extract()  # Low free disk warns; a real out-of-space error fails.
+        self.assertIn("stream_free_disk",codes())
         def mutate(stage,c,t,*unit):
             if stage=="read" and c==t:
                 with self.source.open("ab") as writer: writer.write(b"changed")
@@ -342,6 +363,11 @@ class Streaming(unittest.TestCase):
         self.extract(XML.replace('v="bench"','v="'+'x'*513+'"'))
         with self.assertRaisesRegex(ValueError,"tag"):
             self.extract(XML.replace('v="residential"','v="'+'x'*513+'"'))
+        # An oversized member role marks its relation as tags do; an unselected
+        # relation no longer refuses the whole import. Invalid references still do.
+        route='<relation id="7"><member type="way" ref="1" role="'+'r'*513+'"/><tag k="type" v="route"/></relation></osm>'
+        baseline=self.extract()[0]
+        self.assertEqual(self.extract(XML.replace('</osm>',route))[0],baseline)
 
     def test_explicit_review_excludes_objects_without_flattening_or_guessing(self):
         from osm_review import Review
@@ -358,8 +384,12 @@ class Streaming(unittest.TestCase):
         self.assertEqual([r["source_id"] for r in review.metadata()["excluded"]],["way/2"])
         self.assertFalse(any(f["geometry"]["type"]=="LineString" for f in result["features"]))
         self.assertEqual(len(result["features"]),2)
-        with self.assertRaisesRegex(ValueError,"budget"):
-            review.reject("way/3","aggregate reference budget exceeded")
+        # A typed budget failure stays fatal under review; a plain reason is excluded.
+        from import_layer import BudgetExceeded
+        with self.assertRaisesRegex(BudgetExceeded,"budget"):
+            review.reject("way/3",BudgetExceeded("aggregate reference budget exceeded"))
+        review.reject("way/4","unsupported budget-like wording")
+        self.assertIn("way/4",[r["source_id"] for r in review.metadata()["excluded"]])
 
     def test_index_growth_cap_and_parent_eof(self):
         root=ET.fromstring(XML)

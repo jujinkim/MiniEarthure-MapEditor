@@ -13,6 +13,10 @@ from overture_fixture import QUERY, FEATURE, snapshot, multipart_snapshot
 from geojson import convert
 
 class OvertureTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def parse(self,value): return a.parse(json.dumps(value).encode())
     def test_release_area_validation(self):
         for release in ["latest","2026-02-30.0","../release","2026-08-19.0/foo"]:
@@ -49,7 +53,10 @@ class OvertureTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.parse(obj)
         obj=snapshot();obj["features"][0]["properties"]["id"]="other"
         with self.assertRaises(ValueError): self.parse(obj)
-        with patch.object(a,"MAX_POINTS",4),self.assertRaises(ValueError): self.parse(snapshot())
+        import import_layer
+        with patch.object(a,"MAX_POINTS",4): self.parse(snapshot())  # Warns.
+        self.assertIn("overture_points",{e["code"] for e in import_layer.limit_entries()})
+        with patch.object(a,"POINTS_CEILING",4),self.assertRaises(ValueError): self.parse(snapshot())
         with self.assertRaises(ValueError): a.parse(b'{"snapshot_version":1,"snapshot_version":1}')
     def layer(self, obj):
         raw = json.dumps(obj).encode()
@@ -85,7 +92,13 @@ class OvertureTests(unittest.TestCase):
             if change == "holes": polys[0] += polys[0][1:] * 16
             if change == "z": polys[-1][0][1].append(2)
             with self.subTest(change=change), self.assertRaises(ValueError): self.layer(obj)
-        with patch.object(a,"MAX_POINTS",19), self.assertRaisesRegex(ValueError,"point budget"): self.layer(multipart_snapshot())
-        with patch("polygon_geometry.MAX_TOPOLOGY_CHECKS",2), self.assertRaisesRegex(ValueError,"topology budget"): self.layer(multipart_snapshot())
+        import import_layer
+        def codes(): return {e["code"] for e in import_layer.limit_entries()}
+        expected = self.layer(multipart_snapshot()).patches
+        with patch.object(a,"MAX_POINTS",19): self.assertEqual(self.layer(multipart_snapshot()).patches, expected)
+        with patch("polygon_geometry.MAX_TOPOLOGY_CHECKS",2): self.assertEqual(self.layer(multipart_snapshot()).patches, expected)
+        self.assertTrue({"overture_points","topology_checks"} <= codes())
+        with patch.object(a,"POINTS_CEILING",19), self.assertRaisesRegex(ValueError,"2,000,000"): self.layer(multipart_snapshot())
+        with patch("polygon_geometry.TOPOLOGY_CEILING",2), self.assertRaisesRegex(ValueError,"topology check ceiling"): self.layer(multipart_snapshot())
 
 if __name__=="__main__": unittest.main()

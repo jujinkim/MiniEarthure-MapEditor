@@ -3,6 +3,7 @@ extends Node
 const LAYER := preload("./import_layer.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const JOB := preload("./import_native_job.gd")
+const LIMITS := preload("./limit_warnings.gd")
 var directory := ""
 var identity := ""
 var sequence := 0
@@ -24,13 +25,15 @@ func source_error(request: Dictionary, stage: String) -> String:
 	var file := FileAccess.open(request.source, FileAccess.READ)
 	if file == null: return "Import source is unavailable; retry from the original source."
 	var count := file.get_length()
-	if count != int(request.layer.source.bytes) or count > 2 * 1024 * 1024 * 1024:
+	if count != int(request.layer.source.bytes) or count > LAYER.MAX_STREAM_SOURCE_BYTES:
 		file.close()
 		return "Import source changed after conversion."
 	var hash := HashingContext.new()
 	hash.start(HashingContext.HASH_SHA256)
 	var completed := 0
 	var reported := 0
+	# At most about 128 progress events per pass, whatever the source size.
+	var interval := maxi(16 * 1024 * 1024, count / 128)
 	progress(stage, 0, count)
 	while completed < count:
 		var bytes := file.get_buffer(mini(1024 * 1024, count - completed))
@@ -39,8 +42,7 @@ func source_error(request: Dictionary, stage: String) -> String:
 			return "Import source changed while reading."
 		hash.update(bytes)
 		completed += bytes.size()
-		# At most 128 progress events for a 2 GiB input, not one per block.
-		if completed - reported >= 16 * 1024 * 1024 or completed == count:
+		if completed - reported >= interval or completed == count:
 			progress(stage, completed, count)
 			reported = completed
 	var stable: bool = file.get_length() == count and hash.finish().hex_encode() == request.layer.source.sha256
@@ -57,6 +59,7 @@ func run() -> void:
 	var failure := str(read.get("error", ""))
 	var hashes := {}
 	var prepared := {}
+	var notes: Array = []
 	var request: Variant
 	if failure == "":
 		if PAYLOADS.digest(read.bytes) != args[2]: failure = "Native validation input changed."
@@ -92,7 +95,9 @@ func run() -> void:
 			failure = str(prepared.get("error", ""))
 			if prepared.get("noop", false): failure = "Import command has no changes."
 			if failure == "": progress("prepare", 1, 1)
-	var output := {"ok":false, "request":identity}
+		LIMITS.merge(notes, layer.limit_warnings)
+		if "limit_warnings" in store: LIMITS.merge(notes, store.limit_warnings)
+	var output := {"ok":false, "request":identity, "limit_warnings":notes}
 	if failure == "":
 		output.payloads = JSON.stringify(hashes).sha256_text()
 		failure = JOB.COMMAND.write_bundle(directory, {"prepared":JOB.COMMAND.encode(prepared)}, output)
@@ -110,6 +115,12 @@ func run() -> void:
 	finish(output)
 
 func finish(output: Dictionary) -> void:
+	# Limit warnings share the bounded result file with the hash-bound fields.
+	var notes: Variant = output.get("limit_warnings", [])
+	output.erase("limit_warnings")
+	if notes is Array and not notes.is_empty():
+		var room: int = JOB.RESULT_LIMIT - 256 - JSON.stringify(output).to_utf8_buffer().size()
+		if room > 64: output.limit_warnings = LIMITS.compact(notes, room)
 	var bytes := JSON.stringify(output).to_utf8_buffer()
 	var error := PAYLOADS.write_new(directory.path_join("layer.json"), bytes)
 	if error != "":

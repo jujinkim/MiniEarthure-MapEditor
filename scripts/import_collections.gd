@@ -1,13 +1,17 @@
 extends RefCounted
-## Bounded source-tree provenance for reuse of the existing GeoJSON leaf adapters.
-static func tree_error(value: Variant, depth: int, state: Array, count: int, boundary: Script) -> String:
+const LIMITS := preload("./limit_warnings.gd")
+## Source-tree provenance for reuse of the existing GeoJSON leaf adapters.
+## Depth is a recursion guard; node counts only warn.
+const MAX_DEPTH := 64
+static func tree_error(value: Variant, depth: int, state: Array, count: int, boundary: Script, notes: Array = []) -> String:
 	state[1] += 1
-	if depth > 16 or state[1] > 40000: return "GeometryCollection tree budget exceeded."
+	if depth > MAX_DEPTH: return "GeometryCollection nesting exceeds 64 levels."
 	if value is Array:
 		state[2] += 1
-		if value.is_empty() or value.size() > 40000: return "Invalid empty/oversized GeometryCollection."
+		if value.is_empty(): return "Invalid empty GeometryCollection."
+		LIMITS.over(notes, "geojson_collection_members", value.size(), 40000, "Members of one GeometryCollection")
 		for child in value:
-			var error := tree_error(child, depth+1, state, count, boundary)
+			var error := tree_error(child, depth+1, state, count, boundary, notes)
 			if error != "": return error
 	elif not boundary._count(value, count-1) or value != state[0]:
 		return "GeometryCollection leaves must retain source order without gaps."
@@ -15,25 +19,28 @@ static func tree_error(value: Variant, depth: int, state: Array, count: int, bou
 		state[0] += 1
 	return ""
 
-static func validate(raw: Dictionary, boundary: Script) -> String:
+static func validate(raw: Dictionary, boundary: Script, notes: Array = []) -> String:
 	var meta: Variant = raw.coordinates.get("geojson_collections")
 	var records := {}
 	for patch: Dictionary in raw.patches:
 		if patch.id.contains("-collection"): records[patch.id] = patch
 	if meta == null: return "Missing GeometryCollection provenance." if not records.is_empty() else ""
-	if raw.adapter != "geojson-v1" or meta is not Dictionary or meta.size() != 3 or meta.get("profile") != "feature-leaves-v1" or meta.get("sources") is not Array or meta.sources.is_empty() or meta.sources.size() > 20000 or meta.get("leaves") is not Array or meta.leaves.size() != raw.feature_count: return "Invalid GeometryCollection profile."
+	if raw.adapter != "geojson-v1" or meta is not Dictionary or meta.size() != 3 or meta.get("profile") != "feature-leaves-v1" or meta.get("sources") is not Array or meta.sources.is_empty() or meta.get("leaves") is not Array or meta.leaves.size() != raw.feature_count: return "Invalid GeometryCollection profile."
+	LIMITS.over(notes, "geojson_collection_sources", meta.sources.size(), 20000, "GeometryCollection source features")
 	if records.size() != raw.patches.size(): return "Incomplete GeometryCollection record namespace."
 	var state := [0,0,0]
 	for index in range(meta.sources.size()):
 		var source: Variant = meta.sources[index]
-		if source is not Dictionary or source.size() != 2 or not boundary._count(source.get("feature"), 19999) or source.feature != index or not source.has("tree"): return "Invalid GeometryCollection source feature."
-		var error := tree_error(source.tree, 0, state, raw.feature_count, boundary)
+		if source is not Dictionary or source.size() != 2 or not boundary._count(source.get("feature"), meta.sources.size() - 1) or source.feature != index or not source.has("tree"): return "Invalid GeometryCollection source feature."
+		var error := tree_error(source.tree, 0, state, raw.feature_count, boundary, notes)
 		if error != "": return error
+	LIMITS.over(notes, "geojson_collection_nodes", state[1], 40000, "GeometryCollection tree nodes")
 	if state[0] != raw.feature_count or state[2] == 0: return "Missing GeometryCollection source leaves."
 	var points := 0
 	for index in range(meta.leaves.size()):
 		var leaf: Variant = meta.leaves[index]
-		if leaf is not Dictionary or leaf.size() != 4 or not boundary._count(leaf.get("feature"), 19999) or leaf.feature != index or leaf.get("geometry") not in ["LineString", "MultiLineString", "Polygon", "MultiPolygon"] or leaf.get("record_ids") is not Array or leaf.record_ids.is_empty() or leaf.record_ids.size() > 60000 or not boundary._count(leaf.get("point_count"), 200000) or leaf.point_count < 2: return "Invalid GeometryCollection leaf mapping."
+		if leaf is not Dictionary or leaf.size() != 4 or not boundary._count(leaf.get("feature"), meta.leaves.size() - 1) or leaf.feature != index or leaf.get("geometry") not in ["LineString", "MultiLineString", "Polygon", "MultiPolygon"] or leaf.get("record_ids") is not Array or leaf.record_ids.is_empty() or not boundary._soft(notes, "geojson_collection_leaf_points", leaf.get("point_count"), 200000, "Points of one GeometryCollection leaf") or leaf.point_count < 2: return "Invalid GeometryCollection leaf mapping."
+		LIMITS.over(notes, "geojson_collection_leaf_records", leaf.record_ids.size(), 60000, "Records of one GeometryCollection leaf")
 		points += int(leaf.point_count)
 		if points > raw.point_count: return "GeometryCollection point budget exceeded."
 		var road: bool = leaf.geometry in ["LineString", "MultiLineString"]

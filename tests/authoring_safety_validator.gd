@@ -56,8 +56,27 @@ func run() -> void:
 	after.path = new_path
 	before = state()
 	var failure := FILES.apply(ui.store,"oversized binary",[{"field":"heightmaps","id":ui.store.record_id("heightmaps",record),"before":ui.store.document.heightmaps[0],"after":after}],{new_path:oversized})
-	check(failure.contains("undo budget") and state() == before, "binary/text shared history limit before publication")
+	check(failure != "" and not failure.contains("undo budget") and state() == before, "oversized binary reaches native validation; invalid PNG refused atomically")
 	check(not FileAccess.file_exists(ui.store.project_path.path_join(new_path)), "oversized input never installed")
+	var released := preload("res://scripts/history_codec.gd").retain({"label":"oversized binary","patches":[]}, JSON.stringify({"label":"oversized binary","patches":[]}), {new_path:oversized})
+	check(released.get("history_released", false) and not released.has("binary_mementos") and released.bytes > ui.store.HISTORY_BYTES, "binary/text shared history limit releases Undo instead of refusing")
+	# A VALID payload over the Undo budget applies in the editor and releases Undo.
+	var picture := Image.create(4,4,false,Image.FORMAT_RGBA8); picture.fill(Color.BLUE)
+	var small := picture.save_png_to_buffer()
+	var filler := PackedByteArray(); filler.resize(ui.store.HISTORY_BYTES + 1024); filler.fill(97)
+	var large: PackedByteArray = small.slice(0,33) + preload("res://scripts/terrain_png.gd").chunk("tEXt", "Comment".to_ascii_buffer() + PackedByteArray([0]) + filler) + small.slice(33)
+	filler.clear()
+	var large_source := ProjectSettings.globalize_path("user://safety-large-asset.png")
+	file = FileAccess.open(large_source,FileAccess.WRITE);file.store_buffer(large);file.close()
+	check(ui.store.apply_command("undo fixture",[{"field":"seed","before":ui.store.document.seed,"after":ui.store.document.seed+1}])=="" and not ui.store.undo_stack.is_empty(),"earlier Undo exists before the large change")
+	var asset_record := {"id":"large-safety-asset","path":"","attribution":{"source":"Synthetic asset","license":"MIT","notice":"fixture"},"collision":[{"center":[0,100,0],"size_cm":[200,200,200]}]}
+	var large_failure: String = author.asset(asset_record, large_source)
+	check(large_failure == "" and ui.store.document.assets.any(func(asset): return asset.id == "large-safety-asset"), "valid asset over the Undo budget applies: " + large_failure)
+	check(ui.store.undo_stack.is_empty() and ui.store.redo_stack.is_empty() and ui.store.history_bytes == 0 and ui.store.last_change_released, "large change releases earlier Undo/Redo")
+	check(ui.store.limit_warnings.any(func(w): return w.code == "undo_history"), "store records the undo_history warning")
+	await process_frame
+	check(ui.status_label.text.contains("This change cannot be undone; earlier Undo history was released."), "editor status shows the Undo release warning: " + ui.status_label.text.left(300))
+	large.clear()
 	check(FILES.write_new(path, PackedByteArray([1,2,3])).contains("conflict"), "immutable install never overwrites differing bytes")
 	# Mixed ground/bridge connection must match actual terrain, not just graph XYZ.
 	ui.store.new_track(true)

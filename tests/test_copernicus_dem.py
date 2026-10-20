@@ -11,7 +11,12 @@ from unittest.mock import patch
 import zlib
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts/importers"))
 import copernicus_dem as dem
+import import_layer
 from dem_fixture import create
+
+
+def codes():
+    return {entry["code"] for entry in import_layer.limit_entries()}
 
 # Support windows of the synthetic four-tile mosaic, identical before the shared-read change.
 WINDOWS_CORNER="6e52f8a93531b9f90be1d8af41ff25f314fa06df4097d089f350c2f1be628822"
@@ -23,6 +28,10 @@ def options(source=""):
 
 
 class DemTests(unittest.TestCase):
+    def setUp(self):
+        import_layer.reset_limits()
+        self.addCleanup(import_layer.reset_limits)
+
     @classmethod
     def setUpClass(cls):
         cls.folder = tempfile.TemporaryDirectory()
@@ -67,9 +76,15 @@ class DemTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"multiple source"):dem.plan(crossing)
         with tempfile.TemporaryDirectory() as folder:
             d=Path(folder)
-            for changed in [dict(dem.plan(base),adapter="copernicus-dem-v2"),dict(dem.plan(base),checked_at=0)]:
+            import time
+            for changed in [dict(dem.plan(base),adapter="copernicus-dem-v2"),dict(dem.plan(base),checked_at=int(time.time())+3600)]:
                 with self.assertRaises(ValueError):dem.execute(dict(mode="dem",plan=changed,destination=str(d/"absent")),d,lambda *a:None)
             self.assertEqual(list(d.iterdir()),[])
+            self.assertNotIn("dem_review_age",codes())
+            # An old review is re-planned and hash-checked; its age only warns.
+            result=dem.execute(dict(mode="dem",plan=dict(dem.plan(base),checked_at=0),destination=str(d/"old")),d,lambda *a:None)
+            self.assertEqual(len(result["outputs"]),1)
+            self.assertIn("dem_review_age",codes())
 
     def test_city_grid_keeps_sample_source_and_cell_budgets(self):
         raw = dict(options(self.source), cell_count=[8,12], cell_size_cm=12800,
@@ -83,11 +98,19 @@ class DemTests(unittest.TestCase):
             grid=dem.mosaic_grid(dict(options(self.source),cell_count=counts,
                                       cell_size_cm=200,spacing_cm=200))
             self.assertEqual(len(grid[2]),256)
-        for counts in [[17,16],[257,1],[1,257],[True,1]]:
+        self.assertEqual(import_layer.limit_entries(),[])
+        # Above the former 256 cells and 1025² samples a mosaic warns; the
+        # raised ceilings (1024 cells, 4096² samples) still refuse.
+        small=dict(options(self.source),cell_size_cm=200,spacing_cm=200)
+        self.assertEqual(len(dem.mosaic_grid(dict(small,cell_count=[17,16]))[2]),272)
+        self.assertIn("dem_cells",codes())
+        for counts in [[33,32],[1025,1],[1,1025],[True,1]]:
             with self.subTest(counts=counts),self.assertRaises(ValueError):
-                dem.mosaic_grid(dict(raw,cell_count=counts))
-        with self.assertRaisesRegex(ValueError,'sample budget'):
-            dem.mosaic_grid(dict(raw,cell_count=[16,16],spacing_cm=200))
+                dem.mosaic_grid(dict(small,cell_count=counts))
+        dem.mosaic_grid(dict(options(self.source),cell_count=[4,4],spacing_cm=200))
+        self.assertIn("dem_samples",codes())
+        with self.assertRaisesRegex(ValueError,'4096² samples'):
+            dem.mosaic_grid(dict(options(self.source),cell_count=[16,16],spacing_cm=200))
         original = dem.identity(self.source)
         with tempfile.TemporaryDirectory() as folder:
             d=Path(folder)
@@ -125,15 +148,21 @@ class DemTests(unittest.TestCase):
             self.assertTrue((d/"captured.source-0.tif").exists())
             self.assertFalse(list(d.glob("*.png")))
         self.assertEqual(dem.identity(self.source),original)
-        with patch.object(dem,"MAX_SOURCE",original["bytes"]-1),self.assertRaises(ValueError):dem.plan(options(self.source))
+        with patch.object(dem,"SOURCE_CEILING",original["bytes"]-1),self.assertRaises(ValueError):dem.plan(options(self.source))
+        self.assertNotIn("dem_source_bytes",codes())
+        with patch.object(dem,"MAX_SOURCE",original["bytes"]-1):dem.plan(options(self.source))
+        self.assertIn("dem_source_bytes",codes())
 
     def test_decode_budget_counts_touched_blocks_before_hashing(self):
         cost=dem.plan(options(self.source))["sources"][0]["source"]["decode"]
         self.assertEqual((cost["block"],cost["blocks"],cost["decoded_bytes"]),([1024,1024],1,4*1024*1024))
         self.assertGreater(cost["compressed_bytes"],0)
-        with patch.object(dem,"MAX_DECODE",cost["decoded_bytes"]-1),patch.object(dem,"identity",side_effect=AssertionError("hashed before the decode budget")):
-            with self.assertRaisesRegex(ValueError,"decode budget.*flat terrain"):dem.plan(options(self.source))
+        with patch.object(dem,"DECODE_CEILING",cost["decoded_bytes"]-1),patch.object(dem,"identity",side_effect=AssertionError("hashed before the decode ceiling")):
+            with self.assertRaisesRegex(ValueError,"decode exceeds.*flat terrain"):dem.plan(options(self.source))
         with patch.object(dem,"MAX_DECODE",cost["decoded_bytes"]):dem.plan(options(self.source))
+        self.assertNotIn("dem_decode_bytes",codes())
+        with patch.object(dem,"MAX_DECODE",cost["decoded_bytes"]-1):dem.plan(options(self.source))
+        self.assertIn("dem_decode_bytes",codes())
         with tempfile.TemporaryDirectory() as folder:
             d=Path(folder)
             changed=dem.plan(options(self.source));changed["sources"][0]["source"]["decode"]["blocks"]=2
@@ -176,6 +205,10 @@ class DemTests(unittest.TestCase):
 
 
 class MosaicTests(unittest.TestCase):
+    def setUp(self):
+        import_layer.reset_limits()
+        self.addCleanup(import_layer.reset_limits)
+
     @classmethod
     def setUpClass(cls):
         cls.folder=tempfile.TemporaryDirectory()
@@ -217,7 +250,10 @@ class MosaicTests(unittest.TestCase):
                 r=dem.execute(dict(mode="dem",plan=p,destination=str(d/"capture")),d,lambda *a:None)
                 self.assertEqual(grids.call_count,1)
                 self.assertEqual(len(r["outputs"]),4)
-        with patch.object(dem,"MAX_SOURCE",largest-1),self.assertRaisesRegex(ValueError,"exceeds 64 MiB"):dem.plan(self.opts())
+        with patch.object(dem,"SOURCE_CEILING",largest-1),self.assertRaisesRegex(ValueError,"exceeds 256 MiB"):dem.plan(self.opts())
+        self.assertNotIn("dem_source_bytes",codes())
+        with patch.object(dem,"MAX_SOURCE",largest-1):dem.plan(self.opts())
+        self.assertIn("dem_source_bytes",codes())
 
     def test_four_source_outputs_and_windows_are_unchanged(self):
         from rasterio.io import DatasetReader
@@ -239,9 +275,13 @@ class MosaicTests(unittest.TestCase):
                 self.assertLess(len(reads),len(r["raster"]["source_windows"]))
 
     def test_limits_missing_source_and_stale_plan(self):
-        for counts in [[0,1],[5,1],[True,1],[4,4]]:
+        for counts in [[0,1],[True,1],[16,16]]:
             o=dict(self.opts(),cell_count=counts,cell_size_cm=102400,spacing_cm=200)
             with self.assertRaises(ValueError): dem.plan(o)
+        self.assertEqual(import_layer.limit_entries(),[])
+        # More than the former 1025² samples (and four tiles) warns instead.
+        dem.mosaic_grid(dict(self.opts(),cell_count=[5,1],cell_size_cm=102400,spacing_cm=200))
+        self.assertIn("dem_samples",codes())
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(ValueError): dem.plan(dict(self.opts(),source=folder))
             p=dem.plan(self.opts());p["sources"][0]["source"]["sha256"]="0"*64

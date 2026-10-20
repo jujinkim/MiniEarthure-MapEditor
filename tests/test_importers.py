@@ -17,6 +17,10 @@ def fixture():
 
 
 class ImportTests(unittest.TestCase):
+    def setUp(self):
+        import import_layer
+        import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
+
     def test_building_usage_is_current_contract_and_estimates_are_explicit(self):
         for usage in [None, "warehouse", "unknown", "commercial"]:
             with self.subTest(usage=usage):
@@ -77,6 +81,20 @@ class ImportTests(unittest.TestCase):
         child = subprocess.Popen([sys.executable,"-B","-u","-c",code,module_path],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         try:
             self.assertEqual(child.stdout.readline().strip(),b"ready")
+            child.stdin.close()
+            self.assertEqual(child.wait(timeout=3),3)
+        finally:
+            if child.poll() is None: child.kill();child.wait()
+            child.stdout.close();child.stderr.close()
+
+    def test_no_deadline_kill_only_parent_eof(self):
+        # A former deadline (now ignored) no longer kills a long import.
+        module_path = str(Path(__file__).resolve().parents[1]/"scripts/importers")
+        code = "import sys,time;sys.path.insert(0,sys.argv[1]);from geojson import watch_parent_lifetime;watch_parent_lifetime(1);print('ready',flush=True);time.sleep(60)"
+        child = subprocess.Popen([sys.executable,"-B","-u","-c",code,module_path],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        try:
+            self.assertEqual(child.stdout.readline().strip(),b"ready")
+            with self.assertRaises(subprocess.TimeoutExpired): child.wait(timeout=2.5)
             child.stdin.close()
             self.assertEqual(child.wait(timeout=3),3)
         finally:

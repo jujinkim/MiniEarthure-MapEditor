@@ -19,7 +19,10 @@ var place_status: Label
 var places: Array = []
 ## Places whose exact boundary union clips the import (empty: rectangle crop).
 var selected_areas: Array = []
-const MAX_AREAS := 8
+const LIMITS := preload("./limit_warnings.gd")
+## More areas than WARN_AREAS still combine; the review then shows a warning.
+const MAX_AREAS := preload("./import_layer.gd").MAX_AREAS
+const WARN_AREAS := preload("./import_layer.gd").WARN_AREAS
 var source_dialog: FileDialog
 const PLACES_JOB := preload("./pbf_places_job.gd")
 
@@ -80,7 +83,7 @@ func setup(owner_ui: Control) -> void:
 	layout.add_child(enabled)
 	ui._label(layout, "Road centerlines and building/vegetation polygons are intersected with this box.\nHoles and split parts survive. Road width may extend outside; new cut walls are artificial.")
 	streaming = CheckBox.new()
-	streaming.text = I18N.t("PBF streaming · local source up to 2 GiB (requires crop)")
+	streaming.text = I18N.t("PBF streaming · local source up to 64 GiB, warning above 2 GiB (requires crop)")
 	layout.add_child(streaming)
 	city = CheckBox.new()
 	city.text = I18N.t("Automatically merge and simplify city geometry (1:8)")
@@ -90,7 +93,7 @@ func setup(owner_ui: Control) -> void:
 	exclusions = CheckBox.new()
 	exclusions.text = I18N.t("Review and exclude unsupported source objects (PBF streaming)")
 	layout.add_child(exclusions)
-	ui._label(layout, "Streaming: source bytes + 2 GiB index + 64 MiB free disk; 15-minute deadline.\nThree byte-counted passes; complete candidate ways/relations before crop.\nOther vector inputs stay at 32 MiB.")
+	ui._label(layout, "Streaming: source bytes + index + free disk; a warning after 15 minutes, Cancel stops it.\nThree byte-counted passes; complete candidate ways/relations before crop.\nOther vector inputs: up to 256 MiB, warning above 32 MiB.")
 	var grid := GridContainer.new()
 	grid.columns = 4
 	layout.add_child(grid)
@@ -181,7 +184,7 @@ func start_search() -> void:
 	ui.import_progress.visible = true
 	ui._status("Finding named boundaries in local PBF · Cancel keeps the current map and source.")
 
-func finish_search(_job: RefCounted, result: Dictionary) -> void:
+func finish_search(job: RefCounted, result: Dictionary) -> void:
 	if ui.generation != ui.worker_generation:
 		ui._status("Document changed during PBF lookup; search again.")
 		return
@@ -193,6 +196,8 @@ func finish_search(_job: RefCounted, result: Dictionary) -> void:
 		area.set_places(places)
 		place_status.text = I18N.t("%d matching areas in %s. Select a name to inspect its boundary.") % [places.size(),result.data.source_name] if not places.is_empty() else I18N.t("No matching administrative area. Try its local name; English search needs an alias recorded in this PBF.")
 		if not places.is_empty(): select_place(0)
+		if job != null and not job.limit_warnings.is_empty(): place_status.text += "\n" + LIMITS.text(job.limit_warnings)
+		if job != null and not job.adapter_texts.is_empty(): place_status.text += "\n" + "\n".join(job.adapter_texts)
 	else: place_status.text = str(result.get("error",{}).get("message","PBF lookup failed."))
 	ui._status(place_status.text)
 	dialog.popup_centered(Vector2i(840,680))
@@ -219,6 +224,10 @@ func add_place() -> void:
 	selected_areas.append(place)
 	_fit_areas()
 	place_status.text = I18N.t("Combined areas: %s. The crop follows their exact boundaries.") % ", ".join(selected_areas.map(func(p): return str(p.name)))
+	if selected_areas.size() > WARN_AREAS:
+		var notes: Array = []
+		LIMITS.note(notes, "osm_areas", selected_areas.size(), WARN_AREAS, "Combined administrative areas")
+		place_status.text += "\n" + LIMITS.text(notes)
 	ui._status(place_status.text)
 
 func area_ids() -> Array:

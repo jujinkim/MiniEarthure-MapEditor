@@ -174,10 +174,15 @@ func verify_crop(ui: Control, path: String) -> void:
 			"duplicate-sections": bad.coordinates.osm_crop.vertical.connection_sections[0] = bad.coordinates.osm_crop.vertical.connection_sections[1]
 			"role": bad.coordinates.osm_crop.vertical.structures[0].endpoints[0].role = "source-node"
 			"closure": bad.coordinates.osm_stream.structure_closure = null
-			"count": bad.coordinates.osm_stream.structure_closure.visits = 200001
+			"count": bad.coordinates.osm_stream.structure_closure.visits = bad.coordinates.osm_stream.structure_closure.nodes - 1
 			"mapping": bad.coordinates.osm_connections.joins[0].retained = []
 			"source-way": bad.coordinates.osm_crop.vertical.structures[0].source_way = "999"
 		check(LAYER.new().load_value(bad,ui.import_identity,ui.import_coordinates_request) != "","forged cropped chain rejected: " + kind)
+	# Former closure budgets are limit warnings; closure consistency still refuses.
+	var over: Dictionary = raw.duplicate(true)
+	over.coordinates.osm_stream.structure_closure.visits = 200001
+	var over_layer := LAYER.new()
+	check(over_layer.load_value(over,ui.import_identity,ui.import_coordinates_request) == "" and over_layer.limit_warnings.any(func(w): return w.code == "structure_closure_visits"),"closure visits above 200000 are a limit warning")
 	check(ui.store.document == before,"cropped review preserves map")
 	ui._adopt_import()
 	await wait_import(ui)
