@@ -251,7 +251,7 @@ func verify_surface(store: RefCounted, raw: Dictionary) -> void:
 		if patch.field != "roads" or not patch.id.ends_with("-loop"): continue
 		var p: Array = patch.after.points.duplicate(true)
 		for point: Array in p:
-			for axis in range(3): point[axis] = roundi(float(point[axis])/8.0)
+			for axis in range(3): point[axis] = roundi(float(point[axis])/preload("res://scripts/import_units.gd").OSM_DENOMINATOR)
 		for end in [0,p.size()-1]:
 			var next: int = 1 if end == 0 else end-1
 			for fraction in [0.025,0.1,0.3,0.5]:

@@ -43,7 +43,8 @@ def grid(options, coordinates=None):
     if not isinstance(options["source"], str) or len(options["source"]) > 4096:
         raise ValueError("Invalid local COG path")
     denominator = options.get("osm_denominator", 1)
-    if type(denominator) not in (int, float) or denominator not in (1, 8): raise ValueError("Invalid OSM import units")
+    # The adopted OSM map scale 1:D, D an integer 1..8 (the Editor sends a float).
+    if type(denominator) not in (int, float) or not math.isfinite(denominator) or denominator != int(denominator) or not 1 <= denominator <= 8: raise ValueError("Invalid OSM import units")
     coordinates = Coordinates(options["coordinates"]) if coordinates is None else coordinates
     if coordinates.mode != "wgs84-utm": raise ValueError("DEM requires explicit WGS84/local origins")
     size = integer(options["cell_size_cm"], "cell size", 200, 102400)

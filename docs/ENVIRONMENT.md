@@ -71,7 +71,8 @@ identities so changes elsewhere do not shift another region's sequence.
 
 OSM imports keep original way/relation IDs, land-use polygons, inner rings and
 protected regions in Editor provenance. Source polygons stay unscaled; an
-`authored_regions` copy and infill assets receive the single 1:8 conversion.
+`authored_regions` copy and infill assets receive the single 1:D conversion
+(D stored by the OSM layers, 1 to 8; layers that disagree are refused).
 Unknown land use gets low-intensity ground cover, never guessed buildings. Generated
 scenery is labelled as an estimated game environment. Original roads, buildings,
 manual objects, water, entrances, protected areas and forest/orchard sources are

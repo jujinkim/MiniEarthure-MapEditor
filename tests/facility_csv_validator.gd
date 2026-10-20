@@ -54,6 +54,26 @@ func run() -> void:
 	cancelled.cancel()
 	await finish(cancelled)
 	check(not cancelled.result.get("ok",false) and store.document.pois.size()==1,"cancel cannot publish a partial layer")
+	# A 1:3 OSM map: the stored scale divides the same projected position by three.
+	var third_options: Dictionary = options.duplicate(true)
+	third_options.csv.source_denominator = 3
+	var third := JOB.new()
+	check(third.start(source,"CC0-1.0","unknown",python,"c".repeat(32),third_options,"csv")=="","start 1:3 CSV worker")
+	await finish(third)
+	var third_layer := LAYER.new()
+	check(third.result.get("ok",false) and third_layer.load_value(third.result.data,"c".repeat(32),third_options)=="","1:3 CSV review validates")
+	if not third_layer.value.is_empty():
+		var exact: Array = job.result.data.patches[0].after.position
+		check(third_layer.value.patches[0].after.position == [roundf(exact[0]/3.0),roundf(exact[1]/3.0)],"1:3 CSV positions divide by the stored scale once: %s %s" % [str(exact),str(third_layer.value.patches[0].after.position)])
+	var bad_options: Dictionary = options.duplicate(true)
+	bad_options.csv.source_denominator = 9
+	var bad := JOB.new()
+	var bad_start: String = bad.start(source,"CC0-1.0","unknown",python,"d".repeat(32),bad_options,"csv")
+	var refused := bad_start != ""  # Refused before launch, or by the worker below.
+	if not refused:
+		await finish(bad)
+		refused = not bad.result.get("ok",false) and str(bad.result.get("error","")).contains("1:1 to 1:8")
+	check(refused,"a 1:9 CSV scale is refused: "+bad_start+str(bad.result.get("error","")))
 	check(FileAccess.get_sha256(source)==hash,"all operations retain source bytes")
 	print("facility_csv_validator: ","FAIL" if failed else "PASS")
 	quit(1 if failed else 0)

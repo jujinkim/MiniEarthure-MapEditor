@@ -323,6 +323,8 @@ def main():
     parser.add_argument("--osm-bbox", nargs=4, type=float)
     parser.add_argument("--osm-stream", action="store_true")
     parser.add_argument("--osm-city", action="store_true")
+    # City map scale 1:D. Exact (non-city) OSM adoption stays at 1:8.
+    parser.add_argument("--osm-scale", type=int, choices=range(1, 9))
     parser.add_argument("--osm-areas", nargs="+", type=int)
     parser.add_argument("--osm-review-exclusions", action="store_true")
     parser.add_argument("--vertical-request", type=Path)
@@ -342,6 +344,9 @@ def main():
         raise ValueError("Administrative area crops require PBF streaming")
     if args.osm_city and not args.osm_stream:
         raise ValueError("Automatic city optimization requires PBF streaming")
+    if args.osm_scale is not None and not args.osm_city:
+        raise ValueError("A city map scale requires automatic city optimization")
+    scale = args.osm_scale if args.osm_scale is not None else 8
     from osm_review import Review
     review = Review(args.osm_review_exclusions)
     if args.osm_bbox is not None:
@@ -412,7 +417,7 @@ def main():
             from osm_area import crop
             if args.osm_city:
                 from osm_stream import CITY_FEATURES, CITY_POINTS
-                value, osm_crop = crop(value, args.osm_bbox, feature_limit=CITY_FEATURES, point_limit=CITY_POINTS, region=region, areas=osm_stream.get("areas"))
+                value, osm_crop = crop(value, args.osm_bbox, feature_limit=CITY_FEATURES, point_limit=CITY_POINTS, region=region, areas=osm_stream.get("areas"), denominator=scale)
             else:
                 value, osm_crop = crop(value, args.osm_bbox, region=region, areas=osm_stream.get("areas") if osm_stream else None)
     parse_bytes = osm_stream["selected"]["bytes"] if osm_stream else size
@@ -438,7 +443,7 @@ def main():
         # larger one misses the output selection targets or does not convert.
         # When no gap meets the targets, the largest converted gap (smallest
         # output) is adopted with limit warnings; no source object is dropped.
-        for attempt, (candidate, metadata) in enumerate(candidates(value, options, review)):
+        for attempt, (candidate, metadata) in enumerate(candidates(value, options, review, scale)):
             if candidate is None:
                 event("optimize", attempt+1, len(LEVELS), "steps", gap_m=metadata["gap_m"])
                 error = metadata["failure"]
@@ -466,7 +471,7 @@ def main():
                 trial_crop["counts"]["output_features"] = trial.feature_count
                 trial.coordinates["osm_crop"] = trial_crop
                 trial = finish(trial, osm_counts)
-                trial.warning(f"Automatic city optimization at 1:8: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Gap filling up to {metadata['gap_m']} source metres; inspect approximated blocks and heights.")
+                trial.warning(f"Automatic city optimization at 1:{scale}: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Gap filling up to {metadata['gap_m']} source metres; inspect approximated blocks and heights.")
                 if len(osm_stream.get("areas", [])) > 1:
                     trial.warning(f"Combined {len(osm_stream['areas'])} administrative areas at their exact boundaries. DEM terrain is optional; Copernicus tiles beyond 256 MiB, 16 tiles or 4096² samples are refused and the map stays flat.")
                 trial.warning("City source-block indexing retains complete selected ways, relation members and source graph closure. Original PBF hash, every retained source ID and output mapping are preserved; unsupported exclusions are separate. Crop ends are artificial; no bridge/tunnel heights are inferred.")

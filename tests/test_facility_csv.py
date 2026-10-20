@@ -53,6 +53,17 @@ class Facilities(unittest.TestCase):
         options=self.options(); options['source_denominator']=1; options['bounds_cm']=[0,0,500000,500000]
         self.assertEqual(self.convert(raw,options).patches[0]['after']['position'],[409600,409600])
 
+    def test_scale_follows_the_stored_osm_denominator(self):
+        raw='이름,위도,경도\n책,55,9'.encode()
+        for denominator, position in ((8, 51200), (3, round(409600/3))):
+            with self.subTest(denominator=denominator):
+                options=self.options(); options['source_denominator']=denominator; options['bounds_cm']=[0,0,204800,204800]
+                self.assertEqual(self.convert(raw,options).patches[0]['after']['position'],[position,position])
+        for bad in (0, 9, 3.0, True):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError,r'1:1 to 1:8'):
+                options=self.options(); options['source_denominator']=bad
+                self.convert(raw,options)
+
     def test_geographic_crop_filters_before_projecting_distant_rows(self):
         options=self.options(); options['geographic_bbox']=[8.999,54.999,9.001,55.001]
         layer=self.convert('이름,위도,경도\n안,55,9\n밖,55.002,9\n먼,37,127'.encode(),options)

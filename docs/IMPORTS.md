@@ -1,7 +1,7 @@
 # Supported local imports and atomic adoption
 
 **Import OSM / PBF** guides PBF selection → area selection → review → Apply using
-the existing 1:8 city profile, budgets and explicit exclusions. An empty track
+the city profile at the chosen 1:D scale (default 1:3, [IMPORT_CITY](IMPORT_CITY.md)), budgets and explicit exclusions. An empty track
 project proposes fitted bounds; populated maps retain their extent. Bounds,
 composition and layer adoption share one Undo; cancel/failure preserves the map.
 Ordinary vehicle roads split where they share original OSM nodes with other vehicle
@@ -28,11 +28,14 @@ the same bytes are reimported. References to existing objects, arbitrary map-val
 mutation and deletions are rejected.
 
 Custom maps use real metres. OSM adoption divides coordinates, widths, heights,
-clearances and vegetation spacing by 8 once (`osm-import-1to8-v1`); staged input
-keeps source units. Adopted vehicle road segments narrower than 150 cm (`road_width_floor_cm`,
+clearances and vegetation spacing by the map scale denominator D once: the city
+scale (1–8), or 8 for exact OSM. `authored_units` records `source_denominator: D`
+and the profile `osm-import-1to{D}-v1` (`osm-import-1to8-v1` at 1:8); readers
+accept only a profile matching the stored D and refuse unknown values or OSM
+layers with different scales. Staged input keeps source units. Adopted vehicle road segments narrower than 150 cm (`road_width_floor_cm`,
 about 2.5 widths of the 61 cm car) widen to it; pedestrian roads keep their estimate, each side stopping 20 cm (plus
-sidewalk, and 20 cm safety furniture on structures) before the nearest new or existing building edge or courtyard wall; wider segments never change. Linked DEM uses the same factor (map position × 8 for lookup,
-relative elevation ÷ 8). Standalone DEM, GeoJSON and Overture use their declared
+sidewalk, and 20 cm safety furniture on structures) before the nearest new or existing building edge or courtyard wall; wider segments never change. Linked DEM uses the same stored D (map position × D for lookup,
+relative elevation ÷ D). Standalone DEM, GeoJSON and Overture use their declared
 units. Undo/Redo/save operate on adopted coordinates and never reapply the factor.
 
 ## Supported profiles
@@ -95,7 +98,8 @@ streaming import clips to the exact union of their boundaries, read from the sam
 the receipt). Missing or open boundaries, or areas outside the rectangle, reject the
 import. Click the diagram to move the origin or drag a rectangle; dragging returns
 to a plain rectangle crop, which includes territory outside the named boundary. The
-origin maps to the map centre after 1:8 adoption. Manual coordinates remain available. On macOS the in-app file
+origin maps to the map centre after 1:D adoption and is placed again when the scale
+changes (a typed origin is kept). Manual coordinates remain available. On macOS the in-app file
 chooser is used because the system Open panel can leave confirmation disabled.
 
 **Review and exclude unsupported source objects** is an explicit PBF option.
@@ -108,7 +112,7 @@ checked. Excluded area members never reappear as standalone polygons.
 Choose **Facility CSV**, set license, source reference and encoding, map the
 name/latitude/longitude headers and supply the category. **Use imported OSM
 coordinates** reuses the existing origin. Rows share the import origin and the
-map's 1:1 or 1:8 scale; the OSM crop can filter rows besides map bounds. Invalid
+map's stored scale (1:1 without OSM, otherwise its 1:D); the OSM crop can filter rows besides map bounds. Invalid
 rows must be explicitly excluded. More than 20,000 rows, files above 32 MiB, fields
 above 16 KiB or more than 128 columns warn; 256 MiB files, 1 MiB fields and 1024
 columns are refused.

@@ -71,6 +71,8 @@ func run() -> void:
 	check(REGIONS.validate([region])=="","valid provenance")
 	var scaled := REGIONS.scaled([region])
 	check(scaled[0].polygon[1]==[100,0] and scaled[0].holes[0][0]==[10,10] and region.polygon[1]==[800,0],"1:8 exactly once with original holes retained")
+	var third := REGIONS.scaled([region],3)
+	check(third[0].polygon[1]==[267,0] and third[0].holes[0][0]==[27,27] and region.polygon[1]==[800,0],"1:3 exactly once with original holes retained")
 	finish()
 func finish() -> void:
 	print("environment_native_validator: ","PASS" if failures.is_empty() else failures," checks=",checks)

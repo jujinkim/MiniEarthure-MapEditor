@@ -67,6 +67,16 @@ class CropTests(unittest.TestCase):
                     geometry=dict(type="LineString", coordinates=[[.002,.006],[.0005,.009]]))
         _, meta = crop(dict(type="FeatureCollection", features=[road, inside]), [0,0,.01,.01], region=graze)
         self.assertEqual((meta["counts"]["output_features"], meta["counts"]["boundary_contacts"]), (1, 1))
+        # The minimum drivable piece is one map centimetre at the adopted 1:D: the
+        # ~6 cm source sliver is a contact at 1:8 (8 cm) but a road piece at 1:3.
+        sliver = Polygon([(0,0),(.01,0),(.01,.01),(.00200025,.01),(.00200025,.0060005),(0,.0060005)])
+        for denominator, expected in ((8, (1, 1)), (3, (2, 0))):
+            with self.subTest(denominator=denominator):
+                _, meta = crop(dict(type="FeatureCollection", features=[road, inside]), [0,0,.01,.01], region=sliver, denominator=denominator)
+                self.assertEqual((meta["counts"]["output_features"], meta["counts"]["boundary_contacts"]), expected)
+        for bad in (0, 9, 3.0, True):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "integer denominator"):
+                crop(dict(type="FeatureCollection", features=[road]), [0,0,.01,.01], region=graze, denominator=bad)
         # A pinched boundary splits one park into two parts touching at a point.
         pinch = Polygon([(0,0),(.01,0),(.005,.005),(.01,.01),(0,.01),(.005,.005)]).buffer(0)
         park = feature("Polygon",[[[.004,.003],[.009,.003],[.009,.007],[.004,.007],[.004,.003]]])

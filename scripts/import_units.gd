@@ -1,20 +1,24 @@
 extends RefCounted
 ## Source coordinates stay in provenance. Only newly adopted OSM records scale.
+## Exact (non-city) OSM adoption scale 1:8; city imports choose 1:D, D in 1..8.
 const OSM_DENOMINATOR := 8
+const MIN_DENOMINATOR := 1
+const MAX_DENOMINATOR := 8
+const CITY_DEFAULT_DENOMINATOR := 3
 
 ## City roads and nodes outside the explicit source-height graph (-osm-node- IDs)
 ## lie on the map plane: `terrain_base_cm` is added to their heights after scaling,
 ## so estimated structure anchors meet the flat terrain.
-static func osm_patches(source: Array, city := false, terrain_base_cm := 0) -> Array:
+static func osm_patches(source: Array, city := false, terrain_base_cm := 0, denominator := OSM_DENOMINATOR) -> Array:
 	var result := source.duplicate(true)
 	for patch: Dictionary in result:
 		var record: Dictionary = patch.after
 		for key in ["position", "points", "footprint", "polygon", "exclusions", "entrances", "courtyards", "holes"]:
-			if record.has(key): record[key] = _coordinates(record[key])
+			if record.has(key): record[key] = _coordinates(record[key], denominator)
 		for key in ["widths_cm"]:
-			if record.has(key): record[key] = _coordinates(record[key])
+			if record.has(key): record[key] = _coordinates(record[key], denominator)
 		for key in ["height_cm", "base_cm", "clearance_cm", "sidewalk_cm", "spacing_cm"]:
-			if record.get(key) != null: record[key] = roundi(float(record[key]) / OSM_DENOMINATOR)
+			if record.get(key) != null: record[key] = roundi(float(record[key]) / denominator)
 		if city:
 			# Scaling to whole game centimetres can collapse adjacent source
 			# vertices. Remove only exact duplicates, never a road endpoint,
@@ -31,7 +35,7 @@ static func osm_patches(source: Array, city := false, terrain_base_cm := 0) -> A
 					for point: Array in record.points: point[1] += terrain_base_cm
 	return result
 
-## A 1:8 road narrower than this cannot carry the ~61 cm car with any margin.
+## An adopted road narrower than this cannot carry the ~61 cm car with any margin.
 const ROAD_WIDTH_FLOOR_CM := 150
 const BUILDING_MARGIN_CM := 20
 ## Native bridge/tunnel safety furniture extends this far outside the carriageway.
@@ -151,18 +155,40 @@ static func _road_duplicates(record: Dictionary) -> void:
 	record.widths_cm = widths
 	record.surfaces = surfaces
 
-static func _coordinates(value: Variant) -> Variant:
+static func _coordinates(value: Variant, denominator := OSM_DENOMINATOR) -> Variant:
 	if value is Array:
 		var result := []
-		for part in value: result.append(_coordinates(part))
+		for part in value: result.append(_coordinates(part, denominator))
 		return result
-	return roundi(float(value) / OSM_DENOMINATOR)
+	return roundi(float(value) / denominator)
 
-static func dem_denominator(document: Dictionary) -> int:
+## Provenance profile of OSM records adopted at 1:D.
+static func profile(denominator: int) -> String:
+	return "osm-import-1to%d-v1" % denominator
+
+static func valid_denominator(value: Variant) -> bool:
+	return (value is int or value is float) and is_finite(float(value)) and float(value) == floorf(float(value)) and int(value) >= MIN_DENOMINATOR and int(value) <= MAX_DENOMINATOR
+
+## The one map scale 1:D stored by the document's adopted OSM layers:
+## {"denominator": D} (0 when there is no OSM layer) or {"error": text} for an
+## unknown or invalid value, a profile that disagrees with it, or mixed scales.
+static func osm_scale(document: Dictionary) -> Dictionary:
+	var found := 0
 	for notice: Dictionary in document.get("attributions", []):
 		var parser := JSON.new()
 		if parser.parse(notice.get("notice", "")) != OK: continue
 		var meta: Variant = parser.data
-		if meta is Dictionary and meta.get("adapter") == "osm-extract-v1" and meta.get("authored_units", {}).get("source_denominator") == OSM_DENOMINATOR:
-			return OSM_DENOMINATOR
-	return 1
+		if meta is not Dictionary or meta.get("adapter") != "osm-extract-v1": continue
+		var units: Variant = meta.get("authored_units")
+		var stored: Variant = units.get("source_denominator") if units is Dictionary else null
+		if not valid_denominator(stored) or (units.has("profile") and (units.profile is not String or units.profile != profile(int(stored)))): return {"error": "An OSM layer has unknown map scale provenance."}
+		if found != 0 and found != int(stored): return {"error": "OSM layers use different map scales; the map needs one scale."}
+		found = int(stored)
+	return {"denominator": found}
+
+## DEM/CSV scale: the stored 1:D of the OSM layers, 1 when the map has no OSM
+## layer, or 0 when the stored scale is unknown, invalid or mixed (never guessed).
+static func dem_denominator(document: Dictionary) -> int:
+	var scale := osm_scale(document)
+	if scale.has("error"): return 0
+	return maxi(1, int(scale.denominator))

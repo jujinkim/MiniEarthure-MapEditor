@@ -45,6 +45,7 @@ func run() -> void:
 	check(not ui.busy and ui.pending_import==null and ui.store.document==before,"cancelled large non-streaming import leaves the map unchanged")
 	ui.osm_panel.streaming.button_pressed=true
 	ui.osm_panel.city.button_pressed=false  # This suite verifies the exact source path.
+	check(ui.osm_panel.denominator()==8 and not ui.osm_panel.scale.editable,"exact OSM stays 1:8 without a scale choice")
 	check(ui.osm_panel.error()!="","streaming requires crop")
 	ui.osm_panel.enabled.button_pressed=true
 	var bbox := [8.9999,54.9999,9.006,55.006]
@@ -101,6 +102,7 @@ func run() -> void:
 	check(JSON.parse_string(ui.store.bridge.open_package(package)).ok,"reopen streaming package")
 	var generated: Dictionary=JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
 	check(generated.ok,"generate adopted 1:8 native geometry in its actual cell: "+str(generated.get("error",{})))
+	check(preload("res://scripts/import_units.gd").dem_denominator(adopted)==8 and adopted.attributions.any(func(a): return a.notice.contains("osm-import-1to8-v1")),"exact OSM provenance keeps the 1:8 profile")
 	# Abort while owned index/snapshot exists, not only before process creation.
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	directory=ui.import_job.directory

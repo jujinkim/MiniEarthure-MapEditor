@@ -52,9 +52,11 @@ def region_intervals(a, b, region):
     return [(lo, hi, (pa if lo > 0 else None), (pb if hi < 1 else None)) for lo, hi, pa, pb in merged if lo < hi]
 
 
-# A region cut shorter than one 1:8 map centimetre (8 source cm) has no drivable
-# length; like a point contact it is a boundary contact, not a road piece.
-MIN_REGION_PIECE_M = 0.08
+def min_region_piece_m(denominator=8):
+    """A region cut shorter than one 1:D map centimetre (D source cm) has no
+    drivable length; like a point contact it is a boundary contact, not a road piece."""
+    if type(denominator) is not int or not 1 <= denominator <= 8: raise ValueError("OSM scale must be an integer denominator from 1 to 8")
+    return denominator / 100
 
 
 def geographic_length_m(points):
@@ -66,7 +68,7 @@ def geographic_length_m(points):
     return total
 
 
-def region_line_parts(coordinates, region):
+def region_line_parts(coordinates, region, minimum=min_region_piece_m()):
     """Pieces of a polyline inside `region`, keeping every source vertex exact.
 
     Only the cut points come from GEOS; whole-line overlay could snap original
@@ -88,7 +90,7 @@ def region_line_parts(coordinates, region):
                 pieces.append(current)
                 current = None
     if current is not None: pieces.append(current)
-    return [piece for piece in pieces if geographic_length_m(piece) >= MIN_REGION_PIECE_M]
+    return [piece for piece in pieces if geographic_length_m(piece) >= minimum]
 
 
 def explicit_parts(feature, selected, identity, region=None):
@@ -170,10 +172,12 @@ def projected_bounds(value, coordinates):
     return [w,s,e,n]
 
 
-def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region=None, areas=None):
+def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region=None, areas=None, denominator=8):
     """Clip to the rectangle, or to rectangle ∩ `region` (the exact union of selected
-    administrative boundaries, `areas` naming them) when one is given."""
+    administrative boundaries, `areas` naming them) when one is given. `denominator`
+    is the map scale 1:D the pieces are adopted at."""
     selected = bounds(selected)
+    minimum = min_region_piece_m(denominator)
     point_limit = MAX_POINTS if point_limit is None else point_limit
     if version("shapely") != "2.1.2":
         raise ValueError("OSM crop requires shapely 2.1.2; install requirements-import.txt")
@@ -239,7 +243,7 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region
             else:
                 spans = []
                 for part, span in explicit_parts(feature, selected, index, window if region is not None else None):
-                    if region is not None and geographic_length_m(part["geometry"]["coordinates"]) < MIN_REGION_PIECE_M:
+                    if region is not None and geographic_length_m(part["geometry"]["coordinates"]) < minimum:
                         counts["boundary_contacts"] += 1
                         continue
                     append(part)
@@ -271,7 +275,7 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region
             chain = feature["properties"].get("_city_estimated_chain")
             clipped = source if source.intersects(window) or chain in kept_chains else shapely.LineString()
         elif region is not None and expected == "LineString":
-            pieces = region_line_parts(feature["geometry"]["coordinates"], window)
+            pieces = region_line_parts(feature["geometry"]["coordinates"], window, minimum)
             clipped = shapely.MultiLineString(pieces)
             if not pieces and source.intersects(window): counts["boundary_contacts"] += 1
         else:

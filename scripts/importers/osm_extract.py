@@ -127,7 +127,7 @@ def is_structure(tags):
 
 def city_tags(tags):
     """City profile: a ground walking way's incline is its slope on the flat
-    1:8 city, not a structure; steps must be ground stairs, not escalators."""
+    city map (any 1:D), not a structure; steps must be ground stairs, not escalators."""
     if tags.get("highway") == "steps" and (is_structure(tags) or tags.get("conveying", "no") != "no"):
         raise ValueError("OSM city steps are ground paint; structural or conveying steps are unsupported")
     if tags.get("highway") in PEDESTRIAN and not is_structure(tags) and "incline" in tags:
@@ -137,7 +137,7 @@ def city_tags(tags):
 
 def city_building_tags(tags, member=False):
     """City profile: a building above other features (positive layer, not a
-    roof canopy or barrier) stands on the flat 1:8 ground. `member` lifts an
+    roof canopy or barrier) stands on the flat city ground (any 1:D). `member` lifts an
     untagged outline way of such a building relation too."""
     if ((member and "building" not in tags or tags.get("building", "no") not in ("no", "roof")) and "barrier" not in tags
             and re.fullmatch(r"[1-9][0-9]*", tags.get("layer", ""))):
@@ -160,7 +160,7 @@ def level_structures(ways, nodes, node_tags):
 
     A bridge, tunnel or layered way meeting other roads only at shared nodes
     (a river bridge, culvert or building passage) is drawn at ground level on
-    the flat 1:8 city. Ways crossing another road keep needing explicit heights.
+    the flat city map (any 1:D). Ways crossing another road keep needing explicit heights.
     """
     from shapely.geometry import LineString
     from shapely.strtree import STRtree
@@ -196,8 +196,10 @@ def level_structures(ways, nodes, node_tags):
 
 DECK_M = 6.0  # Deck height per layer: 4.5 m road clearance plus the structure.
 GRADE = 0.08
+# Real source metres, ÷D on the map. LEAD_M is deliberately sized for native
+# aprons at 1:8 (1 m on the map) and is only more conservative at a smaller D.
 LEAD_M = 8.0  # Level lead at each ground anchor; native aprons stay on it.
-SEPARATION_M = 5.0  # Real metres; ÷8 on the map.
+SEPARATION_M = 5.0  # Real metres.
 TUNNEL_CLEARANCE_M = 4.5
 
 
@@ -308,8 +310,9 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
     leveled = set()
     def sharp(refs):
         """Native structure bends need separated mouths: a turn of θ needs both
-        neighbouring segments of at least 12 m · tan(θ/2) + 2 m (the widest
-        floored 1:8 road), and no turn may exceed 60°."""
+        neighbouring segments of at least 12 m · tan(θ/2) + 2 m, and no turn may
+        exceed 60°. 12 m is the 150 cm road floor at 1:8; these source-metre values
+        are deliberately that 1:8 floor and only more conservative at a smaller D."""
         for a, b, c in zip(refs, refs[1:], refs[2:]):
             (ax, ay), (bx, by), (cx, cy) = metres(a), metres(b), metres(c)
             u, v = (bx - ax, by - ay), (cx - bx, cy - by)

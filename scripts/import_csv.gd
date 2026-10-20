@@ -19,7 +19,7 @@ static func validate(raw: Dictionary, requested: Dictionary, types: Script, note
 	var geographic: Variant = options.get("geographic_bbox")
 	if geographic != null:
 		if geographic is not Array or geographic.size()!=4 or not types._finite(geographic[0],-180,180) or not types._finite(geographic[2],-180,180) or not types._finite(geographic[1],-80,84) or not types._finite(geographic[3],-80,84) or geographic[0]>=geographic[2] or geographic[1]>=geographic[3]: return "Invalid CSV geographic crop."
-	if options.get("encoding") not in ["utf-8-sig", "cp949", "euc-kr"] or (not types._count(options.get("source_denominator"),8) or int(options.source_denominator) not in [1, 8]): return "Invalid CSV encoding/scale."
+	if options.get("encoding") not in ["utf-8-sig", "cp949", "euc-kr"] or (not types._count(options.get("source_denominator"),8) or int(options.source_denominator) < 1): return "Invalid CSV encoding/scale."
 	for key in ["name_column", "latitude_column", "longitude_column", "category", "source_url"]:
 		if not types._text(options.get(key)): return "Missing CSV mapping field."
 	for key in ["name_column", "latitude_column", "longitude_column"]:

@@ -35,8 +35,30 @@ class City(unittest.TestCase):
         p = dict(osm_source_id=f"way/{identity}", **properties)
         self.features.append(dict(type="Feature", properties=p, geometry=json.loads(json.dumps(mapping(transform(self.inverse, geometry))))))
 
-    def worker(self):
-        return Generalizer(dict(type="FeatureCollection", features=self.features), self.options)
+    def worker(self, scale=8):
+        return Generalizer(dict(type="FeatureCollection", features=self.features), self.options, scale=scale)
+
+    def test_scale_derives_the_lattice_and_clearances_in_whole_map_centimetres(self):
+        from osm_generalize import candidates
+        self.setup_city()
+        self.add(1,box(10,10,20,20))
+        self.add(2,LineString([(0,0),(40,0)]),width_m=4,_city_refs=[1,2])
+        for scale in (8, 3, 1):
+            with self.subTest(scale=scale):
+                out,meta=self.worker(scale).candidate(0)
+                self.assertEqual(meta["scale_denominator"],scale)
+                expected=dict(grid_m=1,minimum_road_width_m=20,road_clearance_m=10,building_clearance_m=2,polygon_partition_gap_m=4)
+                for key,cm in expected.items():
+                    self.assertEqual(meta[key],cm*scale/100,key)
+                    self.assertAlmostEqual(meta[key]/meta["grid_m"],cm,places=9,msg="a multiple of the lattice")
+                self.assertEqual(meta["vegetation_spacing_m"],32,"vegetation spacing stays in source metres")
+        self.assertEqual(next(iter(candidates(dict(type="FeatureCollection",features=self.features),self.options,scale=3)))[1]["scale_denominator"],3)
+        for bad in (0, 9, 2.0, True, "3"):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError,"integer denominator"):
+                self.worker(bad)
+        # 1:8 keeps the original literal lattice and clearances exactly.
+        meta=self.worker(8).candidate(0)[1]
+        self.assertEqual((meta["grid_m"],meta["minimum_road_width_m"],meta["road_clearance_m"],meta["building_clearance_m"],meta["polygon_partition_gap_m"]),(0.08,1.6,0.8,0.16,0.32))
 
     def test_dense_buildings_merge_with_complete_sources_in_multiple_cities(self):
         for origin in [(9,55),(127.03,37.27),(18.5,-33.9)]:
@@ -222,14 +244,16 @@ class City(unittest.TestCase):
         self.assertEqual(sum(len(f["geometry"]["coordinates"])-1 for f in output["features"]),3)
 
     def test_physical_material_and_minimum_width_approximations_are_disclosed(self):
-        self.setup_city()
-        self.add(1,LineString([(0,0),(10,0)]),surface="paving_stones",width_m=1,_city_refs=[1,2])
-        self.add(2,LineString([(10,0),(20,0)]),surface="unmapped_material",_city_refs=[2,3])
-        output,meta=self.worker().candidate(0)
-        self.assertEqual(meta["widened_roads"],1)
-        self.assertEqual(meta["surface_mappings"],[dict(source="paving_stones",target="concrete",features=1),dict(source="unmapped_material",target="asphalt",features=1)])
-        first=next(f for f in output["features"] if f["properties"]["osm_source_id"]=="way/1")
-        self.assertEqual(first["properties"]["width_m"],1.6)
+        for scale, width in ((8, 1), (3, 0.5)):
+            with self.subTest(scale=scale):
+                self.setup_city()
+                self.add(1,LineString([(0,0),(10,0)]),surface="paving_stones",width_m=width,_city_refs=[1,2])
+                self.add(2,LineString([(10,0),(20,0)]),surface="unmapped_material",_city_refs=[2,3])
+                output,meta=self.worker(scale).candidate(0)
+                self.assertEqual(meta["widened_roads"],1)
+                self.assertEqual(meta["surface_mappings"],[dict(source="paving_stones",target="concrete",features=1),dict(source="unmapped_material",target="asphalt",features=1)])
+                first=next(f for f in output["features"] if f["properties"]["osm_source_id"]=="way/1")
+                self.assertEqual(first["properties"]["width_m"],20*scale/100,"20 map cm")
 
     def test_overlap_partition_preserves_names_sources_and_tall_envelope(self):
         self.setup_city()
@@ -261,7 +285,14 @@ class City(unittest.TestCase):
 
 
     def test_pedestrian_ways_become_disjoint_hole_free_ground_paint(self):
+        for scale in (8, 3):
+            with self.subTest(scale=scale):
+                self.pedestrian_paint(scale)
+
+    def pedestrian_paint(self, scale):
         from geojson import convert
+        import import_layer
+        import_layer.reset_limits()
         self.setup_city()
         walk = lambda kind: dict(_city_road_tags=dict(highway=kind))
         self.add(1,LineString([(0,0),(300,0)]),_city_refs=[1,2],**walk("residential"))
@@ -272,21 +303,24 @@ class City(unittest.TestCase):
         loop(5,LineString([(200,30),(230,30)]),[20,21],road_kind="ground")
         loop(6,LineString([(200,80),(230,80)]),[30,31],road_kind="ground")
         self.add(7,LineString([(230,80),(260,80)]),osm_way_id=7,osm_node_refs=[31,32],osm_loop_range=[0,1],road_kind="bridge",elevations_m=[0.0,0.0],**walk("footway"))
-        worker=self.worker();out,meta=worker.candidate(0)
+        worker=self.worker(scale);out,meta=worker.candidate(0)
         kept={f["properties"]["osm_source_id"] for f in out["features"] if f["geometry"]["type"]=="LineString"}
         self.assertEqual(kept,{"way/1","way/6","way/7"},"loops joined to a pedestrian structure stay roads")
         self.assertGreater(meta["painted_pedestrian_ways"],0)
         self.assertEqual({s for group in meta["groups"] for s in group["source_ids"]},set(meta["source_ids"]))
-        lattice=lambda x,y,z=None:((x+1000)*12.5,(y+1000)*12.5)
+        lx,ly=worker.local  # The local origin, less its remainder off the 1:D lattice.
+        lattice=lambda x,y,z=None:((x+lx)*100/scale,(y+ly)*100/scale)
         paint=[(f["properties"]["_city_paint"],transform(lattice,transform(worker.project,shape(f["geometry"])))) for f in out["features"] if "_city_paint" in f["properties"]]
         self.assertGreater(len(paint),2,"the footway spanning a native cell boundary is cut there")
         for i,(surface,piece) in enumerate(paint):
             self.assertEqual(len(piece.interiors),0)
             self.assertLessEqual(len(piece.exterior.coords),257)
-            self.assertTrue(all(abs(v-round(v))<1e-6 for point in piece.exterior.coords for v in point),"whole 1:8 map centimetres")
+            self.assertTrue(all(abs(v-round(v))<1e-6 for point in piece.exterior.coords for v in point),"whole 1:D map centimetres")
             self.assertTrue(all(piece.intersection(other).area<1e-6 for _,other in paint[i+1:]))
         covered=lambda x,y:[surface for surface,piece in paint if piece.buffer(0.01).contains(shapely.Point(lattice(x,y)))]
-        self.assertEqual(covered(50,40),["dirt"])
+        # A piece that holds only the dirt footway: above the native cell line
+        # (y = 24 source m at 1:8, 56 at 1:3) it no longer meets the long footway.
+        self.assertEqual(covered(50,40 if scale==8 else 58),["dirt"])
         self.assertEqual(covered(200,10),["concrete"])
         self.assertEqual(covered(100,50),["concrete"],"the loop path is painted")
         self.assertEqual(covered(120,50),[],"the loop interior stays unpainted terrain")
@@ -296,7 +330,7 @@ class City(unittest.TestCase):
         areas=[p["after"] for p in layer.patches if p["field"]=="surface_areas"]
         self.assertEqual(len(areas),len(paint))
         self.assertEqual(len([p for p in layer.patches if p["field"]=="roads"]),3)
-        self.assertTrue(all(v%8==0 for area in areas for point in area["polygon"] for v in point),"1:8 adoption keeps exact vertices")
+        self.assertTrue(all(v%scale==0 for area in areas for point in area["polygon"] for v in point),"1:D adoption keeps exact vertices")
 
 
     def test_city_steps_are_painted_at_walking_width(self):
@@ -463,18 +497,20 @@ class City(unittest.TestCase):
         self.assertGreater(min(b.distance(shapely.Point(100,10)) for b in buildings),6.2,"buildings stay outside the junction disk")
 
     def test_erased_source_returns_trimmed_on_the_map_lattice(self):
-        self.setup_city()
-        self.add(1,box(10.03,10.03,20.01,20.01))
-        self.add(2,LineString([(0,9),(40,9)]),width_m=2,_city_refs=[1,2])
-        worker=self.worker()
-        worker.polygon_group=lambda group,gap,buildings:[]  # A merge that erased every member.
-        out,meta=worker.candidate(0)
-        building=next(transform(worker.project,shape(f["geometry"])) for f in out["features"] if f["geometry"]["type"]=="Polygon")
-        self.assertEqual(meta["unmerged_numeric_groups"],1)
-        self.assertGreater(building.bounds[1],9+1+0.8-0.05,"road clearance trim is kept")
-        self.assertTrue(all(abs((v+1000)*12.5-round((v+1000)*12.5))<1e-6 for point in building.exterior.coords for v in point))
+        for scale in (8, 3):
+            with self.subTest(scale=scale):
+                self.setup_city()
+                self.add(1,box(10.03,10.03,20.01,20.01))
+                self.add(2,LineString([(0,9),(40,9)]),width_m=2,_city_refs=[1,2])
+                worker=self.worker(scale)
+                worker.polygon_group=lambda group,gap,buildings:[]  # A merge that erased every member.
+                out,meta=worker.candidate(0)
+                building=next(transform(worker.project,shape(f["geometry"])) for f in out["features"] if f["geometry"]["type"]=="Polygon")
+                self.assertEqual(meta["unmerged_numeric_groups"],1)
+                self.assertGreater(building.bounds[1],9+1+0.1*scale-0.05,"road clearance trim is kept")
+                self.assertTrue(all(abs((v+local)*100/scale-round((v+local)*100/scale))<1e-6 for point in building.exterior.coords for v,local in zip(point,worker.local)))
 
-    def run_city_cli(self, directory, layer_id):
+    def run_city_cli(self, directory, layer_id, extra=()):
         import geojson
         from osm_city_fixture import xml as city_xml
         from osm_fixture import pbf
@@ -483,7 +519,7 @@ class City(unittest.TestCase):
         output=Path(directory)/(layer_id+".json")
         argv=["geojson.py",str(source),str(output),"--input-format","pbf","--coordinates","wgs84-utm","--origin","9","55",
               "--local-origin","512","512","--license",LICENSE,"--layer-id",layer_id,"--osm-bbox","8.9999","54.9999","9.002","55.002",
-              "--osm-stream","--osm-city"]
+              "--osm-stream","--osm-city",*extra]
         events=[]
         with patch.object(sys,"argv",argv),patch("builtins.print",lambda *a,**k:events.append(a)):
             geojson.main()
@@ -507,6 +543,27 @@ class City(unittest.TestCase):
         self.assertTrue(any("feature target" in w for w in texts) and any("position target" in w for w in texts),texts)
         self.assertLessEqual(len(warned["warnings"]),50)
         self.assertTrue(all(len(w)<=512 for w in warned["warnings"]))
+
+
+    def test_city_cli_scale_is_recorded_and_requires_city_optimization(self):
+        import import_layer, tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            default=self.run_city_cli(directory,"c"*32)
+            import_layer.reset_limits()
+            eighth=self.run_city_cli(directory,"d"*32,("--osm-scale","8"))
+            import_layer.reset_limits()
+            third=self.run_city_cli(directory,"e"*32,("--osm-scale","3"))
+        self.assertEqual(default["coordinates"]["osm_city"]["scale_denominator"],8,"the CLI default stays 1:8")
+        self.assertEqual(json.dumps(eighth["patches"]).replace("d"*32,"c"*32),json.dumps(default["patches"]))
+        meta=third["coordinates"]["osm_city"]
+        self.assertEqual((meta["scale_denominator"],meta["grid_m"]),(3,0.03))
+        self.assertTrue(any(w.startswith("Automatic city optimization at 1:3:") for w in third["warnings"]))
+        self.assertEqual(meta["source_ids"],default["coordinates"]["osm_city"]["source_ids"])
+        for argv in (["--osm-scale","3"],["--osm-city","--osm-scale","9"]):
+            with self.subTest(argv=argv), patch.object(sys,"argv",["geojson.py","in.pbf","out.json","--coordinates","wgs84-utm","--license","x","--layer-id","f"*32,"--input-format","pbf",*argv]):
+                import geojson
+                with self.assertRaises((ValueError, SystemExit)), patch("sys.stderr",new=__import__("io").StringIO()):
+                    geojson.main()
 
 
 class LimitWarnings(unittest.TestCase):

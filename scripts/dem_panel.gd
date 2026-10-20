@@ -170,6 +170,11 @@ func prepare() -> void:
 	if editor.store.project_path == "" or editor.store.has_gesture():
 		editor._status(I18N.t("Save the project and finish gestures before DEM import."))
 		return
+	# DEM heights and positions use the map's stored OSM scale; never a guess.
+	var map_scale: Dictionary = preload("./import_units.gd").osm_scale(editor.store.document)
+	if map_scale.has("error"):
+		editor._status(I18N.diagnostic(map_scale.error))
+		return
 	requested = options().duplicate(true)
 	requested_revision = selection_revision
 	editor._begin_dem({"mode":"dem-plan","options":requested})

@@ -24,7 +24,7 @@ def convert(raw, name, license_name, accuracy, layer_id, coordinates, options, p
         from osm_area import bounds as geographic_bounds
         selected = geographic_bounds(selected)
     if options["encoding"] not in ENCODINGS: raise ValueError("Choose UTF-8, CP949 or EUC-KR explicitly")
-    if type(options["source_denominator"]) is not int or options["source_denominator"] not in (1, 8): raise ValueError("CSV scale must match the map (1:1 or 1:8)")
+    if type(options["source_denominator"]) is not int or not 1 <= options["source_denominator"] <= 8: raise ValueError("CSV scale must match the map (1:1 to 1:8)")
     category = text(options["category"], "facility category", 128)
     url = text(options["source_url"], "source reference", 512)
     bounds = options["bounds_cm"]

@@ -112,7 +112,12 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		if csv_error != "": cleanup(); return csv_error
 		arguments.append_array(PackedStringArray(["--csv-request", csv_path]))
 	if streaming: arguments.append("--osm-stream")
-	if coordinates.get("osm_city", false): arguments.append("--osm-city")
+	if coordinates.get("osm_city", false):
+		arguments.append("--osm-city")
+		var scale: Variant = coordinates.get("osm_scale", preload("./import_units.gd").OSM_DENOMINATOR)
+		if not preload("./import_units.gd").valid_denominator(scale): cleanup(); return "City map scale must be 1:1 to 1:8."
+		arguments.append_array(PackedStringArray(["--osm-scale", str(int(scale))]))
+	elif coordinates.has("osm_scale"): cleanup(); return "A city map scale requires automatic city optimization."
 	if coordinates.get("osm_review_exclusions",false):
 		if not streaming: cleanup(); return "Object exclusion review requires PBF streaming."
 		arguments.append("--osm-review-exclusions")

@@ -21,7 +21,9 @@ from osm_extract import PEDESTRIAN
 from import_layer import BudgetExceeded, soft_limit, limit_snapshot, limit_restore, limit_delta, limit_replay
 
 PROFILE = "scale-aware-city-v1"
-SCALE = 8
+SCALE = 8  # Default and original city denominator; any integer 1..8 is accepted.
+SCALES = range(1, 9)
+STRUCTURE_SAFETY_CM = 20  # Native bridge/tunnel safety furniture (import_units.gd).
 MAX_GROUP = 128
 MAX_WORK = 4_000_000  # Soft: exceeding it records a limit warning.
 BUILDING_SPLIT_DEPTH = 16  # Warn above.
@@ -60,9 +62,21 @@ def moved(geometries, function):
     return shapely.transform(geometries, lambda xy: np.column_stack(function(xy[:,0], xy[:,1])))
 
 
-def road_buffers(geometries, widths):
+def map_cm(cm, scale):
+    """Source metres of whole map centimetres at 1:scale. The integer product is
+    divided once, so the result is the nearest float (8 cm at 1:8 is exactly 0.08)."""
+    return cm * scale / 100
+
+
+def scale_denominator(value):
+    if type(value) is not int or value not in SCALES:
+        raise ValueError("City scale must be an integer denominator from 1 to 8")
+    return value
+
+
+def road_buffers(geometries, widths, clearance):
     # Built once per geometry list; barrier queries only clip and union them.
-    return shapely.buffer(np.array(geometries, dtype=object), np.array(widths)/2+0.8, quad_segs=16, cap_style="square", join_style="mitre")
+    return shapely.buffer(np.array(geometries, dtype=object), np.array(widths)/2+clearance, quad_segs=16, cap_style="square", join_style="mitre")
 
 
 def source_ids(feature):
@@ -83,11 +97,11 @@ def is_building(feature, geometry):
     return geometry.geom_type != "LineString" and not (p.get("osm_region") or p.get("_city_paint") or p.get("landuse") in ("forest","orchard"))
 
 
-def clear_width(feature):
-    """Width buildings keep clear of; estimated structures add 1.6 m (20 map cm)
-    each side for native bridge/tunnel safety furniture."""
+def clear_width(feature, furniture):
+    """Width buildings keep clear of; estimated structures add `furniture`
+    (20 map cm each side) for native bridge/tunnel safety furniture."""
     p = feature["properties"]
-    return float(p.get("width_m", 8)) + (3.2 if "_city_estimated_m" in p else 0.0)
+    return float(p.get("width_m", 8)) + (furniture if "_city_estimated_m" in p else 0.0)
 
 
 def is_walking(feature, structural=frozenset()):
@@ -101,26 +115,45 @@ def is_walking(feature, structural=frozenset()):
 
 
 class Generalizer:
-    def __init__(self, collection, options, review=None):
+    def __init__(self, collection, options, review=None, scale=SCALE):
         from osm_review import Review
+        # Map-unit lattice and clearances in source metres at 1:scale; each is a
+        # whole number of map centimetres, so a multiple of the lattice.
+        self.scale = scale_denominator(scale)
+        self.grid = map_cm(1, scale)
+        self.to_map_factor = 100 / scale
+        self.road_clearance = map_cm(10, scale)
+        self.building_clearance = map_cm(2, scale)
+        self.partition_gap = map_cm(4, scale)
+        self.furniture = map_cm(2*STRUCTURE_SAFETY_CM, scale)
+        self.minimum_width = map_cm(20, scale)
         self.review = review if review is not None else Review()
         self.excluded_sources = set()
         self.collection = collection
         self.projection = Coordinates(options)
+        # Working-frame multiples of the lattice must be whole map centimetres of
+        # the adopted map, (frame + local origin) ÷ scale. Other scales shift the
+        # frame by the local origin's remainder; 1:8 keeps its historical frame.
+        shift = (0.0, 0.0)
+        if self.scale != SCALE:
+            shift = tuple((round(v*100) % self.scale)/100 for v in self.projection.local)
+        self.local = tuple(v - d for v, d in zip(self.projection.local, shift)) if any(shift) else tuple(self.projection.local)
         self.remaining = MAX_WORK
         self.work_over = False
         self.features = []
         self.surface_mappings = Counter()
         self.widened_roads = 0
         self.estimated_widths = Counter()
-        # Meter precision in the source frame, before the single 1:8 adoption.
+        # Meter precision in the source frame, before the single 1:scale adoption.
         # Scalars or coordinate arrays; arrays give the same per-point values.
         def project(x, y, z=None):
             xx, yy = self.projection.transformer.transform(np.asarray(x, dtype=float), np.asarray(y, dtype=float), errcheck=True)
+            if any(shift): return xx - self.projection.origin_xy[0] + shift[0], yy - self.projection.origin_xy[1] + shift[1]
             return xx - self.projection.origin_xy[0], yy - self.projection.origin_xy[1]
         self.project = project
         from pyproj.enums import TransformDirection
         def inverse(x, y, z=None):
+            if any(shift): x, y = np.asarray(x, dtype=float) - shift[0], np.asarray(y, dtype=float) - shift[1]
             return self.projection.transformer.transform(np.asarray(x, dtype=float) + self.projection.origin_xy[0], np.asarray(y, dtype=float) + self.projection.origin_xy[1], direction=TransformDirection.INVERSE, errcheck=True)
         self.inverse = inverse
         for feature in collection["features"]:
@@ -140,8 +173,8 @@ class Generalizer:
                 if mapped != original:
                     self.surface_mappings[(original, mapped)] += 1
                     p["surface"] = mapped
-                if float(p.get("width_m", 8)) < 1.6:
-                    p["width_m"] = 1.6  # Current-v1 minimum width: 20 map cm.
+                if float(p.get("width_m", 8)) < self.minimum_width:
+                    p["width_m"] = self.minimum_width  # Current-v1 minimum width: 20 map cm.
                     self.widened_roads += 1
             self.features.append((feature, geometry))
         self.before = self.counts(self.features)
@@ -149,16 +182,16 @@ class Generalizer:
         self.road_geometries = [g for f, g in self.features if g.geom_type == "LineString"]
         self.road_widths = [max(0.01, float(f["properties"].get("width_m", 8))) for f,g in self.features if g.geom_type == "LineString"]
         self.road_tree = STRtree(self.road_geometries)
-        self.road_buffers = road_buffers(self.road_geometries, self.road_widths)
+        self.road_buffers = road_buffers(self.road_geometries, self.road_widths, self.road_clearance)
         self.ground_geometries = [g for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
-        self.ground_widths = [clear_width(f) for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
-        self.ground_buffers = road_buffers(self.ground_geometries, self.ground_widths)
+        self.ground_widths = [clear_width(f, self.furniture) for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
+        self.ground_buffers = road_buffers(self.ground_geometries, self.ground_widths, self.road_clearance)
         # Buildings lifted from a positive layer to the ground are cut around
         # source-height structures with their safety furniture; no building
         # grows back into that corridor.
-        structures = [(g, float(f["properties"].get("width_m", 8)) + 3.2) for f,g in self.features
+        structures = [(g, float(f["properties"].get("width_m", 8)) + self.furniture) for f,g in self.features
                       if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") != "ground"]
-        self.structure_buffers = list(road_buffers([g for g,w in structures], [w for g,w in structures]))
+        self.structure_buffers = list(road_buffers([g for g,w in structures], [w for g,w in structures], self.road_clearance))
         self.structure_tree = STRtree(self.structure_buffers)
         self.protected_areas = [g for f,g in self.features if g.geom_type != "LineString" and (f["properties"].get("protected") or f["properties"].get("landuse") in ("water","wetland","forest","orchard","park","nature_reserve"))]
         self.area_tree = STRtree(self.protected_areas)
@@ -204,16 +237,16 @@ class Generalizer:
     def barrier(self, geometry, extra=0):
         """Query and charge the barrier now; return a cached builder of its union,
         which callers need only when filling or simplification can add area."""
-        window = geometry.envelope.buffer(extra + self.max_width / 2 + 0.8).envelope
+        window = geometry.envelope.buffer(extra + self.max_width / 2 + self.road_clearance).envelope
         ids = self.barrier_tree.query(window)
         self.spend(len(ids))
         # A buffer's envelope lies within its source bounds grown by the distance,
         # so an empty query of that box is the same as the exact (costly) query.
         x0, y0, x1, y1 = geometry.bounds
-        reach = extra + 0.16 + 1e-6
+        reach = extra + self.building_clearance + 1e-6
         areas = self.area_tree.query(box(x0-reach, y0-reach, x1+reach, y1+reach))
         if len(areas):
-            areas = self.area_tree.query(geometry.buffer(extra+0.16).envelope)
+            areas = self.area_tree.query(geometry.buffer(extra+self.building_clearance).envelope)
         self.spend(len(areas))
         # Gap filling must not regrow into a junction surface the trim cleared,
         # nor into a source-height structure's safety corridor.
@@ -390,12 +423,12 @@ class Generalizer:
         return joined + output
 
     def snap(self, point):
-        """Nearest whole 1:8 map centimetre in this projection's local metres."""
+        """Nearest whole 1:scale map centimetre in this projection's local metres."""
         snapped = []
         for axis,value in enumerate(point[:2]):
-            cm = round((value+self.projection.local[axis])*100)
-            game_cm = math.copysign(math.floor(abs(cm)/8+0.5),cm)
-            snapped.append(game_cm*0.08-self.projection.local[axis])
+            cm = round((value+self.local[axis])*100)
+            game_cm = math.copysign(math.floor(abs(cm)/self.scale+0.5),cm)
+            snapped.append(game_cm*self.grid-self.local[axis])
         return tuple(snapped)
 
     def polygon_group(self, group, gap, buildings):
@@ -410,7 +443,7 @@ class Generalizer:
     def unmerged(self, group):
         # Unmerged members still use the map-centimetre lattice; an erased one
         # is restored by the source coverage step.
-        snapped = [(f,shapely.set_precision(g, 0.08)) for f,g in group]
+        snapped = [(f,shapely.set_precision(g, self.grid)) for f,g in group]
         return [(deepcopy(f),g) for f,g in snapped if not g.is_empty]
 
     def _polygon_group(self, group, gap, buildings):
@@ -439,10 +472,10 @@ class Generalizer:
                 simpler = candidate
         if not simpler.is_valid or simpler.is_empty:
             raise GEOSException("Derived polygon is invalid; retain the complete original group")
-        # The final 1:8 map has whole centimetres. Snap derived boundaries to
+        # The final 1:scale map has whole centimetres. Snap derived boundaries to
         # that same lattice before inverse projection, so sub-centimetre buffer
         # slivers cannot become duplicate vertices during native adoption.
-        snapped = shapely.set_precision(simpler, 0.08)
+        snapped = shapely.set_precision(simpler, self.grid)
         if snapped.is_empty:
             self.retained_groups += 1
             return self.unmerged(group)
@@ -452,7 +485,7 @@ class Generalizer:
             # Open, rather than fill, a courtyard which touches an outer edge
             # after map-centimetre rounding. At most two game centimetres of
             # additional clearance; original open space remains open.
-            simpler = shapely.difference(simpler, protected_holes.buffer(0.16, join_style="mitre"), grid_size=0.08)
+            simpler = shapely.difference(simpler, protected_holes.buffer(self.building_clearance, join_style="mitre"), grid_size=self.grid)
             strict = all(strict_rings(g) for g in parts(simpler))
         geometries = sorted(parts(simpler), key=_key)
         # Large/complex merged courtyards stay as smaller valid source groups.
@@ -463,7 +496,7 @@ class Generalizer:
         output = []
         members = np.array(shapes, dtype=object)
         for geometry in geometries:
-            contributors = [group[i] for i in np.flatnonzero(shapely.intersects(members, geometry.buffer(0.08)))]
+            contributors = [group[i] for i in np.flatnonzero(shapely.intersects(members, geometry.buffer(self.grid)))]
             if not contributors:
                 # GEOS closing can leave an isolated floating-point filler
                 # sliver. It is newly derived, never an original component.
@@ -512,7 +545,7 @@ class Generalizer:
             building = not (p.get("osm_region") or p.get("landuse") in ("forest", "orchard"))
             if building:
                 if index not in self.trim_windows:
-                    self.trim_windows[index] = g.buffer(self.max_width/2+0.8).envelope
+                    self.trim_windows[index] = g.buffer(self.max_width/2+self.road_clearance).envelope
                 ids = self.ground_tree.query(self.trim_windows[index])
                 self.spend(len(ids))
                 barriers = [self.ground_barriers[i].intersection(g.envelope) for i in ids]
@@ -524,7 +557,7 @@ class Generalizer:
                 trimmed = g.difference(road_space)
                 if trimmed.is_empty:
                     for identity in source_ids(f):
-                        self.review.reject(identity, "Building footprint is entirely inside derived ground-road space; it cannot retain a solid at 1:8 without blocking the road. Road widths may be estimates. Explicit source exclusion is required."
+                        self.review.reject(identity, f"Building footprint is entirely inside derived ground-road space; it cannot retain a solid at 1:{self.scale} without blocking the road. Road widths may be estimates. Explicit source exclusion is required."
                                            if not p.get("_city_layer_building") else "Building above other features (positive layer) placed on the ground lies entirely inside derived road or source-height structure space. Explicit source exclusion is required.")
                         self.excluded_sources.add(identity)
                     continue
@@ -564,10 +597,11 @@ class Generalizer:
             if depth >= BUILDING_SPLIT_DEPTH: soft_limit("city_building_partition", depth + 1, BUILDING_SPLIT_DEPTH, "City building partition depth budget exceeded")
             x0,y0,x1,y1 = part.bounds
             axis = 0 if x1-x0 >= y1-y0 else 1
-            middle = round(((x0+x1) if axis == 0 else (y0+y1))/2/0.08)*0.08
-            rectangles = [box(x0-1,y0-1,middle-0.16,y1+1),box(middle+0.16,y0-1,x1+1,y1+1)] if axis == 0 else [box(x0-1,y0-1,x1+1,middle-0.16),box(x0-1,middle+0.16,x1+1,y1+1)]
+            middle = round(((x0+x1) if axis == 0 else (y0+y1))/2/self.grid)*self.grid
+            half = self.building_clearance  # Half the partition gap on each side.
+            rectangles = [box(x0-1,y0-1,middle-half,y1+1),box(middle+half,y0-1,x1+1,y1+1)] if axis == 0 else [box(x0-1,y0-1,x1+1,middle-half),box(x0-1,middle+half,x1+1,y1+1)]
             for rectangle in rectangles:
-                result.extend(self.native_polygon_parts(shapely.intersection(part,rectangle,grid_size=0.08),depth+1))
+                result.extend(self.native_polygon_parts(shapely.intersection(part,rectangle,grid_size=self.grid),depth+1))
         return result
 
     def paint_parts(self, geometry, depth=0):
@@ -595,15 +629,16 @@ class Generalizer:
     def paint(self, walking):
         """Paths, footways and cycleways become ground paint, not road records.
 
-        Their source-width ribbons are united on the 1:8 map-centimetre lattice and
+        Their source-width ribbons are united on the 1:scale map-centimetre lattice and
         cut per native cell, so the pieces never overlap. Each piece keeps every
         source way it covers; its surface is the one covering most of its area.
         """
         if not walking:
             return []
-        lx, ly = self.projection.local
-        to_map = lambda x, y: ((x+lx)*12.5, (y+ly)*12.5)
-        from_map = lambda x, y: (x*0.08-lx, y*0.08-ly)
+        lx, ly = self.local
+        factor, grid = self.to_map_factor, self.grid
+        to_map = lambda x, y: ((x+lx)*factor, (y+ly)*factor)
+        from_map = lambda x, y: (x*grid-lx, y*grid-ly)
         owners = []
         for feature, geometry in walking:
             self.spend(positions(geometry))
@@ -645,12 +680,13 @@ class Generalizer:
         accepted = {}
         self.overlap_sources = set()
         for index,(feature,geometry) in enumerate(buildings):
-            candidates = [int(i) for i in tree.query(geometry.buffer(0.16).envelope) if int(i) in accepted]
+            clearance = self.building_clearance
+            candidates = [int(i) for i in tree.query(geometry.buffer(clearance).envelope) if int(i) in accepted]
             self.spend(len(candidates))
-            neighbors = [i for i in candidates if accepted[i][1].buffer(0.16,join_style="mitre").intersects(geometry)]
+            neighbors = [i for i in candidates if accepted[i][1].buffer(clearance,join_style="mitre").intersects(geometry)]
             if neighbors:
-                occupied = unary_union([accepted[i][1].buffer(0.16,join_style="mitre") for i in neighbors])
-                trimmed = shapely.difference(geometry,occupied,grid_size=0.08)
+                occupied = unary_union([accepted[i][1].buffer(clearance,join_style="mitre") for i in neighbors])
+                trimmed = shapely.difference(geometry,occupied,grid_size=self.grid)
                 self.overlap_sources.update(source_ids(feature))
                 if trimmed.is_empty:
                     # A fully enclosed/duplicate building is represented by its
@@ -673,7 +709,7 @@ class Generalizer:
 
     def separated_parts(self, geometry):
         # Native buildings may not even touch. Parts of one source geometry that
-        # meet at a point keep the same 0.16 m clearance as other neighbours.
+        # meet at a point keep the same building clearance as other neighbours.
         kept = []
         for part in self.native_polygon_parts(geometry):
             self.spend(len(kept))
@@ -681,7 +717,7 @@ class Generalizer:
             if not near:
                 kept.append(part)
                 continue
-            trimmed = shapely.difference(part, unary_union([k.buffer(0.16, join_style="mitre") for k in near]), grid_size=0.08)
+            trimmed = shapely.difference(part, unary_union([k.buffer(self.building_clearance, join_style="mitre") for k in near]), grid_size=self.grid)
             kept.extend(p for p in self.native_polygon_parts(trimmed) if not any(p.intersects(k) for k in kept))
         return kept
 
@@ -689,18 +725,18 @@ class Generalizer:
         """Derived roads and the space buildings keep clear of; ground pedestrian
         ways are split off for paint."""
         roads = self.roads(gap)
-        self.barrier_buffers = np.concatenate([self.road_buffers, road_buffers([g for f,g in roads], [max(0.01,float(f["properties"].get("width_m",8))) for f,g in roads])])
+        self.barrier_buffers = np.concatenate([self.road_buffers, road_buffers([g for f,g in roads], [max(0.01,float(f["properties"].get("width_m",8))) for f,g in roads], self.road_clearance)])
         self.barrier_tree = STRtree(self.road_geometries + [g for f,g in roads])
-        ground = [(g,clear_width(f)) for f,g in roads if f["properties"].get("road_kind","ground") == "ground"]
+        ground = [(g,clear_width(f, self.furniture)) for f,g in roads if f["properties"].get("road_kind","ground") == "ground"]
         lines = list(zip(self.ground_geometries,self.ground_widths))+ground
-        self.ground_barriers = list(self.ground_buffers) + list(road_buffers([g for g,w in ground], [w for g,w in ground]))
+        self.ground_barriers = list(self.ground_buffers) + list(road_buffers([g for g,w in ground], [w for g,w in ground], self.road_clearance))
         # A junction surface is the hull of its approach mouths, which reaches up to
         # √2 × the widest half width from the node; keep buildings outside it too.
         ends = defaultdict(list)
         for g,w in lines:
             for x,y in (g.coords[0], g.coords[-1]):
                 ends[(round(x,2),round(y,2))].append(w)
-        self.junction_disks = [shapely.Point(point).buffer(max(widths)/2*math.sqrt(2)+0.8, quad_segs=4)
+        self.junction_disks = [shapely.Point(point).buffer(max(widths)/2*math.sqrt(2)+self.road_clearance, quad_segs=4)
                                for point,widths in sorted(ends.items()) if len(widths) > 1]
         self.junction_tree = STRtree(self.junction_disks)
         self.ground_barriers += self.junction_disks
@@ -752,7 +788,7 @@ class Generalizer:
         for f,g in self.prepared:
             if set(source_ids(f)) <= covered or self.excluded_sources.intersection(source_ids(f)):
                 continue
-            snapped = shapely.set_precision(g, 0.08)
+            snapped = shapely.set_precision(g, self.grid)
             if snapped.is_empty:
                 continue
             self.retained_groups += 1
@@ -806,13 +842,13 @@ class Generalizer:
             if "osm_node_refs" not in p:
                 feature["geometry"] = json.loads(json.dumps(mapping(next(derived))))
             result["features"].append(feature)
-        meta = dict(profile=PROFILE, scale_denominator=SCALE, gap_m=gap, grid_m=0.08,
+        meta = dict(profile=PROFILE, scale_denominator=self.scale, gap_m=gap, grid_m=self.grid,
                     vegetation_spacing_m=32, vegetation_density_per_mille=750,
                     surface_mappings=[dict(source=s,target=t,features=n) for (s,t),n in sorted(self.surface_mappings.items())],
-                    widened_roads=self.widened_roads, minimum_road_width_m=1.6,
+                    widened_roads=self.widened_roads, minimum_road_width_m=self.minimum_width,
                     estimated_road_widths=dict(sorted(self.estimated_widths.items())),
-                    road_clearance_m=0.8, trimmed_building_sources=sorted(self.trimmed_buildings),
-                    building_clearance_m=0.16, polygon_partition_gap_m=0.32, overlap_adjusted_sources=sorted(self.overlap_sources),
+                    road_clearance_m=self.road_clearance, trimmed_building_sources=sorted(self.trimmed_buildings),
+                    building_clearance_m=self.building_clearance, polygon_partition_gap_m=self.partition_gap, overlap_adjusted_sources=sorted(self.overlap_sources),
                     line_tolerance_m=min(4.0, gap/4), polygon_tolerance_m=min(8.0, gap/4),
                     before=self.before, after=self.counts(items), source_ids=sorted(expected),
                     unmerged_numeric_groups=self.retained_groups, painted_pedestrian_ways=self.paint_ways,
@@ -823,17 +859,17 @@ class Generalizer:
         return result, meta
 
 
-def candidates(collection, options, review=None):
+def candidates(collection, options, review=None, scale=SCALE):
     """Largest gap first: it merges and simplifies most. Callers take the first
     candidate that meets the targets; smaller gaps are built only after a miss or
     failure. A gap whose partition ceilings or road space cannot be met yields
     (None, failure) instead. Soft budgets met while building a gap are recorded
     as limit warnings of that gap only."""
-    worker = Generalizer(collection, options, review)
+    worker = Generalizer(collection, options, review, scale)
     # Limit warnings belong to the candidate they were met in.
     base = limit_snapshot()
-    # Dense sources skip the 0–2 m gaps: a 4 m source gap is only 0.5 m on the
-    # 1:8 map; all protected geometry and final admission still apply.
+    # Dense sources skip the 0–2 m gaps (source metres at every scale: a 4 m gap
+    # is 0.5 m on a 1:8 map); all protected geometry and final admission still apply.
     for gap in reversed(LEVELS[2 if worker.before["features"] > 20000 else 0:]):
         limit_restore(base)
         try:

@@ -20,9 +20,9 @@ static func validate(regions: Variant, notes: Array = []) -> String:
 	LIMITS.over(notes, "osm_region_points", points, 200000, "OSM generation region points")
 	return ""
 
-static func scaled(regions: Array) -> Array:
+static func scaled(regions: Array, denominator := 8) -> Array:
 	var result := regions.duplicate(true)
 	for region: Dictionary in result:
 		for key in ["polygon", "holes"]:
-			region[key] = preload("./import_units.gd")._coordinates(region[key])
+			region[key] = preload("./import_units.gd")._coordinates(region[key], denominator)
 	return result

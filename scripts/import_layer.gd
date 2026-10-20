@@ -517,18 +517,24 @@ static func _structure_crop(raw: Dictionary, prefix: String, notes: Array = []) 
 	if sections != v.section_endpoints or v.partial_structure_ways != partial_ways: return "Structure section count mismatch."
 	return ""
 
+## OSM adoption scale 1:D: the validated city scale, or 1:8 for exact OSM.
+func osm_denominator() -> int:
+	var city: Variant = value.get("coordinates", {}).get("osm_city")
+	return int(city.scale_denominator) if city is Dictionary else preload("./import_units.gd").OSM_DENOMINATOR
+
 func patches(store: RefCounted) -> Array:
 	var result: Array = value.patches.duplicate(true)
 	var metadata := value.duplicate(true)
 	metadata.erase("patches")
 	if value.adapter == "osm-extract-v1":
-		result = preload("./import_units.gd").osm_patches(value.patches,value.coordinates.has("osm_city"),int(store.document.get("terrain_base_cm",0)))
+		var denominator := osm_denominator()
+		result = preload("./import_units.gd").osm_patches(value.patches,value.coordinates.has("osm_city"),int(store.document.get("terrain_base_cm",0)),denominator)
 		preload("./import_units.gd").widen_roads(result,store.document.get("buildings",[]),value.coordinates.get("osm_pedestrian_roads",[]))
 		var separated: int = preload("./import_units.gd").separate_junctions(result, store)
-		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": 8, "profile": "osm-import-1to8-v1", "road_width_floor_cm": preload("./import_units.gd").ROAD_WIDTH_FLOOR_CM}
+		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": denominator, "profile": preload("./import_units.gd").profile(denominator), "road_width_floor_cm": preload("./import_units.gd").ROAD_WIDTH_FLOOR_CM}
 		if separated > 0: metadata.authored_units.separated_junctions = separated
 		if value.coordinates.has("osm_city"): metadata.authored_units.quantization_cleanup = "adjacent-equal-vertices-v1"
-		metadata.authored_regions = preload("./import_regions.gd").scaled(value.coordinates.get("generation_regions", []))
+		metadata.authored_regions = preload("./import_regions.gd").scaled(value.coordinates.get("generation_regions", []),denominator)
 	if value.adapter == "osm-extract-v1":
 		var extent := empty_map_extent(store.document,result)
 		if not extent.is_empty() and extent != store.document.bounds:
@@ -588,6 +594,10 @@ func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 		var b: Dictionary = store.document.bounds
 		if value.coordinates.csv.options.bounds_cm != [b.min[0],b.min[1],b.max[0],b.max[1]] or value.coordinates.csv.options.source_denominator != preload("./import_units.gd").dem_denominator(store.document): return "CSV map extent/scale changed; import again."
 	if value.adapter == "osm-extract-v1":
+		# One map has one OSM scale: DEM, CSV and environment fill read it back.
+		var existing: Dictionary = preload("./import_units.gd").osm_scale(store.document)
+		if existing.has("error"): return existing.error
+		if int(existing.denominator) not in [0, osm_denominator()]: return I18N.t("This map already uses OSM scale 1:%d; import OSM with automatic city optimization at that scale.") % existing.denominator
 		var explicit := false
 		for patch: Dictionary in value.patches:
 			if patch.field == "nodes" and patch.id.contains("-osm-node-"): explicit = true; break
@@ -675,7 +685,7 @@ func summary() -> String:
 	var limits := LIMITS.text(limit_warnings)
 	var result := (limits + "\n\n" if limits != "" else "") + I18N.t("%s · %d bytes\nLicense: %s · source accuracy: %s\nSHA-256: %s\n%d features / %d records · local extent (cm): %s\n") % [value.source.name, value.source.bytes, value.source.license, value.source.accuracy, value.source.sha256, value.feature_count, value.patches.size(), str(value.extent_cm)]
 	result += _review_prefix + I18N.t("\nProjection / processing summary:\n") + text.metadata(coordinates)
-	if value.adapter == "osm-extract-v1": result += I18N.t("\nOSM adoption: source lengths, widths and heights ÷ 8, rounded to authored centimetres. One authored metre = one game metre. Source provenance above is retained.\n")
+	if value.adapter == "osm-extract-v1": result += I18N.t("\nOSM adoption: source lengths, widths and heights ÷ %d, rounded to authored centimetres. One authored metre = one game metre. Source provenance above is retained.\n") % osm_denominator()
 	result += I18N.t("\nEstimated fields (counts; showing %d of %d):\n%sWarnings: %d (showing %d of %d retained):\n%s") % [count, value.estimates.size(), estimates, value.warning_count, mini(50, value.warnings.size()), value.warnings.size(), warnings]
 	result = result.substr(0, text.MAX_SUMMARY_CHARS - 320)
 	return result + I18N.t("\nSummary is limited. Browse exact details for every retained field, mapping, warning and captured source JSON. Adapter warning samples may omit source warnings.\n\nAdopt adds a new layer as one Undo command. Existing objects and source files remain unchanged.")

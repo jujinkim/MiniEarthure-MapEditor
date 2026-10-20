@@ -16,6 +16,12 @@ func wait_job() -> void:
 	while ui.busy and Time.get_ticks_msec()<deadline: await process_frame
 	check(not ui.busy,"bounded city DEM completes: "+ui.status_label.text)
 func run() -> void:
+	# The original 1:8 city scale and the 1:3 city default read back the same way.
+	for denominator in [8, 3]: await run_scale(denominator)
+	print("dem_city_validator: ","PASS" if failures.is_empty() else failures,"; checks=",checks)
+	quit(0 if failures.is_empty() else 1)
+
+func run_scale(denominator: int) -> void:
 	ui=load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
@@ -28,7 +34,7 @@ func run() -> void:
 		{"field":"roads","id":"r","before":null,"after":{"id":"r","from":"a","to":"b","points":[[1000,0,2000],[20000,0,2000]],"widths_cm":[200],"surfaces":["asphalt"],"kind":"ground","clearance_cm":null,"sidewalk_cm":null}}]
 	var prefix: String="import-"+"b".repeat(32)+"-"
 	var coordinates: Dictionary={"mode":"wgs84-utm","origin":[9.5,55.5],"local_origin_m":[0,0]}
-	var notice: Dictionary={"source":"synthetic OSM","license":"CC0","notice":JSON.stringify({"adapter":"osm-extract-v1","layer_id":"b".repeat(32),"coordinates":coordinates,"authored_units":{"source_denominator":8}})}
+	var notice: Dictionary={"source":"synthetic OSM","license":"CC0","notice":JSON.stringify({"adapter":"osm-extract-v1","layer_id":"b".repeat(32),"coordinates":coordinates,"authored_units":{"source_denominator":denominator,"profile":"osm-import-1to%d-v1" % denominator}})}
 	patches.append({"field":"attributions","id":ui.store.record_id("attributions",notice),"before":null,"after":notice})
 	for index in range(4):
 		var x:=5000+13000*index
@@ -37,9 +43,9 @@ func run() -> void:
 	check(ui.store.apply_command("synthetic city",patches)=="","96-cell synthetic bounds and road")
 	ui.csv_panel.use_imported_frame()
 	check(ui.import_coordinate_mode.selected == 1 and ui.import_origin_lon.value == 9.5 and ui.import_origin_lat.value == 55.5 and ui.import_origin_x.value == 0 and ui.import_origin_y.value == 0, "CSV reuses the same source frame without applying map scale twice")
-	var project := ProjectSettings.globalize_path("user://dem-city")
+	var project := ProjectSettings.globalize_path("user://dem-city-%d" % denominator)
 	check(ui.store.save_project(project)=="","save isolated test project")
-	var source := ProjectSettings.globalize_path("user://synthetic-city.tif")
+	var source := ProjectSettings.globalize_path("user://synthetic-city-%d.tif" % denominator)
 	var python := OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	var output: Array=[]
 	check(OS.execute(python,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/dem_fixture.py"),source]),output,true)==0,"synthetic source: "+str(output))
@@ -54,7 +60,7 @@ func run() -> void:
 	panel.fields["Cell rows"].value=12
 	panel.fields["Spacing (cm)"].value=400
 	panel.use_imported_frame()
-	check(panel.options().coordinates==JSON.parse_string(JSON.stringify(coordinates)) and panel.options().cell_count==[8.0,12.0] and panel.options().spacing_cm==400,"reuse OSM origin, scale and complete extent: "+JSON.stringify(panel.options()))
+	check(panel.options().coordinates==JSON.parse_string(JSON.stringify(coordinates)) and panel.options().cell_count==[8.0,12.0] and panel.options().spacing_cm==400 and panel.options().get("osm_denominator")==float(denominator),"reuse OSM origin, stored 1:%d scale and complete extent: " % denominator+JSON.stringify(panel.options()))
 	panel.ground_buildings.button_pressed=true
 	var before: String=JSON.stringify(ui.store.document)
 	panel.prepare();await wait_job()
@@ -102,5 +108,3 @@ func run() -> void:
 	check(FileAccess.get_sha256(source)==source_hash,"original source unchanged")
 	ui.store.dirty=false
 	ui.queue_free();await process_frame
-	print("dem_city_validator: ","PASS" if failures.is_empty() else failures,"; checks=",checks)
-	quit(0 if failures.is_empty() else 1)

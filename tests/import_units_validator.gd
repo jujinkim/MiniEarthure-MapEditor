@@ -36,6 +36,32 @@ func run() -> void:
 	check(preload("res://scripts/import_units.gd").dem_denominator(authored) == 8, "DEM aligns with adopted OSM scale")
 	check(preload("res://scripts/import_units.gd").dem_denominator(store.document) == 1, "custom DEM is unscaled")
 	var units := preload("res://scripts/import_units.gd")
+	# Map scale 1:D read back from provenance: exactly the stored value, never guessed.
+	var notice := func(unit: Dictionary) -> Dictionary: return {"source":"osm","license":"ODbL","notice":JSON.stringify({"adapter":"osm-extract-v1","authored_units":unit})}
+	for d in [8, 3]:
+		var stored := {"attributions":[notice.call({"source_denominator":d,"profile":units.profile(d)}),notice.call({"source_denominator":float(d)})]}
+		check(units.dem_denominator(stored) == d and units.osm_scale(stored).denominator == d, "DEM/CSV read the stored 1:%d" % d)
+	check(units.profile(8) == "osm-import-1to8-v1" and units.profile(3) == "osm-import-1to3-v1", "1:8 keeps its original profile id")
+	check(units.dem_denominator(authored) == 8 and authored.attributions.any(func(a): return a.notice.contains("\"source_denominator\":8}") and a.notice.contains("osm-import-1to8-v1")), "existing 1:8 provenance reads back 8")
+	for bad: Dictionary in [{"source_denominator":9}, {"source_denominator":2.5}, {"source_denominator":"3"}, {}, {"source_denominator":3,"profile":"osm-import-1to8-v1"}]:
+		var unknown := {"attributions":[notice.call(bad)]}
+		check(units.dem_denominator(unknown) == 0 and units.osm_scale(unknown).has("error"), "unknown OSM scale is an error, never 1: %s" % JSON.stringify(bad))
+	var mixed := {"attributions":[notice.call({"source_denominator":8}),notice.call({"source_denominator":3})]}
+	check(units.dem_denominator(mixed) == 0 and str(units.osm_scale(mixed).get("error","")).contains("different map scales"), "mixed OSM scales are rejected")
+	check(units.osm_scale({"attributions":[]}).denominator == 0 and units.dem_denominator({"attributions":[]}) == 1, "a map without OSM is 1:1 for DEM/CSV")
+	var third: Dictionary = units.osm_patches([{"field":"buildings","after":building.duplicate(true)}],true,0,3)[0].after
+	check(third.height_cm == 267 and third.base_cm == 27 and third.footprint[0] == [267,267], "1:3 adoption divides source centimetres by three")
+	var city_layer := LAYER.new()
+	city_layer.value = {"adapter":"osm-extract-v1","coordinates":{"osm_city":{"scale_denominator":3.0}},"layer_id":"b".repeat(32),"source":{"name":"synthetic","license":"MIT"},"patches":[{"field":"buildings","id":building.id,"before":null,"after":building}]}
+	store.new_document()
+	var city_patches: Array = city_layer.patches(store)
+	var notice_text: String = city_patches.filter(func(p): return p.field == "attributions")[0].after.notice
+	var units_notice: Dictionary = JSON.parse_string(notice_text).authored_units
+	check(city_layer.osm_denominator() == 3 and notice_text.contains("\"source_denominator\":3}") and units_notice.profile == "osm-import-1to3-v1", "a 1:3 city layer writes D=3 and its profile")
+	check(city_patches.filter(func(p): return p.field == "buildings")[0].after.height_cm == 267, "a 1:3 city layer adopts at 1:3")
+	store.document.attributions.append(notice.call({"source_denominator":8,"profile":units.profile(8)}))
+	check(city_layer.validate_for(store).contains("already uses OSM scale 1:8"), "a second OSM scale cannot be adopted into the same map")
+	store.new_document()
 	var road := {"id":"road","kind":"ground","from":"a","to":"b","points":[[80,0,80],[81,0,81],[160,0,160],[161,0,161]],"widths_cm":[160,160,160],"surfaces":["asphalt","asphalt","asphalt"]}
 	var source := [{"field":"roads","after":road}]
 	var scaled: Dictionary = units.osm_patches(source,true)[0].after

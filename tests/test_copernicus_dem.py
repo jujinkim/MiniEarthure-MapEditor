@@ -68,8 +68,14 @@ class DemTests(unittest.TestCase):
 
     def test_grid_and_removed_formats_fail_closed(self):
         base=options(self.source)
-        for key,value in [("spacing_cm",3000),("spacing_cm",True),("cell",[-1,0]),("cell_size_cm",204800),("vertical_zero_m",float("nan")),("allow_download",True),("fallback90",False),("osm_denominator",2)]:
-            with self.subTest(key=key),self.assertRaises(ValueError): dem.plan(dict(base,**{key:value}))
+        for key,value in [("spacing_cm",3000),("spacing_cm",True),("cell",[-1,0]),("cell_size_cm",204800),("vertical_zero_m",float("nan")),("allow_download",True),("fallback90",False),
+                          ("osm_denominator",0),("osm_denominator",9),("osm_denominator",2.5),("osm_denominator",True),("osm_denominator",float("inf")),("osm_denominator","3")]:
+            with self.subTest(key=key,value=value),self.assertRaises(ValueError): dem.plan(dict(base,**{key:value}))
+        # Any adopted OSM scale 1:D, D an integer 1..8, sent as an int or a float.
+        single=dict(base);del single["cell_count"]
+        for value in (1, 2, 3.0, 8, 8.0):
+            with self.subTest(denominator=value):
+                self.assertEqual(dem.grid(dict(single,cell_size_cm=6400,spacing_cm=400,osm_denominator=value))[1],17)
         missing=dict(base);del missing["cell_count"]
         with self.assertRaises((KeyError,ValueError)):dem.plan(missing)
         crossing=copy.deepcopy(base);crossing["coordinates"]["origin"]=[9.999,55.5]
@@ -185,7 +191,7 @@ class DemTests(unittest.TestCase):
     def test_array_grid_matches_scalar_projection_and_keeps_guard_errors(self):
         from pyproj.enums import TransformDirection
         cell=options(self.source);del cell["cell_count"]
-        for raw in [cell,dict(cell,cell=[7,11],cell_size_cm=12800,spacing_cm=400,osm_denominator=8),
+        for raw in [cell,dict(cell,cell=[7,11],cell_size_cm=12800,spacing_cm=400,osm_denominator=8),dict(cell,cell=[7,11],cell_size_cm=12800,spacing_cm=400,osm_denominator=3.0),
                     dict(cell,coordinates=dict(mode="wgs84-utm",origin=[-70.5,-33.4],local_origin_m=[100.5,-3.25]),cell=[3,2],cell_size_cm=6400,spacing_cm=200)]:
             coordinates,side,points,_,_=dem.grid(raw)
             size,spacing,denominator=raw["cell_size_cm"],raw["spacing_cm"],raw.get("osm_denominator",1)

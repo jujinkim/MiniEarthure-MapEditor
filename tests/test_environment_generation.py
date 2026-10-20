@@ -72,20 +72,39 @@ class EnvironmentTests(unittest.TestCase):
         self.assertEqual(len({p['id'] for p in partial.document['placements']}),len(partial.document['placements']))
 
     def test_semantic_infill_holes_protection_and_exactly_once_scale(self):
+        for denominator in (8, 3):
+            with self.subTest(denominator=denominator):
+                self.infill_once(denominator)
+
+    def test_osm_scale_provenance_is_one_valid_denominator(self):
+        def doc_with(*units):
+            doc=empty('osm-scale-fixture',16000,3200)
+            for unit in units: doc['attributions'].append(dict(source='osm',license='ODbL',notice=json.dumps(dict(adapter='osm-extract-v1',authored_units=unit,authored_regions=[]))))
+            return doc
+        self.assertEqual(GenerationContext.from_document(doc_with(dict(source_denominator=3,profile='osm-import-1to3-v1'),dict(source_denominator=3))).source_denominator,3)
+        self.assertEqual(GenerationContext.from_document(doc_with(dict(source_denominator=8,profile='osm-import-1to8-v1'))).source_denominator,8)
+        self.assertEqual(GenerationContext.from_document(doc_with()).source_denominator,1)
+        with self.assertRaisesRegex(ValueError,'different map scales'):
+            GenerationContext.from_document(doc_with(dict(source_denominator=8),dict(source_denominator=3)))
+        for bad in (dict(source_denominator=9),dict(source_denominator=2.5),dict(source_denominator=True),dict(),dict(source_denominator=3,profile='osm-import-1to8-v1')):
+            with self.subTest(units=bad), self.assertRaisesRegex(ValueError,'1:D authored units'):
+                GenerationContext.from_document(doc_with(bad))
+
+    def infill_once(self, denominator):
         request=GenerationRequest('fill','village',55,[0,0,16000,16000],.5)
         doc=empty('osm-environment-fixture',16000,3200)
         doc.update(free_roam=True,surface_areas=[],water_bodies=[],gimmicks=[])
         road(doc,'fixed',[[0,0,8000],[16000,0,8000]],width=100)
         region=dict(id='r',source_id='relation/71',landuse='residential',protected=False,polygon=[[0,0],[16000,0],[16000,16000],[0,16000]],holes=[[[7000,9000],[9000,9000],[9000,12000],[7000,12000]]])
         protected=dict(id='p',source_id='way/72',landuse='nature_reserve',protected=True,polygon=[[0,0],[5000,0],[5000,7000],[0,7000]],holes=[])
-        doc['attributions'].append(dict(source='osm',license='ODbL',notice=json.dumps(dict(adapter='osm-extract-v1',authored_units=dict(source_denominator=8),authored_regions=[region,protected]))))
+        doc['attributions'].append(dict(source='osm',license='ODbL',notice=json.dumps(dict(adapter='osm-extract-v1',authored_units=dict(source_denominator=denominator,profile=f'osm-import-1to{denominator}-v1'),authored_regions=[region,protected]))))
         ctx=GenerationContext.from_document(doc)
         result=generate(request,ctx,KIT)
         self.assertEqual(result.document['roads'],doc['roads'])
         self.assertTrue(result.document['placements'])
-        self.assertEqual(ctx.source_denominator,8)
-        self.assertTrue(all(a['id'].endswith('-env-8-256') for a in result.document['assets']))
-        self.assertTrue(all(r['scale']<=3/8 for r in result.diagnostics['assets'].values()))
+        self.assertEqual(ctx.source_denominator,denominator)
+        self.assertTrue(all(a['id'].endswith(f'-env-{denominator}-256') for a in result.document['assets']))
+        self.assertTrue(all(r['scale']<=3/denominator for r in result.diagnostics['assets'].values()))
         hole=Polygon([(p[0]/100,p[1]/100) for p in region['holes'][0]])
         generator=Generator(request,ctx,KIT)
         assets={a['id']:a for a in result.document['assets']}
@@ -93,7 +112,7 @@ class EnvironmentTests(unittest.TestCase):
             area=generator.footprint(assets[p['asset_id']],(p['position'][0]/100,p['position'][2]/100),p['yaw_offset_mdeg']/1000)
             self.assertFalse(area.intersects(polygon(protected)))
             self.assertFalse(area.intersects(hole))
-        unknown=generate(request,GenerationContext(copy.deepcopy(doc),regions=[],source_denominator=8),KIT)
+        unknown=generate(request,GenerationContext(copy.deepcopy(doc),regions=[],source_denominator=denominator),KIT)
         self.assertFalse(unknown.document['placements'])
         self.assertTrue(unknown.document['surface_areas'])
 

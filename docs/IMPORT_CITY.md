@@ -1,9 +1,26 @@
 # Automatic city optimization
 
-PBF streaming enables **Automatic city optimization (1:8)** by default; turn it off
+PBF streaming enables **Automatic city optimization** by default; turn it off
 for the exact profile in [IMPORTS](IMPORTS.md). This is an Editor-owned derived
 approximation with no city-specific coordinates and no change to the original PBF.
 It separates larger bounded source work from the smaller output MapKit accepts.
+
+## Map scale 1:D
+
+**City map scale 1:** chooses the denominator D, an integer from 1 to 8 (default 3;
+smaller numbers make the city larger). The request carries `osm_scale`, the worker
+`--osm-scale D` (CLI default 8). Once a map has OSM layers the control is locked to
+their stored D: a map has one OSM scale, and adoption into a map with another scale
+is refused. The exact profile stays 1:8. The same area covers (8/D)² times the cells
+it covers at 1:8, so the crop dialog warns early when the area exceeds 256 cells at
+the map's cell size (the city check refuses more than 16,384).
+
+The profile id stays `scale-aware-city-v1` with `scale_denominator: D`. One map
+centimetre is D/100 source metres; every map-unit value below derives from it.
+Gap levels, tolerances, the 256 m aggregation tiles, vegetation spacing and
+structure estimates (6 m levels, 8 % ramps) stay in source metres. 1:8 output is
+unchanged; at other scales the working frame is shifted by the local origin's
+remainder so lattice points are whole map centimetres.
 
 ## Roads and vegetation
 
@@ -11,9 +28,10 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   keeps junction positions, semantic boundaries and crossings; coincident
   independent IDs are not welded. Ordered source positions and traversal ranges
   are retained. Structures and explicit heights keep the exact rules.
-- Equal adjacent centimetre vertices are removed after the single 1:8 quantization;
+- Equal adjacent centimetre vertices are removed after the single 1:D quantization;
   nonempty holes are never discarded.
-- Missing road widths use disclosed highway-class estimates (≥1.6 source m);
+- Missing road widths use disclosed highway-class estimates, widened to at least
+  20 map cm (0.2·D source m);
   source surfaces map to game materials.
 - Ground paths, footways, cycleways, pedestrian streets and steps become painted
   ground (`surface_areas`), not roads; cars cross them as terrain. Steps keep their
@@ -52,18 +70,19 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   excluded, so no structure ends in the air or underground.
   Estimated structures join ordinary ground roads, stay whole at crop edges with
   every way of their chain, keep
-  building clearance plus 1.6 m for safety furniture (also when widened) and are
+  building clearance plus 20 map cm (0.2·D m) of safety furniture each side (also when widened) and are
   listed in `osm_estimated_structures`. Other crossing structures need explicit
   heights and are otherwise excluded.
 - Compatible vegetation polygons are unioned. Illustrative trees use a 32 m source
-  lattice (4 m on the map) at 750 ‰ density; they are estimates, not surveyed trees.
+  lattice (32/D m on the map: 4 m at 1:8, about 10.7 m at 1:3) at 750 ‰ density;
+  they are estimates, not surveyed trees.
   The exact profile keeps an 8 m source lattice.
 
 ## Buildings
 
 - Ordinary buildings group within 256 m source tiles (≤128 per group). Candidates
-  fill 0–64 m gaps, simplify lines ≤4 m and polygons ≤8 m, then snap to a 0.08 m
-  source grid (one map centimetre).
+  fill 0–64 m gaps, simplify lines ≤4 m and polygons ≤8 m, then snap to a D/100 m
+  source grid (one map centimetre; 0.08 m at 1:8).
 - Candidates whose line tolerance is equal (16–64 m gaps) share one derived road
   space: road-trimmed sources, protected buildings, aggregation groups and
   pedestrian paint are built once and charge the same work budget as a fresh
@@ -81,16 +100,18 @@ It separates larger bounded source work from the smaller output MapKit accepts.
 - A building above other features (a positive integer `layer`, for example over
   tracks or a stream) stands on the ground and is counted as an estimate in review.
   It is also cut around source-height bridge and tunnel corridors (their width plus
-  3.2 m for safety furniture), and no building grows back into those corridors.
+  2 × 20 map cm for safety furniture), and no building grows back into those corridors.
   Outline ways of such a building relation are lifted with it. Roof canopies,
   barriers such as toll booths, structures and underground (negative-layer)
   buildings stay excluded.
-- Buildings are cut around road space with 0.8 m clearance, including a disk of
-  √2 × the widest half width + 0.8 m around every junction node (the extent of a
-  junction surface); gap filling never regrows into either. Overlapping volumes
-  are partitioned with 0.16 m clearance, favouring taller/named geometry. Enclosed
-  sources keep their IDs/names and an estimated height. Complex polygons split into
-  native pieces with 0.32 m separation; pieces meeting at a point keep 0.16 m.
+- Buildings are cut around road space with 10 map cm clearance (0.1·D m; 0.8 m at
+  1:8), including a disk of √2 × the widest half width + that clearance around every
+  junction node (the extent of a junction surface); gap filling never regrows into
+  either. Overlapping volumes are partitioned with 2 map cm clearance (0.02·D m),
+  favouring taller/named geometry. Enclosed sources keep their IDs/names and an
+  estimated height. Complex polygons split into native pieces with 4 map cm
+  separation (0.04·D m); pieces meeting at a point keep 2 map cm. Region crops drop
+  cut pieces shorter than one map centimetre.
   Numeric failures keep the original group; a source erased by merging or
   quantization returns as its road-trimmed shape on the map-centimetre lattice.
 

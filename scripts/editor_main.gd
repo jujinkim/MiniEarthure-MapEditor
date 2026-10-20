@@ -1517,6 +1517,11 @@ func _start_import(source: String, license_name: String) -> void:
 	osm_import_revision = osm_panel.revision
 	vertical_import_revision = vertical_panel.revision
 	if input_format in ["osm", "pbf"]:
+		# One map has one OSM scale: refuse a different scale before any job starts.
+		var scale_error: String = osm_panel.scale_error()
+		if scale_error != "":
+			_status(I18N.t("E_IMPORT: ") + I18N.diagnostic(scale_error))
+			return
 		var vertical: Dictionary = vertical_panel.capture()
 		if vertical.has("error"):
 			_status(I18N.t("E_IMPORT: ") + I18N.diagnostic(vertical.error))
@@ -1532,7 +1537,9 @@ func _start_import(source: String, license_name: String) -> void:
 			_status(I18N.t("PBF streaming requires PBF input and an enabled valid crop area."))
 			return
 		import_coordinates_request.osm_stream = true
-		if osm_panel.city.button_pressed: import_coordinates_request.osm_city = true
+		if osm_panel.city.button_pressed:
+			import_coordinates_request.osm_city = true
+			import_coordinates_request.osm_scale = osm_panel.denominator()
 	if input_format in ["osm", "pbf"] and osm_panel.enabled.button_pressed:
 		if osm_panel.error() != "":
 			_status(I18N.diagnostic(osm_panel.error()))
@@ -1540,7 +1547,13 @@ func _start_import(source: String, license_name: String) -> void:
 		import_coordinates_request.osm_bbox = osm_panel.bbox()
 		if not osm_panel.selected_areas.is_empty() and osm_panel.streaming.button_pressed: import_coordinates_request.osm_areas = osm_panel.area_ids()
 		if osm_panel.exclusions.button_pressed: import_coordinates_request.osm_review_exclusions = true
-	if input_format == "csv": import_coordinates_request.csv = csv_panel.capture()
+	if input_format == "csv":
+		# CSV positions use the map's stored OSM scale; an unknown or mixed scale is never guessed.
+		var map_scale: Dictionary = preload("./import_units.gd").osm_scale(store.document)
+		if map_scale.has("error"):
+			_status(I18N.t("E_IMPORT: ") + I18N.diagnostic(map_scale.error))
+			return
+		import_coordinates_request.csv = csv_panel.capture()
 	import_coordinates_request.adapter = "facility-csv-v1" if input_format == "csv" else "overture-land-cover-v1" if input_format == "overture-land-cover" else "overture-transportation-v1" if input_format == "overture-transportation" else "overture-buildings-v1" if input_format == "overture" else ("geojson-v1" if input_format == "geojson" else "osm-extract-v1")
 	if input_format not in ["geojson", "csv"]: license_name = IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if input_format == "overture-land-cover" else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if input_format == "overture-transportation" else IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
 	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, "")
@@ -1758,7 +1771,7 @@ func _review_import(layer: RefCounted) -> void:
 	import_summary.text = layer.summary()
 	for patch: Dictionary in layer.patches(store):
 		if patch.field == "bounds":
-			import_summary.text += "\n"+I18N.t("New map extent: %.0f × %.0f m (1:8). Applied together with the reviewed import.") % [(patch.after.max[0]-patch.after.min[0])/100.0,(patch.after.max[1]-patch.after.min[1])/100.0]
+			import_summary.text += "\n"+I18N.t("New map extent: %.0f × %.0f m (1:%d). Applied together with the reviewed import.") % [(patch.after.max[0]-patch.after.min[0])/100.0,(patch.after.max[1]-patch.after.min[1])/100.0,layer.osm_denominator()]
 	import_review.popup_centered(Vector2i(760, 460))
 	_status(I18N.t("Import prepared. Review and adopt the new layer, or discard it."))
 	return

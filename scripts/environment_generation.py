@@ -92,17 +92,22 @@ class GenerationContext:
 
     @classmethod
     def from_document(cls, document, project="", selection_cm=None):
-        regions, denominator = [], 1
+        regions, denominator = [], None
         for attribution in document.get("attributions", []):
             try: meta = json.loads(attribution.get("notice", ""))
             except (ValueError, TypeError): continue
             if isinstance(meta,dict) and meta.get("adapter") == "osm-extract-v1":
-                if meta.get("authored_units",{}).get("source_denominator") != 8:
-                    raise ValueError("OSM provenance must declare the current 1:8 authored units")
-                denominator = 8
+                units = meta.get("authored_units") if isinstance(meta.get("authored_units"), dict) else {}
+                stored = units.get("source_denominator")
+                # One map scale 1:D, D an integer 1..8, written by every OSM layer.
+                if type(stored) not in (int, float) or not math.isfinite(stored) or stored != int(stored) or not 1 <= stored <= 8 or ("profile" in units and units["profile"] != f"osm-import-1to{int(stored)}-v1"):
+                    raise ValueError("OSM provenance must declare its 1:D authored units (D from 1 to 8)")
+                if denominator not in (None, int(stored)):
+                    raise ValueError(f"OSM layers use different map scales (1:{denominator} and 1:{int(stored)}); the map needs one scale")
+                denominator = int(stored)
                 regions.extend(meta.get("authored_regions", []))
         return cls(copy.deepcopy(document), project, selection_cm or [], regions,
-                   [r for r in regions if r.get("protected") or r.get("landuse") in ("water","wetland","nature_reserve")], denominator)
+                   [r for r in regions if r.get("protected") or r.get("landuse") in ("water","wetland","nature_reserve")], denominator or 1)
 
 
 @dataclass(frozen=True)

@@ -62,7 +62,21 @@ func run() -> void:
 	check(ui.import_dialog.visible and not ui.busy, "cancel returns to import without starting a worker")
 	check(ui.store.document == before and ui.pending_import == null,"selection and cancellation preserve document")
 	check(absf(ui.import_origin_lon.value-(selected[0]+selected[2])*0.5)<0.000002,"drag centres the declared projection origin")
-	check(ui.import_origin_x.value == (before.bounds.min[0]+before.bounds.max[0])*0.005*8,"map-centre placement respects OSM 1:8 adoption")
+	var centre: float = (before.bounds.min[0]+before.bounds.max[0])*0.005
+	check(ui.osm_panel.denominator() == 3 and ui.import_origin_x.value == centre*3,"map-centre placement respects the default 1:3 city adoption")
+	for d in [8, 3]:
+		ui.osm_panel.scale.value = d
+		check(ui.import_origin_x.value == centre*d and ui.osm_panel.status.text.contains("1:%d approximate map size" % d),"a scale change places the map-centre origin again at 1:%d" % d)
+	ui.osm_panel.city.button_pressed = false
+	check(ui.osm_panel.denominator() == 8 and ui.import_origin_x.value == centre*8 and not ui.osm_panel.scale.editable,"exact OSM keeps 1:8")
+	ui.osm_panel.city.button_pressed = true
+	ui.import_origin_x.value = 123
+	ui.osm_panel.scale.value = 5
+	check(ui.import_origin_x.value == 123,"a typed origin is never moved by a scale change")
+	ui.osm_panel.scale.value = 3
+	var wide := [9.0,55.0,9.2,55.2]
+	for i in range(4): ui.osm_panel.fields[i].value = wide[i]
+	check(ui.osm_panel.status.text.contains("map cells at the current"),"a large area warns about the cell count before import")
 	if DisplayServer.get_name() != "headless":
 		await process_frame
 		check(ui.osm_panel.dialog.size.x <= 1024 and ui.osm_panel.dialog.size.y <= 720,"wizard fits 1024x720")

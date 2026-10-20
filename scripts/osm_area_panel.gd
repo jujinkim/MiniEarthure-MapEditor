@@ -7,6 +7,11 @@ var enabled: CheckBox
 var streaming: CheckBox
 var exclusions: CheckBox
 var city: CheckBox
+## City map scale 1:D (D in 1..8); locked to the scale of OSM layers already in the map.
+var scale: SpinBox
+## Denominator the automatic origin was placed with; 0 after a manual origin.
+var origin_denominator := 0
+const UNITS := preload("./import_units.gd")
 var fields: Array[SpinBox] = []
 var area: Control
 var status: Label
@@ -86,9 +91,14 @@ func setup(owner_ui: Control) -> void:
 	streaming.text = I18N.t("PBF streaming · local source up to 64 GiB, warning above 2 GiB (requires crop)")
 	layout.add_child(streaming)
 	city = CheckBox.new()
-	city.text = I18N.t("Automatically merge and simplify city geometry (1:8)")
+	city.text = I18N.t("Automatically merge and simplify city geometry")
 	city.button_pressed = true
 	layout.add_child(city)
+	var scale_row := HBoxContainer.new()
+	layout.add_child(scale_row)
+	scale = ui._import_number(scale_row,"City map scale 1:",UNITS.MIN_DENOMINATOR,UNITS.MAX_DENOMINATOR,UNITS.CITY_DEFAULT_DENOMINATOR,1)
+	scale.rounded = true
+	ui._label(scale_row,"Smaller numbers make the city larger. Exact OSM without city optimization stays 1:8.")
 	ui._label(layout, "City optimization combines compatible road chains, nearby unnamed low buildings and matching vegetation.\nRoad corridors, junctions, courtyards and landmarks are protected. Review before/after counts and approximations.")
 	exclusions = CheckBox.new()
 	exclusions.text = I18N.t("Review and exclude unsupported source objects (PBF streaming)")
@@ -125,6 +135,10 @@ func setup(owner_ui: Control) -> void:
 	enabled.toggled.connect(func(_v): changed())
 	streaming.toggled.connect(func(_v): changed())
 	city.toggled.connect(func(_v): changed())
+	scale.value_changed.connect(func(_v): changed())
+	for origin_field: SpinBox in [ui.import_origin_x, ui.import_origin_y]:
+		origin_field.value_changed.connect(func(_v):
+			if not placing_origin: origin_denominator = 0)
 	exclusions.toggled.connect(func(_v): changed())
 	dialog.confirmed.connect(finish_selection)
 	dialog.canceled.connect(func():
@@ -139,7 +153,44 @@ func bbox() -> Array:
 	for field in fields: result.append(float("%.6f" % field.value))
 	return result
 
+var _scale_key := ""
+var _scale_value := {}
+## The map's stored OSM scale ({"denominator": D, 0 without OSM} or {"error"}).
+## City notices can be megabytes: parse them again only when the attribution
+## list changes (open, new, adoption, Undo/Redo), keyed by source and length.
+func map_scale() -> Dictionary:
+	var parts := PackedStringArray()
+	for attribution: Dictionary in ui.store.document.get("attributions", []):
+		parts.append("%s\t%d" % [str(attribution.get("source", "")), str(attribution.get("notice", "")).length()])
+	var key := "\n".join(parts)
+	if key != _scale_key or _scale_value.is_empty():
+		_scale_key = key
+		_scale_value = UNITS.osm_scale(ui.store.document)
+	return _scale_value
+
+## Stored D of the map's OSM layers, 0 when it has none (or an invalid scale).
+func locked_denominator() -> int:
+	return int(map_scale().get("denominator", 0))
+
+## Adoption scale 1:D of the next OSM import: the map's stored D for city
+## optimization once the map has OSM layers, otherwise the chosen city scale;
+## exact OSM is always 1:8.
+func denominator() -> int:
+	if not (city.button_pressed and streaming.button_pressed): return UNITS.OSM_DENOMINATOR
+	var locked := locked_denominator()
+	return locked if locked > 0 else int(scale.value)
+
+## Map-scale problems that refuse every OSM import before its job starts.
+func scale_error() -> String:
+	var stored := map_scale()
+	if stored.has("error"): return stored.error
+	var locked := int(stored.denominator)
+	if locked > 0 and denominator() != locked: return "This map uses another OSM scale; import OSM with automatic city optimization (PBF streaming) at the map's scale."
+	return ""
+
 func error() -> String:
+	var failure := scale_error()
+	if failure != "": return failure
 	if exclusions.button_pressed and not streaming.button_pressed: return "Object exclusion review requires PBF streaming."
 	if streaming.button_pressed and not enabled.button_pressed: return "Enable crop and select a bbox for PBF streaming."
 	if not enabled.button_pressed: return ""
@@ -150,16 +201,29 @@ func error() -> String:
 func changed() -> void:
 	revision += 1
 	city.disabled = not (enabled.button_pressed and streaming.button_pressed)
+	# One map has one OSM scale: later imports reuse the scale already adopted.
+	var locked := locked_denominator()
+	if locked > 0 and int(scale.value) != locked: scale.set_value_no_signal(locked)
+	scale.editable = locked == 0 and not city.disabled and city.button_pressed
+	if origin_denominator > 0 and origin_denominator != denominator(): _place_origin()
 	ui._discard_import()
 	ui.osm_crop_button.set_meta("action_label", "Find area / OSM crop: %s…" % (I18N.t("on") if enabled.button_pressed else I18N.t("off")))
 	preload("./workbench_style.gd").refresh_label(ui.osm_crop_button)
 	area.set_bounds(bbox())
-	status.text = I18N.diagnostic(error()) if error() != "" else (I18N.t("Crop enabled. All corners must be within 20 km of the projection origin.\nReview counts, estimates and exact exclusions before adoption.") if enabled.button_pressed else I18N.t("Crop disabled: import the complete supported snapshot."))
-	if guided: dialog.get_ok_button().disabled = error() != "" or source_path.text == ""
-	if enabled.button_pressed and error() == "":
+	var problem := error()
+	status.text = I18N.diagnostic(problem) if problem != "" else (I18N.t("Crop enabled. All corners must be within 20 km of the projection origin.\nReview counts, estimates and exact exclusions before adoption.") if enabled.button_pressed else I18N.t("Crop disabled: import the complete supported snapshot."))
+	if locked > 0 and problem != "" and scale_error() != "": status.text += "\n"+I18N.t("Map scale locked to 1:%d by the OSM layers already in this map.") % locked
+	if guided: dialog.get_ok_button().disabled = problem != "" or source_path.text == ""
+	if enabled.button_pressed and problem == "":
 		var b := bbox()
-		var metres := Vector2((b[2]-b[0])*111320.0*cos(deg_to_rad((b[1]+b[3])*0.5)),(b[3]-b[1])*111320.0)/8.0
-		status.text += "\n"+I18N.t("1:8 approximate map size: %.0f × %.0f m. Origin: %.6f, %.6f (longitude, latitude).") % [metres.x,metres.y,ui.import_origin_lon.value,ui.import_origin_lat.value]
+		var d := denominator()
+		var metres := Vector2((b[2]-b[0])*111320.0*cos(deg_to_rad((b[1]+b[3])*0.5)),(b[3]-b[1])*111320.0)/d
+		status.text += "\n"+I18N.t("1:%d approximate map size: %.0f × %.0f m. Origin: %.6f, %.6f (longitude, latitude).") % [d,metres.x,metres.y,ui.import_origin_lon.value,ui.import_origin_lat.value]
+		if locked > 0 and city.button_pressed and not city.disabled: status.text += "\n"+I18N.t("Map scale locked to 1:%d by the OSM layers already in this map.") % locked
+		# The same area covers (8/D)² as many cells as at 1:8; warn before the import.
+		var size := float(ui.store.document.get("cell_size_cm", 51200))
+		var cells := ceili(metres.x*100.0/size)*ceili(metres.y*100.0/size)
+		if city.button_pressed and not city.disabled and cells > 256: status.text += "\n"+I18N.t("About %d map cells at the current %d cm cell size: the city check warns above 256 cells and refuses more than 16384. Use larger cells, a smaller area or a larger scale number.") % [cells,int(size)]
 
 func open() -> void:
 	if ui.busy: return
@@ -249,13 +313,22 @@ func set_origin(point: Vector2) -> void:
 	ui.import_source_format.item_selected.emit(1)
 	ui.import_origin_lon.value = point.x
 	ui.import_origin_lat.value = point.y
-	var bounds: Dictionary = ui.store.document.bounds
-	# OSM adoption divides all source metres by eight, including this placement.
-	ui.import_origin_x.value = (bounds.min[0]+bounds.max[0])*0.005*8
-	ui.import_origin_y.value = (bounds.min[1]+bounds.max[1])*0.005*8
+	_place_origin()
 	area.center = point
 	area.queue_redraw()
 	changed()
+
+var placing_origin := false
+## OSM adoption divides all source metres by D, including this placement: the
+## origin lands at the map centre. A later scale change places it again.
+func _place_origin() -> void:
+	var bounds: Dictionary = ui.store.document.bounds
+	var d := denominator()
+	placing_origin = true
+	ui.import_origin_x.value = (bounds.min[0]+bounds.max[0])*0.005*d
+	ui.import_origin_y.value = (bounds.min[1]+bounds.max[1])*0.005*d
+	placing_origin = false
+	origin_denominator = d
 
 func open_guided() -> void:
 	if ui.busy: return

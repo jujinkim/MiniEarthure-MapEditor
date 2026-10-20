@@ -1,13 +1,21 @@
 extends RefCounted
 const I18N := preload("./locale_text.gd")
 const LIMITS := preload("./limit_warnings.gd")
+const UNITS := preload("./import_units.gd")
+
+## A source-metre value of `cm` whole map centimetres at 1:denominator.
+static func _map_cm(value: Variant, cm: int, denominator: int) -> bool:
+	return (value is int or value is float) and absf(float(value) - cm * denominator / 100.0) < 1e-9
+
 ## Validate worker claims and complete source/record coverage before adoption.
 static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, notes: Array = []) -> String:
 	var meta: Variant = raw.coordinates.get("osm_city")
 	if meta == null: return "Missing requested city optimization." if requested.get("osm_city", false) else ""
-	if raw.adapter != "osm-extract-v1" or not raw.coordinates.has("osm_stream") or meta is not Dictionary or meta.get("profile") != "scale-aware-city-v1" or meta.get("scale_denominator") != 8: return "Invalid city optimization profile."
+	if raw.adapter != "osm-extract-v1" or not raw.coordinates.has("osm_stream") or meta is not Dictionary or meta.get("profile") != "scale-aware-city-v1" or not UNITS.valid_denominator(meta.get("scale_denominator")): return "Invalid city optimization profile."
 	if not requested.is_empty() and requested.get("osm_city") != true: return "Unrequested city optimization."
-	if not boundary._finite(meta.get("grid_m"),0.079999999,0.080000001) or not boundary._count(meta.get("gap_m"),64) or int(meta.gap_m) not in [0,2,4,8,16,32,64]: return "Invalid city approximation settings."
+	var denominator := int(meta.scale_denominator)
+	if not requested.is_empty() and requested.get("osm_scale", UNITS.OSM_DENOMINATOR) != denominator: return "City map scale does not match the request."
+	if not _map_cm(meta.get("grid_m"),1,denominator) or not boundary._count(meta.get("gap_m"),64) or int(meta.gap_m) not in [0,2,4,8,16,32,64]: return "Invalid city approximation settings."
 	if not boundary._finite(meta.get("line_tolerance_m"),0,4) or not boundary._finite(meta.get("polygon_tolerance_m"),0,8) or not is_equal_approx(float(meta.line_tolerance_m),minf(4.0,float(meta.gap_m)/4.0)) or not is_equal_approx(float(meta.polygon_tolerance_m),minf(8.0,float(meta.gap_m)/4.0)): return "Invalid city approximation settings."
 	var count_text := {"before":{"features":"City source features", "positions":"City source positions", "roads":"City source roads", "buildings":"City source buildings", "areas":"City source areas"},
 		"after":{"features":"City output features", "positions":"City output positions", "roads":"City output roads", "buildings":"City output buildings", "areas":"City output areas"}}
@@ -24,7 +32,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 	if not boundary._count(meta.get("layered_buildings"),meta.before.buildings): return "Invalid city layered building count."
 	if not boundary._count(meta.get("estimated_structure_roads"),meta.after.roads) or int(meta.estimated_structure_roads) != raw.coordinates.get("osm_estimated_structures",[]).size(): return "Invalid city estimated structure count."
 	if meta.get("vegetation_spacing_m") != 32 or meta.get("vegetation_density_per_mille") != 750: return "Invalid city vegetation estimates."
-	if not boundary._count(meta.get("widened_roads"),meta.before.roads) or meta.get("minimum_road_width_m") != 1.6 or meta.get("surface_mappings") is not Array: return "Invalid city road approximations."
+	if not boundary._count(meta.get("widened_roads"),meta.before.roads) or not _map_cm(meta.get("minimum_road_width_m"),20,denominator) or meta.get("surface_mappings") is not Array: return "Invalid city road approximations."
 	LIMITS.over(notes, "city_surface_mappings", meta.surface_mappings.size(), 512, "City road surface mappings")
 	var mapped := {}
 	var mapped_count := 0
@@ -33,7 +41,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 		mapped[entry.source] = true
 		mapped_count += int(entry.features)
 	if mapped_count > meta.before.roads: return "City surface mapping count exceeded."
-	if meta.get("estimated_road_widths") is not Dictionary or meta.get("road_clearance_m") != 0.8 or meta.get("building_clearance_m") != 0.16 or meta.get("polygon_partition_gap_m") != 0.32 or meta.get("trimmed_building_sources") is not Array or meta.get("overlap_adjusted_sources") is not Array: return "Invalid city road approximations."
+	if meta.get("estimated_road_widths") is not Dictionary or not _map_cm(meta.get("road_clearance_m"),10,denominator) or not _map_cm(meta.get("building_clearance_m"),2,denominator) or not _map_cm(meta.get("polygon_partition_gap_m"),4,denominator) or meta.get("trimmed_building_sources") is not Array or meta.get("overlap_adjusted_sources") is not Array: return "Invalid city road approximations."
 	var estimated_width_count := 0
 	for kind: Variant in meta.estimated_road_widths:
 		if not boundary._text(kind) or not boundary._count(meta.estimated_road_widths[kind],meta.before.roads): return "Invalid city road approximations."
@@ -80,11 +88,12 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 	return ""
 
 static func summary(meta: Dictionary) -> String:
-	var result := I18N.t("Automatic city optimization · 1:8\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nGap filling: ≤ %.2f source m (%.2f map m). Named/tall buildings, road corridors and courtyards remain protected.\nMerged building heights are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n") % [meta.before.features,meta.after.features,meta.before.positions,meta.after.positions,meta.before.roads,meta.after.roads,meta.before.buildings,meta.after.buildings,meta.before.areas,meta.after.areas,float(meta.gap_m),float(meta.gap_m)/8.0,JSON.stringify(meta.surface_mappings),meta.widened_roads]
+	var denominator := float(meta.scale_denominator)
+	var result := I18N.t("Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nGap filling: ≤ %.2f source m (%.2f map m). Named/tall buildings, road corridors and courtyards remain protected.\nMerged building heights are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n") % [int(denominator),meta.before.features,meta.after.features,meta.before.positions,meta.after.positions,meta.before.roads,meta.after.roads,meta.before.buildings,meta.after.buildings,meta.before.areas,meta.after.areas,float(meta.gap_m),float(meta.gap_m)/denominator,JSON.stringify(meta.surface_mappings),meta.widened_roads]
 	result += I18N.t("Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n") % meta.painted_pedestrian_ways
 	result += I18N.t("Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n") % meta.level_structures
 	result += I18N.t("Buildings above other features (positive layer, not roof canopies) stand on the ground: %d sources (estimate).\n") % meta.layered_buildings
 	result += I18N.t("Overpasses and underpasses without source heights use estimated 6 m levels and ramps up to 8%%: %d structure roads (not surveyed).\n") % meta.estimated_structure_roads
-	result += I18N.t("Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n") % [meta.polygon_partition_gap_m,meta.polygon_partition_gap_m/8.0]
-	result += I18N.t("Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n") % [meta.vegetation_spacing_m,meta.vegetation_spacing_m/8.0,meta.vegetation_density_per_mille/10]
+	result += I18N.t("Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n") % [meta.polygon_partition_gap_m,meta.polygon_partition_gap_m/denominator]
+	result += I18N.t("Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n") % [meta.vegetation_spacing_m,meta.vegetation_spacing_m/denominator,meta.vegetation_density_per_mille/10]
 	return result + I18N.t("Estimated road widths by class: %s. Building sources cut for road clearance: %d; adjusted for overlapping buildings: %d.\nNames and source IDs of enclosed buildings are retained in their containing volume. Geometry changes are approximations; originals stay unchanged.\n") % [JSON.stringify(meta.estimated_road_widths),meta.trimmed_building_sources.size(),meta.overlap_adjusted_sources.size()]
