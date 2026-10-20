@@ -2007,6 +2007,13 @@
     "City generation check exceeds 256 cells; increase cell size or reduce the selected area.": "都市の生成検査が256セルを超えます。セルを大きくするか選択範囲を狭めてください。",
     "Invalid city loop simplification mapping.": "都市の環状道路の簡略化対応情報が不正です。",
     "Invalid city vegetation estimates.": "都市の植生推定値が不正です。",
+    "Invalid city estimated structure count.": "都市の推定構造物の件数が無効です。",
+    "Invalid city ground paint count.": "都市の地面塗装の件数が無効です。",
+    "Invalid city ground-level structure count.": "都市の地面高さ構造物の件数が無効です。",
+    "Invalid city layered building count.": "都市のレイヤー建物の件数が無効です。",
+    "Ground paint records require OSM city optimization.": "地面塗装レコードには OSM 都市最適化が必要です。",
+    "Invalid OSM pedestrian road list.": "OSM 歩行者道路リストが無効です。",
+    "Invalid estimated city structures.": "都市の推定構造物が無効です。",
     "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n": "森林・果樹園の樹木は表現用の推定です。原寸間隔%.0f m（マップ%.0f m）、密度%d%%。原資料の区域境界はすべて保持され、個々の樹木位置は実測ではありません。\n",
     "Place zero-base OSM buildings on this DSM (estimated)": "底面高度0のOSM建物をこのDSMに配置（推定）",
     "Use imported OSM coordinates and full map extent": "取り込んだOSM座標とマップ全域を使用",
@@ -2227,6 +2234,7 @@
     " · Below 50% variety target": " · 多様性の目標50%未達",
     "Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n": "歩道・自転車道・階段は道路ではなく走行可能な地面の塗装で表示: %d 本。\n",
     "Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n": "元の高さがない橋・トンネル・レイヤー道路のうち、他の道路と交差しないもの、および高さを推定できず塗装された歩道とのみ交差するものは地面の高さで描画: %d 本(推定)。\n",
+    "Buildings above other features (positive layer, not roof canopies) stand on the ground: %d sources (estimate).\n": "他の施設の上にある建物(正のレイヤー、屋根キャノピーを除く)は地面に配置: %d 件の元データ(推定)。\n",
     "Overpasses and underpasses without source heights use estimated 6 m levels and ramps up to 8%%: %d structure roads (not surveyed).\n": "元の高さがない高架・アンダーパスは1層6 m、勾配最大8%%で推定: %d 本の構造物道路(測量値ではありません)。\n"
   }
 }

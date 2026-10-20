@@ -147,6 +147,13 @@ class Generalizer:
         self.ground_geometries = [g for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
         self.ground_widths = [clear_width(f) for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
         self.ground_buffers = road_buffers(self.ground_geometries, self.ground_widths)
+        # Buildings lifted from a positive layer to the ground are cut around
+        # source-height structures with their safety furniture; no building
+        # grows back into that corridor.
+        structures = [(g, float(f["properties"].get("width_m", 8)) + 3.2) for f,g in self.features
+                      if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") != "ground"]
+        self.structure_buffers = list(road_buffers([g for g,w in structures], [w for g,w in structures]))
+        self.structure_tree = STRtree(self.structure_buffers)
         self.protected_areas = [g for f,g in self.features if g.geom_type != "LineString" and (f["properties"].get("protected") or f["properties"].get("landuse") in ("water","wetland","forest","orchard","park","nature_reserve"))]
         self.area_tree = STRtree(self.protected_areas)
         self.area_array = np.array(self.protected_areas, dtype=object)
@@ -190,13 +197,16 @@ class Generalizer:
         if len(areas):
             areas = self.area_tree.query(geometry.buffer(extra+0.16).envelope)
         self.spend(len(areas))
-        # Gap filling must not regrow into a junction surface the trim cleared.
+        # Gap filling must not regrow into a junction surface the trim cleared,
+        # nor into a source-height structure's safety corridor.
         junctions = self.junction_tree.query(window)
-        self.spend(len(junctions))
+        structures = self.structure_tree.query(window)
+        self.spend(len(junctions) + len(structures))
         union = []
         def build():
             if not union:
-                union.append(unary_union(list(shapely.intersection(self.barrier_buffers[ids], window)) + list(shapely.intersection(self.area_array[areas], window)) + [self.junction_disks[i] for i in junctions]))
+                union.append(unary_union(list(shapely.intersection(self.barrier_buffers[ids], window)) + list(shapely.intersection(self.area_array[areas], window))
+                                         + [self.junction_disks[i] for i in junctions] + [self.structure_buffers[i].intersection(window) for i in structures]))
             return union[0]
         if self.invalid_areas[areas].any():
             build()
@@ -484,11 +494,17 @@ class Generalizer:
                     self.trim_windows[index] = g.buffer(self.max_width/2+0.8).envelope
                 ids = self.ground_tree.query(self.trim_windows[index])
                 self.spend(len(ids))
-                road_space = unary_union([self.ground_barriers[i].intersection(g.envelope) for i in ids])
+                barriers = [self.ground_barriers[i].intersection(g.envelope) for i in ids]
+                if p.get("_city_layer_building"):
+                    lifted = self.structure_tree.query(g)
+                    self.spend(len(lifted))
+                    barriers += [self.structure_buffers[i].intersection(g.envelope) for i in lifted]
+                road_space = unary_union(barriers)
                 trimmed = g.difference(road_space)
                 if trimmed.is_empty:
                     for identity in source_ids(f):
-                        self.review.reject(identity, "Building footprint is entirely inside derived ground-road space; it cannot retain a solid at 1:8 without blocking the road. Road widths may be estimates. Explicit source exclusion is required.")
+                        self.review.reject(identity, "Building footprint is entirely inside derived ground-road space; it cannot retain a solid at 1:8 without blocking the road. Road widths may be estimates. Explicit source exclusion is required."
+                                           if not p.get("_city_layer_building") else "Building above other features (positive layer) placed on the ground lies entirely inside derived road or source-height structure space. Explicit source exclusion is required.")
                         self.excluded_sources.add(identity)
                     continue
                 if not trimmed.is_empty and trimmed.area < g.area-0.0001:
@@ -769,6 +785,7 @@ class Generalizer:
                     before=self.before, after=self.counts(items), source_ids=sorted(expected),
                     unmerged_numeric_groups=self.retained_groups, painted_pedestrian_ways=self.paint_ways,
                     level_structures=self.level_structures,
+                    layered_buildings=sum(bool(f["properties"].get("_city_layer_building")) and not self.excluded_sources.intersection(source_ids(f)) for f,g in self.features),
                     estimated_structure_roads=sum("_city_estimated_m" in f["properties"] for f,g in items),
                     groups=groups, protected_buildings=sum(bool(f["properties"].get("_city_name") or f["properties"].get("_city_landmark") or float(f["properties"].get("height_m",12))>=40) for f,g in items if is_building(f,g)))
         return result, meta

@@ -2007,6 +2007,13 @@
     "City generation check exceeds 256 cells; increase cell size or reduce the selected area.": "도시 생성 검사가 256셀을 초과합니다. 셀 크기를 키우거나 선택 영역을 줄이세요.",
     "Invalid city loop simplification mapping.": "도시 순환 도로의 단순화 대응 정보가 잘못되었습니다.",
     "Invalid city vegetation estimates.": "도시 식생 추정값이 잘못되었습니다.",
+    "Invalid city estimated structure count.": "도시 추정 구조물 개수가 올바르지 않습니다.",
+    "Invalid city ground paint count.": "도시 바닥 도색 개수가 올바르지 않습니다.",
+    "Invalid city ground-level structure count.": "도시 지면 높이 구조물 개수가 올바르지 않습니다.",
+    "Invalid city layered building count.": "도시 layer 건물 개수가 올바르지 않습니다.",
+    "Ground paint records require OSM city optimization.": "바닥 도색 레코드에는 OSM 도시 최적화가 필요합니다.",
+    "Invalid OSM pedestrian road list.": "OSM 보행 도로 목록이 올바르지 않습니다.",
+    "Invalid estimated city structures.": "도시 추정 구조물이 올바르지 않습니다.",
     "Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n": "숲·과수원 수목은 표현용 추정입니다. 원본 간격 %.0fm(맵 %.0fm), 밀도 %d%%입니다. 원본 영역 경계는 모두 남으며 개별 나무 위치는 실측값이 아닙니다.\n",
     "Place zero-base OSM buildings on this DSM (estimated)": "이 DSM에 바닥 높이 0인 OSM 건물 배치(추정)",
     "Use imported OSM coordinates and full map extent": "가져온 OSM 좌표와 전체 맵 범위 사용",
@@ -2227,6 +2234,7 @@
     " · Below 50% variety target": " · 다양성 목표 50% 미달",
     "Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n": "보행로·자전거길·계단은 도로 대신 주행 가능한 바닥 표시로 칠함: %d개 경로.\n",
     "Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n": "원본 높이가 없는 교량·터널·층(layer) 도로 중 다른 도로와 교차하지 않는 것과, 높이를 추정할 수 없고 칠한 보행로하고만 교차하는 것은 지면 높이로 그림: %d개 경로(추정).\n",
+    "Buildings above other features (positive layer, not roof canopies) stand on the ground: %d sources (estimate).\n": "다른 시설 위에 있는 건물(양수 layer, 지붕 캐노피 제외)은 지면에 세움: %d개 원본(추정).\n",
     "Overpasses and underpasses without source heights use estimated 6 m levels and ramps up to 8%%: %d structure roads (not surveyed).\n": "원본 높이가 없는 고가·지하차도는 층마다 6 m, 경사 최대 8%%로 추정: %d개 구조물 도로(측량값 아님).\n"
   }
 }

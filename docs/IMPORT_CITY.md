@@ -18,7 +18,8 @@ It separates larger bounded source work from the smaller output MapKit accepts.
 - Ground paths, footways, cycleways, pedestrian streets and steps become painted
   ground (`surface_areas`), not roads; cars cross them as terrain. Steps keep their
   class; bridge, tunnel, layered or conveying steps (escalators) are excluded. A
-  ground walking way's `incline` is its slope and is ignored on the flat map. Their source-width
+  ground walking way's `incline` is its slope and is ignored on the flat map, as
+  is the `level` of an entrance node (a building floor, not road height). Their source-width
   ribbons are united on the map-centimetre lattice and cut per 32 m map cell, and
   through any enclosed hole, into hole-free pieces of ≤256 vertices. Each piece maps
   to every source way it covers and takes the surface covering most of it (untagged:
@@ -72,6 +73,13 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   lists only the kept candidate's exclusions.
 - Named, public, landmark and tall buildings are protected from aggregation. Road
   corridors, protected land and courtyards block filler.
+- A building above other features (a positive integer `layer`, for example over
+  tracks or a stream) stands on the ground and is counted as an estimate in review.
+  It is also cut around source-height bridge and tunnel corridors (their width plus
+  3.2 m for safety furniture), and no building grows back into those corridors.
+  Outline ways of such a building relation are lifted with it. Roof canopies,
+  barriers such as toll booths, structures and underground (negative-layer)
+  buildings stay excluded.
 - Buildings are cut around road space with 0.8 m clearance, including a disk of
   √2 × the widest half width + 0.8 m around every junction node (the extent of a
   junction surface); gap filling never regrows into either. Overlapping volumes

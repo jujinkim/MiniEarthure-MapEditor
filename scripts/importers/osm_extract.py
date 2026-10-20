@@ -131,6 +131,23 @@ def city_tags(tags):
     return tags
 
 
+def city_building_tags(tags, member=False):
+    """City profile: a building above other features (positive layer, not a
+    roof canopy or barrier) stands on the flat 1:8 ground. `member` lifts an
+    untagged outline way of such a building relation too."""
+    if ((member and "building" not in tags or tags.get("building", "no") not in ("no", "roof")) and "barrier" not in tags
+            and re.fullmatch(r"[1-9][0-9]*", tags.get("layer", ""))):
+        return {key: value for key, value in tags.items() if key != "layer"}
+    return tags
+
+
+def city_node_tags(tags):
+    """City profile: an entrance's level is a building floor, not road height."""
+    if "entrance" in tags and "level" in tags:
+        return {key: value for key, value in tags.items() if key != "level"}
+    return tags
+
+
 CUT_STRUCTURE = "OSM city structure ends where an excluded way continued it; it is not estimated without that connection"
 
 
@@ -718,6 +735,27 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     review = review or Review()
     feature_limit = MAX_FEATURES if feature_limit is None else feature_limit
     topology = SpatialBudget() if city else Budget()
+    layered = set()
+    if city:
+        node_tags = {ref: city_node_tags(tags) for ref, tags in node_tags.items()}
+        lifted = {identity: city_building_tags(tags) for identity, (_, tags) in all_ways.items()}
+        layered = {"way/" + str(identity) for identity, (_, tags) in all_ways.items() if lifted[identity] is not tags}
+        all_ways = {identity: (refs, lifted[identity]) for identity, (refs, _) in all_ways.items()}
+        ways = [(identity, kind, refs, lifted.get(identity, tags)) for identity, kind, refs, tags in ways]
+        lifted_relations = []
+        for identity, kind, members, tags in relations:
+            raised = city_building_tags(tags) if kind == "building" else tags
+            if kind == "building" and raised.get("building") != "roof":
+                for kind_, ref, _ in members:
+                    if kind_ != "w" or ref not in all_ways: continue
+                    outline = city_building_tags(all_ways[ref][1], member=True)
+                    if outline is not all_ways[ref][1]:
+                        all_ways[ref] = (all_ways[ref][0], outline)
+                        layered.add("way/" + str(ref))
+            if kind == "building" and (raised is not tags or any("way/" + str(ref) in layered for kind_, ref, _ in members if kind_ == "w")):
+                layered.add("relation/" + str(identity))
+            lifted_relations.append((identity, kind, members, raised))
+        relations = lifted_relations
     assembled, consumed = [], set()
     for relation in sorted(relations):
         try:
@@ -777,6 +815,8 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology, city=city))
             if identity in level:
                 features[-1]["properties"]["_city_level_structure"] = True
+            if "way/" + str(identity) in layered and kind == "building":
+                features[-1]["properties"]["_city_layer_building"] = True
             if identity in estimated:
                 points, structure = estimated[identity]
                 # Profile bends add unreferenced vertices; chain ways have no
@@ -811,6 +851,8 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     counts["explicit_height_roads"] = sum("elevations_m" in f["properties"] for f in features)
     counts["bridge_segments"] = sum(f["properties"].get("road_kind") == "bridge" for f in features)
     counts["tunnel_segments"] = sum(f["properties"].get("road_kind") == "tunnel" for f in features)
+    for feature in assembled:
+        if feature["properties"]["osm_source_id"] in layered: feature["properties"]["_city_layer_building"] = True
     features.extend(assembled)
     if len(features) > feature_limit:
         raise ValueError("OSM selected feature budget exceeded")

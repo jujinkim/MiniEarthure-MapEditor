@@ -301,6 +301,36 @@ class City(unittest.TestCase):
         area=sum(transform(worker.project,shape(f["geometry"])).area for f in steps)
         self.assertAlmostEqual(area/(60*1.6),1.0,delta=0.08,msg="footway width, not the 8 m default")
 
+    def test_lifted_layer_buildings_keep_clear_of_source_height_structures(self):
+        from osm_review import Review
+        for kind in ("bridge", "tunnel"):
+            with self.subTest(kind=kind):
+                self.setup_city()
+                structure = dict(road_kind=kind, elevations_m=[6.0 if kind == "bridge" else -6.0]*2, osm_way_id=1, osm_node_refs=[1, 2], width_m=6, _city_road_tags=dict(highway="residential"))
+                self.add(1, LineString([(0, 0), (100, 0)]), **structure)
+                self.add(2, box(20, 4.5, 40, 20), height_m=12, _city_layer_building=True)  # Within 3 + 1.6 + 0.8 m.
+                self.add(3, box(60, 4.5, 80, 20), height_m=12)
+                self.add(4, box(45, -3, 55, 3), height_m=12, _city_layer_building=True)
+                review = Review(True)
+                out, meta = Generalizer(dict(type="FeatureCollection", features=self.features), self.options, review).candidate(0)
+                self.assertEqual(meta["layered_buildings"], 1, "the excluded lifted building is not counted as standing")
+                self.assertIn("way/2", meta["trimmed_building_sources"], "cut back to the structure's safety corridor")
+                self.assertNotIn("way/3", meta["trimmed_building_sources"], "ordinary buildings keep the explicit-structure rule")
+                self.assertEqual([r["source_id"] for r in review.excluded.values()], ["way/4"])
+                self.assertIn("positive layer", review.excluded["way/4"]["reason"])
+
+    def test_simplified_lifted_buildings_stay_out_of_a_bent_structure_corridor(self):
+        self.setup_city()
+        self.add(1, LineString([(0, 0), (50, 0), (100, -8)]), road_kind="bridge", elevations_m=[6.0]*3, osm_way_id=1, osm_node_refs=[1, 2, 3], width_m=6,
+                 _city_road_tags=dict(highway="residential"))
+        self.add(2, Polygon([(30, 1), (70, 1), (70, 30), (30, 30)]), height_m=12, _city_layer_building=True)
+        worker = self.worker(); out, meta = worker.candidate(64)
+        bridge = LineString([(0, 0), (50, 0), (100, -8)])
+        building = [transform(worker.project, shape(f["geometry"])) for f in out["features"] if f["properties"].get("osm_source_id") == "way/2" or "way/2" in f["properties"].get("_city_sources", [])]
+        self.assertTrue(building)
+        corridor = bridge.buffer(3 + 1.6, cap_style="flat")
+        self.assertTrue(all(b.intersection(corridor).area < 1e-6 for b in building), "growth never re-enters the safety strip")
+
     def test_gaps_sharing_road_space_reuse_it_exactly(self):
         from osm_review import Review
         self.setup_city()

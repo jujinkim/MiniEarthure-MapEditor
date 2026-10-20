@@ -419,3 +419,52 @@ class CitySteps(unittest.TestCase):
         ET.SubElement(root.find("way[@id='1']"), "tag", k="incline", v="5%")
         with self.assertRaisesRegex(ValueError, "way/1: OSM unsupported vertical semantics on road"):
             osm.parse(ET.tostring(root), "osm", city=True)
+
+
+class CityLayersAndEntrances(unittest.TestCase):
+    def osm(self, building_tags=(), entrance_tags=(("entrance", "yes"), ("level", "1")), building="yes"):
+        kind, tags = building, "".join(f'<tag k="{k}" v="{v}"/>' for k, v in building_tags)
+        entrance = "".join(f'<tag k="{k}" v="{v}"/>' for k, v in entrance_tags)
+        return f"""<osm version="0.6">
+<node id="1" lon="9" lat="55"/><node id="2" lon="9.0002" lat="55"/><node id="3" lon="9.0002" lat="55.0002"/><node id="4" lon="9" lat="55.0002"/>
+<node id="5" lon="9.0001" lat="54.9995"/><node id="6" lon="9.0001" lat="54.9999">{entrance}</node>
+<way id="1"><nd ref="1"/><nd ref="2"/><nd ref="3"/><nd ref="4"/><nd ref="1"/><tag k="building" v="{kind}"/>{tags}</way>
+<way id="2"><nd ref="5"/><nd ref="6"/><tag k="highway" v="footway"/></way>
+</osm>""".encode()
+
+    def features(self, raw):
+        value, _ = osm.parse(raw, "osm", city=True)
+        return {f["properties"]["osm_source_id"]: f["properties"] for f in value["features"]}
+
+    def test_positive_layer_buildings_stand_on_the_city_ground(self):
+        raw = self.osm((("layer", "1"),))
+        with self.assertRaisesRegex(ValueError, "nonzero layer requires explicit vertical geometry"):
+            osm.parse(raw, "osm")
+        self.assertTrue(self.features(raw)["way/1"]["_city_layer_building"])
+        self.assertNotIn("_city_layer_building", self.features(self.osm())["way/1"])
+        for kind, tags in (("yes", (("layer", "-1"),)), ("roof", (("layer", "1"),)), ("yes", (("layer", "1"), ("barrier", "toll_booth"))), ("yes", (("layer", "1"), ("bridge", "yes")))):
+            with self.subTest(kind=kind, tags=tags), self.assertRaisesRegex(ValueError, "way/1: OSM bridge/tunnel/nonzero layer requires explicit vertical geometry"):
+                osm.parse(self.osm(tags, building=kind), "osm", city=True)
+
+    def test_layered_building_relations_and_their_outlines_are_lifted(self):
+        root = ET.fromstring(self.osm())
+        outer = root.find("way[@id='1']")
+        outer.remove(outer.find("tag[@k='building']"))
+        relation = ET.SubElement(root, "relation", id="7")
+        ET.SubElement(relation, "member", type="way", ref="1", role="outer")
+        for k, v in (("type", "multipolygon"), ("building", "yes")): ET.SubElement(relation, "tag", k=k, v=v)
+        for place in ("relation", "outline"):
+            with self.subTest(place=place):
+                variant = copy.deepcopy(root)
+                ET.SubElement(variant.find("relation[@id='7']" if place == "relation" else "way[@id='1']"), "tag", k="layer", v="1")
+                with self.assertRaisesRegex(ValueError, "nonzero layer requires explicit vertical geometry"):
+                    osm.parse(ET.tostring(variant), "osm")
+                self.assertTrue(self.features(ET.tostring(variant))["relation/7"]["_city_layer_building"])
+
+    def test_an_entrance_level_is_not_road_height(self):
+        with self.assertRaisesRegex(ValueError, "way/2: OSM unsupported road-node vertical semantics"):
+            osm.parse(self.osm(), "osm")
+        self.assertIn("way/2", self.features(self.osm()))
+        with self.assertRaisesRegex(ValueError, "way/2: OSM unsupported road-node vertical semantics"):
+            osm.parse(self.osm(entrance_tags=(("level", "1"),)), "osm", city=True)
+
