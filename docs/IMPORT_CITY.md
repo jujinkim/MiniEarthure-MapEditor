@@ -55,6 +55,10 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   space: road-trimmed sources, protected buildings, aggregation groups and
   pedestrian paint are built once and charge the same work budget as a fresh
   build. Only gap filling and the overlap partition are rebuilt per gap.
+- Selection keeps the smallest gap whose output has ≤80 % of the source features and
+  ≤70 % of its positions and encodes within 24 MiB; otherwise the largest gap that
+  converts. A candidate missing the ratios waits pickled and is converted only if it
+  can still be kept, newest first, with the exclusion review as it stood after it.
 - Named, public, landmark and tall buildings are protected from aggregation. Road
   corridors, protected land and courtyards block filler.
 - Buildings are cut around road space with 0.8 m clearance, including a disk of

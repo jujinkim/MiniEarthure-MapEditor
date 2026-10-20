@@ -279,6 +279,29 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     return layer
 
 
+def select_city(generated, reduced, admit, small, hold=lambda item: lambda: item):
+    """The first reduced candidate that converts small enough, otherwise the last
+    candidate that converts. Unreduced candidates wait (via `hold`) until generation
+    ends; only those after the latest converted one can still be kept, so newest go first."""
+    result, deferred = None, []
+    for attempt, item in generated:
+        if not reduced(item):
+            deferred.append((attempt, hold(item)))
+            continue
+        converted = admit(attempt, item)
+        if converted is None:
+            continue
+        result = converted
+        deferred.clear()
+        if small(converted):
+            return result
+    for attempt, held in reversed(deferred):
+        converted = admit(attempt, held())
+        if converted is not None:
+            return converted
+    return result
+
+
 def watch_parent_lifetime(timeout=120):
     # EOF terminates this helper if its owner exits/crashes. No grandchildren.
     def watch_parent():
@@ -415,18 +438,17 @@ def main():
     encoded = None
     if args.osm_city:
         from copy import deepcopy
+        from functools import partial
+        import pickle
         from osm_generalize import candidates, LEVELS
         from import_layer import CITY_FEATURES as OUTPUT_FEATURES, CITY_POINTS as OUTPUT_POINTS, CITY_OUTPUT
         from osm_extract import finish
         for index, feature in enumerate(value["features"]):
             feature["properties"]["_city_crop_feature"] = index
-        error = "City geometry cannot fit the current output budget while preserving protected objects"
-        event("optimize", 0, len(LEVELS), "steps")
-        result = None
-        for attempt, (candidate, metadata) in enumerate(candidates(value, options, review)):
-            event("optimize", attempt+1, len(LEVELS), "steps", features=metadata["after"]["features"], positions=metadata["after"]["positions"], gap_m=metadata["gap_m"], categories=metadata["after"])
-            if metadata["after"]["features"] > OUTPUT_FEATURES or metadata["after"]["positions"] > OUTPUT_POINTS:
-                continue
+        failures = {}
+        def admit(attempt, item):
+            # The review is the one that stood right after this candidate was generated.
+            candidate, metadata, reviewed = item
             try:
                 trial = convert(candidate, args.source_name or args.source.name, args.license, layer_id=args.layer_id,
                     accuracy=args.accuracy, coordinates=options, osm_graph=True, captured_source=captured_source, city=True)
@@ -437,7 +459,7 @@ def main():
                 trial.coordinates["vertical"] = vertical.metadata
                 trial.coordinates["osm_stream"] = osm_stream
                 if supplement is not None: trial.coordinates["osm_height_supplement"] = supplement.metadata
-                if review.enabled: trial.coordinates["osm_review"] = review.metadata()
+                if review.enabled: trial.coordinates["osm_review"] = review.metadata(reviewed)
                 trial_crop = deepcopy(osm_crop)
                 remap = {f["properties"].get("_city_crop_feature"): i for i,f in enumerate(candidate["features"]) if "osm_node_refs" in f["properties"]}
                 for structure in trial_crop["vertical"]["structures"]:
@@ -460,17 +482,28 @@ def main():
             except ValueError as exc:
                 if not any(reason in str(exc).lower() for reason in ("budget", "multipolygon", "polygon ring", "boundaries intersect", "ring is")):
                     raise
-                error = str(exc)
-                continue
-            result, city_meta, encoded = trial, metadata, encoded_trial
-            # Leave room for bounded source provenance and the atomic command.
-            # Object merging alone can retain nearly every bend/vertex and
-            # still overload native city cells. Prefer a candidate which also
-            # reduces geometric detail, within the disclosed fixed tolerances.
-            if len(encoded_trial) <= 24 * 1024**2 and metadata["after"]["features"] <= metadata["before"]["features"] * 0.8 and metadata["after"]["positions"] <= metadata["before"]["positions"] * 0.7:
-                break
-        if result is None:
+                failures[attempt] = str(exc)
+                return None
+            return trial, encoded_trial, metadata
+        def generated():
+            for attempt, (candidate, metadata) in enumerate(candidates(value, options, review)):
+                event("optimize", attempt+1, len(LEVELS), "steps", features=metadata["after"]["features"], positions=metadata["after"]["positions"], gap_m=metadata["gap_m"], categories=metadata["after"])
+                if metadata["after"]["features"] <= OUTPUT_FEATURES and metadata["after"]["positions"] <= OUTPUT_POINTS:
+                    yield attempt, (candidate, metadata, len(review.excluded))
+        # Object merging alone can retain nearly every bend/vertex and
+        # still overload native city cells. Prefer a candidate which also
+        # reduces geometric detail, within the disclosed fixed tolerances.
+        reduced = lambda item: item[1]["after"]["features"] <= item[1]["before"]["features"] * 0.8 and item[1]["after"]["positions"] <= item[1]["before"]["positions"] * 0.7
+        # Leave room for bounded source provenance and the atomic command.
+        small = lambda converted: len(converted[1]) <= 24 * 1024**2
+        event("optimize", 0, len(LEVELS), "steps")
+        # A waiting candidate is far smaller pickled than as live objects.
+        hold = lambda item: partial(pickle.loads, pickle.dumps(item, protocol=5))
+        selected = select_city(generated(), reduced, admit, small, hold)
+        if selected is None:
+            error = failures[max(failures)] if failures else "City geometry cannot fit the current output budget while preserving protected objects"
             raise ValueError(error + "; no supported object was silently dropped")
+        result, encoded, city_meta = selected
         event("optimize", len(LEVELS), len(LEVELS), "steps")
         event("convert", result.feature_count, result.feature_count, "features")
     elif args.input_format == "csv":
