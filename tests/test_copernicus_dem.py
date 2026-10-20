@@ -13,6 +13,10 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts/importers"))
 import copernicus_dem as dem
 from dem_fixture import create
 
+# Support windows of the synthetic four-tile mosaic, identical before the shared-read change.
+WINDOWS_CORNER="6e52f8a93531b9f90be1d8af41ff25f314fa06df4097d089f350c2f1be628822"
+WINDOWS_EDGE="cb81dadb2018ecdbf536d9a44db25586c9162682abcffaeb41c567b504b67954"
+
 
 def options(source=""):
     return dict(coordinates=dict(mode="wgs84-utm",origin=[9.5,55.5],local_origin_m=[0,0]),cell=[0,0],cell_count=[1,1],cell_size_cm=51200,map_min_cm=[0,0],spacing_cm=3200,vertical_zero_m=0,source=str(source))
@@ -123,6 +127,53 @@ class DemTests(unittest.TestCase):
         self.assertEqual(dem.identity(self.source),original)
         with patch.object(dem,"MAX_SOURCE",original["bytes"]-1),self.assertRaises(ValueError):dem.plan(options(self.source))
 
+    def test_decode_budget_counts_touched_blocks_before_hashing(self):
+        cost=dem.plan(options(self.source))["sources"][0]["source"]["decode"]
+        self.assertEqual((cost["block"],cost["blocks"],cost["decoded_bytes"]),([1024,1024],1,4*1024*1024))
+        self.assertGreater(cost["compressed_bytes"],0)
+        with patch.object(dem,"MAX_DECODE",cost["decoded_bytes"]-1),patch.object(dem,"identity",side_effect=AssertionError("hashed before the decode budget")):
+            with self.assertRaisesRegex(ValueError,"decode budget.*flat terrain"):dem.plan(options(self.source))
+        with patch.object(dem,"MAX_DECODE",cost["decoded_bytes"]):dem.plan(options(self.source))
+        with tempfile.TemporaryDirectory() as folder:
+            d=Path(folder)
+            changed=dem.plan(options(self.source));changed["sources"][0]["source"]["decode"]["blocks"]=2
+            with self.assertRaisesRegex(ValueError,"review again"):dem.execute(dict(mode="dem",plan=changed,destination=str(d/"tampered")),d,lambda *a:None)
+            self.assertEqual(list(d.iterdir()),[])
+            with patch.object(dem,"captured_cost",return_value=[dict(cost,blocks=2)]),self.assertRaisesRegex(ValueError,"decode plan changed"):
+                dem.execute(dict(mode="dem",plan=dem.plan(options(self.source)),destination=str(d/"recheck")),d,lambda *a:None)
+            self.assertFalse(list(d.glob("*.png")))
+
+    def test_review_errors_stay_bounded_without_raster_stack(self):
+        with tempfile.TemporaryDirectory() as folder:
+            empty=Path(folder)/"empty.tif";empty.write_bytes(b"")
+            with self.assertRaisesRegex(ValueError,"^Empty DEM$"):dem.plan(options(empty))
+            junk=Path(folder)/"junk.tif";junk.write_bytes(b"not a tiff")
+            with self.assertRaises(ValueError) as caught:dem.plan(options(junk))
+            self.assertNotIn(folder,str(caught.exception))
+        with patch.dict(sys.modules,{"numpy":None}),patch.object(dem,"raster_dependencies",side_effect=ValueError("DEM needs rasterio 1.4.4")):
+            with self.assertRaisesRegex(ValueError,"DEM needs rasterio"):dem.plan(options(self.source))
+
+    def test_array_grid_matches_scalar_projection_and_keeps_guard_errors(self):
+        from pyproj.enums import TransformDirection
+        cell=options(self.source);del cell["cell_count"]
+        for raw in [cell,dict(cell,cell=[7,11],cell_size_cm=12800,spacing_cm=400,osm_denominator=8),
+                    dict(cell,coordinates=dict(mode="wgs84-utm",origin=[-70.5,-33.4],local_origin_m=[100.5,-3.25]),cell=[3,2],cell_size_cm=6400,spacing_cm=200)]:
+            coordinates,side,points,_,_=dem.grid(raw)
+            size,spacing,denominator=raw["cell_size_cm"],raw["spacing_cm"],raw.get("osm_denominator",1)
+            reference=[]
+            for row in range(side):
+                for col in range(side):
+                    local=[(raw["map_min_cm"][i]+raw["cell"][i]*size+(col if i==0 else row)*spacing)/100 for i in range(2)]
+                    dx,dy=[local[i]*denominator-coordinates.local[i] for i in range(2)]
+                    reference.append(coordinates.transformer.transform(coordinates.origin_xy[0]+dx,coordinates.origin_xy[1]+dy,direction=TransformDirection.INVERSE,errcheck=True))
+            self.assertIsNotNone(dem._grid_points(raw,coordinates,denominator,size,spacing,side))
+            self.assertEqual(points,reference)
+        # Near a guard the scalar loop runs and reports its own first error.
+        for edge,message in [([39,0],"source exceeds 20 km"),([40,0],"DEM exceeds 20 km"),([0,39],"DEM exceeds 20 km")]:
+            with self.subTest(edge=edge),self.assertRaisesRegex(ValueError,message):dem.grid(dict(cell,cell=edge))
+        fast=dem.grid(cell)[2]
+        with patch.object(dem,"_grid_points",return_value=None):self.assertEqual(dem.grid(cell)[2],fast)
+
 
 class MosaicTests(unittest.TestCase):
     @classmethod
@@ -156,6 +207,37 @@ class MosaicTests(unittest.TestCase):
             self.assertEqual(len(r["review"]["sources"]),4)
             self.assertEqual(events[-1],("sample",4*17*17,4*17*17))
             self.assertTrue(all(Path(s["source"]["captured_path"]).is_file() for s in r["review"]["sources"]))
+    def test_combined_tiles_beyond_one_tile_limit_and_single_grid_pass(self):
+        largest=max(s["source"]["bytes"] for s in dem.plan(self.opts())["sources"])
+        with patch.object(dem,"MAX_SOURCE",largest):
+            p=dem.plan(self.opts())
+            self.assertGreater(sum(s["source"]["bytes"] for s in p["sources"]),dem.MAX_SOURCE)
+            with tempfile.TemporaryDirectory() as folder,patch.object(dem,"mosaic_grid",wraps=dem.mosaic_grid) as grids:
+                d=Path(folder)
+                r=dem.execute(dict(mode="dem",plan=p,destination=str(d/"capture")),d,lambda *a:None)
+                self.assertEqual(grids.call_count,1)
+                self.assertEqual(len(r["outputs"]),4)
+        with patch.object(dem,"MAX_SOURCE",largest-1),self.assertRaisesRegex(ValueError,"exceeds 64 MiB"):dem.plan(self.opts())
+
+    def test_four_source_outputs_and_windows_are_unchanged(self):
+        from rasterio.io import DatasetReader
+        original=DatasetReader.read
+        for origin,pngs,windows in [([9.997,54.997],"4ca30924babfc681cea3db98b76d1648fcefc4b6e643979d7f03dd58bb22adde",WINDOWS_CORNER),
+                                          ([9.99999,55.00001],"f2b6901d3932977c51346ce5035d49ff58f56fe8b3883059fa8f005706eb344d",WINDOWS_EDGE)]:
+            o=self.opts();o["coordinates"]["origin"]=origin
+            reads=[]
+            def counted(dataset,*args,**kwargs):
+                reads.append(args)
+                return original(dataset,*args,**kwargs)
+            with tempfile.TemporaryDirectory() as folder,patch.object(DatasetReader,"read",counted):
+                d=Path(folder)
+                r=dem.execute(dict(mode="dem",plan=dem.plan(o),destination=str(d/"capture")),d,lambda *a:None)
+                digests="".join(hashlib.sha256(Path(output["png_path"]).read_bytes()).hexdigest() for output in r["outputs"])
+                self.assertEqual(hashlib.sha256(digests.encode()).hexdigest(),pngs)
+                self.assertEqual(hashlib.sha256(json.dumps(r["raster"]["source_windows"]).encode()).hexdigest(),windows)
+                # One read per bilinear corner set, not one per corner.
+                self.assertLess(len(reads),len(r["raster"]["source_windows"]))
+
     def test_limits_missing_source_and_stale_plan(self):
         for counts in [[0,1],[5,1],[True,1],[4,4]]:
             o=dict(self.opts(),cell_count=counts,cell_size_cm=102400,spacing_cm=200)

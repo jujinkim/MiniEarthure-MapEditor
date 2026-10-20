@@ -1746,6 +1746,8 @@
     "DEM input is missing: ": "DEM input is missing: ",
     "DEM input identity changed.": "DEM input identity changed.",
     "DEM input group exceeds 64 MiB.": "DEM input group exceeds 64 MiB.",
+    "DEM source tiles exceed their budget.": "DEM source tiles exceed their budget.",
+    "Decodes %d full-resolution blocks · %d bytes (%d compressed)\n": "Decodes %d full-resolution blocks · %d bytes (%d compressed)\n",
     "DEM input changed during validation.": "DEM input changed during validation.",
     "DEM input changed while reading.": "DEM input changed while reading.",
     "DEM input hash changed during validation.": "DEM input hash changed during validation.",

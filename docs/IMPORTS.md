@@ -53,9 +53,13 @@ extent, counts, estimates and bounded warning samples are retained.
 
 ## DEM mosaics and building bases
 
-Copernicus mosaics allow up to 256 cells of any aspect ratio, four source tiles,
-64 MiB combined source, 1025² total samples, 513 samples per cell side, 64 MiB
-output and a 120-second native deadline. The adopted source notice names each tile
+Copernicus mosaics allow up to 256 cells of any aspect ratio, four source tiles of
+at most 64 MiB each, 64 MiB of decoded full-resolution COG blocks, 1025² total
+samples, 513 samples per cell side, 64 MiB output and a 120-second native deadline.
+Review reads only the tile headers to find the blocks the sample support touches and
+refuses an excess before hashing or copying; the review lists each tile's blocks and
+decoded/compressed bytes, and the captured copies must touch the same blocks. Whole
+tiles are still hashed and copied for their identity. The adopted source notice names each tile
 file with its bytes and SHA-256; local source and capture paths stay out of the map
 (the capture folder keeps its own review sidecars). DEM is optional: a multi-district region
 beyond these limits is refused with that explanation and keeps its flat terrain. **Use imported OSM coordinates and full
@@ -154,9 +158,6 @@ The importer needs Python 3.12+ with `requirements-import.txt` (NumPy 2.5.3).
 
 - City output stays within 32 MiB ([IMPORT_CITY](IMPORT_CITY.md)); four Suwon
   districts adopt at 24.1 MB, which is not a claim for every city.
-- The four Suwon districts and Seoul Jongno-gu both straddle 127°E and need two
-  Copernicus tiles (79 MB together), above the 64 MiB combined source allowance,
-  although each tile is within 64 MiB and sampling reads only small windows.
 - A DEM cannot yet be adopted onto a city map with estimated bridges or tunnels:
   their ground anchors sit on the flat terrain base, so native generation rejects
   the junction aprons (`E_GEOMETRY`, 1 cm terrain match). Ground roads, levelled

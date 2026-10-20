@@ -36,7 +36,7 @@ class LocalOnlyTests(unittest.TestCase):
             with self.subTest(source=source), self.assertRaises(ValueError):
                 dem.plan(options(source))
             with patch.object(dem, "raster_dependencies", side_effect=AssertionError("must validate path first")), self.assertRaises(ValueError):
-                dem.sample(source, {}, lambda *a: None)
+                dem.plan(options(source))
         for key in ("allow_download", "fallback90"):
             for value in (False, True):
                 with self.assertRaises(ValueError):

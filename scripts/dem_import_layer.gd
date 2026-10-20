@@ -1,6 +1,9 @@
 extends "./heightmap_import_layer.gd"
 const LICENSE := "https://copernicus-dem-30m.s3.amazonaws.com/readme.html#license"
 const MAX_CELLS := 256
+## Each tile file is bounded; decoding is bounded by the reviewed block budget.
+const MAX_SOURCES := 4
+const MAX_SOURCE_BYTES := 64 * 1024 * 1024
 const NOTICE := "produced using Copernicus WorldDEM-%d © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved"
 
 func stage_dem(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String, context: Dictionary = {}) -> String:
@@ -30,7 +33,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	if result.get("review") is not Dictionary or result.get("raster") is not Dictionary or result.get("outputs") is not Array: return "Invalid DEM mosaic result."
 	var receipt: Dictionary = result.review
 	var raster: Dictionary = result.raster
-	if reviewed.get("sources") is not Array or reviewed.sources.is_empty() or reviewed.sources.size()>4 or receipt.get("sources") is not Array or receipt.sources.size()!=reviewed.sources.size(): return "Invalid DEM mosaic sources."
+	if reviewed.get("sources") is not Array or reviewed.sources.is_empty() or reviewed.sources.size()>MAX_SOURCES or receipt.get("sources") is not Array or receipt.sources.size()!=reviewed.sources.size(): return "Invalid DEM mosaic sources."
 	var contract := receipt.duplicate(true)
 	contract.sources = reviewed.sources
 	if JSON.stringify(contract) != JSON.stringify(reviewed) or reviewed.get("release")!="2021" or reviewed.get("license")!=LICENSE or reviewed.get("vertical_crs")!="EPSG:3855 / EGM2008 metres": return "DEM mosaic review changed."
@@ -42,16 +45,18 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		compared.source = expected.source
 		if compared != expected or int(expected.resolution_m) not in [30,90] or expected.notice != NOTICE % int(expected.resolution_m): return "DEM source contract changed."
 		var path := destination + ".source-%d.tif" % index
-		if captured.get("source") is not Dictionary or captured.source.get("captured_path")!=path or not TYPES._hex(captured.source.get("sha256"),64) or not TYPES._count(captured.source.get("bytes"),64*1024*1024): return "Invalid captured DEM identity."
+		if captured.get("source") is not Dictionary or captured.source.get("captured_path")!=path or not TYPES._hex(captured.source.get("sha256"),64) or not TYPES._count(captured.source.get("bytes"),MAX_SOURCE_BYTES): return "Invalid captured DEM identity."
 		for key: String in expected.source:
 			if captured.source.get(key)!=expected.source[key]: return "Captured DEM differs from review."
 		var file := FileAccess.open(path,FileAccess.READ)
 		if file==null: return "Captured DEM is missing."
 		var size := file.get_length()
 		file.close()
-		if size!=int(captured.source.bytes) or FileAccess.get_sha256(path)!=captured.source.sha256: return "Captured DEM changed."
+		# The native worker already hashed this capture in the same process.
+		var verified: bool = context.get("verified_files", {}).get(path, {}).get("sha256", "") == captured.source.sha256
+		if size!=int(captured.source.bytes) or (not verified and FileAccess.get_sha256(path)!=captured.source.sha256): return "Captured DEM changed."
 		total+=size
-	if total>64*1024*1024: return "Combined DEM source budget exceeded."
+	if total>MAX_SOURCES*MAX_SOURCE_BYTES: return "Combined DEM source budget exceeded."
 	var options: Dictionary = reviewed.options
 	var doc: Dictionary = terrain.store.document
 	if options.cell_size_cm!=doc.cell_size_cm or options.map_min_cm!=doc.bounds.min or options.get("cell_count") is not Array or options.cell_count.size()!=2: return "DEM map grid changed."

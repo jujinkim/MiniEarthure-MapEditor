@@ -1,4 +1,5 @@
 extends "./import_job.gd"
+const DEM := preload("./dem_import_layer.gd")
 
 func start_local(request: Dictionary, python: String, token: String) -> String:
 	if _attempted or cancelled: return "DemJob instances are single use."
@@ -8,7 +9,8 @@ func start_local(request: Dictionary, python: String, token: String) -> String:
 	if request.get("mode") not in ["dem-plan", "dem"]: return "Unsupported local DEM operation."
 	import_kind = request.mode
 	stages = ["acquire", "sample", "write", "complete"]
-	progress_limit = 64 * 1024 * 1024
+	# Acquire progress counts whole tile bytes (at most four 64 MiB tiles).
+	progress_limit = DEM.MAX_SOURCES * DEM.MAX_SOURCE_BYTES
 	var reservation := _reserve_directory(token)
 	if reservation != "": return reservation
 	var files := FILES.new()

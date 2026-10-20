@@ -2,6 +2,7 @@ extends RefCounted
 const FILES := preload("./authoring_files.gd")
 const TYPES := preload("./import_layer.gd")
 const SNAPSHOT := preload("./project_snapshot.gd")
+const LAYER := preload("./dem_import_layer.gd")
 
 static func inputs(request: Dictionary) -> Dictionary:
 	var files := {}
@@ -9,7 +10,7 @@ static func inputs(request: Dictionary) -> Dictionary:
 	var reviewed: Dictionary = request.reviewed
 	var data: Dictionary = request.data
 	var sources: Variant = reviewed.get("sources")
-	if sources is not Array or sources.is_empty() or sources.size() > 4: return {"error":"Invalid DEM source count."}
+	if sources is not Array or sources.is_empty() or sources.size() > LAYER.MAX_SOURCES: return {"error":"Invalid DEM source count."}
 	var entries: Array = []
 	for index in range(sources.size()):
 		if sources[index] is not Dictionary or sources[index].get("source") is not Dictionary: return {"error":"Invalid DEM source identity."}
@@ -19,7 +20,7 @@ static func inputs(request: Dictionary) -> Dictionary:
 		entries.append([source.path, source.get("bytes"), source.get("sha256"), "original"])
 		entries.append([capture, source.get("bytes"), source.get("sha256"), "capture"])
 	var outputs: Variant = data.get("outputs")
-	if outputs is not Array or outputs.is_empty() or outputs.size() > preload("./dem_import_layer.gd").MAX_CELLS: return {"error":"Invalid DEM output count."}
+	if outputs is not Array or outputs.is_empty() or outputs.size() > LAYER.MAX_CELLS: return {"error":"Invalid DEM output count."}
 	for output: Variant in outputs:
 		if output is not Dictionary: return {"error":"Invalid DEM output identity."}
 		entries.append([output.get("png_path"), output.get("png_bytes"), output.get("png_sha256"), "png"])
@@ -38,7 +39,9 @@ static func inputs(request: Dictionary) -> Dictionary:
 		file.close()
 		if entry[3] != "project" and (not TYPES._count(entry[1], FILES.MAX_PAYLOAD_BYTES) or size != int(entry[1]) or not TYPES._hex(entry[2], 64)): return {"error":"DEM input identity changed."}
 		groups[entry[3]] += size
-		if groups[entry[3]] > FILES.MAX_PAYLOAD_BYTES: return {"error":"DEM input group exceeds 64 MiB."}
+		if entry[3] in ["original", "capture"]:
+			if groups[entry[3]] > LAYER.MAX_SOURCES * LAYER.MAX_SOURCE_BYTES: return {"error":"DEM source tiles exceed their budget."}
+		elif groups[entry[3]] > FILES.MAX_PAYLOAD_BYTES: return {"error":"DEM input group exceeds 64 MiB."}
 		files[path] = {"bytes":size, "sha256":entry[2]}
 	return {"files":files}
 
@@ -80,7 +83,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 	if failure == "": failure = check_files(captured.files, "source", progress)
 	var fingerprint := JSON.stringify(captured.get("files", {})).sha256_text()
 	if failure == "" and request.get("expected_payloads", "") not in ["", fingerprint]: failure = "DEM source or project payload changed since review."
-	var layer := preload("./dem_import_layer.gd").new()
+	var layer := LAYER.new()
 	var retained := {}
 	var prepared := {}
 	if failure == "":
@@ -91,7 +94,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 		var terrain := preload("./terrain_tools.gd").new()
 		terrain.store = store
 		failure = layer.stage_dem(terrain, request.data, request.reviewed, request.destination,
-			{"layer_id":request.layer_id, "scratch":directory.path_join("candidate"), "hashes":{}, "retained":retained, "prepared":prepared, "command_label":"Adopt DEM terrain", "progress":progress,"ground_buildings":request.get("ground_buildings",false)})
+			{"layer_id":request.layer_id, "scratch":directory.path_join("candidate"), "hashes":{}, "retained":retained, "prepared":prepared, "command_label":"Adopt DEM terrain", "progress":progress,"ground_buildings":request.get("ground_buildings",false),"verified_files":captured.files})
 	if failure == "":
 		var command := preload("./import_command.gd")
 		failure = command.write_bundle(directory, {"value":layer.value, "prepared":command.encode(prepared), "blob_paths":layer._blobs.keys()}, output)

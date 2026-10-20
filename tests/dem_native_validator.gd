@@ -161,6 +161,28 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	var oversized:=JOB.new()
 	var large:=raster_result.duplicate(true);large.extension="x".repeat(JOB.REQUEST_LIMIT)
 	check(oversized.start_dem(ui.store,large,source_plan,capture,false,"test",token()).contains("64 MiB") and oversized.directory=="","request budget before scratch/launch")
+	# Four tiles may exceed 64 MiB together; each tile file stays within 64 MiB.
+	var sparse := ProjectSettings.globalize_path("user://sparse-dem")
+	DirAccess.make_dir_recursive_absolute(sparse)
+	var budget_sources: Array = []
+	for index in range(4):
+		var tile := sparse.path_join("tile-%d.tif" % index)
+		for path: String in [tile, sparse.path_join("capture.source-%d.tif" % index)]:
+			var file := FileAccess.open(path, FileAccess.WRITE)
+			file.seek(17 * 1024 * 1024 - 1); file.store_8(0); file.close()
+		budget_sources.append({"source":{"path":tile, "bytes":17 * 1024 * 1024, "sha256":"0".repeat(64)}})
+	var budget_request := {"reviewed":{"sources":budget_sources}, "destination":sparse.path_join("capture"), "document":{}, "project":sparse,
+		"data":{"outputs":[{"png_path":raster_result.outputs[0].png_path, "png_bytes":raster_result.outputs[0].png_bytes, "png_sha256":raster_result.outputs[0].png_sha256}]}}
+	var budget: Dictionary = preload("res://scripts/dem_native_worker.gd").inputs(budget_request)
+	check(not budget.has("error") and budget.files.size() == 9, "four 17 MiB tiles and captures pass the per-tile source budget: " + str(budget.get("error", "")))
+	var tile_file := FileAccess.open(budget_sources[0].source.path, FileAccess.WRITE)
+	tile_file.seek(64 * 1024 * 1024); tile_file.store_8(0); tile_file.close()
+	budget_sources[0].source.bytes = 64 * 1024 * 1024 + 1
+	check(preload("res://scripts/dem_native_worker.gd").inputs(budget_request).get("error", "") != "", "one tile over 64 MiB is still refused")
+	for index in range(4):
+		DirAccess.remove_absolute(sparse.path_join("tile-%d.tif" % index))
+		DirAccess.remove_absolute(sparse.path_join("capture.source-%d.tif" % index))
+	DirAccess.remove_absolute(sparse)
 	for malformed in [null, 7, [], [null]]:
 		var invalid:=raster_result.duplicate(true);invalid.outputs=malformed
 		check(JOB.new().start_dem(ui.store,invalid,source_plan,capture,false,"test",token())!="","malformed output admission refuses without a script error")

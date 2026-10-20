@@ -1746,6 +1746,8 @@
     "DEM input is missing: ": "DEM の入力がありません: ",
     "DEM input identity changed.": "DEM の入力識別情報が変更されました。",
     "DEM input group exceeds 64 MiB.": "DEM の入力グループが 64 MiB を超えています。",
+    "DEM source tiles exceed their budget.": "DEM ソースタイルが上限を超えています。",
+    "Decodes %d full-resolution blocks · %d bytes (%d compressed)\n": "フル解像度ブロック %d 個を復号 · %d バイト(圧縮 %d バイト)\n",
     "DEM input changed during validation.": "検証中に DEM 入力が変更されました。",
     "DEM input changed while reading.": "読み取り中に DEM 入力が変更されました。",
     "DEM input hash changed during validation.": "検証中に DEM 入力のハッシュが変更されました。",

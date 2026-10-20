@@ -96,6 +96,8 @@ func _mosaic_summary() -> String:
 	var text := I18N.t("Review %d cells from %d sources · %d bytes total\nLocal start cell: %s · columns/rows: %s · spacing: %s cm\nWGS84 bounds (west, south, east, north): %s\nEGM2008 heights minus %s m at local zero. DSM includes buildings and vegetation.\nBilinear sampling; source accuracy unknown; output spacing is not accuracy.\nIncludes conservative east/south interpolation support; no missing-data repair.\n") % [plan.cells.size(),plan.sources.size(),bytes,str(requested.cell),str(requested.cell_count),str(requested.spacing_cm),str(plan.bbox),str(requested.vertical_zero_m)]
 	for item: Dictionary in plan.sources:
 		text+=I18N.t("\nTile %s · GLO-%d%s · %d bytes\n%s\n%s\n%s\n") % [str(item.tile),item.resolution_m,"",item.source.bytes,item.source.path,"SHA-256: "+str(item.source.sha256),item.notice]
+		var decode: Dictionary = item.source.get("decode", {})
+		text+=I18N.t("Decodes %d full-resolution blocks · %d bytes (%d compressed)\n") % [int(decode.get("blocks",0)),int(decode.get("decoded_bytes",0)),int(decode.get("compressed_bytes",0))]
 	return text+I18N.t("\nLicense: ")+LAYER.LICENSE+I18N.t("\nCompleted sources survive cancel/failure. Review expires after 10 minutes.")
 
 func options() -> Dictionary:

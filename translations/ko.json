@@ -1746,6 +1746,8 @@
     "DEM input is missing: ": "DEM 입력이 없습니다: ",
     "DEM input identity changed.": "DEM 입력 식별 정보가 변경되었습니다.",
     "DEM input group exceeds 64 MiB.": "DEM 입력 그룹이 64 MiB를 초과합니다.",
+    "DEM source tiles exceed their budget.": "DEM 원본 타일이 허용 용량을 초과합니다.",
+    "Decodes %d full-resolution blocks · %d bytes (%d compressed)\n": "원본 해상도 블록 %d개 해석 · %d바이트(압축 %d바이트)\n",
     "DEM input changed during validation.": "검증 중 DEM 입력이 변경되었습니다.",
     "DEM input changed while reading.": "읽는 도중 DEM 입력이 변경되었습니다.",
     "DEM input hash changed during validation.": "검증 중 DEM 입력 해시가 변경되었습니다.",
