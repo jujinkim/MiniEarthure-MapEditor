@@ -76,7 +76,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script) -
 
 static func summary(meta: Dictionary) -> String:
 	var result := I18N.t("Automatic city optimization · 1:8\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nGap filling: ≤ %.2f source m (%.2f map m). Named/tall buildings, road corridors and courtyards remain protected.\nMerged building heights are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n") % [meta.before.features,meta.after.features,meta.before.positions,meta.after.positions,meta.before.roads,meta.after.roads,meta.before.buildings,meta.after.buildings,meta.before.areas,meta.after.areas,float(meta.gap_m),float(meta.gap_m)/8.0,JSON.stringify(meta.surface_mappings),meta.widened_roads]
-	result += I18N.t("Paths, footways and cycleways painted as drivable ground, not roads: %d ways.\n") % meta.painted_pedestrian_ways
+	result += I18N.t("Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n") % meta.painted_pedestrian_ways
 	result += I18N.t("Bridges, tunnels and layered ways without source heights that cross no other road are drawn at ground level: %d ways (estimate).\n") % meta.level_structures
 	result += I18N.t("Overpasses and underpasses without source heights use estimated 6 m levels and ramps up to 8%%: %d structure roads (not surveyed).\n") % meta.estimated_structure_roads
 	result += I18N.t("Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n") % [meta.polygon_partition_gap_m,meta.polygon_partition_gap_m/8.0]

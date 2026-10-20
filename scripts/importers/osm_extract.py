@@ -4,7 +4,10 @@ from importlib.metadata import version, PackageNotFoundError
 import re
 from collections import Counter
 # Highway classes for walking and cycling: no vehicle junctions, no width floor.
-PEDESTRIAN = ("path", "footway", "cycleway", "pedestrian")
+# Steps are imported by the city profile only (ground paint).
+PEDESTRIAN = ("path", "footway", "cycleway", "pedestrian", "steps")
+HIGHWAYS = ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service", "road",
+            "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link", "track", "path", "footway", "cycleway", "pedestrian")
 
 from import_layer import MAX_INPUT, MAX_POINTS
 from polygon_geometry import Budget, SpatialBudget, group_rings
@@ -114,6 +117,23 @@ def road_vertical(tags, references, node_tags):
 LEVEL_TAGS = ("bridge", "tunnel", "layer", "covered", "location", "maxheight:physical")
 
 
+def is_structure(tags):
+    return tags.get("bridge", "no") not in ("no", "0") or tags.get("tunnel", "no") not in ("no", "0") or tags.get("layer", "0") != "0"
+
+
+def city_tags(tags):
+    """City profile: a ground walking way's incline is its slope on the flat
+    1:8 city, not a structure; steps must be ground stairs, not escalators."""
+    if tags.get("highway") == "steps" and (is_structure(tags) or tags.get("conveying", "no") != "no"):
+        raise ValueError("OSM city steps are ground paint; structural or conveying steps are unsupported")
+    if tags.get("highway") in PEDESTRIAN and not is_structure(tags) and "incline" in tags:
+        return {key: value for key, value in tags.items() if key != "incline"}
+    return tags
+
+
+CUT_STRUCTURE = "OSM city structure ends where an excluded way continued it; it is not estimated without that connection"
+
+
 def level_structures(ways, nodes, node_tags):
     """City profile: structures without source heights that cross no other road.
 
@@ -160,7 +180,7 @@ SEPARATION_M = 5.0  # Real metres; ÷8 on the map.
 TUNNEL_CLEARANCE_M = 4.5
 
 
-def estimate_structures(ways, nodes, node_tags, level):
+def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cut_chains=None):
     """City profile: estimated heights for structures crossing other roads.
 
     A chain of bridge (or tunnel) ways joined end to end is lifted (or lowered)
@@ -173,6 +193,10 @@ def estimate_structures(ways, nodes, node_tags, level):
     A chain whose crossings are all with excluded structures is drawn at
     ground level like a structure crossing nothing; one bending more than 60°
     at a vertex keeps needing source heights (native structure mouths overlap).
+
+    `ways` holds only ways that can be imported. A chain that would get heights
+    but ends at a dead end left by an excluded way (a source node in
+    `cut_nodes`) is not estimated; its ways are added to `cut_chains`.
 
     Returns ({way: [(lon, lat, height_m, ref or None)]}, leveled ways): each
     estimated way's vertices in its own order, with unreferenced vertices added
@@ -271,7 +295,7 @@ def estimate_structures(ways, nodes, node_tags, level):
             if turn > math.pi / 3 or min(lu, lv) < 12.0 * math.tan(turn / 2) + 2.0 and turn > math.radians(2): return True
         return False
     absorbed = set()
-    result = {}
+    result, cut_keys = {}, set()
     for layer, path in chains:
         if not all(plain(way) for way, _ in path): continue
         if not any(drawn(other) for way, _ in path for other, _ in crossings(way)):
@@ -299,6 +323,8 @@ def estimate_structures(ways, nodes, node_tags, level):
             rise = min(GRADE * max(0.0, d - LEAD_M), GRADE * max(0.0, total - d - LEAD_M))
             return math.copysign(min(height, rise), layer) if rise else 0.0
         result[path[0][0]] = (path, line, profile)
+        if any(end in cut_nodes and arms[end] == 1 for end in (refs[0], refs[-1])):
+            cut_keys.add(path[0][0])
     # Separation at every plan crossing (not at a shared node) with another road.
     changed = True
     while changed:
@@ -324,9 +350,11 @@ def estimate_structures(ways, nodes, node_tags, level):
                         ok = False
                         break
                 if not ok: break
-            if not ok or not checked:
-                # Crossing nothing drawn, the chain lies on the ground instead.
-                if ok: leveled.update(way for way, _ in path if way in candidates)
+            if not ok or not checked or key in cut_keys:
+                # Crossing nothing drawn, the chain lies on the ground instead;
+                # a cut chain's profile would end where the excluded way was.
+                if ok and not checked: leveled.update(way for way, _ in path if way in candidates)
+                elif ok and cut_chains is not None: cut_chains.update(way for way, _ in path if way in candidates)
                 del result[key]
                 changed = True
                 break
@@ -624,7 +652,7 @@ def parse(raw, input_format, supplement=None, city=False):
                           supplement, hashlib.sha256(raw).hexdigest() if supplement is not None else None, city=city)
 
 
-def way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology):
+def way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology, city=False):
     if identity in area_members:
         raise ValueError("selected OSM way belongs to an area relation; no silent holes/flattening")
     if any(ref not in nodes for ref in references):
@@ -635,7 +663,7 @@ def way_feature(identity, kind, references, tags, nodes, node_tags, area_members
     points = [nodes[ref] for ref in references]
     properties = {}
     if kind == "road":
-        if tags["highway"] not in ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service", "road", "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link", "track", "path", "footway", "cycleway", "pedestrian") or tags.get("area", "no") != "no":
+        if tags["highway"] not in HIGHWAYS + (("steps",) if city else ()) or tags.get("area", "no") != "no":
             raise ValueError(f"OSM way {identity}: unsupported highway/area profile")
         if len(references) < 2:
             raise ValueError(f"OSM way {identity}: short road")
@@ -694,16 +722,43 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     supported_ids = {way[0] for way in ways}
     counts["ignored_ways"] -= sum(ref not in supported_ids for ref in consumed if ref in all_ways)
     features = []
-    level = level_structures(ways, nodes, node_tags) if city else set()
-    estimated, leveled = estimate_structures(ways, nodes, node_tags, level) if city else ({}, set())
+    # City structures are estimated over importable roads only: a chain must
+    # not ramp through a way that is excluded anyway (structures without their
+    # height tags, as if estimated), nor through a relation member.
+    absent = {}
+    if city:
+        probe = SpatialBudget()
+        for identity, kind, references, tags in ways:
+            if kind != "road": continue
+            if identity in consumed:
+                absent[identity] = None
+                continue
+            try:
+                probed = city_tags(tags)
+                if is_structure(tags):
+                    probed = {key: value for key, value in probed.items() if key not in LEVEL_TAGS}
+                way_feature(identity, kind, references, probed, nodes, node_tags, area_members, probe, city=True)
+            except ValueError as exc:
+                absent[identity] = exc
+    present = [way for way in ways if way[0] not in absent]
+    cut_nodes = {ref for identity, _, references, _ in ways if identity in absent for ref in references}
+    cut_chains = set()
+    level = level_structures(present, nodes, node_tags) if city else set()
+    estimated, leveled = estimate_structures(present, nodes, node_tags, level, cut_nodes, cut_chains) if city else ({}, set())
     level |= leveled
     for identity, kind, references, tags in sorted(ways):
         if identity in consumed:
             continue
         try:
+            if absent.get(identity) is not None:
+                raise absent[identity]
+            if identity in cut_chains:
+                raise ValueError(CUT_STRUCTURE)
+            if city and kind == "road":
+                tags = city_tags(tags)
             if identity in level or identity in estimated:
                 tags = {key: value for key, value in tags.items() if key not in LEVEL_TAGS}
-            features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology))
+            features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology, city=city))
             if identity in level:
                 features[-1]["properties"]["_city_level_structure"] = True
             if identity in estimated:

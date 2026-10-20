@@ -278,3 +278,94 @@ class EstimatedStructures(unittest.TestCase):
             ways.append((int(way.get("id")), "road", [int(n.get("ref")) for n in way.iter("nd")], {t.get("k"): t.get("v") for t in way.iter("tag")}))
         estimated, leveled = osm.estimate_structures(ways, nodes, node_tags, set())
         self.assertEqual((estimated, leveled), ({}, {2}))
+
+    def test_an_excluded_continuation_cuts_the_chain_instead_of_leaving_a_raised_end(self):
+        # A long bridge passes separation over way 6, but the way continuing it
+        # east is excluded anyway (level tag): the bridge is cut, not ramped
+        # over a dropped way or left ending in the air.
+        root = ET.fromstring(self.long_bridge(east_tags={"level": "1"}))
+        with self.assertRaisesRegex(ValueError, "way/2: OSM city structure ends where an excluded way continued it"):
+            osm.parse(ET.tostring(root), "osm", city=True)
+        value, _ = osm.parse(self.long_bridge(), "osm", city=True)
+        by_way = {f["properties"]["osm_source_id"]: f["properties"] for f in value["features"]}
+        self.assertEqual(by_way["way/2"]["_city_estimated_kind"], "bridge", "the same bridge is estimated when its continuation is kept")
+
+    def test_a_cut_chain_crossing_only_excluded_structures_is_still_leveled(self):
+        root = ET.fromstring(self.long_bridge(east_tags={"level": "1"}))
+        ET.SubElement(root.find("way[@id='6']"), "tag", k="tunnel", v="yes")
+        ET.SubElement(root.find("node[@id='7']"), "tag", k="ele", v="10")  # Partial heights: excluded.
+        with self.assertRaisesRegex(ValueError, "way/3: OSM unsupported vertical semantics on road"):
+            osm.parse(ET.tostring(root), "osm", city=True)
+        ways, nodes, node_tags = self.selection(root)
+        present = [w for w in ways if w[0] != 3]
+        cut = set()
+        self.assertEqual(osm.estimate_structures(present, nodes, node_tags, set(), {3, 4}, cut), ({}, {2}))
+        self.assertEqual(cut, set())
+
+    def test_a_ground_road_excluded_anyway_is_no_crossing(self):
+        # maxheight:physical on a ground road is rejected, so the bridge crosses
+        # nothing drawn and lies on the ground.
+        root = ET.fromstring(self.long_bridge())
+        ET.SubElement(root.find("way[@id='6']"), "tag", k="maxheight:physical", v="3.5")
+        with self.assertRaisesRegex(ValueError, "way/6: OSM physical clearance requires an explicit supported tunnel"):
+            osm.parse(ET.tostring(root), "osm", city=True)
+        ways, nodes, node_tags = self.selection(root)
+        self.assertEqual(osm.estimate_structures([w for w in ways if w[0] != 6], nodes, node_tags, set()), ({}, {2}))
+
+    def long_bridge(self, east_tags={}):
+        # Ground way 1, a 300 m layer-1 bridge (way 2) over way 6 at its middle,
+        # ground way 3 east of it ending in a dead end.
+        east = "".join(f'<tag k="{k}" v="{v}"/>' for k, v in east_tags.items())
+        return f"""<osm version="0.6">
+<node id="1" lon="8.997" lat="55"/><node id="2" lon="9" lat="55"/><node id="3" lon="9.0047" lat="55"/><node id="4" lon="9.0077" lat="55"/>
+<node id="5" lon="8.997" lat="55.001"/><node id="9" lon="8.997" lat="54.999"/>
+<node id="7" lon="9.00235" lat="54.999"/><node id="8" lon="9.00235" lat="55.001"/>
+<way id="1"><nd ref="1"/><nd ref="2"/><tag k="highway" v="residential"/></way>
+<way id="2"><nd ref="2"/><nd ref="3"/><tag k="highway" v="residential"/><tag k="bridge" v="yes"/><tag k="layer" v="1"/></way>
+<way id="3"><nd ref="3"/><nd ref="4"/><tag k="highway" v="residential"/>{east}</way>
+<way id="4"><nd ref="5"/><nd ref="1"/><tag k="highway" v="residential"/></way>
+<way id="7"><nd ref="1"/><nd ref="9"/><tag k="highway" v="residential"/></way>
+<way id="6"><nd ref="7"/><nd ref="8"/><tag k="highway" v="residential"/></way>
+</osm>""".encode()
+
+    def selection(self, root):
+        ways, nodes, node_tags = [], {}, {}
+        for node in root.iter("node"):
+            nodes[int(node.get("id"))] = [float(node.get("lon")), float(node.get("lat"))]
+            node_tags[int(node.get("id"))] = {t.get("k"): t.get("v") for t in node.iter("tag")}
+        for way in root.iter("way"):
+            ways.append((int(way.get("id")), "road", [int(n.get("ref")) for n in way.iter("nd")], {t.get("k"): t.get("v") for t in way.iter("tag")}))
+        return ways, nodes, node_tags
+
+
+class CitySteps(unittest.TestCase):
+    def osm(self, *steps_tags):
+        tags = "".join(f'<tag k="{k}" v="{v}"/>' for k, v in steps_tags)
+        return f"""<osm version="0.6">
+<node id="1" lon="9" lat="55"/><node id="2" lon="9.001" lat="55"/><node id="3" lon="9.001" lat="55.0005"/><node id="4" lon="9.002" lat="55.0005"/>
+<way id="1"><nd ref="1"/><nd ref="2"/><tag k="highway" v="residential"/></way>
+<way id="2"><nd ref="2"/><nd ref="3"/><tag k="highway" v="steps"/><tag k="incline" v="up"/>{tags}</way>
+<way id="3"><nd ref="3"/><nd ref="4"/><tag k="highway" v="footway"/><tag k="incline" v="12%"/></way>
+</osm>""".encode()
+
+    def test_ground_steps_are_city_walking_ways_and_keep_their_class(self):
+        with self.assertRaisesRegex(ValueError, "unsupported highway/area profile"):
+            osm.parse(self.osm(), "osm")
+        value, _ = osm.parse(self.osm(), "osm", city=True)
+        by_way = {f["properties"]["osm_source_id"]: f["properties"] for f in value["features"]}
+        self.assertEqual(by_way["way/2"]["_city_road_tags"]["highway"], "steps")
+        self.assertEqual(by_way["way/3"]["_city_road_tags"]["highway"], "footway", "a ground walking way's incline is only its slope")
+        self.assertNotIn("road_kind", by_way["way/2"])
+
+    def test_structural_and_conveying_steps_stay_excluded(self):
+        for tags in ((("bridge", "yes"), ("layer", "1")), (("layer", "-1"),), (("conveying", "yes"),)):
+            with self.subTest(tags=tags), self.assertRaisesRegex(ValueError, "way/2: OSM city steps are ground paint"):
+                osm.parse(self.osm(*tags), "osm", city=True)
+        value, _ = osm.parse(self.osm(("conveying", "no")), "osm", city=True)
+        self.assertIn("way/2", {f["properties"]["osm_source_id"] for f in value["features"]}, "conveying=no is ordinary stairs")
+
+    def test_vehicle_road_incline_still_rejects(self):
+        root = ET.fromstring(self.osm())
+        ET.SubElement(root.find("way[@id='1']"), "tag", k="incline", v="5%")
+        with self.assertRaisesRegex(ValueError, "way/1: OSM unsupported vertical semantics on road"):
+            osm.parse(ET.tostring(root), "osm", city=True)

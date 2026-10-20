@@ -15,8 +15,10 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   nonempty holes are never discarded.
 - Missing road widths use disclosed highway-class estimates (≥1.6 source m);
   source surfaces map to game materials.
-- Ground paths, footways, cycleways and pedestrian streets become painted ground
-  (`surface_areas`), not roads; cars cross them as terrain. Their source-width
+- Ground paths, footways, cycleways, pedestrian streets and steps become painted
+  ground (`surface_areas`), not roads; cars cross them as terrain. Steps keep their
+  class; bridge, tunnel, layered or conveying steps (escalators) are excluded. A
+  ground walking way's `incline` is its slope and is ignored on the flat map. Their source-width
   ribbons are united on the map-centimetre lattice and cut per 32 m map cell, and
   through any enclosed hole, into hole-free pieces of ≤256 vertices. Each piece maps
   to every source way it covers and takes the surface covering most of it (untagged:
@@ -38,6 +40,10 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   neighbouring segments of 12 m · tan(θ/2) + 2 m, so native structure mouths stay
   separate); every crossing keeps 5 m of separation; tunnels use 4.5 m clearance.
   A chain crossing only excluded structures is drawn at ground level instead.
+  Estimation sees only importable ways: a way excluded anyway (with its height tags
+  removed, as an estimated way would be) or consumed by a relation is neither
+  crossed nor absorbed, and a chain ending where such a way continued it is
+  excluded, so no structure ends in the air or underground.
   Estimated structures join ordinary ground roads, stay whole at crop edges, keep
   building clearance plus 1.6 m for safety furniture (also when widened) and are
   listed in `osm_estimated_structures`. Other crossing structures need explicit

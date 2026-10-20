@@ -288,6 +288,19 @@ class City(unittest.TestCase):
         self.assertTrue(all(v%8==0 for area in areas for point in area["polygon"] for v in point),"1:8 adoption keeps exact vertices")
 
 
+    def test_city_steps_are_painted_at_walking_width(self):
+        self.setup_city()
+        self.add(1,LineString([(0,0),(100,0)]),_city_refs=[1,2],_city_road_tags=dict(highway="residential"))
+        self.add(2,LineString([(50,20),(50,80)]),_city_refs=[3,4],_city_road_tags=dict(highway="steps"))
+        worker=self.worker();out,meta=worker.candidate(0)
+        self.assertEqual({f["properties"]["osm_source_id"] for f in out["features"] if f["geometry"]["type"]=="LineString"},{"way/1"})
+        steps=[f for f in out["features"] if f["properties"].get("_city_sources")==["way/2"]]
+        self.assertEqual(meta["painted_pedestrian_ways"],1)
+        self.assertEqual(sum(1 for f in out["features"] if "_city_paint" in f["properties"]),len(steps))
+        self.assertTrue(steps)
+        area=sum(transform(worker.project,shape(f["geometry"])).area for f in steps)
+        self.assertAlmostEqual(area/(60*1.6),1.0,delta=0.08,msg="footway width, not the 8 m default")
+
     def test_gaps_sharing_road_space_reuse_it_exactly(self):
         from osm_review import Review
         self.setup_city()

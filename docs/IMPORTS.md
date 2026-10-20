@@ -5,8 +5,8 @@ the existing 1:8 city profile, budgets and explicit exclusions. An empty track
 project proposes fitted bounds; populated maps retain their extent. Bounds,
 composition and layer adoption share one Undo; cancel/failure preserves the map.
 Ordinary vehicle roads split where they share original OSM nodes with other vehicle
-roads before optimization; paths, footways, cycleways and pedestrian streets keep
-independent ends (`osm_pedestrian_roads`), and the city profile paints the ground ones
+roads before optimization; paths, footways, cycleways and pedestrian streets (and, in
+the city profile, steps) keep independent ends (`osm_pedestrian_roads`), and the city profile paints the ground ones
 instead ([IMPORT_CITY](IMPORT_CITY.md)). Surviving source endpoints retain identity
 through crop/quantization; new cuts remain independent. Adoption asks MapKit for
 ordinary source junctions it cannot build (for example a way doubling back) and turns

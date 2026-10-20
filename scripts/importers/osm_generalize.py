@@ -32,7 +32,7 @@ SURFACES = {"asphalt":"asphalt", "concrete":"concrete", "dirt":"dirt", "gravel":
 PAINT_CELL = 3200  # Map centimetres: one native cell partitions pedestrian paint.
 PAINT_VERTICES = 256
 WIDTHS = {"motorway":12,"trunk":10,"primary":8,"secondary":8,"tertiary":6,"residential":6,
-          "living_street":4,"service":3,"track":3,"path":1.6,"footway":1.6,"cycleway":2.4,"pedestrian":4}
+          "living_street":4,"service":3,"track":3,"path":1.6,"footway":1.6,"cycleway":2.4,"pedestrian":4,"steps":1.6}
 
 
 def parts(geometry, kind="Polygon"):
