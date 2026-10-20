@@ -28,7 +28,9 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   their nodes stay roads.
 - City ground roads lie on the flat map plane (0 m; other profiles estimate 0.2 m).
   Adoption adds the map's terrain base to city heights outside the explicit
-  source-height graph, so estimated structures meet the terrain.
+  source-height graph, so estimated structures meet flat terrain. They are not
+  fitted to a DEM; adopting one afterwards fails at their junction aprons
+  ([IMPORTS](IMPORTS.md) known limits).
 - Bridges, tunnels and layered ways without source heights that cross no other
   road (river bridges, culverts, building passages) are drawn at ground level on
   the flat map, counted as estimates in review.

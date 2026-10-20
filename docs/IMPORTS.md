@@ -154,7 +154,13 @@ The importer needs Python 3.12+ with `requirements-import.txt` (NumPy 2.5.3).
 
 - City output stays within 32 MiB ([IMPORT_CITY](IMPORT_CITY.md)); four Suwon
   districts adopt at 24.1 MB, which is not a claim for every city.
-- Two Suwon DEM tiles total 79 MB, above the 64 MiB source allowance.
+- The four Suwon districts and Seoul Jongno-gu both straddle 127°E and need two
+  Copernicus tiles (79 MB together), above the 64 MiB combined source allowance,
+  although each tile is within 64 MiB and sampling reads only small windows.
+- A DEM cannot yet be adopted onto a city map with estimated bridges or tunnels:
+  their ground anchors sit on the flat terrain base, so native generation rejects
+  the junction aprons (`E_GEOMETRY`, 1 cm terrain match). Ground roads, levelled
+  structures and building grounding follow the DEM.
 - Overture/GIS completeness, broader OSM/Overture semantics, general POI/structural
   GeoJSON and geoid preparation are feature work.
 
