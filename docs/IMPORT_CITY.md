@@ -55,10 +55,11 @@ It separates larger bounded source work from the smaller output MapKit accepts.
   space: road-trimmed sources, protected buildings, aggregation groups and
   pedestrian paint are built once and charge the same work budget as a fresh
   build. Only gap filling and the overlap partition are rebuilt per gap.
-- Selection keeps the smallest gap whose output has ≤80 % of the source features and
-  ≤70 % of its positions and encodes within 24 MiB; otherwise the largest gap that
-  converts. A candidate missing the ratios waits pickled and is converted only if it
-  can still be kept, newest first, with the exclusion review as it stood after it.
+- Candidates are built largest gap first and the first one that fits the output
+  limits and converts is kept. A smaller gap is built only after a failure: a work
+  budget, an unreviewed building inside road space, the output limits or conversion.
+  Building a new road space drops the exclusions of the replaced one, so review
+  lists only the kept candidate's exclusions.
 - Named, public, landmark and tall buildings are protected from aggregation. Road
   corridors, protected land and courtyards block filler.
 - Buildings are cut around road space with 0.8 m clearance, including a disk of
@@ -76,8 +77,9 @@ Review reports before/after objects and positions, gaps/tolerances, width/materi
 estimates, painted pedestrian ways, road cuts and overlap changes. A compact table maps every supported source
 to contiguous output records; missing, duplicate or excluded claims fail validation.
 No supported source is dropped to fit a limit. A building entirely inside derived road
-space fails with its source ID unless exclusion review is enabled; then the whole
-source is excluded with a warning and the inspected-exclusions checkbox is required.
+space fails that candidate with its source ID unless exclusion review is enabled; then
+the whole source is excluded with a warning and the inspected-exclusions checkbox is
+required.
 
 Every map cell (≤256) is generated sequentially before review and adoption with the
 120-second child timeout; batches of 16 reuse native preparation. The Map authoring

@@ -20,9 +20,13 @@ class Review:
             raise ValueError("OSM exclusion review budget exceeded; use a smaller area")
         self.excluded[identity] = record
 
-    def metadata(self, count=None):
-        # Records are append-only, so the first `count` are the review as it stood then.
-        return dict(profile="explicit-source-exclusions-v1", excluded=list(self.excluded.values())[:count])
+    def restore(self, count):
+        """Drop the records after the first `count`, the review as it stood then."""
+        for identity in list(self.excluded)[count:]:
+            self.bytes -= len(json.dumps(self.excluded.pop(identity)).encode())
+
+    def metadata(self):
+        return dict(profile="explicit-source-exclusions-v1", excluded=list(self.excluded.values()))
 
 
 def source_error(tags):

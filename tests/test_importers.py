@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/importers"))
-from geojson import convert, select_city
+from geojson import convert
 from import_layer import strict_json
 
 
@@ -30,37 +30,6 @@ class ImportTests(unittest.TestCase):
                 self.assertEqual(value, original)
                 if usage != "commercial":
                     self.assertTrue(any("Unclassified building use" in warning for warning in layer.warnings))
-
-    def test_city_selection_converts_only_what_the_eager_rule_can_keep(self):
-        from itertools import product
-        from osm_review import Review
-        def eager(cases):
-            result = None
-            for attempt, (reduced, converts, small) in enumerate(cases):
-                if converts:
-                    result = attempt
-                    if reduced and small: break
-            return result
-        for count in range(1, 6):
-            for cases in product(product((False, True), repeat=3), repeat=count):
-                admitted = []
-                def admit(attempt, item):
-                    admitted.append(attempt)
-                    return attempt if item[1] else None
-                selected = select_city(enumerate(cases), lambda item: item[0], admit, lambda attempt: cases[attempt][2])
-                held = select_city(enumerate(cases), lambda item: item[0], lambda attempt, item: attempt if item[1] else None,
-                                   lambda attempt: cases[attempt][2], lambda item: lambda: copy.deepcopy(item))
-                with self.subTest(cases=cases):
-                    self.assertEqual(selected, eager(cases))
-                    self.assertEqual(held, selected)
-                    self.assertEqual(len(admitted), len(set(admitted)))
-                    if selected is not None and not cases[selected][0]:
-                        self.assertEqual(admitted[-1], selected, "a deferred winner is the last conversion")
-        review = Review(True)
-        for identity in ("way/1", "way/2", "way/3"):
-            review.reject(identity, "inside road space")
-        self.assertEqual([r["source_id"] for r in review.metadata(2)["excluded"]], ["way/1", "way/2"])
-        self.assertEqual(review.metadata(), review.metadata(3))
 
     def test_metadata_and_new_namespace(self):
         value = fixture()

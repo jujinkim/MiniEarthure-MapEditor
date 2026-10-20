@@ -161,6 +161,7 @@ class Generalizer:
                             for ref in set(f["properties"].get("osm_node_refs", f["properties"].get("_city_refs", []))))
         self.trim_windows = {}
         self.context = {}
+        self.reviewed = len(self.review.excluded)
 
     def spend(self, count=1):
         self.remaining -= count
@@ -685,6 +686,9 @@ class Generalizer:
             for name in shared:
                 setattr(self, name, self.context[name])
         else:
+            # Exclusions come only from the road space of the candidate kept.
+            self.excluded_sources = set()
+            self.review.restore(self.reviewed)
             start = self.remaining
             driving, walking = self.road_space(gap)
             self.context = dict(tolerance=tolerance, driving=driving, walking=walking, road_work=start-self.remaining,
@@ -771,9 +775,19 @@ class Generalizer:
 
 
 def candidates(collection, options, review=None):
+    """Largest gap first: it merges and simplifies most. Callers take the first
+    candidate that fits; smaller gaps are built only after a failure. A gap whose
+    work budgets or road space cannot be met yields (None, failure) instead."""
     worker = Generalizer(collection, options, review)
-    # Avoid rebuilding near-identical detailed city candidates when source
-    # density already dominates the output. A 4 m source gap is only 0.5 m on
-    # the 1:8 map; all protected geometry and final admission still apply.
-    for gap in LEVELS[2 if worker.before["features"] > 20000 else 0:]:
-        yield worker.candidate(gap)
+    # Dense sources skip the 0–2 m gaps: a 4 m source gap is only 0.5 m on the
+    # 1:8 map; all protected geometry and final admission still apply.
+    for gap in reversed(LEVELS[2 if worker.before["features"] > 20000 else 0:]):
+        try:
+            result = worker.candidate(gap)
+        except ValueError as exc:
+            # Own work/partition budgets, or a building the straighter road covers; a
+            # smaller gap keeps more bends. The review's aggregate quota stays fatal.
+            if not (str(exc).startswith("City ") and "budget" in str(exc)) and "Explicit source exclusion is required" not in str(exc):
+                raise
+            result = None, dict(gap_m=gap, failure=str(exc))
+        yield result

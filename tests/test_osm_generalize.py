@@ -314,6 +314,37 @@ class City(unittest.TestCase):
         self.assertEqual(runs[64][1]["source_ids"],sorted(f"way/{i}" for i in [1,2,4,5,30,*range(10,22)]))
         self.assertEqual(self.features,original)
 
+    def test_candidates_start_from_the_largest_gap_and_drop_exclusions_of_a_replaced_road_space(self):
+        from osm_generalize import candidates
+        from osm_review import Review
+        self.setup_city()
+        self.add(1,LineString([(0,0),(150,3),(300,0)]),width_m=6,_city_refs=[1,2,3],_city_road_tags=dict(highway="residential"))
+        self.add(2,box(146,-3.6,154,-1.2))  # Inside the straightened (4 m tolerance) road only.
+        for i in range(12):
+            self.add(10+i,box(20+i*14,40,30+i*14,60),height_m=9)
+        collection = lambda: dict(type="FeatureCollection",features=deepcopy(self.features))
+        review = Review(True)
+        review.reject("way/99","excluded while streaming")
+        gaps, excluded = [], []
+        for candidate, meta in candidates(collection(),self.options,review):
+            gaps.append(meta["gap_m"])
+            excluded.append(list(review.excluded))
+        self.assertEqual(gaps,[64,32,16,8,4,2,0])
+        self.assertEqual(excluded[0],["way/99","way/2"],"the straightened road space covers the building")
+        self.assertEqual(excluded[-1],["way/99"],"a bent road space keeps it")
+        fresh = Review(True)
+        fresh.reject("way/99","excluded while streaming")
+        worker = Generalizer(collection(),self.options,fresh)
+        self.assertEqual(worker.candidate(4)[1]["source_ids"],meta["source_ids"])
+        self.assertEqual(fresh.metadata(),review.metadata())
+        self.assertEqual(review.bytes,fresh.bytes)
+        # Without exclusion review the straightened road space is a failed candidate,
+        # not a failed import; the next tolerance keeps the building.
+        built = list(candidates(collection(),self.options,Review(False)))
+        self.assertEqual([meta["gap_m"] for candidate,meta in built],[64,32,16,8,4,2,0])
+        self.assertTrue(all(candidate is None and "way/2" in meta["failure"] for candidate,meta in built[:3]))
+        self.assertIn("way/2",built[3][1]["source_ids"])
+
     def test_area_invalid_after_projection_retains_the_group(self):
         # Valid in lon/lat; the spike vertex crosses the projected chord of the
         # long bottom edge, so overlays with it fail inside the building group.
