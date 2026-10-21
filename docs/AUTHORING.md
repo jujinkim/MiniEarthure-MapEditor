@@ -46,7 +46,9 @@ Tool/focus/document/history changes cancel pending input. Each shape is one Undo
   rings (≤1 MiB, stable ID retained).
 
 Road creation and structural edits generate affected junction cells through MapKit
-before publication, in batches of 16 (more than 16 cells warns). Heightmap imports with roads also regenerate affected
+before publication, in batches of 16 (more than 16 cells warns), under MapKit's
+Authoring profile with a 2,000,000-triangle cap: a cell or document over a budget
+the game refuses is admitted with a limit warning that says so. Heightmap imports with roads also regenerate affected
 cells, so terrain cannot silently break a portal. Failures appear in validation status.
 
 ## Terrain and water
@@ -79,7 +81,11 @@ no time limit, and after 120 s a running-time warning appears while Cancel remai
 
 Limits: one asset ID and at most one new GLB/PNG/WebP payload per job; candidate
 payloads up to 2 GiB (warning above 64 MiB; a file above 128 MiB warns that the game
-refuses it); requests up to 1.5 GiB (warning above 64 MiB). A change over the shared
+refuses it); requests up to 1.5 GiB (warning above 64 MiB). MapKit's working snapshot
+warns above 64 MiB per resource file and in total, and refuses a file above 128 MiB
+or 1 GiB in total. Asset decoding warns above the game's image (64 MiB decoded,
+8,192 px), GLB (1M elements, 8,192 records) and 256 MiB total decode budgets and
+refuses only above MapKit's raised guards. A change over the shared
 16 MiB history is applied without Undo (see [DOCUMENTS](DOCUMENTS.md)). Output paths are registered in
 a request-owned marker before writing; cleanup removes only known paths after
 confirmed exit. `AuthoringTools.asset()` stays synchronous for scripts.

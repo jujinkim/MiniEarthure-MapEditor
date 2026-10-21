@@ -422,6 +422,7 @@ func suggest_road(point: Vector3, forward: Vector3) -> bool:
 	if not current(): return false
 	var request := {"start_cm":[roundi(point.x*100),roundi(-point.z*100)],"heading":[roundi(forward.x*1000),roundi(-forward.z*1000)],"mode":"circuit" if circuit else "sprint","duration_seconds":road_seconds,"gimmicks":road_gimmicks,"seed":road_seed,"shortcuts":road_shortcuts}
 	var result: Dictionary = JSON.parse_string(editor.store.bridge.suggest_road_course(JSON.stringify(editor.store.document),JSON.stringify(request)))
+	editor.store.note_native(result)
 	if not result.ok: editor._status(I18N.error(result.error)); return false
 	return adopt_road(result.data)
 
@@ -430,6 +431,7 @@ func seed_race() -> bool:
 	if not current(): return false
 	var request := {"seed":race_seed,"mode":"circuit" if circuit else "sprint","duration_seconds":road_seconds,"gimmicks":road_gimmicks,"shortcuts":road_shortcuts}
 	var result: Dictionary = JSON.parse_string(editor.store.bridge.seed_road_course(JSON.stringify(editor.store.document),JSON.stringify(request)))
+	editor.store.note_native(result)
 	if not result.ok: editor._status(I18N.error(result.error)); return false
 	if not adopt_road(result.data.suggestion): return false
 	editor._apply_track_seed_environment({"time_minutes":result.data.time_minutes,"weather":result.data.weather})
@@ -443,6 +445,7 @@ func adopt_road(suggestion: Dictionary) -> bool:
 	if road_proposal.applicable and not (road_proposal.attachments.is_empty() and road_proposal.shortcuts.is_empty()):
 		var extras := {"shortcuts":road_proposal.shortcuts,"road_designs":road_proposal.road_designs,"attachments":road_proposal.attachments}
 		var applied: Dictionary = JSON.parse_string(editor.store.bridge.apply_road_course_extras(JSON.stringify(editor.store.document),JSON.stringify(extras)))
+		editor.store.note_native(applied)
 		# Gates already omit bypassed corners, so a failed extras apply rejects the whole proposal.
 		if applied.ok: road_candidate = applied.data.document
 		else: road_proposal.applicable = false; editor._status(I18N.error(applied.error))

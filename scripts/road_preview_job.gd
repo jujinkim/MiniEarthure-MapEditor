@@ -27,8 +27,9 @@ func _prepare(document: Dictionary,path: String) -> Dictionary:
 			var cell: Vector2i=request.cell+Vector2i(dx,dy)
 			if request.has("only") and cell not in request.only: continue
 			if cell.x<0 or cell.y<0 or cell.x*3200>=document.bounds.max[0]-document.bounds.min[0] or cell.y*3200>=document.bounds.max[1]-document.bounds.min[1]:continue
-			var result: Dictionary=working.generate_packed(cell.x,cell.y,true)
-			if not result.ok:return {"error":str(result.error.code)+": "+str(result.error.message)}
+			var result: Dictionary=working.generate_packed(cell.x,cell.y,true,LIMITS.AUTHORING_TRIANGLES)
+			LIMITS.native(warnings,result)
+			if not result.ok:return {"error":str(result.error.code)+": "+str(result.error.message),"limit_warnings":warnings}
 			bytes+=int(result.data.preview_bytes)
 			if bytes>DISPLAY_BYTES:LIMITS.note(warnings,"nearby_display",bytes,DISPLAY_BYTES,"Nearby display resources are very large")
 			var cell_triangles: Array=[]

@@ -4,9 +4,12 @@ const SNAPSHOT := preload("./project_snapshot.gd")
 const PAYLOADS := preload("./authoring_files.gd")
 const INDEX := preload("./preview_index.gd")
 const LIMITS := preload("./limit_warnings.gd")
-# Preview work allowance: above it a cell is still shown or checked, with a warning.
+# Preview work allowance (MapKit Authoring `preview_work`): above it a cell is
+# still shown or checked, with a warning.
 const PREVIEW_BYTES := 256 * 1024 * 1024
-# Export-report overview: warn above OVERVIEW_WARN_BYTES, omit it above OVERVIEW_BYTES.
+# Export-report overview: warn above OVERVIEW_WARN_BYTES (the game's regional
+# audit limit), omit it above OVERVIEW_BYTES. The regional Authoring audit gets
+# the same allowance, so a large overview warns instead of refusing the export.
 const OVERVIEW_BYTES := 64 * 1024 * 1024
 const OVERVIEW_WARN_BYTES := 4 * 1024 * 1024
 # Native whole-map queries accept at most 16384 cells; larger maps are queried in windows.
@@ -16,14 +19,23 @@ const QUERY_WINDOW_CELLS := 96
 const REOPEN_MIN_BYTES := 1024 * 1024 * 1024
 const REOPEN_MAX_BYTES := 8 * 1024 * 1024 * 1024
 ## MapKit core per-cell generation budgets (mapkit-core generation, roads,
-## occupancy, courtyards, water). The game generates cells with the same core
-## and refuses these cells; any other E_BUDGET is an Editor-side check budget.
+## occupancy, courtyards, water). The game refuses such cells. Under the
+## Authoring profile the triangle (2,000,000) and work budgets warn first; a
+## cell that still fails with one of these is past a raised guard. Any other
+## E_BUDGET is an Editor-side check budget.
 const RUNTIME_CELL_BUDGETS := ["chunk triangle budget", "occupancy limit", "occupied solid budget", "road local ", "road sampling limit", "road subdivision work", "road paint exceeds", "sidewalk fragments", "courtyard topology", "water shoreline work"]
 var regional_side_cells := 0
 var working: RefCounted
 var mutex := Mutex.new()
 var cancelled := false
 var progress := "Preparing snapshot"
+## MapKit Authoring warnings of this worker's native calls (worker thread only).
+var limit_warnings: Array = []
+
+# Every Editor native call on the user's own map may carry top-level warnings.
+func _native(response: Variant) -> Variant:
+	LIMITS.native(limit_warnings, response)
+	return response
 
 func cancel() -> void:
 	mutex.lock()
@@ -54,9 +66,9 @@ func run(document: Dictionary, source: String, operation: String, cell: Vector2i
 	var start := Time.get_ticks_usec()
 	if working == null:
 		working = ClassDB.instantiate("MapKitWorkingSnapshot")
-		var configured: Dictionary = JSON.parse_string(working.configure(JSON.stringify(document), source))
+		var configured: Dictionary = _native(JSON.parse_string(working.configure(JSON.stringify(document), source)))
 		if not configured.ok: return configured
-	if operation != "export": return _memory_preview(document, operation, cell, full, start, cached)
+	if operation != "export": return _with_warnings(_memory_preview(document, operation, cell, full, start, cached))
 	var captured := SNAPSHOT.capture_working(working, source)
 	if not captured.ok: return captured
 	if stopped(): return failure("E_CANCELLED", "Operation cancelled; previous preview and files retained.")
@@ -69,20 +81,26 @@ func run(document: Dictionary, source: String, operation: String, cell: Vector2i
 	else:
 		PAYLOADS.remove_scratch(staged.data.path)
 	if result.ok: result.data.seconds = (Time.get_ticks_usec() - start) / 1000000.0
+	return _with_warnings(result)
+
+func _with_warnings(result: Dictionary) -> Dictionary:
+	if not result.ok or limit_warnings.is_empty() or result.data.get("reused", false): return result
+	if result.data.get("limit_warnings") is not Array: result.data.limit_warnings = []
+	LIMITS.merge(result.data.limit_warnings, limit_warnings)
 	return result
 
 func _memory_preview(document: Dictionary, operation: String, cell: Vector2i, full: bool, started: int, cached: Dictionary) -> Dictionary:
-	var checked: Dictionary = JSON.parse_string(working.validate_memory())
+	var checked: Dictionary = _native(JSON.parse_string(working.validate_memory()))
 	if not checked.ok: return checked
 	if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
 	if operation == "preview":
-		var result: Dictionary = working.generate_packed(cell.x, cell.y, false)
+		var result: Dictionary = _native(working.generate_packed(cell.x, cell.y, false, LIMITS.AUTHORING_TRIANGLES))
 		if not result.ok: return result
 		if cached.get("signature", "") == result.data.preview_signature:
 			return {"ok":true,"data":{"reused":true,"signature":result.data.preview_signature,"cell":cell}}
 		result.data.signature = result.data.preview_signature
 		result.data.cell = cell
-		var cost: Dictionary = JSON.parse_string(working.estimate(cell.x,cell.y))
+		var cost: Dictionary = _native(JSON.parse_string(working.estimate(cell.x,cell.y,LIMITS.AUTHORING_TRIANGLES)))
 		if not cost.ok: return cost
 		# Native generation has already enforced its separate work/triangle limit.
 		# Reserve the materialized output, rather than every possible road cut in
@@ -103,7 +121,7 @@ func _memory_preview(document: Dictionary, operation: String, cell: Vector2i, fu
 	for y in ny:
 		for x in nx:
 			if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
-			var cost: Dictionary = JSON.parse_string(working.estimate(x,y))
+			var cost: Dictionary = _native(JSON.parse_string(working.estimate(x,y,LIMITS.AUTHORING_TRIANGLES)))
 			if not cost.ok: return cost
 			var row: Dictionary = cost.data
 			row.cell = Vector2i(x,y)
@@ -112,7 +130,7 @@ func _memory_preview(document: Dictionary, operation: String, cell: Vector2i, fu
 			row.warning = "over limit" if row.work_bytes > PREVIEW_BYTES else ("high" if row.work_bytes >= PREVIEW_BYTES*3/4 else "")
 			rows["%d/%d" % [x,y]] = row
 			if full:
-				var generated: Dictionary = working.generate_packed(x,y,false)
+				var generated: Dictionary = _native(working.generate_packed(x,y,false,LIMITS.AUTHORING_TRIANGLES))
 				if not generated.ok: return generated
 	checked.data.chunk_costs = rows
 	checked.data.seconds = (Time.get_ticks_usec()-started)/1000000.0
@@ -140,8 +158,8 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 		if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
 		update("Generating cell %d / %d" % [cell.x, cell.y])
 		var generation_started := Time.get_ticks_usec()
-		var generated: Dictionary = native.generate_chunk_packed(cell.x, cell.y)
-		if generated.ok: generated = native.with_presentation(generated.data)
+		var generated: Dictionary = _native(native.generate_chunk_packed_authoring(cell.x, cell.y, LIMITS.AUTHORING_TRIANGLES))
+		if generated.ok: generated = _native(native.with_presentation(generated.data))
 		if not generated.ok: return generated
 		generated.data.signature = signature
 		generated.data.cell = cell
@@ -150,14 +168,16 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 		generated.data.generation_seconds = (Time.get_ticks_usec() - generation_started) / 1000000.0
 		return generated
 	var report: Dictionary = staged.inspection.duplicate(true)
-	report.limit_warnings = snapshot.get("limit_warnings", []).duplicate(true) + warnings
+	report.limit_warnings = snapshot.get("limit_warnings", []).duplicate(true)
+	LIMITS.merge(report.limit_warnings, warnings)
+	LIMITS.merge(report.limit_warnings, staged.get("limit_warnings"))
 	var density := density_report(native, snapshot, index.data, cached, operation != "export")
 	if not density.ok: return density
 	report.chunk_costs = density.data
 	if operation == "density": return {"ok":true,"data":report}
 	update("Preparing 2D overview")
 	var overview_text: String = native.overview_json(OVERVIEW_BYTES)
-	var overview: Dictionary = JSON.parse_string(overview_text)
+	var overview: Dictionary = _native(JSON.parse_string(overview_text))
 	if not overview.ok and str(overview.error.code) != "E_MEMORY_BUDGET": return overview
 	if overview.ok:
 		report.overview = overview.data
@@ -174,10 +194,11 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 			update("Optional 3D check %d / %d" % [report.full_generation_cells + 1, report.cell_count])
 			var budget := allowance(native, Vector2i(int(target.x), int(target.y)), report.limit_warnings)
 			if not budget.ok: return budget
-			var generated: Dictionary = native.generate_chunk_packed(int(target.x), int(target.y))
-			# MapKit's per-cell generation budgets are the game's own: it refuses
-			# such a cell at play time. Report the count of cells; other native
-			# budget errors are plain warnings, every other error stays fatal.
+			var generated: Dictionary = _native(native.generate_chunk_packed_authoring(int(target.x), int(target.y), LIMITS.AUTHORING_TRIANGLES))
+			# Under the Authoring profile a cell above the game's triangle or work
+			# budgets is generated and warns (runtime_rejects). Only a cell above a
+			# raised guard still fails E_BUDGET: count those cells; every other
+			# error stays fatal.
 			if not generated.ok and str(generated.error.code) == "E_BUDGET":
 				if runtime_cell_budget(str(generated.error.get("message", ""))):
 					over_cells += 1
@@ -197,9 +218,10 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 		var budget := reopen_budget(regional_path)
 		var opened: Dictionary = JSON.parse_string(regional.open_index(regional_path,budget,""))
 		if not opened.ok: return opened
-		var audited: Dictionary = JSON.parse_string(regional.audit(budget,regional.begin_request()))
+		var audited: Dictionary = _native(JSON.parse_string(regional.audit_authoring(budget,regional.begin_request(),OVERVIEW_BYTES)))
 		if not audited.ok: return audited
 		report.merge(audited.data,true)
+		report.package_bytes = int(packed.data.package_bytes)
 		report.erase("overview_json")
 		report.erase("overview_cost")
 		report.base_package_bytes = int(report.package_bytes)
@@ -210,6 +232,10 @@ func process_snapshot(staged: Dictionary, snapshot: Dictionary, operation: Strin
 	var package_path: String = staged.path.path_join("result.memap")
 	var packed: Dictionary = JSON.parse_string(native.export_project(staged.path, package_path))
 	if not packed.ok: return packed
+	# open_project inspects the project in memory (no package: 0 bytes, no hash);
+	# the written package's identity and size come from export_project.
+	report.package_bytes = int(packed.data.package_bytes)
+	report.package_sha256 = str(packed.data.package_sha256)
 	var compressed := compressed_assets(package_path, snapshot.document.assets)
 	if not compressed.ok: return compressed
 	report.user_asset_compressed_bytes = compressed.data
@@ -246,7 +272,7 @@ static func compressed_assets(path: String, assets: Array) -> Dictionary:
 
 # Over the preview allowance the cell is still generated; the caller gets a warning.
 func allowance(native: RefCounted, cell: Vector2i, warnings: Array = []) -> Dictionary:
-	var cost: Dictionary = JSON.parse_string(native.estimate_chunk(cell.x, cell.y))
+	var cost: Dictionary = _native(JSON.parse_string(native.estimate_chunk_authoring(cell.x, cell.y, LIMITS.AUTHORING_TRIANGLES)))
 	if not cost.ok: return cost
 	var charge := work_bytes(cost.data)
 	if charge > PREVIEW_BYTES: LIMITS.note(warnings, "preview_work", charge, PREVIEW_BYTES, "Cell preview needs more work memory than the preview allowance")
@@ -265,7 +291,7 @@ func whole_map_cells(native: RefCounted, document: Dictionary) -> Dictionary:
 		var x := int(bounds.min[0])
 		while x <= int(bounds.max[0]):
 			if stopped(): return failure("E_CANCELLED", "Operation cancelled.")
-			var query: Dictionary = JSON.parse_string(native.query_cells(x, y, mini(x + step, int(bounds.max[0])), mini(y + step, int(bounds.max[1])), QUERY_CELLS))
+			var query: Dictionary = _native(JSON.parse_string(native.query_cells(x, y, mini(x + step, int(bounds.max[0])), mini(y + step, int(bounds.max[1])), QUERY_CELLS)))
 			if not query.ok: return query
 			for target: Dictionary in query.data.geometry_cells:
 				var key := "%d/%d" % [int(target.x), int(target.y)]
@@ -306,7 +332,7 @@ func density_report(native: RefCounted, snapshot: Dictionary, index: Dictionary,
 		if use_cache and cached.get(key,{}).get("signature","") == signature:
 			rows[key] = cached[key]
 			continue
-		var estimated: Dictionary = JSON.parse_string(native.estimate_chunk(cell.x,cell.y))
+		var estimated: Dictionary = _native(JSON.parse_string(native.estimate_chunk_authoring(cell.x,cell.y,LIMITS.AUTHORING_TRIANGLES)))
 		if not estimated.ok: return estimated
 		var row: Dictionary = estimated.data.duplicate(true)
 		row.cell = cell

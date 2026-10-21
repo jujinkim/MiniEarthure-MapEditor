@@ -76,10 +76,10 @@ var terrain_revision := 0
 func working_snapshot() -> RefCounted:
 	if working == null:
 		working = ClassDB.instantiate("MapKitWorkingSnapshot")
-		working.configure(JSON.stringify(document), project_path)
+		note_native(JSON.parse_string(working.configure(JSON.stringify(document), project_path)))
 		_working_epoch = command_epoch
 	elif _working_epoch != command_epoch:
-		working.set_document(JSON.stringify(document), project_path)
+		note_native(JSON.parse_string(working.set_document(JSON.stringify(document), project_path)))
 		_working_epoch = command_epoch
 	return working
 
@@ -156,6 +156,7 @@ func _prepare_stored_track(candidate: Dictionary) -> Dictionary:
 	var validation := _validate(candidate)
 	if not validation.ok: return {"error":reason(validation)}
 	var memory: Dictionary = JSON.parse_string(working_snapshot().fork().set_document(JSON.stringify(validation.data.document), project_path))
+	note_native(memory)
 	if not memory.ok: return {"error":reason(memory)}
 	return {"candidate":validation.data.document, "signature":_signature(validation.data.document)}
 
@@ -181,6 +182,16 @@ func note_limit(code: String, actual: int, limit: int, message: String, runtime_
 	LIMITS.note(single, code, actual, limit, message, runtime_rejects)
 	LIMITS.note(limit_warnings, code, actual, limit, message, runtime_rejects)
 	limit_warned.emit(LIMITS.text(single))
+
+# MapKit Authoring warnings repeat on every call over the same document: only a
+# new code or a larger value is shown again.
+func note_native(response: Variant) -> void:
+	var received: Array = []
+	LIMITS.native(received, response)
+	for entry: Dictionary in received:
+		var known := limit_warnings.filter(func(item): return item is Dictionary and item.get("code") == entry.code)
+		if known.is_empty() or int(known[0].get("actual", 0)) < int(entry.actual):
+			note_limit(entry.code, int(entry.actual), int(entry.limit), entry.message, entry.runtime_rejects)
 
 func note_limits(entries: Variant) -> void:
 	var received: Array = []
@@ -391,7 +402,8 @@ func open_project(path: String) -> String:
 		return reason(result) + " Use Recover to select a previous or pending snapshot."
 	if files.digest(disk) != digest_before:
 		return "Project changed while opening; retry Open."
-	document = JSON.parse_string(candidate.document_json()).data
+	var opened: Dictionary = JSON.parse_string(candidate.document_json())
+	document = opened.data
 	bridge = candidate
 	project_path = ProjectSettings.globalize_path(path).simplify_path()
 	_reset_session()
@@ -400,6 +412,9 @@ func open_project(path: String) -> String:
 	_saved_signature = _signature(document)
 	_saved_canonical = JSON.stringify(document)
 	dirty = false
+	# Budgets the game would refuse open with warnings (MapKit Authoring profile).
+	note_native(result)
+	note_native(opened)
 	changed.emit()
 	return ""
 
@@ -429,8 +444,11 @@ func _reset_session() -> void:
 	_working_epoch = -1
 	terrain_revision += 1
 
+# The user's own document: budgets the game would refuse warn (Authoring profile).
 func _validate(value: Dictionary) -> Dictionary:
-	return JSON.parse_string(bridge.validate_document(JSON.stringify(value)))
+	var result: Dictionary = JSON.parse_string(bridge.validate_document_authoring(JSON.stringify(value)))
+	note_native(result)
+	return result
 
 func _signature(value: Dictionary) -> String:
 	var content := value.duplicate(true)
@@ -570,6 +588,7 @@ func _candidate_for_patches(patches: Array) -> Dictionary:
 			# Promote the valid previous track through MapKit before adding scenery.
 			# Promotion and the user's edit share one memento and one Undo owner.
 			var promoted: Dictionary = JSON.parse_string(bridge.apply_track_source(JSON.stringify(document),JSON.stringify(track_source())))
+			note_native(promoted)
 			if not promoted.ok: return {"error":reason(promoted)}
 			candidate = promoted.data.document
 	var failure := _apply(candidate, patches, false)
@@ -595,6 +614,7 @@ func _prepare_command(label: String, patches: Array, binary_mementos: Dictionary
 		return {"error": reason(validation)}
 	if working != null:
 		var memory_check: Dictionary = JSON.parse_string(working.fork().set_document(JSON.stringify(candidate),project_path))
+		note_native(memory_check)
 		if not memory_check.ok: return {"error":reason(memory_check)}
 	candidate = validation.data.document
 	if overlay: patches = document_patches(candidate)
@@ -685,9 +705,11 @@ func _prepare_history(command: Dictionary, reverse: bool) -> Dictionary:
 				return {"error":"History payload changed or is missing: " + path}
 	var native: RefCounted = working_snapshot().fork()
 	var replayed: Dictionary = JSON.parse_string(native.replay_document(JSON.stringify(validation.data.document),project_path))
+	note_native(replayed)
 	if not replayed.ok: return {"error":reason(replayed)}
 	if command.has("binary_mementos"):
 		replayed = JSON.parse_string(native.validate_memory())
+		note_native(replayed)
 		if not replayed.ok: return {"error":reason(replayed)}
 	return {"candidate":validation.data.document, "signature":_signature(validation.data.document),"working":native}
 
@@ -829,6 +851,7 @@ func recover(path: String) -> String:
 	# selected raw backups bind the current file; subsequent external edits conflict.
 	_disk_digest = str(value.get("base_sha256", "")) if envelope else files.digest(_disk_path)
 	note_limits(result.get("limit_warnings", []))
+	note_native(validation)
 	_after_edit()
 	if envelope and not value.draft.is_empty(): _accept_draft(value.draft)
 	return ""
@@ -844,6 +867,7 @@ func open_generated(value: Dictionary, preview: Dictionary = {}) -> String:
 	project_path = ""
 	bridge = ClassDB.instantiate("MapKitBridge")
 	_reset_session()
+	note_native(checked)
 	prepared_track_preview=preview
 	track_preview_cache=preview
 	_after_edit()
@@ -856,6 +880,7 @@ func set_free_roam(value: bool) -> String:
 	var patches: Array = [{"field":"free_roam", "id":"", "before":document.free_roam, "after":value}]
 	if candidate.has("assembled_track"):
 		var result: Dictionary = JSON.parse_string(bridge.reseal_track_document(JSON.stringify(candidate)))
+		note_native(result)
 		if not result.ok: return reason(result)
 		for course: Dictionary in document.get("courses",[]):
 			patches.append({"field":"courses", "id":course.course_id, "before":course, "after":null})
@@ -912,12 +937,14 @@ func document_patches(candidate: Dictionary) -> Array:
 func edit_road(id: String, design: Dictionary, width_cm: int) -> String:
 	if editing_locked() or draft_pending(): return EDIT_BUSY
 	var result: Dictionary = JSON.parse_string(bridge.edit_road_design(JSON.stringify(document), id, JSON.stringify(design), width_cm))
+	note_native(result)
 	if not result.ok: return reason(result)
 	return apply_command("Road alignment and terrain fit", document_patches(result.data.document))
 
 func edit_surface_attachments(items: Array) -> String:
 	if editing_locked() or draft_pending(): return EDIT_BUSY
 	var result: Dictionary = JSON.parse_string(bridge.apply_surface_attachments(JSON.stringify(document), JSON.stringify(items)))
+	note_native(result)
 	if not result.ok: return reason(result)
 	return apply_command("Surface attachment", document_patches(result.data.document))
 
@@ -928,6 +955,7 @@ func _prepare_track(source: Dictionary, record_history := true) -> Dictionary:
 	for field in ["roads","nodes","buildings","placements","repetitions","zones","surface_areas","water_bodies","heightmaps","assets","pois"]:
 		if not document.get(field,[]).is_empty(): mixed = true
 	var result: Dictionary = JSON.parse_string(bridge.apply_track_source(JSON.stringify(document), JSON.stringify(source)) if mixed else bridge.compile_track_source(JSON.stringify(source)))
+	note_native(result)
 	if not result.ok: return {"error":reason(result)}
 	var candidate: Dictionary = result.data.document
 	if not mixed:
@@ -937,6 +965,7 @@ func _prepare_track(source: Dictionary, record_history := true) -> Dictionary:
 		candidate.attributions = document.get("attributions",[]).duplicate(true)
 		if candidate.free_roam:
 			result = JSON.parse_string(bridge.reseal_track_document(JSON.stringify(candidate)))
+			note_native(result)
 			if not result.ok: return {"error":reason(result)}
 			candidate=result.data.document
 	var validation := _validate(candidate)
@@ -954,6 +983,7 @@ func new_track(free_roam := false) -> void:
 		var source: Dictionary = track_source()
 		source.settings.circuit = false
 		var result: Dictionary=JSON.parse_string(bridge.compile_track_source(JSON.stringify(source)))
+		note_native(result)
 		if result.ok:
 			result.data.document.provenance=document.provenance.duplicate(true)
 			document=result.data.document

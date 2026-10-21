@@ -167,12 +167,23 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                         graph_nodes[node_id] = record
                     endpoints.append(node_id)
                 width = round(scalar("width_m", 8, 0.01, 1000) * 100)
+                widths = [width] * (len(points) - 1)
+                segment_widths = properties.get("_city_widths_m") if city and osm_graph else None
+                if isinstance(segment_widths, list) and len(segment_widths) == len(points) - 1:
+                    # City chains keep per-segment widths (merged roads, width changes).
+                    widths = [round(number(w, "segment width", 0.01, 1000) * 100) for w in segment_widths]
                 surface = text(properties.get("surface", "asphalt"), "surface", 64)
                 if "surface" not in properties: layer.estimate("surface")
                 structure = properties["road_kind"] if explicit else properties["_city_estimated_kind"] if estimated else "ground"
                 clearance = properties.get("clearance_m") if explicit else properties.get("_city_estimated_clearance_m") if estimated else None
-                layer.add("roads", {"id": road_id, "from": endpoints[0], "to": endpoints[1], "points": points,
-                    "widths_cm": [width] * (len(points) - 1), "surfaces": [surface] * (len(points) - 1), "kind": structure, "clearance_cm": round(clearance * 100) if clearance is not None else None, "sidewalk_cm": None})
+                # City ground roads carry an explicit sidewalk (source cm, 0 or
+                # 20..1000 map cm after the 1:D adoption); other profiles keep none.
+                sidewalk = round(number(properties.get("_city_sidewalk_m", 0), "sidewalk", 0, 1000) * 100) if city and osm_graph and structure == "ground" else None
+                record = {"id": road_id, "from": endpoints[0], "to": endpoints[1], "points": points,
+                    "widths_cm": widths, "surfaces": [surface] * (len(points) - 1), "kind": structure, "clearance_cm": round(clearance * 100) if clearance is not None else None, "sidewalk_cm": sidewalk}
+                if city and osm_graph and isinstance(properties.get("_city_markings"), dict):
+                    record["markings"] = dict(properties["_city_markings"])
+                layer.add("roads", record)
                 if estimated:
                     layer.coordinates.setdefault("osm_estimated_structures", []).append(road_id)
                 if ground_refs:

@@ -1412,6 +1412,8 @@ func _package_finished(result: Dictionary) -> void:
 			last_export_report.path = package_destination
 		_status(I18N.t("Exported validated package: ") + package_destination if package_operation == "export" else I18N.t("Validated immutable snapshot; capacity report ready."))
 		validation_label.text = I18N.t("Memory snapshot validated") if result.data.get("memory_snapshot",false) else I18N.t("Validated · %d bytes · base goal %s") % [result.data.package_bytes, "met" if result.data.base_target_met else "exceeded"]
+		# Package and MapKit warnings also reach the status line (deferred, after this status).
+		if result.data.get("limit_warnings") is Array: _limit_warned(LIMITS.text(result.data.limit_warnings))
 		export_report.show_report(result.data)
 		return
 	if result.data.get("reused", false):

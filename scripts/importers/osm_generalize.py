@@ -18,6 +18,7 @@ from shapely.errors import GEOSException
 
 from projection import Coordinates
 from osm_extract import PEDESTRIAN
+import osm_roads
 from import_layer import BudgetExceeded, soft_limit, limit_snapshot, limit_restore, limit_delta, limit_replay
 
 PROFILE = "scale-aware-city-v1"
@@ -79,6 +80,25 @@ def road_buffers(geometries, widths, clearance):
     return shapely.buffer(np.array(geometries, dtype=object), np.array(widths)/2+clearance, quad_segs=16, cap_style="square", join_style="mitre")
 
 
+def segment_buffers(lines, clearance):
+    """Buffers of (line, per-segment widths): a line of one width is buffered
+    whole; otherwise each run of equal widths keeps its own width."""
+    result = [None] * len(lines)
+    uniform = [i for i, (g, w) in enumerate(lines) if len(set(w)) <= 1]
+    if uniform:
+        for i, b in zip(uniform, road_buffers([lines[i][0] for i in uniform], [lines[i][1][0] if lines[i][1] else 8 for i in uniform], clearance)):
+            result[i] = b
+    for i, (g, widths) in enumerate(lines):
+        if result[i] is not None: continue
+        coords, parts, start = list(g.coords), [], 0
+        for k in range(1, len(widths) + 1):
+            if k == len(widths) or widths[k] != widths[start]:
+                parts.append((LineString(coords[start:k + 1]), widths[start]))
+                start = k
+        result[i] = unary_union(list(road_buffers([a for a, w in parts], [w for a, w in parts], clearance)))
+    return result
+
+
 def source_ids(feature):
     return feature["properties"].get("_city_sources", [feature["properties"]["osm_source_id"]])
 
@@ -101,12 +121,25 @@ def clear_width(feature, furniture):
     """Width buildings keep clear of; estimated structures add `furniture`
     (20 map cm each side) for native bridge/tunnel safety furniture."""
     p = feature["properties"]
-    return float(p.get("width_m", 8)) + (furniture if "_city_estimated_m" in p else 0.0)
+    return float(p.get("width_m", 8)) + 2 * float(p.get("_city_sidewalk_m", 0)) + (furniture if "_city_estimated_m" in p else 0.0)
+
+
+def clear_widths(feature, geometry, furniture):
+    """Per-segment clear widths: each segment's own width (chains and merged
+    roads vary), plus sidewalks and estimated-structure furniture."""
+    p = feature["properties"]
+    extra = clear_width(feature, furniture) - float(p.get("width_m", 8))
+    widths = p.get("_city_widths_m")
+    if not widths or len(widths) != len(geometry.coords) - 1:
+        widths = [float(p.get("width_m", 8))] * (len(geometry.coords) - 1)
+    return [max(0.01, float(w) + extra) for w in widths]
 
 
 def is_walking(feature, structural=frozenset()):
     """Ground pedestrian ways, including closed loops not joined to a structure."""
     p = feature["properties"]
+    if p.get("_city_ground_paint") and "osm_node_refs" not in p and "_city_estimated_m" not in p:
+        return True  # Painted service ways and tracks (city road rules).
     if p.get("_city_road_tags", {}).get("highway") not in PEDESTRIAN or p.get("road_kind", "ground") != "ground" or "elevations_m" in p:
         return False
     if "_city_estimated_m" in p:
@@ -144,6 +177,7 @@ class Generalizer:
         self.surface_mappings = Counter()
         self.widened_roads = 0
         self.estimated_widths = Counter()
+        self.road_rules = Counter()
         # Meter precision in the source frame, before the single 1:scale adoption.
         # Scalars or coordinate arrays; arrays give the same per-point values.
         def project(x, y, z=None):
@@ -166,8 +200,14 @@ class Generalizer:
                 p = feature["properties"]
                 if "width_m" not in p:
                     road_class = p.get("_city_road_tags",{}).get("highway","road")
-                    p["width_m"] = WIDTHS.get(road_class,8)
+                    lane_width = osm_roads.lane_width(p.get("_city_road_tags", {})) if road_class not in PEDESTRIAN else None
+                    p["width_m"] = lane_width or WIDTHS.get(road_class,8)
+                    p["_city_width_estimate"] = "lanes" if lane_width else "class"
                     self.estimated_widths[road_class] += 1
+                    if lane_width: self.road_rules["lane_widths"] += 1
+                if "_city_crossings" in p:
+                    xs, ys = project(*np.array(p.pop("_city_crossings"), dtype=float).T)
+                    p["_city_crossing_points"] = [(float(x), float(y)) for x, y in zip(xs, ys)]
                 original = p.get("surface", "asphalt")
                 mapped = SURFACES.get(original, "asphalt")
                 if mapped != original:
@@ -178,14 +218,27 @@ class Generalizer:
                     self.widened_roads += 1
             self.features.append((feature, geometry))
         self.before = self.counts(self.features)
+        # City road rules before any buffer, so every gap shares them: service
+        # paint, dual carriageways merged into one road, explicit sidewalks.
+        self.road_rules.update({"painted_" + k: n for k, n in osm_roads.paint_service(self.features).items()})
+        merger = osm_roads.DualCarriageways(self.features, self.spend)
+        self.features = merger.run()
+        self.road_rules.update({"dual_" + k: n for k, n in merger.stats.items()})
+        self.features, sidewalk_counts = osm_roads.sidewalks(self.features, self.scale, self.spend)
+        self.road_rules.update({("sidewalk_" + k if not k[0].isdigit() else "sidewalk_cm_" + k): n for k, n in sidewalk_counts.items()})
+        self.crossing_points = list(dict.fromkeys(c for f, g in self.features for c in f["properties"].get("_city_crossing_points", [])))
+        self.crossing_lines = [g for f, g in self.features if g.geom_type == "LineString" and f["properties"].get("_city_road_tags", {}).get("footway") == "crossing"]
         self.level_structures = sum(bool(f["properties"].get("_city_level_structure")) for f,g in self.features)
         self.road_geometries = [g for f, g in self.features if g.geom_type == "LineString"]
-        self.road_widths = [max(0.01, float(f["properties"].get("width_m", 8))) for f,g in self.features if g.geom_type == "LineString"]
+        # Gap-filling barriers and building trims use the same per-segment
+        # clear widths (sidewalks included).
+        road_lines = [(g, clear_widths(f, g, self.furniture)) for f, g in self.features if g.geom_type == "LineString"]
+        self.road_widths = [max(w) for g, w in road_lines]
         self.road_tree = STRtree(self.road_geometries)
-        self.road_buffers = road_buffers(self.road_geometries, self.road_widths, self.road_clearance)
+        self.road_buffers = np.array(segment_buffers(road_lines, self.road_clearance), dtype=object)
         self.ground_geometries = [g for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
-        self.ground_widths = [clear_width(f, self.furniture) for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
-        self.ground_buffers = road_buffers(self.ground_geometries, self.ground_widths, self.road_clearance)
+        self.ground_widths = [clear_widths(f, g, self.furniture) for f,g in self.features if g.geom_type == "LineString" and f["properties"].get("road_kind","ground") == "ground"]
+        self.ground_buffers = segment_buffers(list(zip(self.ground_geometries, self.ground_widths)), self.road_clearance)
         # Buildings lifted from a positive layer to the ground are cut around
         # source-height structures with their safety furniture; no building
         # grows back into that corridor.
@@ -205,6 +258,10 @@ class Generalizer:
         self.input_ids = sorted({s for f,g in self.features for s in source_ids(f)})
         self.uses = Counter(ref for f,g in self.features if g.geom_type == "LineString"
                             for ref in set(f["properties"].get("osm_node_refs", f["properties"].get("_city_refs", []))))
+        # Chaining joins driving roads where exactly two driving roads meet;
+        # painted ways (footways, service paint) no longer block it.
+        self.drive_uses = Counter(ref for f,g in self.features if g.geom_type == "LineString" and ("osm_node_refs" in f["properties"] or not is_walking(f))
+                                  for ref in set(f["properties"].get("osm_node_refs", f["properties"].get("_city_refs", []))))
         self.trim_windows = {}
         self.context = {}
         self.reviewed = len(self.review.excluded)
@@ -264,13 +321,15 @@ class Generalizer:
         return build
 
     def simplified_line(self, feature, geometry, tolerance):
+        """The simplified line and the source vertex index of each kept vertex."""
         p = feature["properties"]
         refs = p.get("_city_refs")
         if tolerance == 0 or len(geometry.coords) <= 2 or not refs or len(refs) != len(geometry.coords) or "osm_node_refs" in p:
-            return geometry
+            return geometry, list(range(len(geometry.coords)))
         # All source incidence, including junctions inside a way, stays fixed.
         cuts = [0] + [i for i in range(1, len(refs)-1) if self.uses[refs[i]] > 1] + [len(refs)-1]
-        points = []
+        points, kept = [], []
+        original = list(geometry.coords)
         for a,b in zip(cuts,cuts[1:]):
             segment = LineString(list(geometry.coords)[a:b+1])
             candidate = segment.simplify(tolerance, preserve_topology=True)
@@ -281,8 +340,13 @@ class Generalizer:
             self.spend(len(ids))
             if any(candidate.intersects(self.road_geometries[i]) and not segment.intersects(self.road_geometries[i]) for i in ids):
                 candidate = segment
-            points.extend(list(candidate.coords)[bool(points):])
-        return LineString(points)
+            # Douglas-Peucker keeps source vertices in order.
+            index = a
+            for point in list(candidate.coords)[bool(points):]:
+                while original[index] != point: index += 1
+                kept.append(index)
+                points.append(point)
+        return LineString(points), kept
 
     def roads(self, gap):
         ordinary, fixed = [], []
@@ -293,15 +357,36 @@ class Generalizer:
                 # Source graph and estimated structure profiles keep every vertex.
                 fixed.append((deepcopy(f), g))
             else:
-                ordinary.append((deepcopy(f), self.simplified_line(f, g, min(4.0, gap / 4))))
+                geometry, kept = self.simplified_line(f, g, min(4.0, gap / 4))
+                ordinary.append((deepcopy(f), geometry, kept, len(g.coords)))
+        # Per ordinary piece: simplified segment widths, vertex source refs,
+        # lane count (voted by length along a chain) and sidewalk.
+        extras = []
+        for feature, geometry, kept, count in ordinary:
+            p = feature["properties"]
+            source = p.get("_city_widths_m") or [float(p.get("width_m", 8))] * (count - 1)
+            refs = p.get("_city_refs")
+            extras.append(([max(source[a:b]) for a, b in zip(kept, kept[1:])],
+                           [refs[k] for k in kept] if refs and len(refs) == count else [None] * len(kept),
+                           p["_city_lanes"] if "_city_lanes" in p else osm_roads.lanes(p.get("_city_road_tags", {})),
+                           float(p.get("_city_sidewalk_m", 0))))
+        ordinary = [(f, g) for f, g, kept, count in ordinary]
+        walks = [is_walking(f) for f, g in ordinary]
         endpoints = defaultdict(list)
         for index, (feature, geometry) in enumerate(ordinary):
             refs = feature["properties"].get("_city_refs")
             if refs:
-                endpoints[refs[0]].append((index, 0))
-                endpoints[refs[-1]].append((index, 1))
+                endpoints[(walks[index], refs[0])].append((index, 0))
+                endpoints[(walks[index], refs[-1])].append((index, 1))
+        # Chains continue across width, lane, name and ref changes (per-segment
+        # widths); class, structure, access, surface, oneway, sidewalk and paint
+        # still break (one sidewalk per road record).
+        ignored = ("name", "ref", "lanes", "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway")
         def signature(feature):
-            return json.dumps({k:v for k,v in feature["properties"].items() if not k.startswith("_city") and k != "osm_source_id"} | {"tags":feature["properties"].get("_city_road_tags", {})}, sort_keys=True)
+            p = feature["properties"]
+            return json.dumps({k:v for k,v in p.items() if not k.startswith("_city") and k not in ("osm_source_id", "width_m")}
+                              | {"tags":{k:v for k,v in p.get("_city_road_tags", {}).items() if k not in ignored}, "paint":p.get("_city_ground_paint"),
+                                 "sidewalk":p.get("_city_sidewalk_m", 0)}, sort_keys=True)
         signatures = [signature(f) for f,g in ordinary]
         seen, output = set(), []
         for index, (feature, geometry) in enumerate(ordinary):
@@ -311,12 +396,19 @@ class Generalizer:
             p = feature["properties"]
             refs = p.get("_city_refs")
             points = list(geometry.coords)
+            widths, prefs = list(extras[index][0]), list(extras[index][1])
+            lanes = Counter()
+            crossings = list(p.get("_city_crossing_points", []))
+            def vote(j, line):
+                lanes[extras[j][2]] += line.length
+            vote(index, geometry)
             sources = set(source_ids(feature))
+            uses = self.uses if walks[index] else self.drive_uses
             if refs:
                 ends = [refs[0], refs[-1]]
                 for side in (0, 1):
-                    while self.uses[ends[side]] == 2 and len(endpoints[ends[side]]) == 2:
-                        options = [(j,end) for j,end in endpoints[ends[side]] if j not in seen and signatures[j] == signatures[index]]
+                    while uses[ends[side]] == 2 and len(endpoints[(walks[index], ends[side])]) == 2:
+                        options = [(j,end) for j,end in endpoints[(walks[index], ends[side])] if j not in seen and signatures[j] == signatures[index]]
                         if len(options) != 1:
                             break
                         j, end = options[0]
@@ -325,44 +417,60 @@ class Generalizer:
                         far = other_refs[0 if end == 1 else -1]
                         if far == ends[1-side]:
                             break  # Never create a self-loop that the native road contract cannot express.
-                        new_points = list(shape_j.coords)
+                        new_points, new_widths, new_prefs = list(shape_j.coords), list(extras[j][0]), list(extras[j][1])
                         if end == side:
-                            new_points.reverse()
+                            new_points.reverse(); new_widths.reverse(); new_prefs.reverse()
                         if (new_points[-1] if side == 0 else new_points[0]) != points[0 if side == 0 else -1]:
                             break
                         if len(points) + len(new_points) > 1024:
                             break
-                        points = new_points[:-1] + points if side == 0 else points + new_points[1:]
+                        if side == 0:
+                            points, widths, prefs = new_points[:-1] + points, new_widths + widths, new_prefs[:-1] + prefs
+                        else:
+                            points, widths, prefs = points + new_points[1:], widths + new_widths, prefs + new_prefs[1:]
                         ends[side] = far
                         sources.update(source_ids(other))
+                        crossings.extend(other["properties"].get("_city_crossing_points", []))
+                        vote(j, shape_j)
                         seen.add(j)
                         self.spend()
                 p["_city_ends"] = [str(ref) for ref in ends]
             p["_city_sources"] = sorted(sources)
-            quantized = []
-            for point in points:
+            if crossings: p["_city_crossing_points"] = list(dict.fromkeys(crossings))
+            if not walks[index]:
+                p["_city_lanes"] = max(((n, length) for n, length in lanes.items() if n is not None), key=lambda item: (item[1], item[0]), default=(None, 0))[0]
+            quantized, kept_widths, kept_refs, last = [], [], [], 0
+            for n, point in enumerate(points):
                 snapped = self.snap(point)
-                if not quantized or snapped != quantized[-1]: quantized.append(snapped)
-            if len(quantized) >= 2: points = quantized
+                if quantized and snapped == quantized[-1]:
+                    if n == len(points) - 1: kept_refs[-1] = prefs[n]  # The end keeps its source node.
+                    continue
+                if quantized: kept_widths.append(max(widths[last:n]))
+                quantized.append(snapped); kept_refs.append(prefs[n]); last = n
+            if len(quantized) >= 2: points, widths, prefs = quantized, kept_widths, kept_refs
+            p["_city_widths_m"], p["_city_point_refs"] = widths, prefs
+            p["width_m"] = max(widths)
             joined_geometry = LineString(points)
             if not joined_geometry.is_simple or points[0] == points[-1]:
                 # Distinct OSM endpoint IDs can coincide geometrically. Keep
                 # every edge in maximal simple paths, never weld those IDs or
                 # discard a self-crossing source way.
-                chains, chain = [], [points[0]]
-                for point in points[1:]:
+                chains, chain = [], [0]
+                for n in range(1, len(points)):
                     self.spend(len(chain))
-                    trial = chain + [point]
+                    trial = [points[k] for k in chain + [n]]
                     if len(chain) > 1 and (trial[0] == trial[-1] or not LineString(trial).is_simple):
                         chains.append(chain)
-                        chain = [chain[-1],point]
+                        chain = [chain[-1], n]
                     else:
-                        chain = trial
+                        chain = chain + [n]
                 chains.append(chain)
                 for chain in chains:
                     piece = deepcopy(feature)
                     piece["properties"].pop("_city_ends",None)
-                    output.append((piece,LineString(chain)))
+                    a, b = chain[0], chain[-1]
+                    piece["properties"].update(_city_widths_m=widths[a:b], _city_point_refs=prefs[a:b+1], width_m=max(widths[a:b]))
+                    output.append((piece,LineString([points[k] for k in chain])))
             else:
                 output.append((feature, joined_geometry))
         # The exact importer splits a closed ground way at every source vertex.
@@ -642,7 +750,7 @@ class Generalizer:
         owners = []
         for feature, geometry in walking:
             self.spend(positions(geometry))
-            owners.append((source_ids(feature), feature["properties"].get("surface", "concrete")))
+            owners.append((source_ids(feature), feature["properties"].get("_city_paint_surface") or feature["properties"].get("surface", "concrete")))
         ribbons = shapely.buffer(np.array([g for f,g in walking], dtype=object), np.array([float(f["properties"].get("width_m", 1.6)) for f,g in walking])/2, quad_segs=2)
         ribbons = list(shapely.set_precision(moved(ribbons, to_map), 1))
         tree = STRtree(ribbons)
@@ -725,17 +833,27 @@ class Generalizer:
         """Derived roads and the space buildings keep clear of; ground pedestrian
         ways are split off for paint."""
         roads = self.roads(gap)
-        self.barrier_buffers = np.concatenate([self.road_buffers, road_buffers([g for f,g in roads], [max(0.01,float(f["properties"].get("width_m",8))) for f,g in roads], self.road_clearance)])
+        structural = frozenset(ref for f,g in roads if f["properties"].get("road_kind","ground") != "ground" or "elevations_m" in f["properties"]
+                               for ref in f["properties"].get("osm_node_refs", []))
+        # Markings, junction-end crosswalks and the MapKit paint segment bound,
+        # over the records that stay roads (painted ways become ground paint).
+        is_road = lambda f, g: not is_walking(f, structural)
+        roads, counts = osm_roads.finish(roads, self.scale, self.crossing_points, self.crossing_lines, is_road, self.spend)
+        self.finish_counts = Counter(counts)
+        self.paint_bound = osm_roads.paint_bound(roads, self.scale, is_road)
+        derived = [(g, clear_widths(f, g, self.furniture)) for f,g in roads]
+        self.barrier_buffers = np.concatenate([self.road_buffers, np.array(segment_buffers(derived, self.road_clearance), dtype=object)])
         self.barrier_tree = STRtree(self.road_geometries + [g for f,g in roads])
-        ground = [(g,clear_width(f, self.furniture)) for f,g in roads if f["properties"].get("road_kind","ground") == "ground"]
+        ground = [line for (f,g), line in zip(roads, derived) if f["properties"].get("road_kind","ground") == "ground"]
         lines = list(zip(self.ground_geometries,self.ground_widths))+ground
-        self.ground_barriers = list(self.ground_buffers) + list(road_buffers([g for g,w in ground], [w for g,w in ground], self.road_clearance))
+        self.ground_barriers = list(self.ground_buffers) + segment_buffers(ground, self.road_clearance)
         # A junction surface is the hull of its approach mouths, which reaches up to
         # √2 × the widest half width from the node; keep buildings outside it too.
+        # Each approach counts with the width of its end segment.
         ends = defaultdict(list)
         for g,w in lines:
-            for x,y in (g.coords[0], g.coords[-1]):
-                ends[(round(x,2),round(y,2))].append(w)
+            for (x,y), width in ((g.coords[0], w[0]), (g.coords[-1], w[-1])):
+                ends[(round(x,2),round(y,2))].append(width)
         self.junction_disks = [shapely.Point(point).buffer(max(widths)/2*math.sqrt(2)+self.road_clearance, quad_segs=4)
                                for point,widths in sorted(ends.items()) if len(widths) > 1]
         self.junction_tree = STRtree(self.junction_disks)
@@ -743,8 +861,6 @@ class Generalizer:
         self.ground_tree = STRtree(self.ground_barriers)
         # Pedestrian ways still keep merged buildings and derived road space
         # clear above, but are represented as painted ground below.
-        structural = frozenset(ref for f,g in roads if f["properties"].get("road_kind","ground") != "ground" or "elevations_m" in f["properties"]
-                               for ref in f["properties"].get("osm_node_refs", []))
         return [(f,g) for f,g in roads if not is_walking(f, structural)], [(f,g) for f,g in roads if is_walking(f, structural)]
 
     def candidate(self, gap):
@@ -761,7 +877,7 @@ class Generalizer:
         # Road space depends on the gap only through the line tolerance, equal for
         # 16-64 m gaps. Reuse it and everything derived from it (trimmed sources,
         # protected buildings, groups, paint), replaying their work charges.
-        shared = ("barrier_buffers", "barrier_tree", "ground_barriers", "junction_disks", "junction_tree", "ground_tree")
+        shared = ("barrier_buffers", "barrier_tree", "ground_barriers", "junction_disks", "junction_tree", "ground_tree", "finish_counts", "paint_bound")
         tolerance = min(4.0, gap/4)
         if self.context.get("tolerance") == tolerance:
             self.spend(self.context["road_work"])
@@ -853,6 +969,7 @@ class Generalizer:
                     before=self.before, after=self.counts(items), source_ids=sorted(expected),
                     unmerged_numeric_groups=self.retained_groups, painted_pedestrian_ways=self.paint_ways,
                     level_structures=self.level_structures,
+                    road_rules=dict(sorted((self.road_rules + self.finish_counts).items())), paint_segment_bound=self.paint_bound,
                     layered_buildings=sum(bool(f["properties"].get("_city_layer_building")) and not self.excluded_sources.intersection(source_ids(f)) for f,g in self.features),
                     estimated_structure_roads=sum("_city_estimated_m" in f["properties"] for f,g in items),
                     groups=groups, protected_buildings=sum(bool(f["properties"].get("_city_name") or f["properties"].get("_city_landmark") or float(f["properties"].get("height_m",12))>=40) for f,g in items if is_building(f,g)))

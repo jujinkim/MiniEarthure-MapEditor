@@ -33,8 +33,13 @@ unlocks after owned work ends; a rename that already succeeded is reported as sa
 
 ## Commands and gestures
 
-Record commands apply a batch to a detached candidate, validate it through MapKit,
-then publish once. Failed commands, Undo or Redo leave document, history, dirty
+Record commands apply a batch to a detached candidate, validate it through MapKit
+(`validate_document_authoring`), then publish once. Editor calls on the user's own
+document run under MapKit's Authoring profile: a budget the game would refuse
+(for example 200,000 objects, 16,384 map cells, 1M input vertices or road/placement
+work) warns instead and only MapKit's raised guard refuses. MapKit's top-level
+`warnings` join the Editor limit warnings by code; the status line shows a code
+again only when it is new or its value grew. Failed commands, Undo or Redo leave document, history, dirty
 state and savepoint unchanged; callers handle the returned error string. No-op
 batches preserve redo and do not change edit timestamps.
 
@@ -87,10 +92,19 @@ candidates. Command source identities stay separate from published PNG descripto
 so import → Undo/Redo chains survive Save.
 
 Save limits on the user's own project show a limit warning in the status line and
-continue. The document snapshot warns above 64 MiB (memory) and above 32 MiB (the
+continue; MapKit's materialize warnings (for example `heightmap_step` for a modified
+cell above 655.35 m of relief) join them. The document snapshot warns above 64 MiB (memory) and above 32 MiB (the
 game refuses maps beyond this) and is refused above 1 GiB. Project files warn above
 64 MiB in total, above 128 MiB per file and above 512 MiB per package (the last two:
 the game refuses maps beyond this) and are refused above 2 GiB.
+
+**Open** admits the project directory in memory under the Authoring profile, without
+a package round trip. A project above a v1 package budget (document 32 MiB, file
+128 MiB, expanded 1 GiB, 8,192 files, manifest 4 MiB) or a document budget opens and
+reopens with a warning; warnings for values the game refuses add "the game refuses
+maps beyond this". Only MapKit's raised guards (for example 1 GiB per document or
+file, 256 MiB manifest) refuse the open. The opened project has no package: its
+size and SHA-256 come only from an explicit export, which keeps the v1 limits.
 
 **Save As** requires a directory without a document and copies current plus
 Undo/Redo-only asset and heightmap payloads, validates the candidate and publishes

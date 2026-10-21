@@ -14,6 +14,10 @@ from polygon_geometry import Budget, SpatialBudget, group_rings
 from osm_review import Review, source_error
 
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
+# Road tags the city profile reads (chaining breaks, widths, sidewalks, markings,
+# service paint and dual-carriageway merging); other tags are omitted.
+CITY_ROAD_TAGS = ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction", "service",
+                  "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway")
 MAX_ENTITIES = 250_000
 MAX_REFS = 200_000
 MAX_FEATURES = 20_000
@@ -899,8 +903,12 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             # Do not merge roads across semantic changes omitted by the
             # legacy display adapter (oneway, access, name, classification).
             # Loop and structural roads keep the class too (pedestrian handling).
-            p["_city_road_tags"] = {key: tags[key] for key in ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction") if key in tags}
+            p["_city_road_tags"] = {key: tags[key] for key in CITY_ROAD_TAGS if key in tags}
             if "osm_node_refs" not in p: p["_city_refs"] = p.pop("_city_estimated_refs", refs)
+            # Marked pedestrian crossings on this way (city road markings);
+            # each split piece below keeps only its own.
+            crossings = sorted({ref for ref in refs if node_tags.get(ref, {}).get("highway") == "crossing" and ref in nodes})
+            if crossings: p["_city_crossings"] = [nodes[ref] for ref in crossings]
     # Preserve ordinary source junctions between vehicle roads without assigning an
     # elevation datum. Split at shared original IDs before simplification/merging
     # and crop. Pedestrian ways keep independent ends, as dense path networks would
@@ -918,6 +926,11 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         cuts = [0] + [i for i in range(1,len(refs)-1) if refs[i] is not None and uses[refs[i]] > 1] + [len(refs)-1]
         for a,b in zip(cuts,cuts[1:]):
             props = dict(p, _city_refs=refs[a:b+1], _city_ends=[str(refs[a]),str(refs[b])])
+            if "_city_crossings" in p:
+                # A crossing at a split node belongs to the piece it starts.
+                own = [nodes[ref] for ref in dict.fromkeys(refs[a:b] if b < len(refs)-1 else refs[a:b+1]) if node_tags.get(ref, {}).get("highway") == "crossing"]
+                props.pop("_city_crossings")
+                if own: props["_city_crossings"] = own
             if "_city_estimated_m" in p: props["_city_estimated_m"] = p["_city_estimated_m"][a:b+1]
             connected_features.append(dict(type="Feature", properties=props,
                 geometry=dict(type="LineString",coordinates=feature["geometry"]["coordinates"][a:b+1])))

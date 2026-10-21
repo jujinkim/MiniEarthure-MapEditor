@@ -32,8 +32,12 @@ Native scratch, triangles/IDs/objects and decoded presentation are charged. Afte
 generation, storage previews check actual triangle/object/prism counts against the
 admitted upper bounds and charge those counts; larger or invalid counts reject the
 result. These are admission bounds, not measured process/GPU memory. A cell over the
-allowance is still generated and shown with a limit warning; MapKit's native work and
-triangle limits still refuse, keeping the prior preview with a recoverable error.
+allowance is still generated and shown with a limit warning. Preview, density, full
+check and the road workbench generate with MapKit's Authoring profile and a
+2,000,000-triangle cap: a cell above the game's 500,000 triangles or its road,
+placement or courtyard work budgets is shown with a warning that the game refuses it
+(`cell_triangles`, `road_work`, ...). Only a cell above MapKit's raised guards still
+fails, keeping the prior preview with a recoverable error.
 Above 200,000 preview-index references every cell is refreshed after each edit, with
 a warning.
 
@@ -41,7 +45,8 @@ a warning.
 
 The density list reuses MapKit generation estimates and the 256 MiB preview work
 calculation: it warns at 192 MiB and flags cells above 256 MiB, which are still
-checked and reported as limit warnings. Rows include
+checked and reported as limit warnings. MapKit warnings of the analysed map are
+listed below the rows. Rows include
 triangle, prism, convex and presentation costs; selecting a row centres the 2D map
 on that cell. Analysis runs on a worker 350 ms after the last change; edits,
 Undo/Redo and cancellation clear rows immediately. Package preview/export waits for
@@ -64,10 +69,17 @@ Native file, seam, inventory and spatial validation always run. A malformed work
 result ends the operation once, reports failure and unlocks editing.
 
 The report separates compressed ZIP/base/asset bytes, expanded resources, native
-memory estimates and optional full-generation results. Export records limit
-warnings: a cell over the game's per-cell generation budget (`E_BUDGET`) warns that
-the game refuses the map instead of failing export, and a 2D overview above 4 MiB
-warns (above 64 MiB it is omitted). Whole-map queries run in 96-cell windows.
+memory estimates and optional full-generation results. Staging opens the snapshot
+in memory under the Authoring profile, so its inspection has no package; the
+reported package size and SHA-256 come from the written package. The report and the
+status line list limit warnings, including MapKit's top-level warnings (merged by
+code): the full check generates each cell up to 2,000,000 triangles and warns about
+cells the game refuses; a cell that still fails with a per-cell generation budget
+(`E_BUDGET`, past MapKit's raised guard) is counted and warned instead of failing
+export, and a 2D overview above 4 MiB warns (above 64 MiB it is omitted). The `.memap`
+itself keeps every v1 limit: a map the game refuses (for example above 200,000
+objects) opens, edits and saves with warnings, but its export fails with `E_LIMIT`.
+Whole-map queries run in 96-cell windows.
 Conflict detection is single-user; it is not a filesystem lock or power-loss
 guarantee.
 
@@ -76,7 +88,9 @@ guarantee.
 Choose **Export map** with the `.mkregions` filter (or filename) and set **Regional
 export · cells per side** (1–128, initial 8). This groups storage records only; cell
 size, geometry, assets and quality are unchanged. The worker exports independent
-regional sources from the immutable snapshot and audits all dependencies. The
+regional sources from the immutable snapshot and audits all dependencies with
+`audit_authoring` and a 64 MiB overview allowance; an overview above the game's
+4 MiB regional audit warns (`overview_bytes`) instead of failing. The
 capacity report shows total transfer size, expanded records, shared asset bytes,
 audit peak, retained index/overview and the largest source validation allowance.
 
@@ -92,6 +106,8 @@ limits.
 
 Isolated validators cover memory preview/export/reopen, cache reuse, resource
 budgets, density, file conflicts, cancellation, saved baselines and test-drive
-snapshots; `tests/regional_export_validator.gd` covers regional export/reopen, audit,
+snapshots; `tests/package_restore_validator.gd` also checks that an over-budget
+project opens and reopens with a warning and that the report carries the written
+package size; `tests/regional_export_validator.gd` covers regional export/reopen, audit,
 byte-exact unused PNG recovery, corruption and refusal to overwrite. Input feel, long
 sessions, device performance and Client driving are user checks.

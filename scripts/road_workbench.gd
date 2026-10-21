@@ -309,7 +309,8 @@ func poll() -> void:
 	if job.request.epoch!=store.command_epoch or job.request.session!=store.session_id:return
 	requested={}
 	if result.has("error"):
-		bench.editor._status(result.error);return
+		var noted: Variant=result.get("limit_warnings")
+		bench.editor._status(result.error+("\n"+LIMITS.text(noted) if noted is Array and not noted.is_empty() else ""));return
 	if not is_instance_valid(environment):
 		environment=Node3D.new();environment.name="RoadTerrainPreview";bench.editor.preview_world.add_child(environment)
 	clear_pending()
@@ -479,6 +480,7 @@ func apply_design(next: Dictionary, width_cm: int) -> String:
 	var store: RefCounted = bench.editor.store
 	if store.editing_locked() or store.draft_pending(): return store.EDIT_BUSY
 	var result: Dictionary = JSON.parse_string(store.bridge.edit_road_design(JSON.stringify(store.document),selected,JSON.stringify(next),width_cm))
+	store.note_native(result)
 	if not result.ok: return store.reason(result)
 	var patches: Array = store.document_patches(result.data.document)
 	for patch: Dictionary in patches:

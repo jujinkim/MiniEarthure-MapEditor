@@ -85,7 +85,92 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 		if next_record > record_count: return "City output mapping exceeds records."
 	if false in sources.values() or next_record != record_count: return "Incomplete city source/output coverage."
 	LIMITS.over(notes, "city_mapping_references", references, 2000000, "City source mapping references")
+	if paint_total(raw.patches, denominator) > PAINT_SEGMENTS: return "City road markings exceed the paint segment bound."
 	return ""
+
+## MapKit (road_paint.rs, road_style.rs) refuses more than 128 paint segments
+## of a marked road plus its two-arm neighbours per cell, at display time.
+## Checked for whole records (any cell size) on the adopted 1:D vertices.
+const PAINT_SEGMENTS := 128
+const PAINT_ROAD_FLOOR_CM := 150.0
+
+static func _map_point(point: Array, denominator: int) -> Vector2:
+	return Vector2(roundi(float(point[0]) / denominator), roundi(float(point[2]) / denominator))
+
+static func _map_width(width: Variant, denominator: int) -> float:
+	return maxf(roundi(float(width) / denominator), PAINT_ROAD_FLOOR_CM)
+
+## Points of MapKit's fillet at p (road_plan.rs fillet), without rounding dedupe.
+static func _arc(a: Vector2, p: Vector2, b: Vector2, width: float) -> int:
+	var la := a.distance_to(p)
+	var lb := p.distance_to(b)
+	if la < 2.0 or lb < 2.0: return 1
+	var u := (p - a) / la
+	var v := (b - p) / lb
+	var turn := absf(atan2(u.x * v.y - u.y * v.x, u.dot(v)))
+	if turn < 0.001: return 1
+	var radius := width / 2.0 + clampf(width * 0.15, 20.0, 100.0)
+	var tangent := tan(turn / 2.0)
+	var r := minf(minf(radius * tangent, 0.45 * la), 0.45 * lb) / tangent
+	var step := minf(PI / 18.0, 2.0 * acos(clampf(1.0 - 1.0 / maxf(r, 1.0), -1.0, 1.0)))
+	return int(ceil(ceil(turn / step) / 2.0)) * 2 + 1
+
+## Paint path segments of one marked road: a point per free end, a fillet arc
+## per interior vertex and half of the join arc at each two-arm end, whose
+## neighbour vertex and width are `joins[end]` ([] when the end is free).
+static func paint_segments(road: Dictionary, denominator: int, joins: Array) -> int:
+	var points: Array = road.points
+	var xy: Array = points.map(func(point: Array) -> Vector2: return _map_point(point, denominator))
+	var w: Array = road.widths_cm.map(func(width: Variant) -> float: return _map_width(width, denominator))
+	var total := 0
+	for n in range(1, xy.size() - 1): total += _arc(xy[n - 1], xy[n], xy[n + 1], maxf(w[n - 1], w[n]))
+	for end in 2:
+		var join: Array = joins[end]
+		if join.is_empty():
+			total += 1
+			continue
+		var arc := _arc(join[0], xy[0], xy[1], maxf(join[1], w[0])) if end == 0 else _arc(xy[-2], xy[-1], join[0], maxf(w[-1], join[1]))
+		var half := int((arc - 1) / 2.0)
+		total += arc - half if end == 0 else half + 1
+	return total - 1
+
+## The largest paint total of a marked road plus its marked two-arm neighbours.
+static func paint_total(patches: Array, denominator: int) -> int:
+	var ends := {}
+	var marked: Array = []
+	for patch: Variant in patches:
+		if patch is not Dictionary or patch.get("field") != "roads" or patch.get("after") is not Dictionary: continue
+		var road: Dictionary = patch.after
+		if road.get("points") is not Array or road.get("widths_cm") is not Array or road.points.size() < 2 or road.widths_cm.size() != road.points.size() - 1:
+			if road.get("markings") != null: return PAINT_SEGMENTS + 1
+			continue
+		ends.get_or_add(str(road.get("from")), []).append([road, 0])
+		ends.get_or_add(str(road.get("to")), []).append([road, 1])
+		if road.get("markings") != null: marked.append(road)
+	var neighbours := {}
+	var estimates := {}
+	for road: Dictionary in marked:
+		var joins: Array = []
+		var others: Array = []
+		for end in 2:
+			var list: Array = ends[str(road["from" if end == 0 else "to"])]
+			var join: Array = []
+			if list.size() == 2:
+				for arm: Array in list:
+					if is_same(arm[0], road) and arm[1] == end: continue
+					var other: Dictionary = arm[0]
+					var at: int = 1 if arm[1] == 0 else other.points.size() - 2
+					join = [_map_point(other.points[at], denominator), _map_width(other.widths_cm[0 if arm[1] == 0 else -1], denominator)]
+					others.append(other.id)
+			joins.append(join)
+		estimates[road.id] = paint_segments(road, denominator, joins)
+		neighbours[road.id] = others
+	var worst := 0
+	for road: Dictionary in marked:
+		var total: int = estimates[road.id]
+		for id: Variant in neighbours[road.id]: total += int(estimates.get(id, 0))
+		worst = maxi(worst, total)
+	return worst
 
 static func summary(meta: Dictionary) -> String:
 	var denominator := float(meta.scale_denominator)
@@ -94,6 +179,12 @@ static func summary(meta: Dictionary) -> String:
 	result += I18N.t("Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n") % meta.level_structures
 	result += I18N.t("Buildings above other features (positive layer, not roof canopies) stand on the ground: %d sources (estimate).\n") % meta.layered_buildings
 	result += I18N.t("Overpasses and underpasses without source heights use estimated 6 m levels and ramps up to 8%%: %d structure roads (not surveyed).\n") % meta.estimated_structure_roads
+	var rules: Dictionary = meta.get("road_rules", {})
+	if not rules.is_empty():
+		var sidewalks := 0
+		for key: String in rules:
+			if key.begins_with("sidewalk_cm_") and key != "sidewalk_cm_0": sidewalks += int(rules[key])
+		result += I18N.t("City road rules: %d dual carriageways merged into two-way roads (%d one-way ways, %d median links); %d widths from lane counts; %d service ways and %d tracks painted as drivable ground; %d roads with sidewalks; %d roads with lane markings and %d junction crosswalks (estimates).\n") % [int(rules.get("dual_merged_pairs", 0)), int(rules.get("dual_merged_ways", 0)), int(rules.get("dual_absorbed_links", 0)), int(rules.get("lane_widths", 0)), int(rules.get("painted_service", 0)), int(rules.get("painted_track", 0)), sidewalks, int(rules.get("marked", 0)), int(rules.get("crosswalks", 0))]
 	result += I18N.t("Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n") % [meta.polygon_partition_gap_m,meta.polygon_partition_gap_m/denominator]
 	result += I18N.t("Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n") % [meta.vegetation_spacing_m,meta.vegetation_spacing_m/denominator,meta.vegetation_density_per_mille/10]
 	return result + I18N.t("Estimated road widths by class: %s. Building sources cut for road clearance: %d; adjusted for overlapping buildings: %d.\nNames and source IDs of enclosed buildings are retained in their containing volume. Geometry changes are approximations; originals stay unchanged.\n") % [JSON.stringify(meta.estimated_road_widths),meta.trimmed_building_sources.size(),meta.overlap_adjusted_sources.size()]

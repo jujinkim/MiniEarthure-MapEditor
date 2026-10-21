@@ -4,11 +4,15 @@ const STORE := preload("res://scripts/document_store.gd")
 class Estimate extends RefCounted:
 	var bytes := WORK.PREVIEW_BYTES * 3 / 4
 	var calls := 0
+	var max_triangles := 0
 	func query_cells(_a: int,_b: int,_c: int,_d: int,_limit: int) -> String:
 		return JSON.stringify({"ok":true,"data":{"geometry_cells":[{"x":0,"y":0}]}})
-	func estimate_chunk(_x: int,_y: int) -> String:
+	# Editor density uses the Authoring estimate; MapKit warnings ride on the response.
+	func estimate_chunk_authoring(_x: int,_y: int,cap: int) -> String:
 		calls += 1
-		return JSON.stringify({"ok":true,"data":{"generation_scratch_bytes":bytes,"triangles":0,"max_object_id_bytes":0,"objects":0,"presentation_bytes":0,"building_prisms":0,"asset_convexes":0}})
+		max_triangles = cap
+		return JSON.stringify({"ok":true,"data":{"generation_scratch_bytes":bytes,"triangles":0,"max_object_id_bytes":0,"objects":0,"presentation_bytes":0,"building_prisms":0,"asset_convexes":0},
+			"warnings":[{"code":"objects","actual":200001,"limit":200000,"message":"Map has more objects than the game's limit","runtime_rejects":true}]})
 var failed := false
 func check(value: bool, message: String) -> void:
 	if not value: failed = true; push_error(message)
@@ -22,6 +26,7 @@ func run() -> void:
 	var work := WORK.new()
 	var report := work.density_report(native,snapshot,index,{})
 	check(report.ok and report.data["0/0"].warning == "high", "75 percent work allowance warns without object count")
+	check(native.max_triangles == 2000000 and work.limit_warnings.size() == 1 and work.limit_warnings[0].code == "objects" and work.limit_warnings[0].runtime_rejects, "density estimates use the 2,000,000-triangle Authoring cap and keep MapKit warnings")
 	var reused := work.density_report(native,snapshot,index,report.data)
 	check(reused.ok and native.calls == 1, "unchanged chunk estimate reused")
 	var uncached := work.density_report(native,snapshot,{},report.data,false)
@@ -39,7 +44,9 @@ func run() -> void:
 	await process_frame
 	var panel: Control = ui.density_panel
 	panel.rows = report.data
+	panel.limit_text = preload("res://scripts/limit_warnings.gd").text(work.limit_warnings)
 	panel._show_rows()
+	check(panel.details.text.contains("Map has more objects than the game's limit"), "density panel lists MapKit warnings")
 	panel._select(0)
 	check(panel.details.text.contains("estimates"), "cost details distinguish estimates")
 	panel.record_preview(Vector2i.ZERO,report.data["0/0"].signature,5.01)

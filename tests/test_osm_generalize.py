@@ -111,7 +111,8 @@ class City(unittest.TestCase):
         self.add(2,LineString([(10,0),(20,0)]),_city_refs=[2,3])
         self.add(3,LineString([(20,0),(30,0)]),_city_refs=[3,4])
         self.add(4,LineString([(20,0),(20,10)]),_city_refs=[3,5])
-        self.add(5,LineString([(30,0),(40,0)]),_city_refs=[4,6],width_m=4)
+        # A surface change still breaks a chain; width changes no longer do.
+        self.add(5,LineString([(30,0),(40,0)]),_city_refs=[4,6],surface="concrete")
         value,meta=self.worker().candidate(8)
         self.assertEqual(meta["after"]["roads"],4)
         groups=[set(g["source_ids"]) for g in meta["groups"]]

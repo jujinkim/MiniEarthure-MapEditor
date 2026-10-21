@@ -63,9 +63,12 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 		if document.has(field): document[field]=[]
 	document.erase("assembled_track")
 	document.heightmaps=records
+	var notes: Array = []
 	var result: Dictionary=JSON.parse_string(native.set_document(JSON.stringify(document),store.project_path))
+	LIMITS.native(notes, result)
 	if not result.ok: return {"error":store.reason(result)}
 	result=JSON.parse_string(native.provide_resources(blobs))
+	LIMITS.native(notes, result)
 	if not result.ok: return {"error":store.reason(result)}
 	for entry: Array in eligible:
 		var base:=1000001
@@ -79,7 +82,6 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 		after.base_cm=base
 		patches.append({"field":"buildings","id":before.id,"before":before.duplicate(true),"after":after})
 		changes.append({"id":before.id,"before_cm":before.base_cm,"after_cm":base})
-	var notes: Array = []
 	LIMITS.over(notes, "dem_grounding_samples", samples, WARN_SAMPLES, "Terrain samples for building grounding")
 	return {"patches":patches,"receipt":{"profile":PROFILE,"estimated":true,"samples":samples,"skipped_partial":skipped,"changes":changes},"limit_warnings":notes}
 

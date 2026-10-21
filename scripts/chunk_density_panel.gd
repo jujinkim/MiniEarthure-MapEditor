@@ -2,6 +2,7 @@ extends VBoxContainer
 const I18N := preload("./locale_text.gd")
 ## Immutable worker results are published only for the current document generation.
 const WORK := preload("./package_work.gd")
+const LIMITS := preload("./limit_warnings.gd")
 var store: RefCounted
 var canvas: Control
 var worker := Thread.new()
@@ -15,6 +16,7 @@ var measured_delays := {}
 var busy_source: Callable
 var listing: ItemList
 var details: Label
+var limit_text := ""
 
 func configure(document_store: RefCounted, map_canvas: Control) -> void:
 	store = document_store
@@ -55,6 +57,7 @@ func _process(_delta: float) -> void:
 			if result.ok:
 				rows = result.data.chunk_costs
 				cached = rows.duplicate(true)
+				limit_text = LIMITS.text(result.data.limit_warnings) if result.data.get("limit_warnings") is Array else ""
 				_show_rows()
 			else: details.text = I18N.t("Chunk analysis: ") + I18N.error(result.error)
 	if due == 0 or Time.get_ticks_msec() < due or store.has_gesture() or (busy_source.is_valid() and busy_source.call()): return
@@ -82,6 +85,8 @@ func _show_rows() -> void:
 		listing.set_item_metadata(listing.item_count - 1,key)
 		if not row.warning.is_empty(): canvas.density_cells.append(row.cell)
 	details.text = I18N.t("Estimated work memory: warning at 192 MiB; preview allowance 256 MiB. Larger cells are still checked and reported as limit warnings.")
+	# MapKit Authoring warnings of the analysed map (e.g. budgets the game refuses).
+	if not limit_text.is_empty(): details.text += "\n" + limit_text
 	canvas.queue_redraw()
 
 func _select(index: int) -> void:

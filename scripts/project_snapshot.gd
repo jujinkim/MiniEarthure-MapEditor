@@ -26,7 +26,8 @@ static func payload_warnings(list: Array, blobs: Dictionary, canonical: String, 
 				counted[path] = true
 				packaged += blobs[path].size()
 				largest = maxi(largest, blobs[path].size())
-	if largest > RUNTIME_ENTRY_BYTES: LIMITS.note(list, "package_entry", largest, RUNTIME_ENTRY_BYTES, "A project file is larger than the v1 package entry limit", true)
+	# Same code as MapKit's project-directory warning, so the two merge.
+	if largest > RUNTIME_ENTRY_BYTES: LIMITS.note(list, "package_entry_bytes", largest, RUNTIME_ENTRY_BYTES, "A project file is larger than the v1 package entry limit", true)
 	if packaged > RUNTIME_PACKAGE_BYTES: LIMITS.note(list, "package_bytes", packaged, RUNTIME_PACKAGE_BYTES, "Project files are larger than the v1 package limit", true)
 	if total > WARN_BYTES: LIMITS.note(list, "snapshot_memory", total, WARN_BYTES, "Project files are very large and need a lot of memory")
 	FILES.size_warnings(list, canonical.to_utf8_buffer().size())
@@ -36,6 +37,8 @@ static func capture_working(working: RefCounted, source: String, history: Array 
 	var prepared: Dictionary = working.materialize()
 	if not prepared.ok: return prepared
 	var value: Dictionary = prepared.data
+	var native_warnings: Array = []
+	LIMITS.native(native_warnings, prepared)
 	value.document = JSON.parse_string(value.canonical)
 	var hashes := {}
 	var bytes := 0
@@ -63,7 +66,7 @@ static func capture_working(working: RefCounted, source: String, history: Array 
 			if value.blobs.get(path) != command.binary_mementos[path]: return error("History payload changed: " + path)
 	value.hashes = hashes
 	value.bytes = bytes
-	value.limit_warnings = []
+	value.limit_warnings = native_warnings
 	payload_warnings(value.limit_warnings, value.blobs, str(value.canonical), value.document if value.document is Dictionary else {})
 	return {"ok":true,"data":value}
 
@@ -89,7 +92,7 @@ static func error(message: String) -> Dictionary:
 
 static func capture(document: Dictionary, source: String, history: Array = []) -> Dictionary:
 	var native: RefCounted = ClassDB.instantiate("MapKitBridge")
-	var checked: Dictionary = JSON.parse_string(native.validate_document(JSON.stringify(document)))
+	var checked: Dictionary = JSON.parse_string(native.validate_document_authoring(JSON.stringify(document)))
 	if not checked.ok: return checked
 	var paths := {}
 	for field in ["assets", "heightmaps"]:
@@ -131,6 +134,7 @@ static func capture(document: Dictionary, source: String, history: Array = []) -
 			if not blobs.has(path) or blobs[path] != command.binary_mementos[path]:
 				return error("History payload changed: " + path)
 	var warnings: Array = []
+	LIMITS.native(warnings, checked)
 	payload_warnings(warnings, blobs, str(checked.data.canonical), checked.data.document)
 	return {"ok": true, "data": {"canonical": checked.data.canonical, "document": checked.data.document,
 		"blobs": blobs, "hashes": hashes, "bytes": total, "limit_warnings": warnings}}
@@ -148,11 +152,14 @@ static func stage(snapshot: Dictionary) -> Dictionary:
 		if failure != "": break
 		failure = PAYLOADS.write_new(scratch.path_join(path), snapshot.blobs[path])
 	var native: RefCounted = ClassDB.instantiate("MapKitBridge")
+	# Authoring open: budgets the game would refuse are warnings, not failures.
 	var result: Dictionary = JSON.parse_string(native.open_project(scratch)) if failure == "" else error(failure)
 	if not result.ok:
 		PAYLOADS.remove_scratch(scratch)
 		return result
-	return {"ok": true, "data": {"path": scratch, "bridge": native, "inspection": result.data}}
+	var warnings: Array = []
+	LIMITS.native(warnings, result)
+	return {"ok": true, "data": {"path": scratch, "bridge": native, "inspection": result.data, "limit_warnings": warnings}}
 
 static func copy_to(snapshot: Dictionary, destination: String) -> String:
 	# New project only; never overwrite an unrelated project or follow target links.

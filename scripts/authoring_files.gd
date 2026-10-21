@@ -43,6 +43,11 @@ static func note(store: RefCounted, context: Dictionary, code: String, actual: i
 	if context.get("limit_warnings") is Array: LIMITS.note(context.limit_warnings, code, actual, limit, message, runtime_rejects)
 	elif store != null and store.has_method("note_limit"): store.note_limit(code, actual, limit, message, runtime_rejects)
 
+# MapKit Authoring responses carry top-level warnings; route them the same way.
+static func note_native(store: RefCounted, context: Dictionary, response: Variant) -> void:
+	if context.get("limit_warnings") is Array: LIMITS.native(context.limit_warnings, response)
+	elif store != null and store.has_method("note_native"): store.note_native(response)
+
 static func _progress(context: Dictionary, stage: String, completed: int, total: int) -> void:
 	if context.has("progress"): context.progress.call(stage, completed, total)
 
@@ -85,14 +90,18 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 					if FileAccess.get_sha256(store.project_path.path_join(path)) != context.hashes[path]: return "Source changed during native candidate snapshot."
 				_progress(context, "snapshot", size, total)
 	if context.get("expected_payloads", "") != "" and JSON.stringify(context.hashes).sha256_text() != context.expected_payloads: return "Project payload changed since import review; import again."
-	if size > PAYLOAD_WARN_BYTES: note(store, context, "authoring_payloads", size, PAYLOAD_WARN_BYTES, "Terrain and asset files are very large and need a lot of memory")
+	# Same code as MapKit's working-resource warning, so the two merge.
+	if size > PAYLOAD_WARN_BYTES: note(store, context, "working_resources", size, PAYLOAD_WARN_BYTES, "Terrain and asset files are very large and need a lot of memory")
 	_progress(context, "open", 0, 1)
 	var native: RefCounted = store.working_snapshot().fork()
 	result = JSON.parse_string(native.set_document(JSON.stringify(document),store.project_path))
+	note_native(store, context, result)
 	if not result.ok: return store.reason(result)
 	result = JSON.parse_string(native.provide_resources(payloads))
+	note_native(store, context, result)
 	if not result.ok: return store.reason(result)
 	result = JSON.parse_string(native.validate_memory())
+	note_native(store, context, result)
 	var failure: String = "" if result.ok else store.reason(result)
 	if failure == "":
 		_progress(context, "open", 1, 1)
@@ -103,7 +112,8 @@ static func validate(store: RefCounted, document: Dictionary, blobs: Dictionary 
 			# Admission generates actual geometry without discarded render packing.
 			var batch: Array[Vector2i] = []
 			for i in range(completed, mini(completed+16,cells.size())): batch.append(cells[i])
-			result = JSON.parse_string(native.validate_cells(batch))
+			result = JSON.parse_string(native.validate_cells(batch, LIMITS.AUTHORING_TRIANGLES))
+			note_native(store, context, result)
 			if not result.ok:
 				failure = store.reason(result)
 				break

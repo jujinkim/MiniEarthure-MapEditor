@@ -152,9 +152,11 @@ only its scratch. Full failure text is in **Activity → Operation details…**.
 Limits on the user's own data warn instead of refusing: each exceeded budget adds one
 `Limit warning: <message> (<actual> > <limit>)`, listed first in the review, and the
 import continues. A limit the game enforces adds "; the game refuses maps beyond
-this" (for example over 200,000 objects or 1 million vertices). Only memory/parser
-guards refuse, plus MapKit's native document gate (200,000 objects / 1 million
-vertices) and work limits at review and adoption. Malformed or unsupported data,
+this" (for example over 200,000 objects or 1 million vertices). MapKit's native
+checks at review and adoption run under its Authoring profile: its document and work
+budgets warn the same way (merged by code with the Editor's) and refuse only above
+its raised guards (1.6 million objects, 8 million vertices, 8× the work budgets).
+Only those guards and memory/parser guards refuse. Malformed or unsupported data,
 identity and topology errors still reject.
 
 | Bound | Exact profile: warning above | Refused above |

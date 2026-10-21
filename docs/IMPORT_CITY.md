@@ -18,21 +18,71 @@ the map's cell size (the city check refuses more than 16,384).
 The profile id stays `scale-aware-city-v1` with `scale_denominator: D`. One map
 centimetre is D/100 source metres; every map-unit value below derives from it.
 Gap levels, tolerances, the 256 m aggregation tiles, vegetation spacing and
-structure estimates (6 m levels, 8 % ramps) stay in source metres. 1:8 output is
-unchanged; at other scales the working frame is shifted by the local origin's
+structure estimates (6 m levels, 8 % ramps) stay in source metres. 1:8 keeps its
+original working frame; at other scales the frame is shifted by the local origin's
 remainder so lattice points are whole map centimetres.
 
 ## Roads and vegetation
 
-- Compatible ordinary ground chains join at degree-two source nodes. Simplification
-  keeps junction positions, semantic boundaries and crossings; coincident
-  independent IDs are not welded. Ordered source positions and traversal ranges
-  are retained. Structures and explicit heights keep the exact rules.
+- Compatible ordinary ground chains join where exactly two driving roads meet
+  (painted ways do not count). Chains continue across width, lane, name and ref
+  changes with per-segment widths; highway class, structure, access, surface,
+  oneway and sidewalk changes still break them. Building trims, gap-filling
+  barriers and junction clearance use each segment's own width (and sidewalk). Simplification keeps junction positions,
+  semantic boundaries and crossings; coincident independent IDs are not welded.
+  Ordered source positions and traversal ranges are retained. Structures and
+  explicit heights keep the exact rules.
 - Equal adjacent centimetre vertices are removed after the single 1:D quantization;
   nonempty holes are never discarded.
-- Missing road widths use disclosed highway-class estimates, widened to at least
-  20 map cm (0.2·D source m);
+- Missing road widths come from `lanes` (lanes × 3.25 m + 0.5 m) or else disclosed
+  highway-class estimates, widened to at least 20 map cm (0.2·D source m);
   source surfaces map to game materials.
+- Dual carriageways (one-way motorway, trunk, primary, secondary or tertiary
+  pairs, not links or roundabouts) merge into one two-way road. A pair runs
+  anti-parallel (direction dot < −0.9) with the same class and, where both are
+  tagged, the same name and ref; its inner edges, sampled every 5 m, are 0.5–25 m
+  apart (an estimated carriageway counts as one 3.75 m lane) over at least 70 % of
+  each side and 50 m. A merge runs between rungs: a shared converge node, one
+  vehicle piece (median or diagonal turn link) no longer than 3 × the separation,
+  or aligned nodes across the median (along-road offset within max(10 m, the
+  separation)). Each merged run needs one real rung (converge node or piece);
+  motorway and trunk sections between ramps may merge between aligned nodes
+  alone. A slip road beside its carriageway runs the same way and never pairs. No building, water or
+  other road may lie between the carriageways; median links, U-turns and junction
+  pieces joined only to the pair are absorbed. The merged centreline is the
+  midline: the first carriageway's nodes move to it with every incident road, the
+  second's rung nodes are renamed to them and a side road meeting only the second
+  carriageway gets its own midline node. Width is both carriageways plus the
+  median per segment, `lanes` their sum (at most 8), `oneway` is removed. Every
+  absorbed way stays in the merged road's sources, as does a road looping back onto
+  one merged node (a jughandle U-turn, up to 150 m; a longer loop stops the merge).
+  Merging stops a lead length (8 m) before any structure anchor, explicit-height
+  node or structure/explicit-height road between or beside the carriageways;
+  structure pairs never merge.
+- Every ground road has an explicit sidewalk: none for motorway, trunk, `*_link`,
+  service and track or `sidewalk=no`; otherwise 3 m (primary, secondary) or 2 m
+  (other classes) when tagged `sidewalk=both|left|right|yes|separate` or for
+  primary to residential roads in residential, commercial, retail, industrial,
+  education or religious land. A parallel `footway=sidewalk` within 8 m of the
+  road edge on at least half of the road widens it to that footway's outer edge
+  (0.25 m steps); a sidewalk footway wholly inside the sidewalk is absorbed into
+  the road's sources instead of being painted. Widths are whole map centimetres,
+  0 or 20..1000. Building trimming and junction clearance include the sidewalk.
+- Road markings: `lanes` (merged: the sum), else 4 lanes for motorway, trunk and
+  primary and 2 for secondary and tertiary; none for lower classes without
+  `lanes`. Center lines on two-way roads with an even lane count, no edge lines,
+  asphalt or concrete only. A junction end (three or more roads) gets a crosswalk
+  when a `highway=crossing` node on the road or a `footway=crossing` way across it
+  lies within max(15 m, √2 × the widest half width + 10 m). A marked road and its
+  marked two-arm neighbours stay within the 128 paint segments MapKit draws joined
+  per road and cell, counted as MapKit does (a fillet arc per vertex, half a join
+  arc at two-arm ends) over whole records, so for any cell size: longer records
+  split at source nodes (at most 42 segments beside marked neighbours), a record
+  that cannot split keeps no markings, and adoption refuses a layer over the bound.
+- Parking aisles, driveways, drive-throughs and dead-end service stubs under 15 m
+  become asphalt ground paint and tracks dirt paint (a tagged surface wins), like
+  footways: drivable terrain mapped to their sources. A service way or track that
+  alone links remaining roads or a structure's approach stays a road.
 - Ground paths, footways, cycleways, pedestrian streets and steps become painted
   ground (`surface_areas`), not roads; cars cross them as terrain. Steps keep their
   class; bridge, tunnel, layered or conveying steps (escalators) are excluded. A

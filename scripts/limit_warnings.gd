@@ -7,6 +7,9 @@ const MAX_ENTRIES := 64
 const MAX_CODE := 64
 const MAX_MESSAGE := 240
 const RUNTIME_SUFFIX := "; the game refuses maps beyond this"
+## MapKit Authoring generation cap for the user's own cells; above the game's
+## 500,000 a generated cell warns `cell_triangles` instead of failing.
+const AUTHORING_TRIANGLES := 2000000
 
 static func note(list: Array, code: String, actual: int, limit: int, message: String, runtime_rejects := false) -> void:
 	for entry: Variant in list:
@@ -48,6 +51,11 @@ static func merge(into: Array, from: Variant) -> bool:
 		if into.size() >= MAX_ENTRIES and not into.any(func(known): return known is Dictionary and known.get("code") == entry.code): continue
 		note(into, entry.code, int(entry.actual), int(entry.limit), entry.message, entry.get("runtime_rejects", false))
 	return ok
+
+## Merge the top-level `warnings` of a MapKit Authoring response (JSON-parsed or
+## packed Dictionary, ok or not): [{code, actual, limit, message, runtime_rejects}].
+static func native(into: Array, response: Variant) -> bool:
+	return merge(into, response.get("warnings")) if response is Dictionary else true
 
 ## Merge preformatted helper texts ("Limit warning: <message> (<actual> > <limit>)"
 ## plus the optional RUNTIME_SUFFIX, see importers/import_layer.py limit_text).

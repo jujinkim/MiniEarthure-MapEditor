@@ -83,6 +83,27 @@ func run_scale(denominator: int) -> void:
 				request.osm_review_exclusions=true
 				bad.coordinates.osm_review={"profile":"explicit-source-exclusions-v1","excluded":[{"source_id":meta.source_ids[0],"reason":"fixture"}]}
 		check(LAYER.new().load_value(bad,ui.import_identity,request)!="","reject city mutation "+mutation)
+	# Road markings beyond the paint segment bound MapKit draws per road and cell.
+	var winding: Dictionary=raw.duplicate(true)
+	for patch: Dictionary in winding.patches:
+		if patch.field != "roads": continue
+		var road: Dictionary = patch.after
+		check(road.get("sidewalk_cm") is float or road.get("sidewalk_cm") is int,"city ground roads carry an explicit sidewalk")
+		var a: Array = road.points[0]
+		var b: Array = road.points[-1]
+		var points: Array = [a]
+		for k in range(1, 80):
+			points.append([a[0] + (b[0] - a[0]) * k / 80.0, a[1], a[2] + (b[2] - a[2]) * k / 80.0 + (300 if k % 2 == 0 else -300)])
+		points.append(b)
+		road.points = points
+		road.widths_cm = []
+		road.surfaces = []
+		for k in range(points.size() - 1):
+			road.widths_cm.append(600)
+			road.surfaces.append("asphalt")
+		road.markings = {"lanes":2,"center_line":true,"edge_lines":false,"crosswalk_start":false,"crosswalk_end":false}
+		break
+	check(LAYER.new().load_value(winding,ui.import_identity,ui.import_coordinates_request)=="City road markings exceed the paint segment bound.","reject city road markings beyond the paint segment bound")
 	ui._adopt_import()
 	await wait_import(ui)
 	check(ui.store.document.buildings.size()==3 and ui.store.document.roads.size()==1,"city adoption is complete")

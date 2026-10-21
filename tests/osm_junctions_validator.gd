@@ -19,6 +19,8 @@ func wait_import(ui: Control) -> void:
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
+	# These fixtures, bounds and map-cm expectations are sized for the 1:8 city profile.
+	ui.osm_panel.scale.value = 8
 	ui.store.new_document() # Imports and generation edits start from a plain map, not the launch track.
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
