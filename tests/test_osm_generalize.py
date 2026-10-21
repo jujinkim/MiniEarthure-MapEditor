@@ -519,6 +519,27 @@ class City(unittest.TestCase):
         self.assertEqual(len(buildings),2,"the gap above the junction is never filled")
         self.assertGreater(min(b.distance(shapely.Point(100,10)) for b in buildings),6.2,"buildings stay outside the junction disk")
 
+    def test_buildings_keep_clear_of_mapkit_inside_corner_fillets(self):
+        # Suwon 1:3 regression: a 267 map cm T-junction; MapKit's curb fillet
+        # (R = clamp(0.15 w, 20, 100) cm) bulges 0.29 R into the block corner,
+        # beyond the straight corridor and the √2 × half width junction disk.
+        from osm_generalize import corner_radius_cm
+        self.setup_city()
+        w = 8.01
+        self.add(1, LineString([(0, 0), (60, 0)]), width_m=w, _city_refs=[1, 2])
+        self.add(2, LineString([(0, 0), (-60, 0)]), width_m=w, _city_refs=[1, 3])
+        self.add(3, LineString([(0, 0), (0, 60)]), width_m=w, _city_refs=[1, 4])
+        h = w / 2
+        self.add(4, box(h + 0.3, h + 0.3, h + 12, h + 12))
+        worker = self.worker(3)
+        out, meta = worker.candidate(0)
+        [(feature, [building])] = self.solids(worker, out)
+        r = corner_radius_cm(round(w * 100 / 3)) * 3 / 100
+        fillet = box(h, h, h + r, h + r).difference(shapely.Point(h + r, h + r).buffer(r, quad_segs=64))
+        self.assertGreater(building.distance(fillet), 0.25, "the building keeps the road clearance from the curb fillet")
+        self.assertLess(building.area, 11.7**2, "only the corner is trimmed")
+        self.assertGreater(building.area, 11.7**2 - 2)
+
     def test_erased_source_returns_trimmed_on_the_map_lattice(self):
         for scale in (8, 3):
             with self.subTest(scale=scale):

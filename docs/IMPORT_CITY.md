@@ -165,7 +165,10 @@ remainder so lattice points are whole map centimetres.
   buildings stay excluded.
 - Buildings are cut around road space with 10 map cm clearance (0.1·D m; 0.8 m at
   1:8), including a disk of √2 × the widest half width + that clearance around every
-  junction node (the extent of a junction surface); simplification never regrows
+  junction node (the extent of a junction surface; its 16-gon circumscribes the
+  circle) and, at every inside corner between adjacent road arms, MapKit's curb
+  fillet (radius clamp(0.15 × width, 20, 100) map cm, tangent R / tan(φ/2) from
+  the edge corner) plus that clearance; simplification never regrows
   into either. Overlapping or touching footprints of different sources are
   partitioned with 2 map cm clearance (0.02·D m), favouring taller/named geometry,
   so they stay visibly separate; an enclosed source keeps its ID/name in the

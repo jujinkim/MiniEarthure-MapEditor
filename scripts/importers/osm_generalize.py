@@ -94,6 +94,53 @@ def straight(polygon):
     return polygon if len(ring) + 1 == len(polygon.exterior.coords) else Polygon(ring)
 
 
+def corner_radius_cm(width_cm):
+    """MapKit road_plan.rs corner_radius: the junction curb fillet radius."""
+    return min(100.0, max(20.0, width_cm * 0.15))
+
+
+def corner_fillets(roads, scale):
+    """Triangles (source metres) covering MapKit's inside-corner curb fillets.
+
+    At every node joining two or more road ends, each pair of angularly adjacent
+    arms meets at the corner C of their road edges (carriageway half widths). The
+    fillet of radius R (from the arm width in map cm) is tangent to both edges at
+    R / tan(φ/2) from C, φ the block angle between the arms; the road area it adds
+    lies inside the triangle C and both tangent points."""
+    arms = defaultdict(list)
+    for f, g in roads:
+        p = f["properties"]
+        if g.geom_type != "LineString" or len(g.coords) < 2: continue
+        widths = p.get("_city_widths_m")
+        if not widths or len(widths) != len(g.coords) - 1: widths = [float(p.get("width_m", 8))] * (len(g.coords) - 1)
+        coords = list(g.coords)
+        for point, toward, width in ((coords[0], coords[1], widths[0]), (coords[-1], coords[-2], widths[-1])):
+            dx, dy = toward[0] - point[0], toward[1] - point[1]
+            length = math.hypot(dx, dy)
+            if length == 0: continue
+            arms[(round(point[0], 2), round(point[1], 2))].append((math.atan2(dy, dx), dx / length, dy / length, float(width), point))
+    wedges = []
+    for key in sorted(arms):
+        group = sorted(arms[key])
+        if len(group) < 2: continue
+        for k, (alpha, ux, uy, wa, point) in enumerate(group):
+            beta, vx, vy, wb, _ = group[(k + 1) % len(group)]
+            phi = (beta - alpha) % (2 * math.pi)
+            if not 0.01 < phi < math.pi - 0.001: continue
+            ha, hb = wa / 2, wb / 2
+            # Edge of a on its counter-clockwise side, edge of b on its clockwise side.
+            ax, ay = point[0] - uy * ha, point[1] + ux * ha
+            bx, by = point[0] + vy * hb, point[1] - vx * hb
+            det = ux * (-vy) - uy * (-vx)
+            if abs(det) < 1e-9: continue
+            t = ((bx - ax) * (-vy) - (by - ay) * (-vx)) / det
+            cx, cy = ax + ux * t, ay + uy * t
+            radius = max(corner_radius_cm(round(wa * 100 / scale)), corner_radius_cm(round(wb * 100 / scale))) * scale / 100
+            reach = radius / math.tan(phi / 2)
+            wedges.append(Polygon([(cx, cy), (cx + ux * reach, cy + uy * reach), (cx + vx * reach, cy + vy * reach)]))
+    return [w for w in wedges if w.is_valid and w.area > 0]
+
+
 def map_cm(cm, scale):
     """Source metres of whole map centimetres at 1:scale. The integer product is
     divided once, so the result is the nearest float (8 cm at 1:8 is exactly 0.08)."""
@@ -985,8 +1032,12 @@ class Generalizer:
         for g,w in lines:
             for (x,y), width in ((g.coords[0], w[0]), (g.coords[-1], w[-1])):
                 ends[(round(x,2),round(y,2))].append(width)
-        self.junction_disks = [shapely.Point(point).buffer(max(widths)/2*math.sqrt(2)+self.road_clearance, quad_segs=4)
+        # The 16-gon circumscribes the disk (its edges never cut inside the radius).
+        self.junction_disks = [shapely.Point(point).buffer((max(widths)/2*math.sqrt(2)+self.road_clearance)/math.cos(math.pi/16), quad_segs=4)
                                for point,widths in sorted(ends.items()) if len(widths) > 1]
+        # MapKit rounds each inside corner between adjacent arms with a curb
+        # fillet that bulges into the block beyond both road edges.
+        self.junction_disks += [w.buffer(self.road_clearance, join_style="mitre") for w in corner_fillets([(f, g) for f, g in roads if is_road(f, g)], self.scale)]
         self.junction_tree = STRtree(self.junction_disks)
         self.ground_barriers += self.junction_disks
         self.ground_tree = STRtree(self.ground_barriers)
