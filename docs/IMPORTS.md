@@ -80,8 +80,25 @@ only imported OSM buildings whose base is still zero and whose footprint (and ev
 part) the mosaic covers fully; the lowest DSM sample at vertices and edge midpoints
 sets the base of each solid (a part keeps its own base when it differs).
 This is a disclosed surface estimate (roof/tree bias possible), not surveyed ground.
-Shapes, heights, other bases and bridge/tunnel heights are unchanged. The receipt
+Shapes, heights and other bases are unchanged. The receipt
 lists every changed base and uncovered count; terrain and buildings adopt as one Undo.
+
+Estimated city bridges and tunnels (`osm_estimated_structures`) assume flat ground,
+so adopting a DEM fits them to the DSM in the same candidate, before grounding:
+each ground anchor gets one level terrain pad under its junction fan (overlapping
+pads share the median), level leads and adjoining ground vertices take the pad
+height (a level vertex is inserted when an arm is too short), and each profile keeps
+its height above a base interpolated between its own anchors. Terrain is cut under
+decks (ground roads beneath keep 5 m at 1:D, or their flat clearance when smaller)
+and filled over tunnels where ground roads cross. Pad levels iterate within those
+bounds. Any conflict, an anchor outside the DEM, an edit beyond 64 m at 1:D, a
+designed or explicit-height joint, mixed terrain spacing or a DEM reviewed at
+another scale refuses the whole fit and the map keeps its flat terrain. The summary
+discloses counts and the largest change; the notice adds `structure_fit`
+(`osm-estimated-structure-dem-fit-v1`, counts and the edit hash). Explicit-height
+structures never change. A city with estimated structures cannot be imported onto a
+map that already has terrain heightmaps: adopt the city on flat terrain first, then
+the DEM.
 
 ## Choosing a geographic area
 
@@ -189,10 +206,9 @@ The importer needs Python 3.12+ with `requirements-import.txt` (NumPy 2.5.3).
 - City output above 32 MiB warns that the game refuses the map
   ([IMPORT_CITY](IMPORT_CITY.md)); four Suwon districts adopt at 24.1 MB, which is
   not a claim for every city.
-- A DEM cannot yet be adopted onto a city map with estimated bridges or tunnels:
-  their ground anchors sit on the flat terrain base, so native generation rejects
-  the junction aprons (`E_GEOMETRY`, 1 cm terrain match). Ground roads, levelled
-  structures and building grounding follow the DEM.
+- The structure fit needs the whole map under one DEM (every anchor inside it), so
+  a city larger than the DEM cell bound stays flat; the DSM is a surface estimate,
+  so pads and cuts can leave visible terraces near structures.
 - Overture/GIS completeness, broader OSM/Overture semantics, general POI/structural
   GeoJSON and geoid preparation are feature work.
 

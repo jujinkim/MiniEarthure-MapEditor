@@ -1,6 +1,7 @@
 extends "./raster_native_job.gd"
 ## Local DEM request admission; lifecycle and binary commands are shared.
 var ground_layers := {}
+var fit_index := {}
 
 func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destination: String, adopt: bool, selection: String, token: String, previous: Dictionary = {}, ground_buildings: bool = false) -> String:
 	if _attempted or cancelled: return "Native DEM jobs are single use."
@@ -41,4 +42,7 @@ func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destin
 	return _start_request(bytes)
 
 func _additional_patch(patch: Dictionary) -> bool:
+	if patch.get("field") in ["roads", "nodes"]:
+		if fit_index.is_empty(): fit_index = preload("./dem_structure_fit.gd").index(request.document)
+		return preload("./dem_structure_fit.gd").valid_patch(patch,fit_index)
 	return ground_layers.has(str(patch.get("id","")).left(40)) and preload("./dem_building_grounding.gd").valid_patch(patch,request.get("ground_buildings",false))

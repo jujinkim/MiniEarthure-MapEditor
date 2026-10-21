@@ -48,8 +48,9 @@ func stage(terrain: RefCounted, path: String, cell: Vector2i, spacing: int, offs
 	if attribution.get("notice", "") is not String or str(attribution.get("notice", "")).length() > MAX_NOTICE: return "Source notice exceeds the import limit."
 	if str(attribution.get("notice", "")).length() > NOTICE_WARN: _note(context, "heightmap_notice", str(attribution.notice).length(), NOTICE_WARN, "Source notice is very long")
 	if spacing < 200 or int(store.document.cell_size_cm) % spacing != 0 or step < 1 or step > 100 or absi(offset) > 1000000 or accuracy < 0 or accuracy > 1000000: return "Invalid heightmap spacing/offset/step/accuracy."
-	var source := FILES.read(path, PNG.MAX_BYTES)
+	var source: Dictionary = {"bytes":context.png_bytes} if context.has("png_bytes") else FILES.read(path, PNG.MAX_BYTES)
 	if source.has("error"): return source.error
+	if source.bytes.size() > PNG.MAX_BYTES: return "PNG source exceeds its budget."
 	var sha := FILES.digest(source.bytes)
 	if context.get("expected_source", sha) != sha: return "PNG source changed before decoding."
 	var side := int(store.document.cell_size_cm) / spacing + 1

@@ -34,6 +34,7 @@ const TEMPLATES := [
   "Font lacks sign characters: ",
   "Unsupported shaped cluster at character ",
   "DEM input is missing: ",
+  "Estimated structures cannot be fitted to this DEM; the map keeps its flat terrain. ",
   "Cell estimate %d exceeds the %d-byte preview work allowance.",
   "Import timed out after %d seconds; use a smaller source or retry.",
   "Generating cell %d / %d",

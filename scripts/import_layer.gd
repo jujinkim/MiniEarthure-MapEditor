@@ -619,6 +619,9 @@ func validate_for(store: RefCounted, context: Dictionary = {}) -> String:
 			var frame: Dictionary = value.coordinates.get("vertical", {"target_crs":"EPSG:5773 / EGM96 metres", "vertical_zero_m":0})
 			var frame_error: String = preload("./import_vertical.gd").frame_error(store.document, frame, value.coordinates)
 			if frame_error != "": return frame_error
+	# Estimated structures are fitted to terrain only when a DEM is adopted.
+	if value.adapter == "osm-extract-v1" and not store.document.get("heightmaps", []).is_empty() and not value.coordinates.get("osm_estimated_structures", []).is_empty():
+		return "Estimated city bridges and tunnels are fitted when a DEM is adopted. Adopt this city on flat terrain first, then import or replace the DEM."
 	var staged: Dictionary = store._candidate_for_patches(patches(store))
 	if staged.has("error"): return staged.error
 	var result: Dictionary = store._validate(staged.candidate)

@@ -4,6 +4,7 @@ const LICENSE := "https://copernicus-dem-30m.s3.amazonaws.com/readme.html#licens
 ## review warns. Every cell is still sampled and checked.
 const MAX_CELLS := 1024
 const WARN_CELLS := 256
+const STRUCTURE_FIT := preload("./dem_structure_fit.gd")
 ## Each tile file is bounded; decoding is bounded by the reviewed block budget.
 const MAX_SOURCES := 16
 const WARN_SOURCES := 4
@@ -25,6 +26,9 @@ func summary() -> String:
 	if value.is_empty(): return I18N.t("No DEM candidate.")
 	var limits := LIMITS.text(limit_warnings)
 	var text := (limits + "\n\n" if limits != "" else "") + I18N.t("Copernicus 2021 DSM · %d sources → %d cells\nAdopt all terrain cells atomically; one Undo restores every previous cell.\nEGM2008 height minus %s m at local zero; explicit bilinear sampling.\nSource accuracy unknown. Shared PNG quantization error ≤ %s cm.\nNo missing-data or seam repair. Save explicitly after adoption.\n") % [value.dem.receipt.sources.size(),value.heightmaps.size(),str(value.dem.sampling.vertical_zero_m),str(value.dem.sampling.max_quantization_error_cm)]
+	if value.dem.has("structure_fit"):
+		var fitted: Dictionary=value.dem.structure_fit
+		text+=I18N.t("\nEstimated bridges/tunnels fitted to this DSM: %d roads, %d nodes; %d anchor pads levelled, %d samples cut under decks, %d filled over tunnels (largest change %d cm); %d cells re-encoded. Disclosed estimate; terrain and roads share one Undo.\n") % [fitted.changed_roads,fitted.changed_nodes,fitted.pads,fitted.clamped,fitted.filled,maxi(fitted.max_pad_cm,maxi(fitted.max_cut_cm,fitted.max_fill_cm)),fitted.fitted_cells]
 	if value.dem.has("grounding"):
 		text+=I18N.t("\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n") % [value.dem.grounding.changes.size(),value.dem.grounding.skipped_partial]
 	for index in range(value.heightmaps.size()):
@@ -76,15 +80,28 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	if raster.offset_cm!=floor(float(raster.offset_cm)) or raster.get("max_quantization_error_cm")!=0.5+float(raster.step_cm)/2: return "Invalid mosaic quantization."
 	var records: Array = []
 	var previous: Array = []
+	var sampled: Array = []
+	var sampled_blobs := {}
 	for index in range(expected_cells.size()):
 		var output: Dictionary = result.outputs[index]
 		var path := destination+".cell-%d.png" % index
 		if output.get("cell")!=expected_cells[index] or output.get("png_path")!=path or not TYPES._hex(output.get("png_sha256"),64) or not TYPES._count(output.get("png_bytes"),PNG.MAX_BYTES): return "Invalid DEM cell identity."
 		var payload := FILES.read(path,PNG.MAX_BYTES)
 		if payload.has("error") or payload.bytes.size()!=int(output.png_bytes) or FILES.digest(payload.bytes)!=output.png_sha256: return "Derived DEM PNG changed."
+		var record := {"cell":{"x":int(expected_cells[index][0]),"y":int(expected_cells[index][1])},"path":"editor/"+output.png_sha256+".png","spacing_cm":int(options.spacing_cm),"offset_cm":int(raster.offset_cm),"step_cm":int(raster.step_cm),"source_accuracy_cm":null}
+		sampled.append(record)
+		sampled_blobs[record.path]=payload.bytes
+	# Estimated city structures assume flat terrain; fit them before staging so
+	# fitted cells, roads and building bases share one candidate and one Undo.
+	var fit: Dictionary = STRUCTURE_FIT.prepare(terrain.store,sampled,sampled_blobs,options) if not doc.roads.is_empty() else {"patches":[],"fitted":{}}
+	if fit.has("error"): return fit.error
+	for index in range(expected_cells.size()):
+		var record: Dictionary = sampled[index]
+		var cell := Vector2i(record.cell.x,record.cell.y)
+		var fitted: Dictionary = fit.fitted.get(cell,{})
+		var bytes: PackedByteArray = fitted.get("bytes",sampled_blobs[record.path])
 		var layer := preload("./heightmap_import_layer.gd").new()
-		var cell := Vector2i(expected_cells[index][0],expected_cells[index][1])
-		var failure: String = layer.stage(terrain,path,cell,int(options.spacing_cm),int(raster.offset_cm),int(raster.step_cm),0,{"source":"Copernicus 2021 mosaic","license":LICENSE},false)
+		var failure: String = layer.stage(terrain,destination+".cell-%d.png" % index,cell,int(options.spacing_cm),fitted.get("offset_cm",record.offset_cm),fitted.get("step_cm",record.step_cm),0,{"source":"Copernicus 2021 mosaic","license":LICENSE},false,"",{"png_bytes":bytes})
 		if failure!="":
 			layer.discard();discard();return failure
 		LIMITS.merge(limit_warnings, layer.limit_warnings)
@@ -94,6 +111,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		_blobs.merge(layer._blobs)
 		_cells.append_array(layer._cells)
 		layer.discard()
+	_patches.append_array(fit.patches)
 	# The stored notice names each source file with its size and hash; local and
 	# capture paths stay with the in-flight review and never enter the map.
 	# Helper warnings of the review and of this run join the candidate review;
@@ -106,6 +124,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	for item: Dictionary in stored.sources:
 		item.source = {"name":str(item.source.path).get_file(),"bytes":item.source.bytes,"sha256":item.source.sha256}
 	value={"import_version":1,"adapter":"copernicus-dem-v1","layer_id":context.get("layer_id", Crypto.new().generate_random_bytes(16).hex_encode()),"heightmaps":records,"previous":previous,"dem":{"receipt":stored,"sampling":raster.duplicate(true)}}
+	if not fit.get("receipt",{}).is_empty(): value.dem.structure_fit=fit.receipt
 	if context.get("ground_buildings",false):
 		var grounded:=preload("./dem_building_grounding.gd").prepare(terrain.store,records,_blobs,options)
 		if grounded.has("error"): discard();return grounded.error

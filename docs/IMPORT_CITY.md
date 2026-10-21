@@ -97,9 +97,9 @@ remainder so lattice points are whole map centimetres.
   their nodes stay roads.
 - City ground roads lie on the flat map plane (0 m; other profiles estimate 0.2 m).
   Adoption adds the map's terrain base to city heights outside the explicit
-  source-height graph, so estimated structures meet flat terrain. They are not
-  fitted to a DEM; adopting one afterwards fails at their junction aprons
-  ([IMPORTS](IMPORTS.md) known limits).
+  source-height graph, so estimated structures meet flat terrain. Adopting a DEM
+  afterwards fits them to it ([IMPORTS](IMPORTS.md) DEM mosaics); importing such a
+  city onto a map that already has terrain heightmaps is refused.
 - Bridges, tunnels and layered ways without source heights that cross no other
   road (river bridges, culverts, building passages) are drawn at ground level on
   the flat map, counted as estimates in review.
