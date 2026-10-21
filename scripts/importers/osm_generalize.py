@@ -1,8 +1,10 @@
 """Deterministic, scale-aware derived city geometry. Original sources are immutable.
 
-Only compatible ground chains and local polygon groups are combined. Road
-corridors, named/tall buildings, source junctions and vertical roads are protected.
-The output is ordinary current-v1 geometry, not a special runtime map format.
+Only compatible ground chains and local area groups are combined. Every building
+keeps its own footprint; nearby buildings of one site and category share one
+record as MapKit building parts. Road corridors, landmark/tall buildings, source
+junctions and vertical roads are protected. The output is ordinary current-v1
+geometry, not a special runtime map format.
 """
 from collections import Counter, defaultdict
 from copy import deepcopy
@@ -19,6 +21,7 @@ from shapely.errors import GEOSException
 from projection import Coordinates
 from osm_extract import PEDESTRIAN
 import osm_roads
+import osm_sites
 from import_layer import BudgetExceeded, soft_limit, limit_snapshot, limit_restore, limit_delta, limit_replay
 
 PROFILE = "scale-aware-city-v1"
@@ -31,14 +34,23 @@ BUILDING_SPLIT_DEPTH = 16  # Warn above.
 BUILDING_SPLIT_CEILING = 24
 PAINT_SPLIT_DEPTH = 32  # Warn above.
 PAINT_SPLIT_CEILING = 48
-LEVELS = (0, 2, 4, 8, 16, 32, 64)  # Source metres, bounded by the local road/land barriers.
+LEVELS = (0, 2, 4, 8, 16, 32, 64)  # Source metres: simplification levels (buildings are never gap-filled).
+BUILDING_TOLERANCE = 1.0  # Source metres: each footprint stays recognisable.
 SURFACES = {"asphalt":"asphalt", "concrete":"concrete", "dirt":"dirt", "gravel":"gravel", "grass":"grass",
             "paved":"asphalt", "paving_stones":"concrete", "sett":"concrete", "cobblestone":"concrete",
             "concrete:plates":"concrete", "concrete:lanes":"concrete", "compacted":"gravel",
             "fine_gravel":"gravel", "pebblestone":"gravel", "unpaved":"dirt", "ground":"dirt",
             "earth":"dirt", "sand":"dirt", "mud":"dirt", "wood":"concrete", "metal":"concrete"}
 PAINT_CELL = 3200  # Map centimetres: one native cell partitions pedestrian paint.
+# Area paint cell: PAINT_CELL × this. Larger cells give fewer but larger pieces,
+# which cost MapKit's surface-area overlap check more (measured), so it stays 1.
+AREA_FACTOR = 1
 PAINT_VERTICES = 256
+MIN_AREA_PIECE_CM2 = 10000  # Area paint pieces under one map square metre are not painted.
+# Area paint keeps this map clearance from paint and water before it: snap
+# rounding of the earlier piece's cuts (0.5 cm), of the margin (0.71 cm) and of
+# the new piece's cuts (0.5 cm) never close it.
+PAINT_MARGIN_CM = 2
 WIDTHS = {"motorway":12,"trunk":10,"primary":8,"secondary":8,"tertiary":6,"residential":6,
           "living_street":4,"service":3,"track":3,"path":1.6,"footway":1.6,"cycleway":2.4,"pedestrian":4,"steps":1.6}
 
@@ -61,6 +73,25 @@ def moved(geometries, function):
     """Apply an x/y array function to every coordinate in one call. The same
     per-point arithmetic as a scalar transform, without per-vertex Python calls."""
     return shapely.transform(geometries, lambda xy: np.column_stack(function(xy[:,0], xy[:,1])))
+
+
+def straight(polygon):
+    """A hole-free lattice polygon without exactly collinear vertices (pieces
+    cut at cell lines and holes keep the same area with fewer vertices)."""
+    ring = list(polygon.exterior.coords)[:-1]
+    changed = True
+    while changed and len(ring) > 3:
+        changed = False
+        kept = []
+        for i, b in enumerate(ring):
+            a, c = (kept[-1] if kept else ring[i-1]), ring[(i+1) % len(ring)]
+            if (b[0]-a[0])*(c[1]-b[1]) - (b[1]-a[1])*(c[0]-b[0]) == 0:
+                changed = True
+                continue
+            kept.append(b)
+        if len(kept) < 3: break
+        ring = kept
+    return polygon if len(ring) + 1 == len(polygon.exterior.coords) else Polygon(ring)
 
 
 def map_cm(cm, scale):
@@ -114,7 +145,7 @@ def strict_rings(geometry):
 
 def is_building(feature, geometry):
     p = feature["properties"]
-    return geometry.geom_type != "LineString" and not (p.get("osm_region") or p.get("_city_paint") or p.get("landuse") in ("forest","orchard"))
+    return geometry.geom_type not in ("LineString", "MultiLineString") and not (p.get("osm_region") or p.get("_city_paint") or p.get("landuse") in ("forest","orchard"))
 
 
 def clear_width(feature, furniture):
@@ -178,6 +209,7 @@ class Generalizer:
         self.widened_roads = 0
         self.estimated_widths = Counter()
         self.road_rules = Counter()
+        barrier_sources = []
         # Meter precision in the source frame, before the single 1:scale adoption.
         # Scalars or coordinate arrays; arrays give the same per-point values.
         def project(x, y, z=None):
@@ -196,6 +228,15 @@ class Generalizer:
             if geometry.is_empty or not geometry.is_valid:
                 raise ValueError("City optimization requires valid original geometry; no automatic repair")
             geometry = moved(geometry, project)
+            if "_city_gates" in feature["properties"]:
+                gates = np.array(feature["properties"]["_city_gates"], dtype=float)
+                xs, ys = project(gates[:, 0], gates[:, 1])
+                feature["properties"]["_city_gates"] = [(float(x), float(y), float(w)) for x, y, w in zip(xs, ys, gates[:, 2])]
+            if "_city_barrier" in feature["properties"]:
+                barrier_sources.append((feature, geometry))  # Barrier lines are not roads.
+                continue
+            if "_city_outline" in feature["properties"]:
+                feature["properties"]["_city_outline"] = [list(zip(*project(*np.array(ring, dtype=float).T))) for ring in feature["properties"]["_city_outline"]]
             if geometry.geom_type == "LineString":
                 p = feature["properties"]
                 if "width_m" not in p:
@@ -217,7 +258,7 @@ class Generalizer:
                     p["width_m"] = self.minimum_width  # Current-v1 minimum width: 20 map cm.
                     self.widened_roads += 1
             self.features.append((feature, geometry))
-        self.before = self.counts(self.features)
+        self.before = self.counts(self.features + barrier_sources)
         # City road rules before any buffer, so every gap shares them: service
         # paint, dual carriageways merged into one road, explicit sidewalks.
         self.road_rules.update({"painted_" + k: n for k, n in osm_roads.paint_service(self.features).items()})
@@ -255,7 +296,12 @@ class Generalizer:
         self.barrier_buffers = self.road_buffers
         self.barrier_tree = self.road_tree
         self.max_width = max(self.road_widths, default=0)
-        self.input_ids = sorted({s for f,g in self.features for s in source_ids(f)})
+        # Sites group building records; barriers are built once (gap independent).
+        self.is_walking = is_walking
+        self.source_ids = source_ids
+        self.sites = osm_sites.Sites(self.features, source_ids)
+        self.barriers = osm_sites.Barriers(self, barrier_sources)
+        self.input_ids = sorted({s for f,g in self.features for s in source_ids(f)} | {s for f,g in self.barriers.items for s in source_ids(f)})
         self.uses = Counter(ref for f,g in self.features if g.geom_type == "LineString"
                             for ref in set(f["properties"].get("osm_node_refs", f["properties"].get("_city_refs", []))))
         # Chaining joins driving roads where exactly two driving roads meet;
@@ -285,10 +331,10 @@ class Generalizer:
 
     @staticmethod
     def counts(items):
-        counts = dict(features=len(items), positions=0, roads=0, buildings=0, areas=0)
+        counts = dict(features=len(items), positions=0, roads=0, buildings=0, areas=0, barriers=0)
         for feature, geometry in items:
             counts["positions"] += positions(geometry)
-            counts["roads" if geometry.geom_type == "LineString" else "areas" if feature["properties"].get("osm_region") or feature["properties"].get("_city_paint") or feature["properties"].get("landuse") in ("forest", "orchard") else "buildings"] += 1
+            counts["barriers" if "_city_barrier" in feature["properties"] else "roads" if geometry.geom_type == "LineString" else "areas" if feature["properties"].get("osm_region") or feature["properties"].get("_city_paint") or feature["properties"].get("landuse") in ("forest", "orchard") else "buildings"] += 1
         return counts
 
     def barrier(self, geometry, extra=0):
@@ -319,6 +365,28 @@ class Generalizer:
         if self.invalid_areas[areas].any():
             build()
         return build
+
+    def barrier_hit(self, geometry, grown, extra=0):
+        """Whether `grown` (area a simplification adds) meets road space, protected
+        land, a junction surface or a structure corridor near `geometry`. Charges
+        the same queries as `barrier`; an invalid nearby area fails as its overlay."""
+        x0, y0, x1, y1 = geometry.bounds
+        reach = extra + self.building_clearance + 1e-6
+        areas = self.area_tree.query(box(x0-reach, y0-reach, x1+reach, y1+reach))
+        if len(areas):
+            areas = self.area_tree.query(geometry.buffer(extra+self.building_clearance).envelope)
+        self.spend(len(areas))
+        if self.invalid_areas[areas].any():
+            self.barrier(geometry, extra)()  # Raises inside the group, as the eager overlay does.
+        if grown.is_empty: return False  # Nothing to test: only the area query is charged.
+        window = geometry.envelope.buffer(extra + self.max_width / 2 + self.road_clearance).envelope
+        ids = self.barrier_tree.query(window)
+        junctions = self.junction_tree.query(window)
+        structures = self.structure_tree.query(window)
+        self.spend(len(ids) + len(junctions) + len(structures))
+        return bool(shapely.intersects(self.barrier_buffers[ids], grown).any() or shapely.intersects(self.area_array[areas], grown).any()
+                    or any(self.junction_disks[i].intersects(grown) for i in junctions)
+                    or any(self.structure_buffers[i].intersects(grown) for i in structures))
 
     def simplified_line(self, feature, geometry, tolerance):
         """The simplified line and the source vertex index of each kept vertex."""
@@ -562,21 +630,18 @@ class Generalizer:
                     for item in self.polygon_group(group[start:start+MAX_GROUP], gap, buildings)]
         self.spend(len(group))
         shapes = [g for f,g in group]
-        original = unary_union(shapes)
-        protected_holes = unary_union([Polygon(ring) for g in shapes for part in parts(g) for ring in part.interiors]).difference(original)
+        # A building group is one source (no fusion); its valid geometry needs no union.
+        original = shapes[0] if len(shapes) == 1 else unary_union(shapes)
+        holes = [Polygon(ring) for g in shapes for part in parts(g) for ring in part.interiors]
+        protected_holes = unary_union(holes).difference(original) if holes else Polygon()
         candidate = original
-        barrier = self.barrier(original, gap) if buildings else None
-        if gap and buildings and len(group) > 1:
-            # Closing may fill only short gaps, and can never add solid geometry
-            # inside a source road corridor or an existing courtyard.
-            closed = unary_union([g.buffer(gap/2, quad_segs=1, join_style="mitre") for g in shapes]).buffer(-gap/2, quad_segs=1, join_style="mitre")
-            filler = closed.difference(original).difference(barrier()).difference(protected_holes)
-            candidate = unary_union(parts(original.union(filler)))
-        tolerance = min(4.0 if buildings else 8.0, gap / 4)
-        simpler = candidate.simplify(tolerance, preserve_topology=True)
+        tolerance = min(BUILDING_TOLERANCE if buildings else 8.0, gap / 4)
+        simpler = candidate.simplify(tolerance, preserve_topology=True) if tolerance else candidate
         if buildings:
-            grown = simpler.difference(candidate)
-            if (not grown.is_empty and not grown.intersection(barrier()).is_empty) or not simpler.intersection(protected_holes).is_empty:
+            # Buildings are never gap-filled or fused: each source keeps its own
+            # footprint; simplification may not grow into road space or courtyards.
+            grown = simpler.difference(candidate) if simpler is not candidate else Polygon()
+            if self.barrier_hit(original, grown, tolerance) or (not protected_holes.is_empty and not simpler.intersection(protected_holes).is_empty):
                 simpler = candidate
         if not simpler.is_valid or simpler.is_empty:
             raise GEOSException("Derived polygon is invalid; retain the complete original group")
@@ -673,26 +738,39 @@ class Generalizer:
                     self.trimmed_buildings.update(source_ids(f))
                     g = trimmed
             prepared.append((f,g,building))
+        singles = []
         for f,g,building in prepared:
             # Exclude the whole source object, including other multipart pieces,
             # only through the existing explicit ID/reason review contract.
             if self.excluded_sources.intersection(source_ids(f)):
                 continue
             p = f["properties"]
-            protected = building and (p.get("_city_name") or p.get("_city_landmark") or float(p.get("height_m", 12)) >= 40 or p.get("usage") in ("public", "hospital", "school", "church", "cathedral"))
-            if protected:
-                # Preserve identity/height and keep it separate. Quantization
-                # still uses the same map-centimetre lattice as other geometry.
-                fixed.extend(self.polygon_group([(f,g)],0,True))
+            if building:
+                # Every building keeps its own footprint (no gap filling or
+                # fusion). Its record key groups it with the buildings of its
+                # site (else 256 m source tile) and category as building parts.
+                site = self.sites.key(f, g)
+                landmark = p.get("_city_landmark") or float(p.get("height_m", 12)) >= 40 or p.get("usage") in ("public", "hospital", "school", "church", "cathedral")
+                protected = landmark or (p.get("_city_name") and site[0] == "tile")
+                properties = {k:v for k,v in p.items() if not k.startswith("_city") and k not in ("osm_source_id", "height_m", "base_m")}
+                record = json.dumps(["own", source_ids(f)] if protected else [list(site), properties], sort_keys=True)
+                f = dict(f, properties=dict(p, _city_record=record))
+                if protected:
+                    # Preserve identity/height, unsimplified. Quantization still
+                    # uses the same map-centimetre lattice as other geometry.
+                    fixed.extend(self.polygon_group([(f,g)],0,True))
+                else:
+                    singles.append((f,g))
                 continue
             properties = {k:v for k,v in p.items() if not k.startswith("_city") and k not in ("osm_source_id", "height_m")}
-            height_band = math.floor(float(p.get("height_m", 12))/8) if building else 0
             # A fixed source-metre grid bounds aggregation extent independently
             # of the city, output origin, crop size or source object order.
             centre = g.centroid
-            key = (building, math.floor(centre.x/256), math.floor(centre.y/256), height_band, json.dumps(properties, sort_keys=True))
+            key = (building, math.floor(centre.x/256), math.floor(centre.y/256), 0, json.dumps(properties, sort_keys=True))
             groups[key].append((f,g))
-        return [(f,g) for f,g,building in prepared], fixed, [(key[0], sorted(groups[key], key=lambda item:(source_ids(item[0]), _key(item[1])))) for key in sorted(groups)]
+        singles.sort(key=lambda item:(source_ids(item[0]), _key(item[1])))
+        return ([(f,g) for f,g,building in prepared], fixed,
+                [(True, [item]) for item in singles] + [(key[0], sorted(groups[key], key=lambda item:(source_ids(item[0]), _key(item[1])))) for key in sorted(groups)])
 
     def native_polygon_parts(self, geometry, depth=0):
         result = []
@@ -721,7 +799,7 @@ class Generalizer:
             holes = [h for h in part.interiors if max(h.bounds[2]-h.bounds[0], h.bounds[3]-h.bounds[1]) >= 2]
             part = Polygon(part.exterior, holes)  # Sub-centimetre holes are painted over.
             if not holes and positions(part) <= PAINT_VERTICES + 1:
-                result.append(part)
+                result.append(straight(part))
                 continue
             if depth >= PAINT_SPLIT_CEILING: raise BudgetExceeded("City paint partition ceiling exceeded")
             if depth >= PAINT_SPLIT_DEPTH: soft_limit("city_paint_partition", depth + 1, PAINT_SPLIT_DEPTH, "City paint partition depth budget exceeded")
@@ -734,14 +812,21 @@ class Generalizer:
                 result.extend(self.paint_parts(shapely.intersection(part,half,grid_size=1),depth+1))
         return result
 
-    def paint(self, walking):
-        """Paths, footways and cycleways become ground paint, not road records.
+    def paint(self, walking, tolerance=0.0):
+        """Paths, footways and cycleways become ground paint, not road records;
+        green land becomes grass and parking asphalt paint (city ground).
 
-        Their source-width ribbons are united on the 1:scale map-centimetre lattice and
-        cut per native cell, so the pieces never overlap. Each piece keeps every
-        source way it covers; its surface is the one covering most of its area.
+        Pedestrian ribbons are united on the 1:scale map-centimetre lattice and
+        cut per native cell, so the pieces never overlap; each keeps every source
+        way it covers and takes the surface covering most of its area. Area
+        paint follows in surface priority order (asphalt, concrete, gravel, dirt,
+        grass), each minus water and everything painted before it, so pieces of
+        different surfaces never overlap either. Buildings are not subtracted
+        (they stand on top) and roads keep precedence natively.
         """
-        if not walking:
+        areas, water = osm_sites.ground_areas(self.features, tolerance, SURFACES, source_ids)
+        self.paint_counts = Counter()
+        if not walking and not areas:
             return []
         lx, ly = self.local
         factor, grid = self.to_map_factor, self.grid
@@ -751,20 +836,32 @@ class Generalizer:
         for feature, geometry in walking:
             self.spend(positions(geometry))
             owners.append((source_ids(feature), feature["properties"].get("_city_paint_surface") or feature["properties"].get("surface", "concrete")))
-        ribbons = shapely.buffer(np.array([g for f,g in walking], dtype=object), np.array([float(f["properties"].get("width_m", 1.6)) for f,g in walking])/2, quad_segs=2)
-        ribbons = list(shapely.set_precision(moved(ribbons, to_map), 1))
+        ribbons = shapely.buffer(np.array([g for f,g in walking], dtype=object), np.array([float(f["properties"].get("width_m", 1.6)) for f,g in walking])/2, quad_segs=2) if walking else np.zeros(0, dtype=object)
+        ribbons = list(shapely.set_precision(moved(ribbons, to_map), 1)) if walking else []
         tree = STRtree(ribbons)
-        cells = defaultdict(list)
-        for index, ribbon in enumerate(ribbons):
-            x0,y0,x1,y1 = ribbon.bounds
-            for i in range(math.floor(x0/PAINT_CELL), math.floor(x1/PAINT_CELL)+1):
-                for j in range(math.floor(y0/PAINT_CELL), math.floor(y1/PAINT_CELL)+1):
-                    cells[(i,j)].append(index)
-        output = []
+        polygonal = lambda geometries: [unary_union(parts(g)) if g.geom_type not in ("Polygon", "MultiPolygon") else g
+                                        for g in shapely.make_valid(shapely.set_precision(moved(np.array(geometries, dtype=object), to_map), 1))]
+        shapes = polygonal([g for _, _, g in areas]) if areas else []
+        waters = polygonal(water) if water else []
+        self.spend(sum(positions(g) for g in shapes) + sum(positions(g) for g in waters))
+        # Ribbons are cut per PAINT_CELL, areas per PAINT_CELL × AREA_FACTOR.
+        area_cell = PAINT_CELL * AREA_FACTOR
+        cells, area_cells = defaultdict(list), defaultdict(lambda: ([], []))
+        for kind, items in ((0, ribbons), (1, shapes), (2, waters)):
+            size = PAINT_CELL if kind == 0 else area_cell
+            for index, item in enumerate(items):
+                if item.is_empty: continue
+                x0,y0,x1,y1 = item.bounds
+                for i in range(math.floor(x0/size), math.floor(x1/size)+1):
+                    for j in range(math.floor(y0/size), math.floor(y1/size)+1):
+                        if kind == 0: cells[(i,j)].append(index)
+                        else: area_cells[(i,j)][kind-1].append(index)
+        output, taken = [], {}
         for i, j in sorted(cells):
+            ribbon_ids = cells[(i,j)]
             cell = box(i*PAINT_CELL, j*PAINT_CELL, (i+1)*PAINT_CELL, (j+1)*PAINT_CELL)
-            self.spend(len(cells[(i,j)]))
-            local = shapely.intersection(shapely.union_all([ribbons[k] for k in cells[(i,j)]], grid_size=1), cell, grid_size=1)
+            self.spend(len(ribbon_ids))
+            local = shapely.intersection(shapely.union_all([ribbons[k] for k in ribbon_ids], grid_size=1), cell, grid_size=1)
             for piece in self.paint_parts(local):
                 sources, surfaces = set(), Counter()
                 for k in tree.query(piece):
@@ -777,7 +874,41 @@ class Generalizer:
                     continue  # A lattice sliver of a ribbon already covered elsewhere.
                 surface = sorted(surfaces.items(), key=lambda item:(-item[1], item[0]))[0][0]
                 output.append((dict(type="Feature", properties=dict(_city_paint=surface, _city_sources=sorted(sources), osm_source_id=min(sources)), geometry=None), piece))
+                self.paint_counts["pedestrian"] += 1
+            taken[(i,j)] = local
+        # Lattice overlays may add lower-dimension slivers; keep polygons only.
+        areal = lambda g: g if g.geom_type in ("Polygon", "MultiPolygon") else shapely.union_all(parts(g), grid_size=1)
+        for i, j in sorted(area_cells):
+            area_ids, water_ids = area_cells[(i,j)]
+            if not area_ids: continue
+            cell = box(i*area_cell, j*area_cell, (i+1)*area_cell, (j+1)*area_cell)
+            self.spend(len(area_ids) + len(water_ids))
+            clipped = {k: areal(shapely.intersection(shapes[k], cell, grid_size=1)) for k in area_ids}
+            blocked = [areal(shapely.intersection(waters[k], cell, grid_size=1)) for k in water_ids]
+            blocked += [areal(taken[(a, b)]) for a in range(i*AREA_FACTOR, (i+1)*AREA_FACTOR) for b in range(j*AREA_FACTOR, (j+1)*AREA_FACTOR) if (a, b) in taken]
+            blocked = areal(shapely.union_all(blocked, grid_size=1)) if blocked else None
+            for surface in osm_sites.AREA_SURFACES:
+                members = [k for k in area_ids if areas[k][1] == surface and not clipped[k].is_empty]
+                if not members: continue
+                local = areal(shapely.union_all([clipped[k] for k in members], grid_size=1))
+                if blocked is not None and not blocked.is_empty:
+                    local = areal(shapely.difference(local, blocked.buffer(PAINT_MARGIN_CM, quad_segs=1, join_style="mitre"), grid_size=1))
+                if local.is_empty: continue
+                for piece in self.paint_parts(local):
+                    if piece.area < MIN_AREA_PIECE_CM2:
+                        self.paint_counts["slivers"] += 1
+                        continue  # A sliver left by cell cuts, ribbons or water; sources stay mapped as areas.
+                    sources = set()
+                    for k in members:
+                        self.spend()
+                        if shapely.intersection(clipped[k], piece).area > 0: sources.update(areas[k][0])
+                    if not sources: continue
+                    output.append((dict(type="Feature", properties=dict(_city_paint=surface, _city_sources=sorted(sources), osm_source_id=min(sources)), geometry=None), piece))
+                    self.paint_counts[surface] += 1
+                blocked = local if blocked is None else areal(shapely.union(blocked, local, grid_size=1))
         self.paint_ways = len(walking)
+        self.paint_counts["pieces"] = len(output)
+        self.paint_counts["positions"] = sum(positions(g) for f, g in output)
         return [(f,g) for (f,_),g in zip(output, moved([g for f,g in output], from_map))]
 
     def resolve_buildings(self, items):
@@ -911,13 +1042,20 @@ class Generalizer:
             covered.update(source_ids(f))
             items.extend((deepcopy(f),part) for part in (parts(snapped) if is_building(f,snapped) else self.native_polygon_parts(snapped)))
         items = self.resolve_buildings(items)
-        if "paint" in self.context:
+        # Nearby buildings of one site and category share a record (MapKit
+        # building parts); each solid stays its own visible prism.
+        items, self.record_counts = osm_sites.building_records(items, is_building, source_ids, _key)
+        items += [(deepcopy(f), g) for f, g in self.barriers.items]
+        # Area paint simplifies like other areas, so it is shared only by gaps
+        # with the same area tolerance as well as the same road space.
+        area_tolerance = min(8.0, gap/4)
+        if "paint" in self.context and self.context.get("paint_tolerance") == area_tolerance:
             self.spend(self.context["paint_work"])
             limit_replay(self.context["paint_limits"])
         else:
             start, self.paint_ways, limits = self.remaining, 0, limit_snapshot()
-            self.context.update(paint=self.paint(walking))
-            self.context.update(paint_work=start-self.remaining, paint_ways=self.paint_ways, paint_limits=self.stage_limits(limits))
+            self.context.update(paint=self.paint(walking, area_tolerance), paint_tolerance=area_tolerance)
+            self.context.update(paint_work=start-self.remaining, paint_ways=self.paint_ways, paint_limits=self.stage_limits(limits), paint_counts=dict(self.paint_counts))
         self.paint_ways = self.context["paint_ways"]
         # Output features are completed in place below; cached paint gets copies.
         items += [(dict(f, properties=dict(f["properties"], _city_sources=list(f["properties"]["_city_sources"]))), g) for f,g in self.context["paint"]]
@@ -965,19 +1103,22 @@ class Generalizer:
                     estimated_road_widths=dict(sorted(self.estimated_widths.items())),
                     road_clearance_m=self.road_clearance, trimmed_building_sources=sorted(self.trimmed_buildings),
                     building_clearance_m=self.building_clearance, polygon_partition_gap_m=self.partition_gap, overlap_adjusted_sources=sorted(self.overlap_sources),
-                    line_tolerance_m=min(4.0, gap/4), polygon_tolerance_m=min(8.0, gap/4),
+                    line_tolerance_m=min(4.0, gap/4), polygon_tolerance_m=min(8.0, gap/4), building_tolerance_m=min(BUILDING_TOLERANCE, gap/4),
                     before=self.before, after=self.counts(items), source_ids=sorted(expected),
                     unmerged_numeric_groups=self.retained_groups, painted_pedestrian_ways=self.paint_ways,
                     level_structures=self.level_structures,
                     road_rules=dict(sorted((self.road_rules + self.finish_counts).items())), paint_segment_bound=self.paint_bound,
                     layered_buildings=sum(bool(f["properties"].get("_city_layer_building")) and not self.excluded_sources.intersection(source_ids(f)) for f,g in self.features),
                     estimated_structure_roads=sum("_city_estimated_m" in f["properties"] for f,g in items),
-                    groups=groups, protected_buildings=sum(bool(f["properties"].get("_city_name") or f["properties"].get("_city_landmark") or float(f["properties"].get("height_m",12))>=40) for f,g in items if is_building(f,g)))
+                    groups=groups, protected_buildings=sum(bool(f["properties"].get("_city_name") or f["properties"].get("_city_landmark") or float(f["properties"].get("height_m",12))>=40) for f,g in items if is_building(f,g)),
+                    building_records=dict(sorted(self.record_counts.items())),
+                    barriers=dict(sorted((self.barriers.counts + Counter({"kind_" + k: n for k, n in self.barriers.kinds.items()})).items()), dropped_sources=sorted(set(self.barriers.dropped) - set(self.input_ids))),
+                    ground_paint=dict(sorted(self.context.get("paint_counts", {}).items())))
         return result, meta
 
 
 def candidates(collection, options, review=None, scale=SCALE):
-    """Largest gap first: it merges and simplifies most. Callers take the first
+    """Largest gap first: it simplifies most. Callers take the first
     candidate that meets the targets; smaller gaps are built only after a miss or
     failure. A gap whose partition ceilings or road space cannot be met yields
     (None, failure) instead. Soft budgets met while building a gap are recorded
@@ -987,7 +1128,14 @@ def candidates(collection, options, review=None, scale=SCALE):
     base = limit_snapshot()
     # Dense sources skip the 0–2 m gaps (source metres at every scale: a 4 m gap
     # is 0.5 m on a 1:8 map); all protected geometry and final admission still apply.
+    built = set()
     for gap in reversed(LEVELS[2 if worker.before["features"] > 20000 else 0:]):
+        # Without building gap filling a gap acts only through its line,
+        # building and area tolerances; a gap repeating them gives the same
+        # candidate and is not built again (64 and 32 m).
+        tolerances = (min(4.0, gap/4), min(8.0, gap/4), min(BUILDING_TOLERANCE, gap/4))
+        if tolerances in built: continue
+        built.add(tolerances)
         limit_restore(base)
         try:
             result = worker.candidate(gap)

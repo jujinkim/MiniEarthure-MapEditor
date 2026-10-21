@@ -23,12 +23,15 @@ packages. The automatic OSM city profile is described in [IMPORT_CITY](IMPORT_CI
 
 [CURRENT_V1](CURRENT_V1.md) defines one shape per adapter; there is no recipe
 selector or automatic converter. An ImportLayer adds nodes, roads, buildings, zones,
-city ground paint (`surface_areas`) and facility POIs with source provenance under a new 128-bit namespace, even when
+city ground paint (`surface_areas`), city barriers and building parts, and facility POIs with source provenance under a new 128-bit namespace, even when
 the same bytes are reimported. References to existing objects, arbitrary map-value
-mutation and deletions are rejected.
+mutation and deletions are rejected; the only map values an adoption sets are the
+extent of an empty map, `free_roam` and, for a city layer on a map without one,
+`ground_surface: concrete` (a different existing surface is kept with a warning;
+Undo restores its absence).
 
 Custom maps use real metres. OSM adoption divides coordinates, widths, heights,
-clearances and vegetation spacing by the map scale denominator D once: the city
+clearances, barrier heights/thicknesses and vegetation spacing by the map scale denominator D once: the city
 scale (1–8), or 8 for exact OSM. `authored_units` records `source_denominator: D`
 and the profile `osm-import-1to{D}-v1` (`osm-import-1to8-v1` at 1:8); readers
 accept only a profile matching the stored D and refuse unknown values or OSM
@@ -73,8 +76,9 @@ map extent** copies the imported frame, selects all cells and uses 4 m map spaci
 when the grid allows.
 
 **Place zero-base OSM buildings on this DSM (estimated)** is optional. It changes
-only imported OSM buildings whose base is still zero and whose footprint the mosaic
-covers fully; the lowest DSM sample at vertices and edge midpoints sets the base.
+only imported OSM buildings whose base is still zero and whose footprint (and every
+part) the mosaic covers fully; the lowest DSM sample at vertices and edge midpoints
+sets the base of each solid (a part keeps its own base when it differs).
 This is a disclosed surface estimate (roof/tree bias possible), not surveyed ground.
 Shapes, heights, other bases and bridge/tunnel heights are unchanged. The receipt
 lists every changed base and uncovered count; terrain and buildings adopt as one Undo.

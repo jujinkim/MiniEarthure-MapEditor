@@ -11,7 +11,8 @@ import shapely
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/importers"))
 import pyproj
 from shapely.geometry import shape, box, LineString, mapping, Polygon, MultiPolygon
-from shapely.ops import transform
+from shapely.ops import transform, unary_union
+from collections import Counter
 from osm_generalize import Generalizer
 from polygon_geometry import Budget, SpatialBudget, group_rings
 
@@ -60,19 +61,35 @@ class City(unittest.TestCase):
         meta=self.worker(8).candidate(0)[1]
         self.assertEqual((meta["grid_m"],meta["minimum_road_width_m"],meta["road_clearance_m"],meta["building_clearance_m"],meta["polygon_partition_gap_m"]),(0.08,1.6,0.8,0.16,0.32))
 
-    def test_dense_buildings_merge_with_complete_sources_in_multiple_cities(self):
+    def solids(self, worker, value):
+        """Projected solids of every building record (footprint first, then parts)."""
+        out = []
+        for f in value["features"]:
+            if f["geometry"]["type"] in ("Polygon", "MultiPolygon") and not f["properties"].get("_city_paint") and not f["properties"].get("osm_region"):
+                g = transform(worker.project, shape(f["geometry"]))
+                out.append((f, list(g.geoms) if g.geom_type == "MultiPolygon" else [g]))
+        return out
+
+    def test_dense_buildings_group_as_separate_parts_with_complete_sources_in_multiple_cities(self):
         for origin in [(9,55),(127.03,37.27),(18.5,-33.9)]:
             self.setup_city(origin)
             for i in range(20):
-                self.add(i+1,box(i*12,10,i*12+10,20))
+                self.add(i+1,box(i*12,10,i*12+10,20),height_m=6+i)
             original = deepcopy(self.features)
             worker = self.worker()
-            candidate, meta = worker.candidate(4)
-            self.assertLess(meta["after"]["buildings"],20)
+            candidate, meta = worker.candidate(64)
+            self.assertEqual(meta["after"]["buildings"],1,"one record groups the tile's buildings")
             self.assertEqual(meta["source_ids"],sorted(f"way/{i+1}" for i in range(20)))
             self.assertEqual({s for group in meta["groups"] for s in group["source_ids"]},set(meta["source_ids"]))
             self.assertEqual(self.features,original)
-            self.assertTrue(any(group["estimated_height"] for group in meta["groups"]))
+            self.assertFalse(any(group["estimated_height"] for group in meta["groups"]),"each part keeps its source height")
+            [(feature, solids)] = self.solids(worker, candidate)
+            self.assertEqual(len(solids),20,"every footprint stays its own solid: never fused across the 2 m gaps")
+            for k, solid in enumerate(sorted(solids, key=lambda g: g.bounds[0])):
+                self.assertAlmostEqual(solid.area,100,delta=0.5)
+                self.assertEqual(len(solid.exterior.coords),5,"a rectangle stays a rectangle")
+            self.assertEqual(sorted(p["height_m"] for p in feature["properties"]["_city_parts"]),[6+i for i in range(20)])
+            self.assertEqual(meta["building_records"],dict(grouped_records=1,records=1,solids=20))
 
     def test_road_corridor_prevents_merging_across_street(self):
         self.setup_city()
@@ -81,11 +98,9 @@ class City(unittest.TestCase):
         self.add(3,LineString([(22,0),(22,30)]),width_m=2,_city_refs=[1,2])
         worker=self.worker()
         output,meta=worker.candidate(16)
-        self.assertEqual(meta["after"]["buildings"],2)
-        originals=[g for f,g in worker.features if g.geom_type=="Polygon"]
-        for f in output["features"]:
-            if f["geometry"]["type"]!="Polygon": continue
-            projected=transform(worker.project,shape(f["geometry"]))
+        [(feature, solids)]=self.solids(worker,output)
+        self.assertEqual(len(solids),2,"one record, two separate solids")
+        for projected in solids:
             self.assertLess(projected.intersection(box(21.1,0,22.9,30)).area,0.001)
 
     def test_names_tall_buildings_holes_and_heights_are_protected(self):
@@ -212,12 +227,16 @@ class City(unittest.TestCase):
             p=f["properties"]
             if "osm_node_refs" in p: self.assertNotEqual(p["osm_node_refs"][0],p["osm_node_refs"][-1])
 
-    def test_park_area_stops_building_gap_filling(self):
+    def test_buildings_beside_a_park_stay_separate_solids(self):
         self.setup_city()
         self.add(1,box(10,10,20,20))
         self.add(2,box(30,10,40,20))
         self.add(3,box(21,0,29,30),osm_region=True,landuse="park",protected=False)
-        self.assertEqual(self.worker().candidate(64)[1]["after"]["buildings"],2)
+        worker=self.worker()
+        out,meta=worker.candidate(64)
+        [(feature, solids)]=self.solids(worker,out)
+        self.assertEqual(len(solids),2)
+        self.assertTrue(all(g.intersection(box(21,0,29,30)).area<0.001 for g in solids))
 
     def test_ground_bends_simplify_with_exact_source_positions_and_structure_protection(self):
         self.setup_city()
@@ -280,9 +299,12 @@ class City(unittest.TestCase):
         self.setup_city()
         ring=[(100*math.cos(i*2*math.pi/700),100*math.sin(i*2*math.pi/700)) for i in range(700)]
         self.add(1,Polygon(ring),height_m=80,_city_name="전시장")
-        out,meta=self.worker().candidate(0)
-        self.assertGreater(meta["after"]["buildings"],1)
-        self.assertTrue(all(len(f["geometry"]["coordinates"][0])<=512 for f in out["features"]))
+        worker=self.worker()
+        out,meta=worker.candidate(0)
+        [(feature, solids)]=self.solids(worker,out)
+        self.assertEqual(meta["after"]["buildings"],1,"a protected source's native pieces stay one record")
+        self.assertGreater(len(solids),1)
+        self.assertTrue(all(len(g.exterior.coords)<=512 for g in solids))
 
 
     def test_pedestrian_ways_become_disjoint_hole_free_ground_paint(self):
@@ -426,7 +448,7 @@ class City(unittest.TestCase):
                 self.assertIsNotNone(candidate, meta)
                 seen[meta["gap_m"]] = {e["code"] for e in import_layer.limit_entries()}
         shared = [gap for gap in seen if min(4.0, gap/4) == 4.0]
-        self.assertEqual(sorted(shared),[16,32,64],"16-64 m gaps reuse the cached stages")
+        self.assertEqual(sorted(shared),[16,64],"16 and 64 m gaps reuse the cached stages; 32 m repeats 64 m and is not built")
         for gap, codes in seen.items():
             self.assertTrue(set(stages.values()) <= codes, f"gap {gap}: {codes}")
 
@@ -445,7 +467,7 @@ class City(unittest.TestCase):
         for candidate, meta in candidates(collection(),self.options,review):
             gaps.append(meta["gap_m"])
             excluded.append(list(review.excluded))
-        self.assertEqual(gaps,[64,32,16,8,4,2,0])
+        self.assertEqual(gaps,[64,16,8,4,2,0])
         self.assertEqual(excluded[0],["way/99","way/2"],"the straightened road space covers the building")
         self.assertEqual(excluded[-1],["way/99"],"a bent road space keeps it")
         fresh = Review(True)
@@ -457,9 +479,9 @@ class City(unittest.TestCase):
         # Without exclusion review the straightened road space is a failed candidate,
         # not a failed import; the next tolerance keeps the building.
         built = list(candidates(collection(),self.options,Review(False)))
-        self.assertEqual([meta["gap_m"] for candidate,meta in built],[64,32,16,8,4,2,0])
-        self.assertTrue(all(candidate is None and "way/2" in meta["failure"] for candidate,meta in built[:3]))
-        self.assertIn("way/2",built[3][1]["source_ids"])
+        self.assertEqual([meta["gap_m"] for candidate,meta in built],[64,16,8,4,2,0])
+        self.assertTrue(all(candidate is None and "way/2" in meta["failure"] for candidate,meta in built[:2]))
+        self.assertIn("way/2",built[2][1]["source_ids"])
 
     def test_area_invalid_after_projection_retains_the_group(self):
         # Valid in lon/lat; the spike vertex crosses the projected chord of the
@@ -470,7 +492,7 @@ class City(unittest.TestCase):
         worker = self.worker()
         vertex = transform(worker.project,shapely.Point(9.0,55.0000001))
         self.assertFalse(transform(worker.project,water).is_valid)
-        self.add(2,box(vertex.x-5,-12,vertex.x+5,-3))
+        self.add(2,box(vertex.x-5,-12,vertex.x+5,-0.6))  # Within the 1 m building tolerance + clearance.
         self.assertEqual(self.worker().candidate(4)[1]["unmerged_numeric_groups"],2)
 
     def test_parts_of_one_building_never_touch(self):
@@ -493,8 +515,8 @@ class City(unittest.TestCase):
         self.add(4,box(90,15,99,25))
         self.add(5,box(101,15,110,25))
         worker=self.worker();out,meta=worker.candidate(16)
-        buildings=[transform(worker.project,shape(f["geometry"])) for f in out["features"] if f["geometry"]["type"]=="Polygon"]
-        self.assertEqual(meta["after"]["buildings"],1,"the gap above the junction is still filled")
+        [(feature, buildings)]=self.solids(worker,out)
+        self.assertEqual(len(buildings),2,"the gap above the junction is never filled")
         self.assertGreater(min(b.distance(shapely.Point(100,10)) for b in buildings),6.2,"buildings stay outside the junction disk")
 
     def test_erased_source_returns_trimmed_on_the_map_lattice(self):
@@ -565,6 +587,253 @@ class City(unittest.TestCase):
                 import geojson
                 with self.assertRaises((ValueError, SystemExit)), patch("sys.stderr",new=__import__("io").StringIO()):
                     geojson.main()
+
+
+class CityRules(unittest.TestCase):
+    """Building records, urban ground paint and barriers (synthetic layouts)."""
+    setUp, setup_city, add, worker, solids = City.setUp, City.setup_city, City.add, City.worker, City.solids
+
+    def site(self, identity, geometry, site, **properties):
+        landuse = site if site in ("residential", "commercial", "retail", "industrial") else site
+        outline = [list(map(list, transform(self.inverse, geometry).exterior.coords))]
+        self.add(identity, geometry, osm_region=True, landuse=landuse, protected=False, _city_site=site, _city_outline=outline, **properties)
+
+    def barrier_feature(self, identity, line, value, gates=(), **tags):
+        from osm_extract import city_barrier
+        p = dict(osm_source_id=f"way/{identity}", _city_barrier=city_barrier(dict(barrier=value, **tags)))
+        if gates: p["_city_gates"] = [[*self.inverse(x, y), w] for x, y, w in gates]
+        self.features.append(dict(type="Feature", properties=p, geometry=json.loads(json.dumps(mapping(transform(self.inverse, line))))))
+
+    def records(self, worker, value):
+        return {tuple(f["properties"]["_city_sources"]): solids for f, solids in self.solids(worker, value)}
+
+    def barriers(self, worker, value):
+        return [(f["properties"]["_city_barrier"], transform(worker.project, shape(f["geometry"]))) for f in value["features"] if "_city_barrier" in f["properties"]]
+
+    def test_separate_footprints_are_never_fused_or_reshaped(self):
+        self.setup_city()
+        # Touching, 0.5 m and 3 m apart: every source stays its own recognisable solid.
+        self.add(1, box(0, 0, 10, 10))
+        self.add(2, box(10, 0, 20, 10))
+        self.add(3, box(20.5, 0, 30, 10))
+        self.add(4, box(33, 0, 43, 10))
+        self.add(5, Polygon([(50, 0), (60, 0), (60, 4), (55, 4), (55, 10), (50, 10)]))  # An L keeps its notch.
+        for gap in (64, 16, 0):
+            with self.subTest(gap=gap):
+                worker = self.worker(3)
+                out, meta = worker.candidate(gap)
+                [(sources, solids)] = self.records(worker, out).items()
+                self.assertEqual(sources, tuple(f"way/{i}" for i in range(1, 6)))
+                self.assertEqual(len(solids), 5, "five sources, five solids")
+                for solid in solids:
+                    owners = [i for i, g in enumerate((box(0,0,10,10), box(10,0,20,10), box(20.5,0,30,10), box(33,0,43,10))) if solid.intersection(g).area > 1]
+                    self.assertLessEqual(len(owners), 1, "no solid spans two sources")
+                l = max(solids, key=lambda g: g.bounds[0])
+                self.assertLess(l.area, 75, "the L-shaped footprint is not filled to its bounding box")
+                self.assertTrue(all(a.intersection(b).area < 1e-6 for i, a in enumerate(solids) for b in solids[i+1:]))
+
+    def test_records_group_by_site_and_category_with_landmarks_alone(self):
+        self.setup_city()
+        self.site(100, box(0, 0, 100, 100), "residential")
+        self.site(101, box(120, 0, 220, 100), "residential")
+        self.add(1, box(10, 10, 30, 30), usage="apartments", _city_name="101동")
+        self.add(2, box(40, 10, 60, 30), usage="apartments", _city_name="102동")
+        self.add(3, box(10, 50, 30, 70), usage="commercial")
+        self.add(4, box(130, 10, 150, 30), usage="apartments")
+        self.add(5, box(160, 10, 180, 30), usage="apartments", _city_landmark=True)
+        self.add(6, box(70, 70, 80, 80), usage="apartments", height_m=45)
+        self.add(7, box(300, 10, 310, 20), _city_name="Shop")  # Named outside any site.
+        self.add(8, box(320, 10, 330, 20))
+        self.add(9, box(340, 10, 350, 20))
+        self.add(10, box(600, 10, 610, 20), usage="shed", _city_site_relation="relation/9")
+        self.add(11, box(900, 10, 910, 20), usage="shed", _city_site_relation="relation/9")
+        worker = self.worker(3)
+        out, meta = worker.candidate(64)
+        records = self.records(worker, out)
+        self.assertEqual(sorted(records), sorted([("way/1", "way/2"), ("way/3",), ("way/4",), ("way/5",), ("way/6",), ("way/7",), ("way/8", "way/9"), ("way/10", "way/11")]))
+        named = next(f for f, solids in self.solids(worker, out) if f["properties"]["_city_sources"] == ["way/1", "way/2"])
+        self.assertEqual(named["properties"]["_city_names"], ["101동", "102동"], "names of grouped buildings are kept")
+        group = next(g for g in meta["groups"] if g["source_ids"] == ["way/1", "way/2"])
+        self.assertEqual(group["names"], ["101동", "102동"])
+        self.assertEqual(len(records[("way/10", "way/11")]), 2, "a type=site relation groups across 256 m tiles")
+        self.assertEqual(meta["after"]["buildings"], 8)
+
+    def test_record_parts_convert_to_one_building_with_its_own_heights(self):
+        from geojson import convert
+        self.setup_city()
+        self.add(1, box(0, 0, 10, 10), height_m=9)
+        self.add(2, box(20, 0, 30, 10), height_m=30)
+        self.add(3, box(40, 0, 50, 10))
+        worker = self.worker(3)
+        out, meta = worker.candidate(16)
+        layer = convert(out, "synthetic", "ODbL-1.0", coordinates=self.options, osm_graph=True, city=True)
+        [building] = [p["after"] for p in layer.patches if p["field"] == "buildings"]
+        self.assertEqual(len(building["parts"]), 2)
+        heights = [building["height_cm"]] + [part.get("height_cm", building["height_cm"]) for part in building["parts"]]
+        self.assertEqual(sorted(heights), [900, 1200, 3000], "every solid keeps its own source height")
+        self.assertTrue(all("base_cm" not in part for part in building["parts"]), "equal bases are inherited")
+
+    def test_ground_paint_grass_parking_and_water(self):
+        self.setup_city()
+        walk = lambda kind: dict(_city_road_tags=dict(highway=kind))
+        self.add(1, box(0, 0, 200, 150), osm_region=True, landuse="park", protected=False, _city_ground=dict(kind="green", surface=None))
+        self.add(2, box(40, 40, 80, 80), osm_region=True, landuse="water", protected=False)
+        self.add(3, box(150, 20, 180, 40), osm_region=True, landuse="parking", protected=False, _city_ground=dict(kind="parking", surface=None))
+        self.add(4, box(300, 0, 330, 30), osm_region=True, landuse="pitch", protected=False, _city_ground=dict(kind="green", surface="asphalt"))
+        self.add(5, LineString([(10, 100), (190, 100)]), _city_refs=[1, 2], **walk("footway"))
+        import random
+        rng = random.Random(7)
+        for k in range(40):  # Oblique footways cut the grass off the lattice.
+            self.add(10 + k, LineString([(rng.uniform(1, 199), rng.uniform(1, 149)), (rng.uniform(1, 199), rng.uniform(1, 149))]), _city_refs=[100 + 2*k, 101 + 2*k], **walk("footway"))
+        worker = self.worker(3)
+        out, meta = worker.candidate(0)
+        paint = [(f["properties"]["_city_paint"], f["properties"]["_city_sources"], transform(worker.project, shape(f["geometry"]))) for f in out["features"] if "_city_paint" in f["properties"]]
+        surfaces = Counter(s for s, _, _ in paint)
+        self.assertEqual(set(surfaces), {"grass", "asphalt", "concrete"})
+        pond = box(40.2, 40.2, 79.8, 79.8)
+        self.assertTrue(all(g.intersection(pond).area < 0.01 for s, _, g in paint if s != "concrete"), "water is never painted with area paint")
+        lx, ly = worker.local
+        lattice = [transform(lambda x, y, z=None: ((x+lx)*100/3, (y+ly)*100/3), g) for _, _, g in paint]
+        self.assertTrue(all(abs(v-round(v)) < 1e-6 for g in lattice for point in g.exterior.coords for v in point), "whole map centimetres")
+        snapped = [shapely.set_precision(g, 1) for g in lattice]
+        self.assertTrue(all(a.intersection(b).area == 0 for i, a in enumerate(snapped) for b in snapped[i+1:]), "pieces never overlap on the map lattice")
+        grass = unary_union([g for s, _, g in paint if s == "grass"])
+        self.assertLess(grass.area, 200*150 - 40*40 - 30*20 - 180*1.6, "grass minus pond, parking and footways")
+        self.assertTrue(any(s == "asphalt" and src == ["way/3"] for s, src, _ in paint), "parking is asphalt")
+        self.assertTrue(any(s == "asphalt" and src == ["way/4"] for s, src, _ in paint), "a tagged hard pitch surface wins over grass")
+        self.assertEqual(meta["ground_paint"]["grass"] + meta["ground_paint"]["asphalt"] + meta["ground_paint"]["pedestrian"], meta["ground_paint"]["pieces"])
+
+    def test_explicit_barrier_kinds_and_heights_follow_the_scale(self):
+        for scale in (3, 8):
+            with self.subTest(scale=scale):
+                self.setup_city()
+                self.add(1, LineString([(0, -50), (400, -50)]), width_m=6, _city_refs=[1, 2], _city_road_tags=dict(highway="residential"))
+                self.barrier_feature(2, LineString([(0, 0), (40, 0)]), "hedge")
+                self.barrier_feature(3, LineString([(0, 10), (40, 10)]), "wall")
+                self.barrier_feature(4, LineString([(0, 20), (40, 20)]), "retaining_wall")
+                self.barrier_feature(5, LineString([(0, 30), (40, 30)]), "fence", fence_type="chain_link")
+                self.barrier_feature(6, LineString([(0, 40), (40, 40)]), "fence", height="1.8")
+                self.barrier_feature(7, LineString([(0, 50), (40, 50), (40, 90), (0, 90), (0, 50)]), "fence")
+                worker = self.worker(scale)
+                out, meta = worker.candidate(16)
+                found = {f["properties"]["osm_source_id"]: f["properties"]["_city_barrier"] for f in out["features"] if "_city_barrier" in f["properties"]}
+                cm = lambda m: round(m * 100 / scale)
+                expected = {"way/2": ("hedge", 0.8, 0.6), "way/3": ("wall", 2.0, 0.3), "way/4": ("wall", 2.0, 0.3), "way/5": ("fence", 1.2, 0.1), "way/6": ("fence", 1.8, 0.1), "way/7": ("fence", 1.2, 0.1)}
+                for source, (kind, height, thickness) in expected.items():
+                    b = found[source]
+                    self.assertEqual(b["kind"], kind)
+                    self.assertEqual(round(b["height_m"] * 100 / scale), cm(height), "height in source metres ÷D")
+                    self.assertEqual(round(b["thickness_m"] * 100 / scale), min(100, max(5, cm(thickness))), "thickness ÷D within 5..100 map cm")
+                closed = next(g for b, g in self.barriers(worker, out) if g.length > 150)
+                self.assertEqual(closed.coords[0], closed.coords[-1], "a closed perimeter repeats its first point")
+                self.assertEqual(meta["after"]["barriers"], 6)
+                self.assertIn("way/7", meta["source_ids"])
+
+    def test_explicit_barriers_open_at_paths_painted_driveways_and_gate_nodes(self):
+        from osm_extract import gate_points
+        self.setup_city()
+        walk = lambda kind, **extra: dict(_city_road_tags=dict(highway=kind, **extra))
+        self.add(1, LineString([(0, -60), (200, -60)]), width_m=6, _city_refs=[1, 2], _city_road_tags=dict(highway="residential"))
+        self.add(2, LineString([(30, -40), (30, 40)]), _city_refs=[3, 4], **walk("footway"))
+        self.add(3, LineString([(80, -60), (80, 30)]), width_m=3, _city_refs=[2, 5], **walk("service", service="driveway"))
+        self.barrier_feature(4, LineString([(0, 0), (200, 0)]), "fence", gates=[(140, 0, 3.0), (180, 0, 1.5)])
+        worker = self.worker(3)
+        out, meta = worker.candidate(16)
+        pieces = sorted((g for b, g in self.barriers(worker, out)), key=lambda g: g.bounds[0])
+        self.assertEqual(len(pieces), 5, "a footway, a painted driveway and two gate nodes open four gaps")
+        gaps = [(a.bounds[2], b.bounds[0]) for a, b in zip(pieces, pieces[1:])]
+        for (lo, hi), centre, width in zip(gaps, (30, 80, 140, 180), (1.6/2 + 2, 3/2 + 2, 1.5, 0.75)):
+            self.assertLess(lo, centre); self.assertGreater(hi, centre)
+            self.assertAlmostEqual(hi - lo, 2 * width, delta=0.1)
+        self.assertEqual(meta["barriers"]["explicit_records"], 5)
+        self.assertNotIn("way/4", meta["barriers"]["dropped_sources"])
+        # Gate nodes come from the barrier way's own nodes; width tags win.
+        nodes = {1: [9, 55], 2: [9.001, 55], 3: [9.002, 55]}
+        tags = {2: dict(barrier="lift_gate"), 3: dict(barrier="kissing_gate", width="0.9")}
+        self.assertEqual(gate_points([1, 2, 3, 2], nodes, tags), [[9.001, 55, 3.0], [9.002, 55, 0.9]])
+
+    def test_guard_rail_on_a_bridge_is_skipped(self):
+        self.setup_city()
+        bridge = dict(road_kind="bridge", elevations_m=[6.0, 6.0], osm_way_id=1, osm_node_refs=[1, 2], width_m=8, _city_road_tags=dict(highway="primary"))
+        self.add(1, LineString([(0, 0), (100, 0)]), **bridge)
+        self.barrier_feature(2, LineString([(10, 4), (90, 4)]), "guard_rail")
+        self.barrier_feature(3, LineString([(10, 40), (90, 40)]), "guard_rail")
+        worker = self.worker(3)
+        out, meta = worker.candidate(16)
+        self.assertEqual([f["properties"]["osm_source_id"] for f in out["features"] if "_city_barrier" in f["properties"]], ["way/3"])
+        self.assertEqual(meta["barriers"]["skipped_bridge_guard_rails"], 1)
+        self.assertEqual(meta["barriers"]["dropped_sources"], ["way/2"])
+        self.assertNotIn("way/2", meta["source_ids"])
+
+    def test_inferred_perimeters_gates_coverage_and_explicit_wins(self):
+        self.setup_city()
+        walk = lambda kind: dict(_city_road_tags=dict(highway=kind))
+        self.site(100, box(0, 0, 120, 100), "residential")
+        self.add(1, box(10, 10, 50, 30), usage="apartments")
+        self.add(2, box(60, 10, 100, 30), usage="apartments")
+        self.add(3, box(10, 50, 50, 70), _city_levels=9)  # building=yes, 27 m tall.
+        self.add(4, LineString([(60, -20), (60, 40)]), _city_refs=[1, 2], **walk("footway"))
+        self.barrier_feature(5, LineString([(0, 101), (120, 101)]), "fence")
+        self.site(200, box(200, 0, 300, 100), "residential")  # Two towers but 4 % coverage.
+        self.add(6, box(210, 10, 220, 20), usage="apartments")
+        self.add(7, box(230, 10, 240, 20), usage="apartments")
+        self.site(300, box(400, 0, 500, 80), "school")
+        self.site(400, box(600, 0, 700, 80), "industrial", _city_gates=[[*self.inverse(650, 0), 3.0]])
+        self.site(500, box(800, 0, 900, 80), "commercial")
+        worker = self.worker(3)
+        out, meta = worker.candidate(16)
+        found = [(f["properties"]["_city_sources"], f["properties"]["_city_barrier"], transform(worker.project, shape(f["geometry"]))) for f in out["features"] if "_city_barrier" in f["properties"]]
+        complex_ = [(b, g) for s, b, g in found if s == ["way/100"]]
+        self.assertEqual(len(complex_), 2, "the footway gate splits the perimeter")
+        self.assertTrue(all(b["kind"] == "fence" and round(b["height_m"] * 100 / 3) == 40 for b, g in complex_))
+        gate = shapely.Point(60, 0)
+        self.assertGreater(min(g.distance(gate) for b, g in complex_), 2.7, "gate of half the footway width + 2 m")
+        self.assertTrue(all(g.distance(LineString([(0, 101), (120, 101)])) > 2.9 for b, g in complex_), "the explicit fence wins within 3 m")
+        self.assertFalse(any(s == ["way/200"] for s, b, g in found), "below 15 % coverage no perimeter is inferred")
+        [(school, sg)] = [(b, g) for s, b, g in found if s == ["way/300"]]
+        self.assertEqual((school["kind"], round(school["height_m"] * 100 / 3)), ("fence", 67))
+        self.assertEqual(sg.coords[0], sg.coords[-1])
+        [(industry, ig)] = [(b, g) for s, b, g in found if s == ["way/400"]]
+        self.assertEqual((industry["kind"], round(industry["height_m"] * 100 / 3)), ("wall", 67))
+        self.assertNotEqual(ig.coords[0], ig.coords[-1], "a gate node opens the inferred wall")
+        self.assertGreater(ig.distance(shapely.Point(650, 0)), 1.4)
+        self.assertFalse(any(s == ["way/500"] for s, b, g in found), "commercial land gets no perimeter")
+        self.assertEqual(meta["barriers"]["inferred_sites"], 3)
+
+    def test_city_cli_rules_end_to_end(self):
+        import import_layer, tempfile, geojson
+        from osm_city_rules_fixture import xml as rules_xml, BBOX
+        from osm_fixture import pbf
+        from osm_extract import LICENSE
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "rules.pbf"; pbf(source, rules_xml())
+            output = Path(directory) / "rules.json"
+            argv = ["geojson.py", str(source), str(output), "--input-format", "pbf", "--coordinates", "wgs84-utm", "--origin", "9", "55",
+                    "--local-origin", "512", "512", "--license", LICENSE, "--layer-id", "9" * 32, "--osm-bbox", *map(str, BBOX),
+                    "--osm-stream", "--osm-city", "--osm-scale", "3"]
+            with patch.object(sys, "argv", argv), patch("builtins.print", lambda *a, **k: None):
+                geojson.main()
+            value = json.loads(output.read_bytes())
+        meta = value["coordinates"]["osm_city"]
+        fields = Counter(p["field"] for p in value["patches"])
+        self.assertEqual(fields["buildings"], 6, "apartments, school, houses, historic, named and site-relation records")
+        self.assertEqual(meta["building_records"], dict(grouped_records=3, records=6, solids=10))
+        self.assertEqual(meta["barriers"]["explicit_records"], 5, "the lift gate splits its fence")
+        self.assertEqual(meta["barriers"]["inferred_sites"], 3)
+        self.assertEqual(fields["barriers"], meta["after"]["barriers"])
+        kinds = Counter(p["after"]["kind"] for p in value["patches"] if p["field"] == "barriers")
+        self.assertEqual(kinds, Counter(fence=6, wall=2, hedge=1))
+        surfaces = Counter(p["after"]["surface"] for p in value["patches"] if p["field"] == "surface_areas")
+        self.assertGreater(surfaces["grass"], 0)
+        self.assertGreater(surfaces["asphalt"], 0)
+        self.assertIn("way/6", meta["source_ids"], "an explicit barrier way is mapped")
+        self.assertEqual({r["landuse"] for r in value["coordinates"]["generation_regions"]}, {"residential", "park", "water", "industrial"},
+                         "city-only areas (school, parking) are rule inputs, not generation regions")
+        self.assertTrue({"way/10", "way/22"} <= set(meta["source_ids"]), "city-only areas stay mapped")
+        for p in value["patches"]:
+            if p["field"] == "barriers":
+                self.assertTrue(all(v % 3 == 0 for point in p["after"]["line"] for v in point), "barrier vertices on the 1:3 lattice")
+                self.assertEqual(p["after"]["height_cm"] % 3, 0)
 
 
 class LimitWarnings(unittest.TestCase):

@@ -1932,7 +1932,11 @@
     "Automatic city optimization requires PBF streaming.": "Automatic city optimization requires PBF streaming.",
     "City crop source count mismatch.": "City crop source count mismatch.",
     "City loop merge hides a source junction.": "City loop merge hides a source junction.",
-    "Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nGap filling: ≤ %.2f source m (%.2f map m). Named/tall buildings, road corridors and courtyards remain protected.\nMerged building heights are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n": "Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nGap filling: ≤ %.2f source m (%.2f map m). Named/tall buildings, road corridors and courtyards remain protected.\nMerged building heights are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n",
+    "Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nSimplification level: %.2f source m (%.2f map m). Every building keeps its own footprint; landmark/tall buildings, road corridors and courtyards remain protected.\nBuilding heights without source tags are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n": "Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nSimplification level: %.2f source m (%.2f map m). Every building keeps its own footprint; landmark/tall buildings, road corridors and courtyards remain protected.\nBuilding heights without source tags are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n",
+    "City sites: %d building records with %d solids (nearby buildings of one site and category share a record as separate parts).\n": "City sites: %d building records with %d solids (nearby buildings of one site and category share a record as separate parts).\n",
+    "Barriers: %d pieces from %d explicit OSM barrier ways and %d pieces of %d inferred site perimeters, opened at paths, painted driveways and gates; heights are estimates.\n": "Barriers: %d pieces from %d explicit OSM barrier ways and %d pieces of %d inferred site perimeters, opened at paths, painted driveways and gates; heights are estimates.\n",
+    "Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n": "Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n",
+    "Not imported: %d barrier sources dropped (guard rails on bridges, wholly within gates or crossings, shorter than one map centimetre), %d barrier ways off the ground or with unsupported tags, %d city-only areas that cannot be imported.\n": "Not imported: %d barrier sources dropped (guard rails on bridges, wholly within gates or crossings, shorter than one map centimetre), %d barrier ways off the ground or with unsupported tags, %d city-only areas that cannot be imported.\n",
     "Estimated road widths by class: %s. Building sources cut for road clearance: %d; adjusted for overlapping buildings: %d.\nNames and source IDs of enclosed buildings are retained in their containing volume. Geometry changes are approximations; originals stay unchanged.\n": "Estimated road widths by class: %s. Building sources cut for road clearance: %d; adjusted for overlapping buildings: %d.\nNames and source IDs of enclosed buildings are retained in their containing volume. Geometry changes are approximations; originals stay unchanged.\n",
     "Generation cell size (m)": "Generation cell size (m)",
     "Smaller cells reduce generation work per cell without shrinking the map. For dense city imports, start with 128 m. Set this before importing terrain or assembling a track.": "Smaller cells reduce generation work per cell without shrinking the map. For dense city imports, start with 128 m. Set this before importing terrain or assembling a track.",
@@ -2393,6 +2397,18 @@
     "Working asset and course files need a lot of memory": "Working asset and course files need a lot of memory",
     "Working terrain height arrays need a lot of memory": "Working terrain height arrays need a lot of memory",
     "City road rules: %d dual carriageways merged into two-way roads (%d one-way ways, %d median links); %d widths from lane counts; %d service ways and %d tracks painted as drivable ground; %d roads with sidewalks; %d roads with lane markings and %d junction crosswalks (estimates).\n": "City road rules: %d dual carriageways merged into two-way roads (%d one-way ways, %d median links); %d widths from lane counts; %d service ways and %d tracks painted as drivable ground; %d roads with sidewalks; %d roads with lane markings and %d junction crosswalks (estimates).\n",
-    "City road markings exceed the paint segment bound.": "City road markings exceed the paint segment bound."
+    "City road markings exceed the paint segment bound.": "City road markings exceed the paint segment bound.",
+    "City barrier count mismatch.": "City barrier count mismatch.",
+    "City output barriers": "City output barriers",
+    "City source barriers": "City source barriers",
+    "Invalid city barrier.": "Invalid city barrier.",
+    "Invalid city building parts.": "Invalid city building parts.",
+    "Invalid imported ground surface.": "Invalid imported ground surface.",
+    "Barrier records require OSM city optimization.": "Barrier records require OSM city optimization.",
+    "Building parts require OSM city optimization.": "Building parts require OSM city optimization.",
+    "The map keeps its own ground surface; city ground is not repainted": "The map keeps its own ground surface; city ground is not repainted",
+    "Invalid dropped city barrier sources.": "Invalid dropped city barrier sources.",
+    "Invalid skipped city inputs.": "Invalid skipped city inputs.",
+    "Skipped city inputs": "Skipped city inputs"
   }
 }

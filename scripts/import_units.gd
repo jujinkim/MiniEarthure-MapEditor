@@ -13,12 +13,18 @@ static func osm_patches(source: Array, city := false, terrain_base_cm := 0, deno
 	var result := source.duplicate(true)
 	for patch: Dictionary in result:
 		var record: Dictionary = patch.after
-		for key in ["position", "points", "footprint", "polygon", "exclusions", "entrances", "courtyards", "holes"]:
+		for key in ["position", "points", "footprint", "polygon", "exclusions", "entrances", "courtyards", "holes", "line"]:
 			if record.has(key): record[key] = _coordinates(record[key], denominator)
 		for key in ["widths_cm"]:
 			if record.has(key): record[key] = _coordinates(record[key], denominator)
-		for key in ["height_cm", "base_cm", "clearance_cm", "sidewalk_cm", "spacing_cm"]:
+		for key in ["height_cm", "base_cm", "clearance_cm", "sidewalk_cm", "spacing_cm", "thickness_cm"]:
 			if record.get(key) != null: record[key] = roundi(float(record[key]) / denominator)
+		# City building parts: each solid scales like its record.
+		for part: Dictionary in record.get("parts", []):
+			for key in ["footprint", "holes"]:
+				if part.has(key): part[key] = _coordinates(part[key], denominator)
+			for key in ["height_cm", "base_cm"]:
+				if part.get(key) != null: part[key] = roundi(float(part[key]) / denominator)
 		if city:
 			# Scaling to whole game centimetres can collapse adjacent source
 			# vertices. Remove only exact duplicates, never a road endpoint,
@@ -29,6 +35,10 @@ static func osm_patches(source: Array, city := false, terrain_base_cm := 0, deno
 			for key in ["courtyards","holes","exclusions"]:
 				if record.has(key):
 					for i in range(record[key].size()): record[key][i] = _ring_duplicates(record[key][i])
+			for part: Dictionary in record.get("parts", []):
+				part.footprint = _ring_duplicates(part.footprint)
+				for i in range(part.get("holes", []).size()): part.holes[i] = _ring_duplicates(part.holes[i])
+			if patch.field == "barriers": record.line = _line_duplicates(record.line)
 			if terrain_base_cm != 0:
 				if patch.field == "nodes" and not patch.id.contains("-osm-node-"): record.position[1] += terrain_base_cm
 				if patch.field == "roads" and not (str(record.from) + str(record.to)).contains("-osm-node-"):
@@ -57,6 +67,9 @@ static func widen_roads(patches: Array, existing_buildings: Array, pedestrian: A
 	for building: Dictionary in records:
 		rings.append(building.footprint)
 		rings.append_array(building.get("holes", []))
+		for part: Dictionary in building.get("parts", []):
+			rings.append(part.footprint)
+			rings.append_array(part.get("holes", []))
 	var edges: Array = []
 	for ring: Array in rings:
 		for i in ring.size():
@@ -134,6 +147,13 @@ static func _ring_duplicates(source: Array) -> Array:
 		if result.is_empty() or result[-1] != point: result.append(point)
 	if result.size() > 1 and result[0] == result[-1]: result.pop_back()
 	return result if result.size() >= 3 else source
+
+## Consecutive equal barrier points after scaling (a closed line keeps its repeat).
+static func _line_duplicates(source: Array) -> Array:
+	var result: Array = []
+	for point: Variant in source:
+		if result.is_empty() or result[-1] != point: result.append(point)
+	return result if result.size() >= 2 else source
 
 static func _road_duplicates(record: Dictionary) -> void:
 	var retained: Array[int] = [0]

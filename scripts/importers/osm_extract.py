@@ -37,7 +37,32 @@ def dependency():
         raise ValueError("OSM requires osmium 4.3.1; install requirements-import.txt in the selected Python") from exc
 
 
-def category(tags):
+# City-only areas and barriers (urban ground paint, building sites, barriers).
+# The exact profile never selects them.
+CITY_BARRIERS = ("fence", "wall", "hedge", "retaining_wall", "guard_rail")
+CITY_GREEN_LEISURE = ("park", "garden", "playground", "pitch")
+CITY_GREEN_LANDUSE = ("grass", "meadow", "recreation_ground", "village_green", "cemetery", "farmland", "orchard", "forest")
+CITY_GREEN_NATURAL = ("grassland", "scrub", "wood")
+CITY_SITE_AMENITY = ("school", "hospital", "university", "college")
+CITY_SITE_LANDUSE = ("residential", "commercial", "retail", "industrial")
+CITY_PARKING_LEVELS = ("underground", "multi-storey", "rooftop")
+# Tags placing an object off the ground; city-only selections skip them.
+OFF_GROUND = ("bridge", "tunnel", "layer", "covered", "building:part", "min_height", "building:min_level", "incline", "ele", "level", "location")
+
+
+def off_ground(tags):
+    return any(tags.get(key, "no") not in ("no", "0") for key in OFF_GROUND if key in tags)
+
+
+def city_area(tags):
+    """A city-only selected area: green leisure, parking or a school/hospital site."""
+    return (not off_ground(tags) and (tags.get("leisure") in CITY_GREEN_LEISURE
+            or tags.get("amenity") in CITY_SITE_AMENITY
+            or tags.get("amenity") == "parking" and tags.get("parking") not in CITY_PARKING_LEVELS))
+
+
+def category(tags, city=False):
+    """`city` adds the city-only areas (regions) and barrier ways."""
     kinds = []
     if tags.get("highway"):
         kinds.append("road")
@@ -49,14 +74,79 @@ def category(tags):
         raise ValueError("ambiguous OSM feature categories; prepare an explicit extract")
     if not kinds and (tags.get("landuse") or tags.get("leisure") in ("park", "nature_reserve") or tags.get("natural") in ("water", "wetland", "bare_rock", "scrub", "grassland") or tags.get("boundary") == "protected_area"):
         return "region"
+    if not kinds and city and city_area(tags):
+        return "region"
+    if not kinds and city and tags.get("barrier") in CITY_BARRIERS:
+        return "barrier"
     return kinds[0] if kinds else None
 
 
-def region_properties(tags):
-    landuse = tags.get("landuse") or {"wood":"forest", "water":"water"}.get(tags.get("natural"), tags.get("natural")) or tags.get("leisure", "unknown")
+def city_only(tags):
+    """Selected only by the city profile."""
+    try:
+        return category(tags) is None and category(tags, True) is not None
+    except ValueError:
+        return False
+
+
+def region_properties(tags, city=False):
+    landuse = tags.get("landuse") or {"wood":"forest", "water":"water"}.get(tags.get("natural"), tags.get("natural")) or tags.get("leisure", "unknown" if not city else None) or (tags.get("amenity") if city else None) or "unknown"
     protected = tags.get("boundary") == "protected_area" or tags.get("leisure") == "nature_reserve" or tags.get("access") in ("no", "private")
+    keys = ("landuse", "natural", "leisure", "boundary", "access", "protect_class") + (("amenity",) if city and "amenity" in tags and tags["amenity"] in CITY_SITE_AMENITY + ("parking",) else ())
     return dict(landuse=landuse or "unknown", osm_region=True, protected=protected,
-                region_tags={k: tags[k] for k in ("landuse", "natural", "leisure", "boundary", "access", "protect_class") if k in tags})
+                region_tags={k: tags[k] for k in keys if k in tags})
+
+
+def city_site(tags):
+    """Enclosing site of city building records and inferred perimeters."""
+    if tags.get("amenity") in CITY_SITE_AMENITY: return tags["amenity"]
+    if tags.get("landuse") in CITY_SITE_LANDUSE: return tags["landuse"]
+    return None
+
+
+def city_ground(tags):
+    """Painted city ground of an area: parking (asphalt) or green land (grass);
+    a tagged surface is mapped later. None for other areas."""
+    if tags.get("amenity") == "parking" and tags.get("parking") not in CITY_PARKING_LEVELS:
+        return dict(kind="parking", surface=tags.get("surface"))
+    if (tags.get("leisure") in CITY_GREEN_LEISURE or tags.get("landuse") in CITY_GREEN_LANDUSE
+            or tags.get("natural") in CITY_GREEN_NATURAL):
+        return dict(kind="green", surface=tags.get("surface"))
+    return None
+
+
+HEDGE_M, WAIST_M, UNCLIMBABLE_M, GUARD_RAIL_M = 0.8, 1.2, 2.0, 0.8
+# Gate nodes on a barrier or site outline open a gap of their `width` tag, else
+# a vehicle (3 m) or pedestrian (1.5 m) default, in source metres.
+VEHICLE_GATES = ("gate", "lift_gate", "swing_gate", "sliding_gate")
+PEDESTRIAN_GATES = ("entrance", "kissing_gate", "turnstile", "stile", "bollard", "cycle_barrier")
+
+
+def gate_points(refs, nodes, node_tags):
+    """[[lon, lat, width_m]] of the gate nodes among `refs`, once each."""
+    gates = []
+    for ref in dict.fromkeys(refs):
+        tags = node_tags.get(ref, {})
+        kind = tags.get("barrier")
+        if ref not in nodes or kind not in VEHICLE_GATES + PEDESTRIAN_GATES: continue
+        width = 3.0 if kind in VEHICLE_GATES else 1.5
+        if "width" in tags:
+            try: width = metres(tags, "width")
+            except ValueError: pass  # Unsupported text keeps the default.
+        gates.append([*nodes[ref], width])
+    return gates
+THICKNESS_M = {"hedge": 0.6, "fence": 0.1, "wall": 0.3}
+
+
+def city_barrier(tags):
+    """Kind and source-metre height/thickness of an explicit OSM barrier way."""
+    value = tags["barrier"]
+    kind = {"hedge": "hedge", "wall": "wall", "retaining_wall": "wall"}.get(value, "fence")
+    height = {"hedge": HEDGE_M, "wall": UNCLIMBABLE_M, "retaining_wall": UNCLIMBABLE_M, "guard_rail": GUARD_RAIL_M}.get(value, WAIST_M)
+    if value == "fence" and "height" in tags:
+        try: height = metres(tags, "height")
+        except ValueError: pass  # Unsupported text keeps the waist-high class.
+    return dict(kind=kind, height_m=height, thickness_m=THICKNESS_M[kind], source=value)
 
 
 def metres(tags, name):
@@ -582,7 +672,7 @@ def assemble(segments):
     return sorted(rings)
 
 
-def relation_features(relations, all_ways, nodes, blocked_members, counts, budget):
+def relation_features(relations, all_ways, nodes, blocked_members, counts, budget, city=False):
     features, consumed = [], set()
     semantic = {"building", "building:part", "height", "landuse", "natural", "highway", "width", "surface"}
     for identity, kind, members, tags in sorted(relations):
@@ -610,7 +700,7 @@ def relation_features(relations, all_ways, nodes, blocked_members, counts, budge
             if "height" in tags: properties["height_m"] = metres(tags, "height")
             if tags["building"] != "yes": properties["usage"] = tags["building"]
         else:
-            properties.update(region_properties(tags))
+            properties.update(region_properties(tags, city))
         properties["osm_source_id"] = "relation/" + str(identity)
         features.append(dict(type="Feature", properties=properties, geometry=dict(type="MultiPolygon", coordinates=polygons)))
         consumed.update(local)
@@ -685,7 +775,7 @@ def parse(raw, input_format, supplement=None, city=False):
                 if refs > MAX_REFS:
                     soft_limit("osm_references", refs, MAX_REFS, "OSM reference budget exceeded")
                 all_ways[entity.id] = ([n.ref for n in entity.nodes], tags)
-                selected = category(tags)
+                selected = category(tags, city)
                 if selected:
                     if len(ways) + len(relations) >= MAX_FEATURES:
                         soft_limit("osm_features", len(ways) + len(relations) + 1, MAX_FEATURES, "OSM selected feature budget exceeded")
@@ -697,7 +787,8 @@ def parse(raw, input_format, supplement=None, city=False):
                 refs += len(entity.members)
                 if refs > MAX_REFS:
                     soft_limit("osm_references", refs, MAX_REFS, "OSM reference budget exceeded")
-                selected = category(tags)
+                selected = category(tags, city)
+                if selected == "barrier": selected = None  # Barrier relations are not lines.
                 if selected:
                     if (tags.get("type") != "multipolygon" and not (selected=="region" and tags.get("type")=="boundary")) or selected == "road":
                         raise ValueError("OSM selected relation requires an area multipolygon or protected boundary")
@@ -750,7 +841,7 @@ def way_feature(identity, kind, references, tags, nodes, node_tags, area_members
             if "height" in tags: properties["height_m"] = metres(tags, "height")
             if tags["building"] != "yes": properties["usage"] = tags["building"]
         else:
-            properties.update(region_properties(tags))
+            properties.update(region_properties(tags, city))
         geometry = dict(type="Polygon", coordinates=[points])
     # Temporary source identity for selecting loop incidence, removed from
     # ordinary unconnected ground roads below to preserve their old contract.
@@ -759,8 +850,11 @@ def way_feature(identity, kind, references, tags, nodes, node_tags, area_members
     return dict(type="Feature", properties=properties, geometry=geometry)
 
 
-def build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts, supplement=None, source_sha256=None, review=None, *, feature_limit=None, city=False):
-    """Normalize a complete bounded selection from either snapshot reader."""
+def build_features(nodes, node_tags, ways, all_ways, relations, area_members, counts, supplement=None, source_sha256=None, review=None, *, feature_limit=None, city=False, sites=None):
+    """Normalize a complete bounded selection from either snapshot reader.
+
+    City profile: `sites` maps ("w"|"r", id) members of type=site relations to
+    their smallest "relation/ID"; explicit barrier ways become line features."""
     if supplement is not None:
         node_tags = supplement.apply(nodes, node_tags, ways, source_sha256)
     review = review or Review()
@@ -794,10 +888,15 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             for member_type, ref, _role in relation[2]:
                 if member_type == "w" and ref in all_ways:
                     source_error(all_ways[ref][1])
-            parts, members = relation_features([relation], all_ways, nodes, area_members | consumed, counts, topology)
+            parts, members = relation_features([relation], all_ways, nodes, area_members | consumed, counts, topology, city)
             assembled.extend(parts)
             consumed.update(members)
         except ValueError as exc:
+            if city and city_only(relation[3]):
+                # A city-only area (green, parking, school site) is an approximation
+                # input: an unsupported one is skipped, never excluded or fatal.
+                counts["skipped_city_areas"] = counts.get("skipped_city_areas", 0) + 1
+                continue
             review.reject("relation/" + str(relation[0]), exc)
             # Failed area members never escape as flattened standalone polygons.
             for member_type, ref, _role in relation[2]:
@@ -843,7 +942,16 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                 tags = city_tags(tags)
             if identity in level or identity in estimated:
                 tags = {key: value for key, value in tags.items() if key not in LEVEL_TAGS}
-            features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology, city=city))
+            if kind == "barrier":
+                continue  # Barrier lines are added below (city profile).
+            if city and kind != "road" and city_only(tags):
+                try:
+                    features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology, city=city))
+                except ValueError:
+                    counts["skipped_city_areas"] = counts.get("skipped_city_areas", 0) + 1
+                    continue
+            else:
+                features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology, city=city))
             if identity in level:
                 features[-1]["properties"]["_city_level_structure"] = True
             if "way/" + str(identity) in layered and kind == "building":
@@ -893,12 +1001,19 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     counts["structure_continuations"] = len(connections)
     collection = dict(type="FeatureCollection", features=features)
     relation_tags = {identity: tags for identity, kind, members, tags in relations}
+    relation_members = {identity: members for identity, kind, members, tags in relations}
     for feature in features:
         p = feature["properties"]
         kind, identity = p["osm_source_id"].split("/")
         refs, tags = all_ways[int(identity)] if kind == "way" else ([], relation_tags[int(identity)])
         p["_city_name"] = tags.get("name", "")
         p["_city_landmark"] = any(key in tags for key in ("historic", "tourism", "amenity"))
+        if city and feature["geometry"]["type"] != "LineString":
+            city_polygon_properties(p, tags, feature["geometry"], kind, int(identity), sites)
+            outline = refs if kind == "way" else [r for t, ref, _ in relation_members.get(int(identity), []) if t == "w" and ref in all_ways for r in all_ways[ref][0]]
+            if p.get("_city_site") and outline:
+                gates = gate_points(outline, nodes, node_tags)
+                if gates: p["_city_gates"] = gates
         if feature["geometry"]["type"] == "LineString":
             # Do not merge roads across semantic changes omitted by the
             # legacy display adapter (oneway, access, name, classification).
@@ -935,6 +1050,8 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             connected_features.append(dict(type="Feature", properties=props,
                 geometry=dict(type="LineString",coordinates=feature["geometry"]["coordinates"][a:b+1])))
             if len(connected_features)>feature_limit: soft_limit("osm_split_features", len(connected_features), feature_limit, "OSM split feature budget exceeded")
+    if city:
+        connected_features.extend(barrier_features(ways, nodes, node_tags, counts))
     collection["features"] = connected_features
     if connections: collection["osm_connections"] = connections
     if loop_sources:
@@ -946,6 +1063,50 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     else:
         counts["closed_ground_ways"] = 0
     return collection, counts
+
+
+def city_polygon_properties(p, tags, geometry, kind, identity, sites):
+    """City profile: site, painted ground, outline and levels of an area or building."""
+    if p.get("osm_region"):
+        # A city-only area (green, parking, school site) is a rule input: its
+        # source maps to paint and barriers, never to generation regions.
+        if city_only(tags): p["_city_context"] = True
+        site = city_site(tags)
+        if site:
+            p["_city_site"] = site
+            # The source outline before any crop: an inferred perimeter follows
+            # only original boundary, never a crop cut.
+            rings = [geometry["coordinates"][0]] if geometry["type"] == "Polygon" else [polygon[0] for polygon in geometry["coordinates"]]
+            p["_city_outline"] = [[list(point) for point in ring] for ring in rings]
+        ground = city_ground(tags)
+        if ground: p["_city_ground"] = ground
+        return
+    levels = tags.get("building:levels", "")
+    if re.fullmatch(r"[1-9][0-9]{0,2}", levels): p["_city_levels"] = int(levels)
+    member = (sites or {}).get(("w" if kind == "way" else "r", identity))
+    if member: p["_city_site_relation"] = member
+
+
+def barrier_features(ways, nodes, node_tags, counts):
+    """City profile: explicit OSM barrier ways (fence, wall, hedge, retaining
+    wall, guard rail) as ground lines. Ways off the ground (bridge, tunnel,
+    layer) or with unsupported source tags are not imported (counted)."""
+    output = []
+    for identity, kind, references, tags in sorted(ways):
+        if tags.get("barrier") not in CITY_BARRIERS or kind not in ("barrier", "region", "zone"): continue
+        points = []
+        for ref in references:
+            if ref in nodes and (not points or points[-1] != nodes[ref]): points.append(list(nodes[ref]))
+        if (off_ground(tags) or tags.get("_source_error") or any(node_tags.get(ref, {}).get("_source_error") for ref in references)
+                or len(points) < 2 or any(ref not in nodes for ref in references)):
+            counts["skipped_barriers"] = counts.get("skipped_barriers", 0) + 1
+            continue
+        counts["barrier_ways"] = counts.get("barrier_ways", 0) + 1
+        properties = dict(osm_source_id="way/" + str(identity), _city_barrier=city_barrier(tags))
+        gates = gate_points(references, nodes, node_tags)
+        if gates: properties["_city_gates"] = gates
+        output.append(dict(type="Feature", properties=properties, geometry=dict(type="LineString", coordinates=points)))
+    return output
 
 
 def finish(layer, counts):

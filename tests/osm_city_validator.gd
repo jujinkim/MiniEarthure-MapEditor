@@ -16,6 +16,7 @@ func run() -> void:
 		return
 	# The original 1:8 city scale and the 1:3 city default run the same flow.
 	for denominator in [8, 3]: await run_scale(denominator)
+	await run_rules()
 	print("osm_city_validator: %s (%d checks)" % ["PASS" if failures.is_empty() else str(failures),checks])
 	quit(0 if failures.is_empty() else 1)
 
@@ -59,8 +60,9 @@ func run_scale(denominator: int) -> void:
 	var raw: Dictionary=ui.pending_import.value.duplicate(true)
 	var meta: Dictionary=raw.coordinates.osm_city
 	check(ui.pending_import.requires_generation() and ui.pending_import.generation_cell_warning()==256 and ui.pending_import.generation_cell_limit()==LAYER.MAX_CHECK_CELLS,"all city cells require native generation, including sources without structures; above 256 cells only warns")
-	check(meta.before.features>meta.after.features and meta.before.positions>meta.after.positions,"automatic aggregation reduces actual geometry")
-	check(meta.after.roads==1 and meta.after.buildings==3 and meta.after.areas>=2,"compatible chain/footprints/vegetation merge while named/tall buildings survive")
+	check(meta.before.features>meta.after.features and meta.before.buildings>meta.after.buildings,"automatic aggregation reduces records")
+	check(meta.after.roads==1 and meta.after.buildings==3 and meta.after.areas>=2,"compatible chain/vegetation merge, footprints group as parts while named/tall buildings stay records")
+	check(meta.building_records.solids==8 and meta.building_records.grouped_records==1,"every source footprint stays its own solid: "+JSON.stringify(meta.building_records))
 	check(meta.painted_pedestrian_ways==1 and ui.import_summary.text.contains("painted as drivable ground"),"the footway is disclosed as ground paint, not a road")
 	check(meta.vegetation_spacing_m==32 and meta.vegetation_density_per_mille==750,"illustrative vegetation density is explicitly disclosed")
 	check(meta.scale_denominator==denominator and is_equal_approx(meta.grid_m,denominator/100.0) and is_equal_approx(meta.road_clearance_m,denominator/10.0),"the city lattice and clearances follow 1:%d" % denominator)
@@ -107,11 +109,13 @@ func run_scale(denominator: int) -> void:
 	ui._adopt_import()
 	await wait_import(ui)
 	check(ui.store.document.buildings.size()==3 and ui.store.document.roads.size()==1,"city adoption is complete")
-	check(ui.store.document.surface_areas.size()==meta.after.areas-1 and ui.store.document.surface_areas.all(func(area: Dictionary) -> bool: return area.surface=="concrete"),"the footway is adopted as painted ground, cut at cell lines")
+	check(ui.store.document.buildings.any(func(b: Dictionary) -> bool: return b.get("parts", []).size()==5),"six overlapping footprints adopt as one record with five parts")
+	check(ui.store.document.surface_areas.size()==meta.after.areas-1 and ui.store.document.surface_areas.all(func(area: Dictionary) -> bool: return area.surface in ["concrete","grass"]) and ui.store.document.surface_areas.any(func(area: Dictionary) -> bool: return area.surface=="grass"),"the footway is painted concrete and the forest grass, cut at cell lines")
+	check(ui.store.document.get("ground_surface")=="concrete","a city import paves unpainted ground")
 	check(ui.store.document.zones[0].spacing_cm==roundi(3200.0/denominator) and ui.store.document.zones[0].density_per_mille==750,"city vegetation keeps its 32 source m spacing after one scale conversion")
 	check(preload("res://scripts/import_units.gd").dem_denominator(ui.store.document)==denominator,"DEM and CSV read the adopted 1:%d back" % denominator)
 	var adopted: Dictionary=ui.store.document.duplicate(true)
-	check(ui.store.undo()=="" and ui.store.document.buildings.is_empty(),"atomic city Undo")
+	check(ui.store.undo()=="" and ui.store.document.buildings.is_empty() and not ui.store.document.has("ground_surface"),"atomic city Undo restores the ground surface")
 	check(ui.store.redo()=="" and ui.store._signature(ui.store.document)==ui.store._signature(adopted),"exact city Redo")
 	var project := ProjectSettings.globalize_path("user://city-roundtrip-%d" % denominator)
 	check(ui.store.save_project(project)=="" and ui.store.open_project(project)=="","save and reopen city project")
@@ -140,6 +144,98 @@ func run_scale(denominator: int) -> void:
 	check(not ui.osm_panel.scale.editable and ui.osm_panel.scale.value==denominator and ui.osm_panel.denominator()==denominator,"the scale control locks to the map's OSM scale")
 	ui.store.dirty=false
 	ui.queue_free(); await process_frame
+
+## Building parts, barriers and city ground: adopted natively, Undo, a map
+## keeping its own ground surface.
+func run_rules() -> void:
+	for keep in [false, true]:
+		var ui: Control = load("res://main.tscn").instantiate()
+		root.add_child(ui); ui._ensure_import_ui()
+		ui.store.new_track(true)
+		await process_frame
+		if keep:
+			check(ui.store.apply_command("Asphalt ground",[{"field":"ground_surface","id":"","before":null,"after":"asphalt"}])=="" and ui.store.document.ground_surface=="asphalt","a user ground surface is one command")
+		ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
+		ui.import_source_format.select(1)
+		ui.import_source_format.item_selected.emit(1)
+		ui.import_origin_lon.value=9
+		ui.import_origin_lat.value=55
+		ui.import_origin_x.value=512
+		ui.import_origin_y.value=512
+		ui.osm_panel.enabled.button_pressed=true
+		ui.osm_panel.streaming.button_pressed=true
+		var bbox := [8.9995,54.9995,9.0135,55.004]
+		for i in range(4): ui.osm_panel.fields[i].value=bbox[i]
+		ui.osm_panel.scale.value = 3
+		var source := ProjectSettings.globalize_path("user://city-rules-%s.pbf" % keep)
+		var out: Array=[]
+		check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_city_rules_fixture.py"),source]),out,true)==0,"synthetic city rules fixture: "+str(out))
+		var before: Dictionary=ui.store.document.duplicate(true)
+		ui._start_import(source,LAYER.OSM_LICENSE)
+		await wait_import(ui)
+		check(ui.pending_import!=null,"city rules native review: "+ui.status_label.text)
+		if ui.pending_import==null: ui.queue_free(); await process_frame; return
+		var meta: Dictionary=ui.pending_import.value.coordinates.osm_city
+		check(ui.import_summary.text.contains("building records"),"review discloses building records, barriers and ground paint")
+		check(ui.pending_import.limit_warnings.any(func(e: Dictionary) -> bool: return e.code=="city_ground_surface")==keep,"a kept user ground surface is disclosed, never overwritten")
+		check(ui.import_summary.text.contains("Not imported:") and ui.import_summary.text.contains("Ground paint:"),"review discloses dropped and skipped city inputs and the paint breakdown")
+		for mutation in ["dropped-imported", "dropped-count", "skipped"]:
+			var bad: Dictionary = ui.pending_import.value.duplicate(true)
+			match mutation:
+				"dropped-imported": bad.coordinates.osm_city.barriers.dropped_sources = [meta.source_ids[0]]
+				"dropped-count":
+					var many: Array = []
+					for k in range(int(meta.before.barriers) + 1): many.append("way/%d" % (900000 + k))
+					bad.coordinates.osm_city.barriers.dropped_sources = many
+				"skipped": bad.coordinates.osm_city.skipped = {"barrier_ways": -1}
+			check(LAYER.new().load_value(bad,ui.import_identity,ui.import_coordinates_request)!="","reject city mutation "+mutation)
+		ui._adopt_import()
+		await wait_import(ui)
+		var document: Dictionary=ui.store.document
+		check(document.get("barriers",[]).size()==int(meta.after.barriers) and document.barriers.size()>=8,"barriers adopt: %d" % document.get("barriers",[]).size())
+		check(document.barriers.all(func(b: Dictionary) -> bool: return b.kind in ["hedge","fence","wall"] and b.height_cm>=10 and b.height_cm<=1000 and b.thickness_cm>=5 and b.thickness_cm<=100),"barrier heights and thicknesses within MapKit ranges")
+		check(document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="fence" and b.height_cm==40) and document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="wall" and b.height_cm==67) and document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="hedge" and b.height_cm==27),"source-metre barrier heights ÷3")
+		check(document.buildings.size()==6 and document.buildings.filter(func(b: Dictionary) -> bool: return not b.get("parts",[]).is_empty()).size()==3,"site and category records carry building parts")
+		check(document.surface_areas.any(func(a: Dictionary) -> bool: return a.surface=="grass") and document.surface_areas.any(func(a: Dictionary) -> bool: return a.surface=="asphalt"),"green land is grass and parking asphalt")
+		check(document.get("ground_surface")==("asphalt" if keep else "concrete"),"ground surface: %s" % document.get("ground_surface"))
+		check(ui.store.undo()=="" and ui.store.document.get("barriers",[]).is_empty() and ui.store.document.get("ground_surface")==("asphalt" if keep else null),"Undo removes barriers and restores the ground surface")
+		check(ui.store.redo()=="" and ui.store.document.barriers.size()==int(meta.after.barriers),"Redo restores barriers")
+		if not keep:
+			# Parts belong to their record in canvas picking and scenery rotation.
+			var grouped: Dictionary = {}
+			for b: Dictionary in ui.store.document.buildings:
+				if b.get("parts",[]).size() == 1: grouped = b
+			check(not grouped.is_empty(),"a two-solid city record exists")
+			if not grouped.is_empty():
+				var part: Array = grouped.parts[0].footprint
+				var inside := Vector2.ZERO
+				for q: Array in part: inside += Vector2(q[0],q[1])
+				inside /= part.size()
+				check(ui.canvas._hit(inside) == "buildings/" + str(grouped.id),"a click inside a building part picks its record")
+				ui.scenery.tool = ""
+				ui.scenery.selected = {"field":"buildings","record":grouped,"key":"buildings/" + str(grouped.id)}
+				ui.scenery.rotate_selected()
+				var turned: Dictionary = {}
+				for b: Dictionary in ui.store.document.buildings:
+					if b.id == grouped.id: turned = b
+				var centre := Vector2.ZERO
+				for q: Array in grouped.footprint: centre += Vector2(q[0],q[1])
+				centre /= grouped.footprint.size()
+				var expected: Array = []
+				for q: Array in part:
+					var d := Vector2(q[0],q[1]) - centre
+					expected.append([roundi(centre.x-d.y), roundi(centre.y+d.x)])
+				var got: Array = []
+				for q: Array in (turned.parts[0].footprint if turned.get("parts",[]).size() == 1 else []): got.append([roundi(q[0]), roundi(q[1])])
+				check(got == expected,"rotating a record turns its parts with it: " + ui.status_label.text + " " + JSON.stringify(turned.get("parts",[])) + " expected " + JSON.stringify(expected))
+				check(ui.store.undo()=="" ,"rotation Undo")
+		var project := ProjectSettings.globalize_path("user://city-rules-%s" % keep)
+		check(ui.store.save_project(project)=="" and ui.store.open_project(project)=="" and ui.store.document.barriers.size()==int(meta.after.barriers),"barriers and parts survive save and reopen")
+		check(JSON.parse_string(ui.store.bridge.export_project(project,project+".memap")).ok and JSON.parse_string(ui.store.bridge.open_package(project+".memap")).ok,"city rules package export and reopen")
+		var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))
+		check(generated.ok,"city rules native generation: "+str(generated.get("error","")))
+		ui.store.dirty=false
+		ui.queue_free(); await process_frame
 
 func validate_candidate() -> void:
 	# Optional read-only diagnostic of a locally produced candidate. This never

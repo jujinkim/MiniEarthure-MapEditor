@@ -50,7 +50,7 @@ RUNTIME_OBJECTS = 200000
 # Memory guard for the request file written by the Editor (raised, not a refusal of user data).
 MAX_REQUEST_BYTES = 1536 * 1024 * 1024
 TILE_METRES = 128
-FIELDS = ("nodes", "roads", "buildings", "zones", "placements", "surface_areas", "water_bodies", "gimmicks", "heightmaps", "assets")
+FIELDS = ("nodes", "roads", "buildings", "zones", "placements", "surface_areas", "water_bodies", "gimmicks", "heightmaps", "assets", "barriers")
 
 
 
@@ -388,8 +388,13 @@ class Generator(Composition):
     def fixed_stage(self):
         assets={a["id"]:a for a in self.doc.get("assets",[])}
         for record in self.doc.get("buildings",[]):
-            self.occupied.append(polygon(record,"footprint").buffer(self.scale))
+            # Every solid of a record (city building parts included) is occupied.
+            for solid in [record] + record.get("parts",[]):
+                self.occupied.append(polygon(solid,"footprint").buffer(self.scale))
             for entrance in record.get("entrances",[]): self.occupied.append(Polygon([(p[0]/100,p[1]/100) for p in entrance]))
+        for record in self.doc.get("barriers",[]):
+            line=[(p[0]/100,p[1]/100) for p in record["line"]]
+            self.occupied.append(LineString(line).buffer(record["thickness_cm"]/200+self.scale))
         for record in self.doc.get("placements",[]):
             p=record["position"];yaw=record.get("quarter_turns",0)*90+record.get("yaw_offset_mdeg",0)/1000
             if record["asset_id"] in assets: area=self.footprint(assets[record["asset_id"]],(p[0]/100,p[2]/100),yaw)
@@ -595,7 +600,7 @@ class Generator(Composition):
         diagnostics["history_bytes"]=history
         if self.request.mode=="fill" and history>HISTORY_BYTES:
             soft_limit("undo_history", history, HISTORY_BYTES, "Applying this change releases earlier Undo history")
-        objects=sum(len(self.doc.get(f,[])) for f in ("pois","water_bodies","surface_areas","nodes","roads","buildings","zones","assets","placements","repetitions"))
+        objects=sum(len(self.doc.get(f,[])) for f in ("pois","water_bodies","surface_areas","nodes","roads","buildings","zones","assets","placements","repetitions","barriers"))
         if objects>RUNTIME_OBJECTS:
             soft_limit("document_objects", objects, RUNTIME_OBJECTS, "Map has more objects than the game accepts", runtime_rejects=True)
         diagnostics["limit_warnings"]=limit_warnings()

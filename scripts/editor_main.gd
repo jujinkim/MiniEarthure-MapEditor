@@ -987,7 +987,13 @@ func _apply_properties() -> void:
 			if key in ["move_x", "move_y"]: continue
 			if key == "width_cm": after.widths_cm.fill(property_changes[key])
 			elif key == "surface": after.surfaces.fill(property_changes[key])
-			else: after[key] = property_changes[key]
+			else:
+				# City building parts keep their own height/base relative to the record.
+				if key in ["height_cm", "base_cm"]:
+					var shift: int = int(property_changes[key]) - int(after[key])
+					for part: Dictionary in after.get("parts", []):
+						if part.has(key): part[key] = maxi(1, int(part[key]) + shift) if key == "height_cm" else int(part[key]) + shift
+				after[key] = property_changes[key]
 		if existing >= 0: patches[existing].after = after
 		elif after != entry.record: patches.append(EDIT.patch(entry.field, entry.record, after))
 	for entry in EDIT.entries(store.document):

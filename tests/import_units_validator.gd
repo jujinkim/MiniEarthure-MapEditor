@@ -96,5 +96,23 @@ func run() -> void:
 	var walking := [{"field":"roads","id":"path","after":{"id":"path","kind":"ground","from":"a","to":"b","points":[[0,0,3000],[1000,0,3000]],"widths_cm":[20],"surfaces":["asphalt"],"sidewalk_cm":null}}]
 	units.widen_roads(walking,[],["path"])
 	check(walking[0].after.widths_cm == [20],"listed pedestrian roads keep their estimated width")
+	# City building parts and barriers scale once at 1:D; parts bound widening too.
+	var parted := {"id":"p","footprint":[[0,0],[300,0],[300,300],[0,300]],"base_cm":0,"height_cm":900,"usage":"residential","material":"concrete","roof":"flat",
+		"parts":[{"footprint":[[600,0],[900,0],[900,300],[600,300],[600,300]],"height_cm":3000},{"footprint":[[1200,0],[1500,0],[1500,300],[1200,300]],"base_cm":30}]}
+	var barrier := {"id":"f","kind":"fence","line":[[0,600],[3,600],[1200,600],[1200,600],[0,600]],"height_cm":120,"thickness_cm":15}
+	var adopted: Array = units.osm_patches([{"field":"buildings","after":parted},{"field":"barriers","after":barrier}],true,-2000,3)
+	var solid: Dictionary = adopted[0].after
+	check(solid.footprint[1] == [100,0] and solid.parts[0].footprint == [[200,0],[300,0],[300,100],[200,100]] and solid.parts[0].height_cm == 1000 and solid.parts[1].base_cm == 10 and solid.height_cm == 300,"building parts scale like their record, quantized duplicates removed")
+	check(adopted[1].after.line == [[0,200],[1,200],[400,200],[0,200]] and adopted[1].after.height_cm == 40 and adopted[1].after.thickness_cm == 5,"barrier lines, heights and thicknesses scale once; a closed line keeps its repeat")
+	var between := [{"field":"roads","after":{"id":"r","kind":"ground","from":"a","to":"b","points":[[0,0,450],[600,0,450]],"widths_cm":[40],"surfaces":["asphalt"],"sidewalk_cm":0}},
+		{"field":"buildings","after":{"id":"two","footprint":[[0,-500],[100,-500],[100,-600],[0,-600]],"parts":[{"footprint":[[0,400],[600,400],[600,300],[0,300]]}]}}]
+	units.widen_roads(between,[])
+	check(between[0].after.widths_cm == [60],"a building part limits widening like a footprint")
+	var paved: Array = city_layer.patches(store).filter(func(p): return p.field == "ground_surface")
+	check(paved.size() == 1 and paved[0].before == null and paved[0].after == "concrete","a city layer paves a map without a ground surface")
+	store.document.ground_surface = "gravel"
+	city_layer.limit_warnings = []
+	check(city_layer.patches(store).filter(func(p): return p.field == "ground_surface").is_empty() and city_layer.limit_warnings.any(func(e): return e.code == "city_ground_surface"),"another ground surface is kept with a warning")
+	store.document.erase("ground_surface")
 	print("import_units_validator: PASS (",checks,")")
 	quit(0)

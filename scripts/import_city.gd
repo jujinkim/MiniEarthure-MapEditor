@@ -17,14 +17,16 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 	if not requested.is_empty() and requested.get("osm_scale", UNITS.OSM_DENOMINATOR) != denominator: return "City map scale does not match the request."
 	if not _map_cm(meta.get("grid_m"),1,denominator) or not boundary._count(meta.get("gap_m"),64) or int(meta.gap_m) not in [0,2,4,8,16,32,64]: return "Invalid city approximation settings."
 	if not boundary._finite(meta.get("line_tolerance_m"),0,4) or not boundary._finite(meta.get("polygon_tolerance_m"),0,8) or not is_equal_approx(float(meta.line_tolerance_m),minf(4.0,float(meta.gap_m)/4.0)) or not is_equal_approx(float(meta.polygon_tolerance_m),minf(8.0,float(meta.gap_m)/4.0)): return "Invalid city approximation settings."
-	var count_text := {"before":{"features":"City source features", "positions":"City source positions", "roads":"City source roads", "buildings":"City source buildings", "areas":"City source areas"},
-		"after":{"features":"City output features", "positions":"City output positions", "roads":"City output roads", "buildings":"City output buildings", "areas":"City output areas"}}
+	var count_text := {"before":{"features":"City source features", "positions":"City source positions", "roads":"City source roads", "buildings":"City source buildings", "areas":"City source areas", "barriers":"City source barriers"},
+		"after":{"features":"City output features", "positions":"City output positions", "roads":"City output roads", "buildings":"City output buildings", "areas":"City output areas", "barriers":"City output barriers"}}
 	for key in ["before", "after"]:
 		var counts: Variant = meta.get(key)
 		if counts is not Dictionary: return "Missing city geometry counts."
-		for field in ["features", "positions", "roads", "buildings", "areas"]:
+		# Barriers are optional: layers without barriers keep their counts.
+		if not counts.has("barriers"): counts = counts.merged({"barriers": 0})
+		for field in ["features", "positions", "roads", "buildings", "areas", "barriers"]:
 			if not boundary._soft(notes, "city_%s_%s" % [key, field], counts.get(field), (2000000 if field == "positions" else 250000) if key == "before" else (800000 if field == "positions" else 100000), count_text[key][field]): return "Invalid city geometry counts."
-		if counts.features != counts.roads+counts.buildings+counts.areas: return "City geometry category mismatch."
+		if counts.features != counts.roads+counts.buildings+counts.areas+counts.barriers: return "City geometry category mismatch."
 	if meta.after.features != raw.get("feature_count") or meta.after.positions < raw.get("point_count", 0) or not boundary._count(meta.get("protected_buildings"), meta.after.buildings): return "City output count mismatch."
 	if not boundary._soft(notes, "city_unmerged_groups", meta.get("unmerged_numeric_groups"), 250000, "Unmerged city groups"): return "Invalid city retained group count."
 	if not boundary._count(meta.get("painted_pedestrian_ways"),meta.before.roads): return "Invalid city ground paint count."
@@ -62,9 +64,33 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 			if source is not String or not sources.has(source) or trimmed.has(source): return "Invalid city road approximations."
 			trimmed[source] = true
 	if raw.get("patches") is not Array: return "Invalid city output records."
+	var barrier_count := 0
 	for patch: Variant in raw.patches:
 		if patch is Dictionary and patch.get("field") == "zones":
 			if patch.get("after") is not Dictionary or patch.after.get("spacing_cm") != 3200 or patch.after.get("density_per_mille") != 750: return "Invalid city vegetation estimates."
+		if patch is Dictionary and patch.get("field") == "barriers":
+			var barrier: Variant = patch.get("after")
+			if barrier is not Dictionary or barrier.get("kind") not in ["hedge", "fence", "wall"] or barrier.get("line") is not Array or barrier.line.size() < 2 or not boundary._count(barrier.get("height_cm"), 1000 * denominator) or not boundary._count(barrier.get("thickness_cm"), 100 * denominator): return "Invalid city barrier."
+			barrier_count += 1
+		if patch is Dictionary and patch.get("field") == "buildings":
+			var parts: Variant = patch.get("after", {}).get("parts", []) if patch.get("after") is Dictionary else null
+			if parts is not Array or parts.size() > 255: return "Invalid city building parts."
+			for part: Variant in parts:
+				if part is not Dictionary or part.get("footprint") is not Array or part.footprint.size() < 3: return "Invalid city building parts."
+	if barrier_count != int(meta.after.get("barriers", 0)): return "City barrier count mismatch."
+	# Dropped barrier sources (bridge guard rails, below one map centimetre) are
+	# disclosed, never also imported, and come from the cropped barrier sources.
+	var dropped: Variant = meta.get("barriers", {}).get("dropped_sources", []) if meta.get("barriers", {}) is Dictionary else null
+	if dropped is not Array or dropped.size() > int(meta.before.get("barriers", 0)): return "Invalid dropped city barrier sources."
+	var dropped_ids := {}
+	for source: Variant in dropped:
+		if source is not String or pattern.search(source) == null or sources.has(source) or excluded.has(source) or dropped_ids.has(source): return "Invalid dropped city barrier sources."
+		dropped_ids[source] = true
+	var skipped: Variant = meta.get("skipped", {})
+	if skipped is not Dictionary: return "Invalid skipped city inputs."
+	for key: Variant in skipped:
+		if key not in ["barrier_ways", "city_areas"] or not boundary._soft(notes, "city_skipped_" + key, skipped[key], 250000, "Skipped city inputs"): return "Invalid skipped city inputs."
+	if int(skipped.get("barrier_ways", 0)) + int(skipped.get("city_areas", 0)) > int(raw.coordinates.osm_stream.selected.ways) + int(raw.coordinates.osm_stream.selected.relations): return "Invalid skipped city inputs."
 	var record_count: int = raw.patches.size()
 	var next_record := 0
 	var references := 0
@@ -174,7 +200,7 @@ static func paint_total(patches: Array, denominator: int) -> int:
 
 static func summary(meta: Dictionary) -> String:
 	var denominator := float(meta.scale_denominator)
-	var result := I18N.t("Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nGap filling: ≤ %.2f source m (%.2f map m). Named/tall buildings, road corridors and courtyards remain protected.\nMerged building heights are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n") % [int(denominator),meta.before.features,meta.after.features,meta.before.positions,meta.after.positions,meta.before.roads,meta.after.roads,meta.before.buildings,meta.after.buildings,meta.before.areas,meta.after.areas,float(meta.gap_m),float(meta.gap_m)/denominator,JSON.stringify(meta.surface_mappings),meta.widened_roads]
+	var result := I18N.t("Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nSimplification level: %.2f source m (%.2f map m). Every building keeps its own footprint; landmark/tall buildings, road corridors and courtyards remain protected.\nBuilding heights without source tags are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n") % [int(denominator),meta.before.features,meta.after.features,meta.before.positions,meta.after.positions,meta.before.roads,meta.after.roads,meta.before.buildings,meta.after.buildings,meta.before.areas,meta.after.areas,float(meta.gap_m),float(meta.gap_m)/denominator,JSON.stringify(meta.surface_mappings),meta.widened_roads]
 	result += I18N.t("Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n") % meta.painted_pedestrian_ways
 	result += I18N.t("Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n") % meta.level_structures
 	result += I18N.t("Buildings above other features (positive layer, not roof canopies) stand on the ground: %d sources (estimate).\n") % meta.layered_buildings
@@ -185,6 +211,15 @@ static func summary(meta: Dictionary) -> String:
 		for key: String in rules:
 			if key.begins_with("sidewalk_cm_") and key != "sidewalk_cm_0": sidewalks += int(rules[key])
 		result += I18N.t("City road rules: %d dual carriageways merged into two-way roads (%d one-way ways, %d median links); %d widths from lane counts; %d service ways and %d tracks painted as drivable ground; %d roads with sidewalks; %d roads with lane markings and %d junction crosswalks (estimates).\n") % [int(rules.get("dual_merged_pairs", 0)), int(rules.get("dual_merged_ways", 0)), int(rules.get("dual_absorbed_links", 0)), int(rules.get("lane_widths", 0)), int(rules.get("painted_service", 0)), int(rules.get("painted_track", 0)), sidewalks, int(rules.get("marked", 0)), int(rules.get("crosswalks", 0))]
+	var records: Dictionary = meta.get("building_records", {})
+	var barriers: Dictionary = meta.get("barriers", {})
+	var paint: Dictionary = meta.get("ground_paint", {})
+	if not records.is_empty() or not barriers.is_empty():
+		result += I18N.t("City sites: %d building records with %d solids (nearby buildings of one site and category share a record as separate parts).\n") % [int(records.get("records", 0)), int(records.get("solids", 0))]
+		result += I18N.t("Barriers: %d pieces from %d explicit OSM barrier ways and %d pieces of %d inferred site perimeters, opened at paths, painted driveways and gates; heights are estimates.\n") % [int(barriers.get("explicit_records", 0)), int(barriers.get("explicit_ways", 0)), int(barriers.get("inferred_records", 0)), int(barriers.get("inferred_sites", 0))]
+		result += I18N.t("Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n") % [int(paint.get("pieces", 0)), int(paint.get("pedestrian", 0)), int(paint.get("grass", 0)), int(paint.get("asphalt", 0)), int(paint.get("concrete", 0)), int(paint.get("dirt", 0)), int(paint.get("gravel", 0))]
+		var skipped: Dictionary = meta.get("skipped", {})
+		result += I18N.t("Not imported: %d barrier sources dropped (guard rails on bridges, wholly within gates or crossings, shorter than one map centimetre), %d barrier ways off the ground or with unsupported tags, %d city-only areas that cannot be imported.\n") % [barriers.get("dropped_sources", []).size(), int(skipped.get("barrier_ways", 0)), int(skipped.get("city_areas", 0))]
 	result += I18N.t("Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n") % [meta.polygon_partition_gap_m,meta.polygon_partition_gap_m/denominator]
 	result += I18N.t("Forest/orchard trees are illustrative estimates: %.0f source m spacing (%.0f map m), %d%% density. All source area boundaries remain represented; individual tree locations are not surveyed.\n") % [meta.vegetation_spacing_m,meta.vegetation_spacing_m/denominator,meta.vegetation_density_per_mille/10]
 	return result + I18N.t("Estimated road widths by class: %s. Building sources cut for road clearance: %d; adjusted for overlapping buildings: %d.\nNames and source IDs of enclosed buildings are retained in their containing volume. Geometry changes are approximations; originals stay unchanged.\n") % [JSON.stringify(meta.estimated_road_widths),meta.trimmed_building_sources.size(),meta.overlap_adjusted_sources.size()]

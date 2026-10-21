@@ -17,8 +17,9 @@ the map's cell size (the city check refuses more than 16,384).
 
 The profile id stays `scale-aware-city-v1` with `scale_denominator: D`. One map
 centimetre is D/100 source metres; every map-unit value below derives from it.
-Gap levels, tolerances, the 256 m aggregation tiles, vegetation spacing and
-structure estimates (6 m levels, 8 % ramps) stay in source metres. 1:8 keeps its
+Simplification levels, tolerances, the 256 m record tiles, barrier heights,
+vegetation spacing and structure estimates (6 m levels, 8 % ramps) stay in source
+metres. 1:8 keeps its
 original working frame; at other scales the frame is shifted by the local origin's
 remainder so lattice points are whole map centimetres.
 
@@ -130,23 +131,31 @@ remainder so lattice points are whole map centimetres.
 
 ## Buildings
 
-- Ordinary buildings group within 256 m source tiles (≤128 per group). Candidates
-  fill 0–64 m gaps, simplify lines ≤4 m and polygons ≤8 m, then snap to a D/100 m
-  source grid (one map centimetre; 0.08 m at 1:8).
-- Candidates whose line tolerance is equal (16–64 m gaps) share one derived road
-  space: road-trimmed sources, protected buildings, aggregation groups and
-  pedestrian paint are built once and charge the same work budget as a fresh
-  build. Only gap filling and the overlap partition are rebuilt per gap.
-- Candidates are built largest gap first and the first one that meets the output
-  targets and converts is kept. A smaller gap is built only when a larger one misses
-  a target (output counts or Editor bytes, work or partition budgets) or fails
-  conversion or a typed topology check (for example an unreviewed building inside
-  road space). When no gap meets the targets, the largest converted gap (smallest
-  output) is kept with limit warnings; a hard ceiling fails the whole import.
+- Buildings are never gap-filled or fused: every source keeps its own footprint,
+  simplified by at most 1 m (never growing into road space or a courtyard) and
+  snapped to a D/100 m source grid (one map centimetre; 0.08 m at 1:8).
+- Records group objects, not vertices. Buildings of one site and category share one
+  record whose solids are MapKit `Building.parts` (at most 256 solids, in 32 m cell
+  Z-order); each solid keeps its own height and base and stays a separate prism.
+  The site is a `type=site` relation the building belongs to, else the smallest
+  enclosing landuse residential/commercial/retail/industrial or
+  school/hospital/university/college polygon, else the 256 m source tile; the
+  category is the `building` value. Names of grouped buildings are kept as the
+  record's names. Landmarks (historic, tourism or amenity tags, ≥40 m,
+  public/hospital/school/church use) and named buildings outside a site stay their
+  own records, unsimplified; a landmark's native pieces share its record.
+- Levels (0–64 m) set the simplification: lines ≤ level/4 (at most 4 m), areas ≤
+  level/4 (at most 8 m), buildings ≤ level/4 (at most 1 m). A level repeating the
+  tolerances of a larger one (32 m after 64 m) is not built. Levels whose line
+  tolerance is equal (16–64 m) share one derived road space: road-trimmed sources,
+  landmark records and paint are built once and charge the same work budget.
+- Levels are built largest first; the first that converts is kept, with limit
+  warnings when it misses a target (output counts, Editor bytes, work or partition
+  budgets), since a smaller level only keeps more vertices. A smaller level is built
+  only when a larger one fails conversion or a typed topology check (for example an
+  unreviewed building inside road space); a hard ceiling fails the whole import.
   Building a new road space drops the exclusions of the replaced one, so review
   lists only the kept candidate's exclusions.
-- Named, public, landmark and tall buildings are protected from aggregation. Road
-  corridors, protected land and courtyards block filler.
 - A building above other features (a positive integer `layer`, for example over
   tracks or a stream) stands on the ground and is counted as an estimate in review.
   It is also cut around source-height bridge and tunnel corridors (their width plus
@@ -156,18 +165,67 @@ remainder so lattice points are whole map centimetres.
   buildings stay excluded.
 - Buildings are cut around road space with 10 map cm clearance (0.1·D m; 0.8 m at
   1:8), including a disk of √2 × the widest half width + that clearance around every
-  junction node (the extent of a junction surface); gap filling never regrows into
-  either. Overlapping volumes are partitioned with 2 map cm clearance (0.02·D m),
-  favouring taller/named geometry. Enclosed sources keep their IDs/names and an
-  estimated height. Complex polygons split into native pieces with 4 map cm
-  separation (0.04·D m); pieces meeting at a point keep 2 map cm. Region crops drop
-  cut pieces shorter than one map centimetre.
-  Numeric failures keep the original group; a source erased by merging or
-  quantization returns as its road-trimmed shape on the map-centimetre lattice.
+  junction node (the extent of a junction surface); simplification never regrows
+  into either. Overlapping or touching footprints of different sources are
+  partitioned with 2 map cm clearance (0.02·D m), favouring taller/named geometry,
+  so they stay visibly separate; an enclosed source keeps its ID/name in the
+  enclosing volume with an estimated height. Complex polygons split into native
+  pieces with 4 map cm separation (0.04·D m); pieces meeting at a point keep 2 map
+  cm. Region crops drop cut pieces shorter than one map centimetre.
+  Numeric failures keep the original geometry; a source erased by quantization
+  returns as its road-trimmed shape on the map-centimetre lattice.
+
+## Urban ground and barriers
+
+- Adoption sets the map's `ground_surface` to concrete when it has none, so
+  unpainted city terrain is paved; a map with another surface keeps it (warning).
+  Undo restores the previous value.
+- Green land paints grass: `leisure` park, garden, playground and pitch, `landuse`
+  grass, meadow, recreation_ground, village_green, cemetery, farmland, orchard and
+  forest, and `natural` grassland, scrub and wood. `amenity=parking` (not
+  underground, multi-storey or rooftop) paints asphalt. A tagged hard surface
+  (asphalt, concrete, gravel, dirt) wins over grass. City-only areas (green leisure,
+  parking, school/hospital/university/college grounds) are rule inputs: they map to
+  their paint and barriers but are not generation regions; ones off the ground
+  (bridge, tunnel, layer, level) are not selected, and ones that cannot be imported
+  are skipped, never excluded.
+- Area paint simplifies like other areas (level/4, at most 8 m) and shares the
+  pedestrian paint cells and limits: pedestrian ribbons first, then asphalt,
+  concrete, gravel, dirt and grass, each minus water and everything painted before
+  it with a 2 map cm margin (lattice snap rounding never closes it), so pieces never
+  overlap. Area pieces under one map square metre are not painted, and exactly
+  collinear vertices are dropped from every piece. Buildings stand on top and roads
+  keep precedence natively. Each piece maps to the area sources it covers.
+- MapKit checks surface areas pairwise within touching bounds and charges that work
+  to the shared road work budget the game enforces; a large green city can exceed
+  it (the Editor warns that the game refuses the map).
+- Explicit barrier ways become `barriers`: `hedge` 0.8 m, `wall` and
+  `retaining_wall` walls 2.0 m, `fence` its `height` tag or 1.2 m (fence types
+  such as chain_link keep 1.2 m), `guard_rail` a 0.8 m fence, skipped where at least
+  half of it lies on a bridge deck. Barrier ways off the ground are not imported.
+- Every barrier opens where a walking or painted way (footway, path, painted
+  driveway or aisle) crosses it, by half that way's width + 2 m each side, and at
+  gate nodes on its way or site outline (`barrier` gate, lift_gate, swing_gate,
+  sliding_gate 3 m; entrance, kissing_gate, turnstile, stile, bollard,
+  cycle_barrier 1.5 m; a `width` tag wins). Explicit stubs under 0.5 m are dropped.
+- Inferred perimeters: landuse=residential with at least two `building=apartments`
+  (or residential buildings ≥ 20 m tall by `height` or 3 m per level) and ≥ 15 %
+  building coverage gets a 1.2 m fence; school, hospital, university and college
+  grounds a 2.0 m fence; industrial land a 2.0 m wall. The perimeter follows the
+  source outline (never a crop cut) with the same openings, minus building
+  footprints (0.3 m) and within 3 m of an explicit barrier; pieces under 2 m are
+  dropped. MapKit gates vehicle roads.
+- Heights are source metres ÷ D (whole map cm, 10–1000); thickness is hedge 0.6 m,
+  fence 0.1 m and wall 0.3 m ÷ D within 5–100 map cm. Lines simplify by 0.5 m and
+  snap to the map lattice. Each barrier is one object and maps to its way or site.
+  A skipped guard rail, a way wholly inside its openings or one shorter than a map
+  centimetre is listed as dropped; review shows dropped sources and the skipped
+  barrier ways and city-only areas, and adoption checks that dropped sources are
+  never imported and come from the cropped barriers.
 
 ## Review and adoption
 
-Review reports before/after objects and positions, gaps/tolerances, width/material
+Review reports before/after objects and positions, gaps/tolerances, building records, barriers and ground paint, width/material
 estimates, painted pedestrian ways, road cuts and overlap changes. A compact table maps every supported source
 to contiguous output records; missing, duplicate or excluded claims fail validation.
 No supported source is dropped to fit a limit. A building entirely inside derived road

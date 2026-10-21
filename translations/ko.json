@@ -1932,7 +1932,11 @@
     "Automatic city optimization requires PBF streaming.": "자동 도시 최적화는 PBF 스트리밍이 필요합니다.",
     "City crop source count mismatch.": "도시 잘라내기 원본 개수가 일치하지 않습니다.",
     "City loop merge hides a source junction.": "도시 순환 도로 병합이 원본 교차로를 누락합니다.",
-    "Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nGap filling: ≤ %.2f source m (%.2f map m). Named/tall buildings, road corridors and courtyards remain protected.\nMerged building heights are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n": "자동 도시 최적화 · 1:%d\n객체: %d → %d · 좌표: %d → %d\n도로: %d → %d · 건물: %d → %d · 영역: %d → %d\n건물 사이 채우기: 원본 ≤ %.2f m (맵 %.2f m). 이름 있는 건물·고층 건물·도로 공간·안뜰은 보호합니다.\n병합한 건물 높이는 추정값이며 원본 연결 정보는 보존합니다.\n도로 재질의 게임 재질 대체: %s. 최소 맵 폭 20 cm로 넓힌 도로: %d.\n",
+    "Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nSimplification level: %.2f source m (%.2f map m). Every building keeps its own footprint; landmark/tall buildings, road corridors and courtyards remain protected.\nBuilding heights without source tags are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n": "자동 도시 최적화 · 1:%d\n객체: %d → %d · 좌표: %d → %d\n도로: %d → %d · 건물: %d → %d · 영역: %d → %d\n단순화 단계: 원본 %.2f m (맵 %.2f m). 모든 건물은 자기 외곽선을 유지하며 랜드마크·고층 건물·도로 공간·안뜰은 보호합니다.\n원본 태그가 없는 건물 높이는 추정값이며 원본 연결 정보는 보존합니다.\n도로 재질의 게임 재질 대체: %s. 최소 맵 폭 20 cm로 넓힌 도로: %d.\n",
+    "City sites: %d building records with %d solids (nearby buildings of one site and category share a record as separate parts).\n": "도시 부지: 건물 레코드 %d개, 솔리드 %d개(같은 부지·분류의 가까운 건물은 한 레코드의 별도 파트로 묶음).\n",
+    "Barriers: %d pieces from %d explicit OSM barrier ways and %d pieces of %d inferred site perimeters, opened at paths, painted driveways and gates; heights are estimates.\n": "장벽: 명시 OSM 장벽 길에서 조각 %d개(길 %d개), 추정 부지 경계에서 조각 %d개(부지 %d개). 보행로·도색된 진입로·문에서 끊었고 높이는 추정값입니다.\n",
+    "Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n": "바닥 도색: 조각 %d개(보행 %d, 잔디 %d, 아스팔트 %d, 콘크리트 %d, 흙 %d, 자갈 %d), 도색하지 않은 바닥은 콘크리트.\n",
+    "Not imported: %d barrier sources dropped (guard rails on bridges, wholly within gates or crossings, shorter than one map centimetre), %d barrier ways off the ground or with unsupported tags, %d city-only areas that cannot be imported.\n": "가져오지 않음: 제외한 장벽 원본 %d개(교량 위 가드레일, 문·횡단 안에 완전히 들어감, 맵 1 cm 미만), 지면 밖이거나 지원하지 않는 태그의 장벽 길 %d개, 가져올 수 없는 도시 전용 영역 %d개.\n",
     "Estimated road widths by class: %s. Building sources cut for road clearance: %d; adjusted for overlapping buildings: %d.\nNames and source IDs of enclosed buildings are retained in their containing volume. Geometry changes are approximations; originals stay unchanged.\n": "도로 분류별 폭 추정: %s. 도로 공간 확보로 잘라낸 건물 원본: %d개, 건물 겹침 조정: %d개.\n완전히 포함된 건물의 이름·원본 ID는 이를 포함하는 건물에 보존합니다. 형상 변경은 근사값이며 원본 파일은 그대로 유지합니다.\n",
     "Generation cell size (m)": "생성 셀 크기(m)",
     "Smaller cells reduce generation work per cell without shrinking the map. For dense city imports, start with 128 m. Set this before importing terrain or assembling a track.": "셀을 작게 나누면 맵 범위를 유지하면서 셀당 생성량을 줄입니다. 밀집된 도시는 128m로 시작하세요. 지형을 가져오거나 트랙을 조립하기 전에 설정하세요.",
@@ -2393,6 +2397,18 @@
     "Working asset and course files need a lot of memory": "작업 중인 에셋과 코스 파일에 메모리가 많이 필요합니다",
     "Working terrain height arrays need a lot of memory": "작업 중인 지형 높이 배열에 메모리가 많이 필요합니다",
     "City road rules: %d dual carriageways merged into two-way roads (%d one-way ways, %d median links); %d widths from lane counts; %d service ways and %d tracks painted as drivable ground; %d roads with sidewalks; %d roads with lane markings and %d junction crosswalks (estimates).\n": "도시 도로 규칙: 왕복 분리 차로 %d쌍을 양방향 도로로 병합(일방통행 길 %d개, 중앙 연결로 %d개); 차로 수 기반 폭 %d개; 서비스 도로 %d개와 농로·임도 %d개를 주행 가능한 지면 도색으로 표시; 보도가 있는 도로 %d개; 차선 표시 도로 %d개, 교차로 횡단보도 %d개(추정).\n",
-    "City road markings exceed the paint segment bound.": "도시 도로 차선 표시가 도색 구간 한도를 넘습니다."
+    "City road markings exceed the paint segment bound.": "도시 도로 차선 표시가 도색 구간 한도를 넘습니다.",
+    "City barrier count mismatch.": "도시 장벽 수가 일치하지 않습니다.",
+    "City output barriers": "도시 출력 장벽 수",
+    "City source barriers": "도시 원본 장벽 수",
+    "Invalid city barrier.": "도시 장벽이 올바르지 않습니다.",
+    "Invalid city building parts.": "도시 건물 파트가 올바르지 않습니다.",
+    "Invalid imported ground surface.": "가져온 바닥 재질이 올바르지 않습니다.",
+    "Barrier records require OSM city optimization.": "장벽 레코드에는 OSM 도시 최적화가 필요합니다.",
+    "Building parts require OSM city optimization.": "건물 파트에는 OSM 도시 최적화가 필요합니다.",
+    "The map keeps its own ground surface; city ground is not repainted": "맵의 기존 바닥 재질을 유지하며 도시 바닥을 다시 칠하지 않습니다",
+    "Invalid dropped city barrier sources.": "제외한 도시 장벽 원본이 올바르지 않습니다.",
+    "Invalid skipped city inputs.": "건너뛴 도시 입력이 올바르지 않습니다.",
+    "Skipped city inputs": "건너뛴 도시 입력"
   }
 }

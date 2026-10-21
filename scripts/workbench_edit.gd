@@ -1,6 +1,6 @@
 extends RefCounted
 ## Vector edit planning only. MapKit validation and DocumentStore publish atomically.
-const FIELDS := ["pois", "water_bodies", "surface_areas", "zones", "buildings", "roads", "repetitions", "placements", "gimmicks", "nodes"]
+const FIELDS := ["pois", "water_bodies", "surface_areas", "zones", "buildings", "roads", "repetitions", "barriers", "placements", "gimmicks", "nodes"]
 
 static func key(field: String, id: String) -> String:
 	return field + "/" + id
@@ -22,6 +22,9 @@ static func points(field: String, record: Dictionary) -> Array[Vector2]:
 	elif field in ["roads", "repetitions"]:
 		for p: Array in record.points:
 			result.append(Vector2(p[0], p[2]))
+	elif field == "barriers":
+		for p: Array in record.line:
+			result.append(Vector2(p[0], p[1]))
 	else:
 		result.append(Vector2(record.position[0], record.position[2]))
 	return result
@@ -36,10 +39,18 @@ static func translated(field: String, record: Dictionary, delta: Vector2) -> Dic
 		polygons.append_array(after.get("entrances", after.get("exclusions", [])))
 		polygons.append_array(after.get("holes", []))
 		polygons.append_array(after.get("islands", []))
+		# Building parts are solids of the same record and move with it.
+		for part: Dictionary in after.get("parts", []):
+			polygons.append(part.footprint)
+			polygons.append_array(part.get("holes", []))
 		for polygon: Array in polygons:
 			for p: Array in polygon:
 				p[0] += int(delta.x)
 				p[1] += int(delta.y)
+	elif field == "barriers":
+		for p: Array in after.line:
+			p[0] += int(delta.x)
+			p[1] += int(delta.y)
 	else:
 		var vertices: Array = after.points if field in ["roads", "repetitions"] else [after.position]
 		for p: Array in vertices:

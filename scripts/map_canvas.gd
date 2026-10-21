@@ -181,7 +181,10 @@ func _draw() -> void:
 		if not available(entry, true): color = Color(0.5, 0.52, 0.55, color.a)
 		if overview and not chosen:
 			_overview_add(overview_batches,entry.field,points,color)
-			for polygon: Array in record.get("holes",record.get("islands",[])):
+			var rings: Array = record.get("holes",record.get("islands",[])).duplicate()
+			for part: Dictionary in record.get("parts",[]):
+				rings.append(part.footprint); rings.append_array(part.get("holes",[]))
+			for polygon: Array in rings:
 				var outline:=PackedVector2Array()
 				for point: Array in polygon: outline.append(screen(point))
 				_overview_add(overview_batches,entry.field,outline,color)
@@ -195,13 +198,21 @@ func _draw() -> void:
 				draw_colored_polygon(points, Color(color, color.a * (0.28 if chosen else 0.12)))
 			points.append(points[0])
 			draw_polyline(points, color, 2.5 if chosen else 1.5, true)
-			for polygon: Array in (record.get("entrances", record.get("exclusions", [])) + record.get("holes", record.get("islands", []))):
+			for part: Dictionary in record.get("parts", []):
+				var solid := PackedVector2Array()
+				for p: Array in part.footprint: solid.append(screen(p))
+				if solid.size() > 2:
+					solid.append(solid[0])
+					draw_polyline(solid, color, 2.5 if chosen else 1.5, true)
+			var inner: Array = record.get("entrances", record.get("exclusions", [])) + record.get("holes", record.get("islands", []))
+			for part: Dictionary in record.get("parts", []): inner.append_array(part.get("holes", []))
+			for polygon: Array in inner:
 				var outline := PackedVector2Array()
 				for p: Array in polygon: outline.append(screen(p))
 				if outline.size() > 2:
 					outline.append(outline[0])
 					draw_polyline(outline, Color(color, color.a * 0.6), 1.0, true)
-		elif entry.field in ["roads", "repetitions"]:
+		elif entry.field in ["roads", "repetitions", "barriers"]:
 			for i in range(points.size() - 1):
 				var width := maxf(3.0, float(record.widths_cm[i]) * _scale()) if entry.field == "roads" else 2.0
 				if chosen: draw_line(points[i], points[i + 1], Color("c76035"), width + 5.0, true)
@@ -248,9 +259,17 @@ func _hit(p: Vector2) -> String:
 		if not available(entry, true): continue
 		var points := EDIT.points(entry.field, entry.record)
 		if entry.field in ["water_bodies", "surface_areas", "buildings", "zones"]:
-			if Geometry2D.is_point_in_polygon(p, PackedVector2Array(points)):
+			# A record is hit inside any of its solids (footprint, then city
+			# building parts) but not inside that solid's courtyards.
+			var solids: Array = [[points, entry.record.get("holes", entry.record.get("islands", []))]]
+			for part: Dictionary in entry.record.get("parts", []):
+				var outline: Array[Vector2] = []
+				for point: Array in part.footprint: outline.append(Vector2(point[0], point[1]))
+				solids.append([outline, part.get("holes", [])])
+			for solid: Array in solids:
+				if not Geometry2D.is_point_in_polygon(p, PackedVector2Array(solid[0])): continue
 				var courtyard := false
-				for ring: Array in entry.record.get("holes", entry.record.get("islands", [])):
+				for ring: Array in solid[1]:
 					var hole := PackedVector2Array()
 					for point: Array in ring: hole.append(Vector2(point[0], point[1]))
 					if Geometry2D.is_point_in_polygon(p, hole): courtyard = true

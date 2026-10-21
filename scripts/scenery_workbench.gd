@@ -122,6 +122,9 @@ func rotate_selected() -> void:
 			for p: Array in record.footprint: center += Vector2(p[0],p[1])
 			center /= record.footprint.size()
 			var rings: Array = [record.footprint]; rings.append_array(record.get("holes",[])); rings.append_array(record.get("entrances",[]))
+			# City building parts are solids of the record and turn with it.
+			for part: Dictionary in record.get("parts",[]):
+				rings.append(part.footprint); rings.append_array(part.get("holes",[]))
 			for ring: Array in rings:
 				for p: Array in ring:
 					var delta := Vector2(p[0],p[1])-center

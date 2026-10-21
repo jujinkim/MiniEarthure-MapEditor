@@ -116,6 +116,30 @@ class EnvironmentTests(unittest.TestCase):
         self.assertFalse(unknown.document['placements'])
         self.assertTrue(unknown.document['surface_areas'])
 
+    def test_infill_keeps_clear_of_building_parts_and_barriers(self):
+        request=GenerationRequest('fill','village',55,[0,0,16000,16000],.5)
+        doc=empty('osm-environment-parts',16000,3200)
+        doc.update(free_roam=True,surface_areas=[],water_bodies=[],gimmicks=[])
+        road(doc,'fixed',[[0,0,8000],[16000,0,8000]],width=100)
+        square=lambda x,y,s=1200:[[x,y],[x+s,y],[x+s,y+s],[x,y+s]]
+        parts=[dict(footprint=square(x,y,900)) for x in range(1000,15000,1000) for y in (6600,8500)][1:]
+        doc['buildings'].append(dict(id='import-'+'a'*32+'-1',footprint=square(1000,6600,900),base_cm=0,height_cm=400,usage='residential',material='concrete',roof='flat',parts=parts))
+        doc['barriers']=[dict(id='import-'+'a'*32+'-2',kind='fence',line=[[500,9800],[15500,9800]],height_cm=40,thickness_cm=5)]
+        region=dict(id='r',source_id='relation/71',landuse='residential',protected=False,polygon=[[0,0],[16000,0],[16000,16000],[0,16000]],holes=[])
+        doc['attributions'].append(dict(source='osm',license='ODbL',notice=json.dumps(dict(adapter='osm-extract-v1',authored_units=dict(source_denominator=3,profile='osm-import-1to3-v1'),authored_regions=[region]))))
+        ctx=GenerationContext.from_document(doc)
+        result=generate(request,ctx,KIT)
+        self.assertTrue(result.document['placements'])
+        generator=Generator(request,ctx,KIT)
+        assets={a['id']:a for a in result.document['assets']}
+        solids=[polygon(part,'footprint') for part in parts]
+        fence=LineString([(5,98),(155,98)])
+        for p in result.document['placements']:
+            area=generator.footprint(assets[p['asset_id']],(p['position'][0]/100,p['position'][2]/100),p['yaw_offset_mdeg']/1000)
+            self.assertFalse(any(area.intersects(s) for s in solids),'no placement on a building part')
+            self.assertFalse(area.intersects(fence),'no placement on a barrier')
+        self.assertEqual(result.document['barriers'],doc['barriers'])
+
     def test_rotation_footprint_and_independent_random_streams(self):
         g=Generator(self.request,new_context(self.request),KIT)
         asset=dict(id='box',collision=[dict(center=[0,100,0],size_cm=[400,200,100])])

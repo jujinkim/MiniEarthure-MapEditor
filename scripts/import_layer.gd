@@ -21,7 +21,9 @@ const WARN_AREAS := 8
 const MAX_CHECK_CELLS := 16384
 ## Count re-checks of own adapter output: shape sanity only, never a budget.
 const SANITY := 1000000000000
-const FIELDS := ["nodes", "roads", "buildings", "zones", "surface_areas", "pois"]
+const FIELDS := ["nodes", "roads", "buildings", "zones", "surface_areas", "pois", "barriers"]
+## City imports pave unpainted ground (MapKit `ground_surface`) of a map without one.
+const CITY_GROUND_SURFACE := "concrete"
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 const OVERTURE_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
 const OVERTURE_TRANSPORTATION_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation"
@@ -264,6 +266,8 @@ func _load(raw: Variant, expected_id: String, requested: Dictionary, notes: Arra
 		if patch.field not in FIELDS or patch.before != null or patch.after is not Dictionary: return "Import may only add supported records."
 		if patch.field == "pois" and raw.adapter != "facility-csv-v1": return "Facility records require the CSV adapter."
 		if patch.field == "surface_areas" and not raw.coordinates.has("osm_city"): return "Ground paint records require OSM city optimization."
+		if patch.field == "barriers" and not raw.coordinates.has("osm_city"): return "Barrier records require OSM city optimization."
+		if patch.field == "buildings" and patch.after.has("parts") and not raw.coordinates.has("osm_city"): return "Building parts require OSM city optimization."
 		if patch.id is not String or not patch.id.begins_with(prefix) or patch.id.length() > 128 or patch.after.get("id") != patch.id or ids.has(patch.id): return "Invalid/duplicate import record identity."
 		if raw.adapter == "overture-buildings-v1" and not overture_building_ids.has(patch.id): return "Unmapped Overture building."
 		if overture_vertical:
@@ -535,6 +539,12 @@ func patches(store: RefCounted) -> Array:
 		if separated > 0: metadata.authored_units.separated_junctions = separated
 		if value.coordinates.has("osm_city"): metadata.authored_units.quantization_cleanup = "adjacent-equal-vertices-v1"
 		metadata.authored_regions = preload("./import_regions.gd").scaled(value.coordinates.get("generation_regions", []),denominator)
+		if value.coordinates.has("osm_city"):
+			var surface: Variant = store.document.get("ground_surface")
+			if surface == null:
+				result.append({"field":"ground_surface","id":"","before":null,"after":CITY_GROUND_SURFACE})
+			elif surface != CITY_GROUND_SURFACE:
+				LIMITS.note(limit_warnings, "city_ground_surface", 1, 0, "The map keeps its own ground surface; city ground is not repainted")
 	if value.adapter == "osm-extract-v1":
 		var extent := empty_map_extent(store.document,result)
 		if not extent.is_empty() and extent != store.document.bounds:
@@ -548,18 +558,22 @@ func patches(store: RefCounted) -> Array:
 # region before native generation; populated maps retain their authored extent.
 static func empty_map_extent(document: Dictionary, incoming: Array) -> Dictionary:
 	if document.get("assembled_track") is not Dictionary: return {}
-	for field in ["nodes","roads","buildings","placements","heightmaps","zones","surface_areas","water_bodies","pois","gimmicks"]:
+	for field in ["nodes","roads","buildings","placements","heightmaps","zones","surface_areas","water_bodies","pois","gimmicks","barriers"]:
 		if not document.get(field,[]).is_empty(): return {}
 	if not (document.get("assembled_track",{}) if document.get("assembled_track") is Dictionary else {}).get("pieces",[]).is_empty(): return {}
 	var points: Array = []
 	for patch: Dictionary in incoming:
+		if patch.after is not Dictionary: continue
 		var record: Dictionary = patch.after
 		match patch.field:
 			"nodes": points.append([record.position[0],record.position[2]])
 			"pois": points.append(record.position)
 			"roads":
 				for point: Array in record.points: points.append([point[0],point[2]])
-			"buildings": points.append_array(record.footprint)
+			"buildings":
+				points.append_array(record.footprint)
+				for part: Dictionary in record.get("parts", []): points.append_array(part.footprint)
+			"barriers": points.append_array(record.line)
 			"zones", "surface_areas": points.append_array(record.polygon)
 	if points.is_empty(): return {}
 	var low: Array = points[0].duplicate(); var high: Array = points[0].duplicate()

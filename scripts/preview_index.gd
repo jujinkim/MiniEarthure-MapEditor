@@ -23,6 +23,10 @@ static func build(native: RefCounted, document: Dictionary, cancelled: Callable 
 		for point: Vector2 in points:
 			low = low.min(point)
 			high = high.max(point)
+		for part: Dictionary in (entry.record.get("parts", []) if entry.field == "buildings" else []):
+			for point: Array in part.footprint:
+				low = low.min(Vector2(point[0], point[1]))
+				high = high.max(Vector2(point[0], point[1]))
 		# Deliberate Editor over-invalidation halo, not a generator constant.
 		# Authored proxy dimensions/offsets can be larger than this halo.
 		var margin := float(document.cell_size_cm)
@@ -57,7 +61,7 @@ static func signature(document: Dictionary, hashes: Dictionary, index: Dictionar
 	if index.has("all"): return JSON.stringify([index.all, hashes, [cell.x, cell.y]]).sha256_text()
 	var local: Array = index.cells.get("%d/%d" % [cell.x, cell.y], [])
 	var source := {}
-	for field in ["map_id", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "assets", "assembled_track", "surface_attachments"]:
+	for field in ["map_id", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "assets", "assembled_track", "surface_attachments", "ground_surface"]:
 		source[field] = document.get(field)
 	source.local = local
 	source.payloads = {}
@@ -70,7 +74,7 @@ static func signature(document: Dictionary, hashes: Dictionary, index: Dictionar
 	# Shared junctions, inferred sidewalks, vegetation spacing and ordered repetition
 	# can depend on remote source records. Keep a conservative dependency closure.
 	for entry: Dictionary in local:
-		if entry.field in ["roads", "water_bodies", "surface_areas", "zones", "repetitions"]:
-			for field in ["roads", "nodes", "buildings", "water_bodies", "surface_areas", "zones", "placements", "repetitions"]:
+		if entry.field in ["roads", "water_bodies", "surface_areas", "zones", "repetitions", "barriers"]:
+			for field in ["roads", "nodes", "buildings", "water_bodies", "surface_areas", "zones", "placements", "repetitions", "barriers"]:
 				source[field] = document.get(field, [])
 	return JSON.stringify(source).sha256_text()

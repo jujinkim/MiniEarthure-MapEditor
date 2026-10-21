@@ -68,6 +68,33 @@ def collection_features(features):
     return output, dict(profile="feature-leaves-v1", sources=sources, leaves=leaves)
 
 
+def city_building(identity, projected, solids, properties, layer, scalar):
+    """One city building record whose first polygon is the footprint and the
+    others its `parts`; each keeps its own height and base (source cm)."""
+    usage = text(properties.get("usage", "unknown"), "usage", 64)
+    if usage not in ("residential", "commercial", "industrial", "public"):
+        usage = "residential"
+        layer.estimate("usage")
+        layer.warning("Unclassified building use is represented as residential; review before adoption. Original source classification is retained in the source file.")
+    def solid(rings, values):
+        if len(rings) > 17 or sum(len(r)-1 for r in rings) > 512:
+            raise ValueError("courtyard supports at most 16 holes and 512 total vertices")
+        if len(rings) > 1: layer.warning("Building courtyard uses the current flat-roof profile.")
+        if "height_m" not in values: layer.estimate("height_m")
+        if "base_m" not in values: layer.estimate("base_m")
+        return dict(footprint=rings[0][:-1], **({"holes": [hole[:-1] for hole in rings[1:]]} if len(rings) > 1 else {}),
+                    base_cm=round(number(values.get("base_m", 0), "base_m") * 100), height_cm=round(number(values.get("height_m", 12), "height_m", 0.01, 1000) * 100))
+    first, rest = solid(projected[0], solids[0]), []
+    for rings, values in zip(projected[1:], solids[1:]):
+        part = solid(rings, values)
+        for key in ("base_cm", "height_cm"):
+            if part[key] == first[key]: del part[key]
+        rest.append(part)
+    layer.estimate("material_roof")
+    layer.estimate("building_parts")
+    return {"id": identity, **first, "usage": usage, "material": "concrete", "roof": "flat", "parts": rest}
+
+
 def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False, captured_source=None, city=False):
     if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or "crs" in value:
         raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
@@ -120,7 +147,16 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 layer.estimate(key)
             return number(properties.get(key, default), key, minimum, maximum)
 
-        if kind in ("LineString", "MultiLineString"):
+        if kind == "LineString" and city and osm_graph and "_city_barrier" in properties:
+            # City barriers: source-centimetre line, height and thickness (÷D at adoption).
+            barrier = properties["_city_barrier"]
+            if barrier.get("kind") not in ("hedge", "fence", "wall") or len(coordinates) < 2:
+                raise ValueError("City barrier requires a current-v1 kind and at least two positions")
+            layer.add("barriers", {"id": identity, "kind": barrier["kind"], "line": [list(point(p)) for p in coordinates],
+                "height_cm": round(number(barrier["height_m"], "barrier height", 0.01, 100) * 100),
+                "thickness_cm": round(number(barrier["thickness_m"], "barrier thickness", 0.01, 10) * 100)})
+            layer.estimate("barrier_height" if barrier.get("origin") == "explicit" else "inferred_barrier")
+        elif kind in ("LineString", "MultiLineString"):
             lines = [coordinates] if kind == "LineString" else coordinates
             if not lines:
                 raise ValueError("MultiLineString requires at least one line")
@@ -211,7 +247,12 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     points = list(map(point, ring[:-1]))
                     output.append(points + [points[0]])
                 projected.append(output)
-            if kind == "MultiPolygon" or any(len(rings) > 1 for rings in projected):
+            solids = properties.get("_city_parts") if city and osm_graph else None
+            if solids is not None and (kind != "MultiPolygon" or len(solids) != len(projected) or not 2 <= len(solids) <= 256):
+                raise ValueError("City building parts must map one-to-one onto 2..256 polygons")
+            if solids is not None:
+                pass  # Disjoint derived solids; MapKit validates parts and courtyards.
+            elif kind == "MultiPolygon" or any(len(rings) > 1 for rings in projected):
                 try:
                     regrouped = group_rings([rings[0] for rings in projected], [hole for rings in projected for hole in rings[1:]], topology_budget)
                 except ValueError as exc:
@@ -219,15 +260,18 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 if regrouped != projected:
                     raise ValueError("polygon holes must belong to their declared outer after projection")
             zone = properties.get("landuse") in ("forest", "orchard")
+            if solids is not None:
+                layer.add("buildings", city_building(identity, projected, solids, properties, layer, scalar))
+                projected = []
             for part, rings in enumerate(projected):
                 part_id = identity if kind == "Polygon" else f"{identity}-part-{part}"
                 polygon = rings[0][:-1]
-                if osm_graph and properties.get("osm_region"):
+                if osm_graph and properties.get("osm_region") and not properties.get("_city_context"):
                     layer.coordinates.setdefault("generation_regions", []).append(dict(
                         id=part_id, source_id=properties["osm_source_id"], landuse=properties["landuse"],
                         polygon=polygon, holes=[hole[:-1] for hole in rings[1:]],
                         protected=properties.get("protected", False), tags=properties.get("region_tags", {})))
-                    if not zone: continue
+                if osm_graph and properties.get("osm_region") and not zone: continue
                 if properties.get("_city_paint"):
                     if not (city and osm_graph) or len(rings) > 1 or properties["_city_paint"] not in ("asphalt", "concrete", "dirt", "gravel", "grass"):
                         raise ValueError("City ground paint must be one hole-free current-v1 surface polygon")
@@ -300,7 +344,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     return layer
 
 
-# Soft budgets that made the city ladder try a smaller gap before they warned.
+# Soft budgets a city candidate must meet to be adopted without limit warnings.
 TARGET_CODES = frozenset(("import_records", "import_coordinates", "import_output", "city_work", "city_building_partition", "city_paint_partition"))
 
 
@@ -451,9 +495,9 @@ def main():
         event("optimize", 0, len(LEVELS), "steps")
         result = fallback = None
         # Candidates come largest gap first; a smaller gap is built only when a
-        # larger one misses the output selection targets or does not convert.
-        # When no gap meets the targets, the largest converted gap (smallest
-        # output) is adopted with limit warnings; no source object is dropped.
+        # larger one fails (road space, partition ceiling) or does not convert.
+        # The first converted gap is adopted, with limit warnings when it misses
+        # a target (a smaller gap has more output); no source object is dropped.
         for attempt, (candidate, metadata) in enumerate(candidates(value, options, review, scale)):
             if candidate is None:
                 event("optimize", attempt+1, len(LEVELS), "steps", gap_m=metadata["gap_m"])
@@ -461,8 +505,9 @@ def main():
                 continue
             event("optimize", attempt+1, len(LEVELS), "steps", features=metadata["after"]["features"], positions=metadata["after"]["positions"], gap_m=metadata["gap_m"], categories=metadata["after"])
             over_targets = metadata["after"]["features"] > OUTPUT_FEATURES or metadata["after"]["positions"] > OUTPUT_POINTS
-            if over_targets and fallback is not None:
-                continue  # A larger gap already gave a smaller output to fall back on.
+            # Selected but not imported city inputs: barrier ways off the ground or
+            # with unsupported tags, city-only areas that cannot be imported.
+            metadata["skipped"] = dict(barrier_ways=osm_counts.get("skipped_barriers", 0), city_areas=osm_counts.get("skipped_city_areas", 0))
             try:
                 trial = convert(candidate, args.source_name or args.source.name, args.license, layer_id=args.layer_id,
                     accuracy=args.accuracy, coordinates=options, osm_graph=True, captured_source=captured_source, city=True)
@@ -482,7 +527,7 @@ def main():
                 trial_crop["counts"]["output_features"] = trial.feature_count
                 trial.coordinates["osm_crop"] = trial_crop
                 trial = finish(trial, osm_counts)
-                trial.warning(f"Automatic city optimization at 1:{scale}: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Gap filling up to {metadata['gap_m']} source metres; inspect approximated blocks and heights.")
+                trial.warning(f"Automatic city optimization at 1:{scale}: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Simplification level {metadata['gap_m']} source metres; buildings keep their own footprints, grouped by site into building records; inspect approximated heights.")
                 if len(osm_stream.get("areas", [])) > 1:
                     trial.warning(f"Combined {len(osm_stream['areas'])} administrative areas at their exact boundaries. DEM terrain is optional; Copernicus tiles beyond 256 MiB, 16 tiles or 4096² samples are refused and the map stays flat.")
                 trial.warning("City source-block indexing retains complete selected ways, relation members and source graph closure. Original PBF hash, every retained source ID and output mapping are preserved; unsupported exclusions are separate. Crop ends are artificial; no bridge/tunnel heights are inferred.")
@@ -504,6 +549,9 @@ def main():
                 break
             if fallback is None:
                 fallback = (trial, metadata, editor_bytes, limit_snapshot())
+            # Buildings are never gap-filled, so a smaller gap only keeps more
+            # vertices: it cannot meet a target this converted gap missed.
+            break
         if result is None and fallback is not None:
             result, city_meta, editor_bytes, state = fallback
             limit_restore(state)

@@ -16,7 +16,7 @@ static func create(id: String, center: Vector2, radius_cm: int, base_cm: int, he
 
 static func dimensions(record: Dictionary) -> Dictionary:
 	var points: Array = record.get("footprint", [])
-	if points.size() != SEGMENTS or record.get("roof") != "flat" or not record.get("holes", []).is_empty() or not record.get("entrances", []).is_empty(): return {}
+	if points.size() != SEGMENTS or record.get("roof") != "flat" or not record.get("holes", []).is_empty() or not record.get("entrances", []).is_empty() or not record.get("parts", []).is_empty(): return {}
 	var center := Vector2.ZERO
 	for point: Array in points: center += Vector2(point[0], point[1])
 	center = (center / SEGMENTS).round()

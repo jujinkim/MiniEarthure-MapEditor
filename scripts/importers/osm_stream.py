@@ -21,7 +21,7 @@ from import_layer import MAX_INPUT, MAX_POINTS, BudgetExceeded, soft_limit
 from osm_review import Review
 from osm_disk_nodes import DiskNodes, SharedRoadNodes, MissingNode, FILES as NODE_FILES, MAX_LOOKUP
 from osm_area import bounds
-from osm_extract import dependency, category, build_features, MAX_ENTITIES, MAX_REFS, MAX_FEATURES, MAX_TAGS, TAG_CEILING, TAG_TEXT
+from osm_extract import dependency, category, build_features, city_area, CITY_BARRIERS, MAX_ENTITIES, MAX_REFS, MAX_FEATURES, MAX_TAGS, TAG_CEILING, TAG_TEXT
 
 # Source-work budgets warn (soft_limit) and the import continues. The CEILING
 # values and the disk-sized index quota are memory/disk guards and still refuse.
@@ -387,10 +387,14 @@ def _capture(source, directory, event):
     return size, digest.hexdigest()
 
 
-def _potential(tags):
+def _potential(tags, city=False, relation=False):
     # Index envelopes without interpreting unsupported features outside the
     # selection. Full semantic validation still follows bounded admission.
-    return bool(tags.get("highway") or tags.get("building", "no") != "no" or "building:part" in tags or tags.get("landuse") or tags.get("natural") in ("wood","water","wetland","bare_rock","scrub","grassland") or tags.get("leisure") in ("park","nature_reserve") or tags.get("boundary")=="protected_area")
+    # The city profile also selects green/parking/site areas and barrier ways.
+    if bool(tags.get("highway") or tags.get("building", "no") != "no" or "building:part" in tags or tags.get("landuse") or tags.get("natural") in ("wood","water","wetland","bare_rock","scrub","grassland") or tags.get("leisure") in ("park","nature_reserve") or tags.get("boundary")=="protected_area"):
+        return True
+    if not city or relation and tags.get("type") != "multipolygon": return False
+    return city_area(tags) or not relation and tags.get("barrier") in CITY_BARRIERS
 
 
 def _structure_closure(db, event, size, read_way=None, limits=None):
@@ -492,6 +496,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             CREATE TABLE road_nodes(node INTEGER, way INTEGER, PRIMARY KEY(node,way)) WITHOUT ROWID;
             CREATE TABLE structural_ways(id INTEGER PRIMARY KEY);
             CREATE TABLE loop_ways(id INTEGER PRIMARY KEY);
+            CREATE TABLE sites(id INTEGER PRIMARY KEY, members TEXT);
 
         """)
         locations = DiskNodes(directory, db, quota)
@@ -638,7 +643,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                     raise ValueError("PBF way decoding mismatch")
                 refs = decoded["refs"][start:start+count].tolist()
                 decoded["way"], decoded["ref"] = index+1, start+count
-            potential = _potential(tags)
+            potential = _potential(tags, city)
             if potential and not count: raise ValueError("OSM feature way has no referenced geometry")
             raw, size = None, 0
             if not city:
@@ -654,7 +659,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             members, box, unsupported = [], None, ""
             member_ways = set()
             area = tags.get("type") in ("multipolygon", "boundary")
-            potential = _potential(tags)
+            potential = _potential(tags, city, relation=True)
             if potential and not len(entity.members): raise ValueError("OSM feature relation has no referenced geometry")
             for m in entity.members:
                 if m.ref <= 0: raise ValueError("OSM invalid relation reference")
@@ -690,13 +695,16 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                 candidate = False
             if candidate:
                 try:
-                    kind = category(tags)
-                    if (tags.get("type") != "multipolygon" and not (kind=="region" and tags.get("type")=="boundary")) or kind == "road":
+                    kind = category(tags, city)
+                    if (tags.get("type") != "multipolygon" and not (kind=="region" and tags.get("type")=="boundary")) or kind in ("road", "barrier"):
                         raise ValueError("selected relation requires supported multipolygon semantics")
                 except ValueError as exc:
                     review.reject("relation/" + str(entity.id), exc)
                     candidate = False
             db.execute("INSERT INTO relations VALUES(?,?,?)", (entity.id,json.dumps([members,tags]) if candidate else None,int(candidate)))
+            if city and tags.get("type") == "site":
+                # City building records group by site relation membership only.
+                db.execute("INSERT INTO sites VALUES(?,?)", (entity.id,json.dumps([[kind,ref] for kind,ref,role in members if kind in ("w","r")])))
             owned_members = set()
             for kind,ref,role in members:
                 if area and kind == "w":
@@ -783,7 +791,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             admit("",len(refs))
             all_ways[identity] = (refs,tags)
             try:
-                kind = category(tags)
+                kind = category(tags, city)
             except ValueError as exc:
                 review.reject("way/" + str(identity), exc)
                 kind = None
@@ -806,7 +814,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             admit(raw)
             members,tags = json.loads(raw)
             admit("",len(members))
-            relations.append((identity,category(tags),members,tags))
+            relations.append((identity,category(tags, city),members,tags))
             if len(ways)+len(relations) > feature_limit: soft_limit("osm_features", len(ways)+len(relations), feature_limit, "OSM selected feature budget exceeded")
             completed += 1
             if completed % 100 == 0: event("select",completed,total,"entities")
@@ -815,7 +823,14 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
         admit("")
         counts.update(nodes=len(nodes),ways=len(all_ways),relations=len(relations),tagged_nodes=len(node_tags))
         event("parse",0,selection_bytes)
-        value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts,supplement,digest,review,feature_limit=feature_limit,city=city)
+        sites = {}
+        if city:
+            selected_relations = {identity for identity, *_ in relations}
+            for identity, raw in db.execute("SELECT id,members FROM sites ORDER BY id"):
+                for kind, ref in json.loads(raw):
+                    if (kind == "w" and ref in all_ways or kind == "r" and ref in selected_relations) and (kind, ref) not in sites:
+                        sites[(kind, ref)] = "relation/" + str(identity)
+        value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts,supplement,digest,review,feature_limit=feature_limit,city=city,sites=sites)
         meta = dict(profile=PROFILE,passes=3,source_bytes=size,source_sha256=digest,
                     scan=totals,structure_closure=closure,selected=dict(nodes=len(nodes),ways=len(all_ways),relations=len(relations),references=selected_refs,bytes=selection_bytes))
         if city: meta.update(index_policy="source-block-pointers-v1", resolved_way_blocks=resolved_blocks)

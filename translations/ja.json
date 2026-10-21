@@ -1932,7 +1932,11 @@
     "Automatic city optimization requires PBF streaming.": "都市の自動最適化には PBF ストリーミングが必要です。",
     "City crop source count mismatch.": "都市切り抜きの原本件数が一致しません。",
     "City loop merge hides a source junction.": "都市の環状道路統合に原本の交差点が含まれていません。",
-    "Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nGap filling: ≤ %.2f source m (%.2f map m). Named/tall buildings, road corridors and courtyards remain protected.\nMerged building heights are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n": "都市の自動最適化 · 1:%d\nオブジェクト: %d → %d · 座標: %d → %d\n道路: %d → %d · 建物: %d → %d · 領域: %d → %d\n建物間の補間: 原本 ≤ %.2f m（マップ %.2f m）。名称のある建物・高層建物・道路空間・中庭を保護します。\n統合した建物の高さは推定値です。原本との対応情報を保持します。\n路面材質のゲーム材質への置換: %s。最小マップ幅20 cmに広げた道路: %d。\n",
+    "Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nSimplification level: %.2f source m (%.2f map m). Every building keeps its own footprint; landmark/tall buildings, road corridors and courtyards remain protected.\nBuilding heights without source tags are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n": "都市の自動最適化 · 1:%d\nオブジェクト: %d → %d · 座標: %d → %d\n道路: %d → %d · 建物: %d → %d · 領域: %d → %d\n単純化レベル: 原本 %.2f m（マップ %.2f m）。すべての建物は自身の輪郭を保ち、ランドマーク・高層建物・道路空間・中庭を保護します。\n元タグのない建物の高さは推定値です。原本との対応情報を保持します。\n路面材質のゲーム材質への置換: %s。最小マップ幅20 cmに広げた道路: %d。\n",
+    "City sites: %d building records with %d solids (nearby buildings of one site and category share a record as separate parts).\n": "都市の敷地: 建物レコード %d 件、ソリッド %d 個（同じ敷地・分類の近い建物は 1 レコードの別パーツにまとめます）。\n",
+    "Barriers: %d pieces from %d explicit OSM barrier ways and %d pieces of %d inferred site perimeters, opened at paths, painted driveways and gates; heights are estimates.\n": "障壁: 明示 OSM 障壁ウェイから %d ピース（ウェイ %d 本）、推定した敷地境界から %d ピース（敷地 %d 件）。歩道・塗装した進入路・門で切れ目を入れ、高さは推定値です。\n",
+    "Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n": "地面塗装: %d ピース（歩行 %d、芝 %d、アスファルト %d、コンクリート %d、土 %d、砂利 %d）、塗装しない地面はコンクリート。\n",
+    "Not imported: %d barrier sources dropped (guard rails on bridges, wholly within gates or crossings, shorter than one map centimetre), %d barrier ways off the ground or with unsupported tags, %d city-only areas that cannot be imported.\n": "インポートしないもの: 除外した障壁の元データ %d 件（橋上のガードレール、門・横断の内側に完全に収まるもの、マップ 1 cm 未満）、地上にない・未対応タグの障壁ウェイ %d 本、インポートできない都市専用の領域 %d 件。\n",
     "Estimated road widths by class: %s. Building sources cut for road clearance: %d; adjusted for overlapping buildings: %d.\nNames and source IDs of enclosed buildings are retained in their containing volume. Geometry changes are approximations; originals stay unchanged.\n": "道路分類別の幅推定: %s。道路空間のため切り取った建物原本: %d件、建物の重なり調整: %d件。\n完全に包含された建物の名前・原本IDは包含する建物に保持します。形状の変更は近似であり、原本ファイルは変更しません。\n",
     "Generation cell size (m)": "生成セルの大きさ（m）",
     "Smaller cells reduce generation work per cell without shrinking the map. For dense city imports, start with 128 m. Set this before importing terrain or assembling a track.": "セルを小さくするとマップ範囲を保ちながらセルごとの生成量を減らせます。密集した都市では128 mから始めてください。地形の取り込みやトラックの組み立て前に設定します。",
@@ -2393,6 +2397,18 @@
     "Working asset and course files need a lot of memory": "作業中のアセットとコースのファイルに多くのメモリが必要です",
     "Working terrain height arrays need a lot of memory": "作業中の地形の高さ配列に多くのメモリが必要です",
     "City road rules: %d dual carriageways merged into two-way roads (%d one-way ways, %d median links); %d widths from lane counts; %d service ways and %d tracks painted as drivable ground; %d roads with sidewalks; %d roads with lane markings and %d junction crosswalks (estimates).\n": "都市の道路規則: 上下線分離道路 %d 組を双方向道路に統合(一方通行の道 %d 本、中央分離帯の連絡路 %d 本); 車線数から推定した幅 %d 本; サービス道路 %d 本と農道・林道 %d 本を走行可能な地面の塗装として表示; 歩道付きの道路 %d 本; 車線表示のある道路 %d 本、交差点の横断歩道 %d 箇所(推定)。\n",
-    "City road markings exceed the paint segment bound.": "都市の道路の車線表示が塗装区間の上限を超えています。"
+    "City road markings exceed the paint segment bound.": "都市の道路の車線表示が塗装区間の上限を超えています。",
+    "City barrier count mismatch.": "都市の障壁数が一致しません。",
+    "City output barriers": "都市出力の障壁数",
+    "City source barriers": "都市元データの障壁数",
+    "Invalid city barrier.": "都市の障壁が無効です。",
+    "Invalid city building parts.": "都市の建物パーツが無効です。",
+    "Invalid imported ground surface.": "インポートした地面の材質が無効です。",
+    "Barrier records require OSM city optimization.": "障壁レコードには OSM 都市最適化が必要です。",
+    "Building parts require OSM city optimization.": "建物パーツには OSM 都市最適化が必要です。",
+    "The map keeps its own ground surface; city ground is not repainted": "マップ独自の地面材質を保持し、都市の地面は塗り替えません",
+    "Invalid dropped city barrier sources.": "除外した都市の障壁の元データが無効です。",
+    "Invalid skipped city inputs.": "スキップした都市の入力が無効です。",
+    "Skipped city inputs": "スキップした都市の入力"
   }
 }
