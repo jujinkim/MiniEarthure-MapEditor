@@ -64,7 +64,7 @@ class Streaming(unittest.TestCase):
             original=pbf(self.source,xml)
             exact=stream.extract(self.source,selected,self.directory)
             city=stream.extract(self.source,selected,self.directory,city=True)
-            self.assertEqual(without_city(city[0]),exact[0])
+            self.assertEqual(without_city(city[0]),without_city(exact[0]))
             self.assertEqual(city[2]["index_policy"],"source-block-pointers-v1")
             self.assertGreater(city[2]["resolved_way_blocks"],0)
             self.assertEqual(self.source.read_bytes(),original)

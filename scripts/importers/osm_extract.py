@@ -1083,6 +1083,12 @@ def city_polygon_properties(p, tags, geometry, kind, identity, sites):
         return
     levels = tags.get("building:levels", "")
     if re.fullmatch(r"[1-9][0-9]{0,2}", levels): p["_city_levels"] = int(levels)
+    # Facade rule inputs (osm_sites.facade): source value, use tags, roof shape, flats.
+    p["_city_building"] = tags.get("building", "yes")
+    if "amenity" in tags: p["_city_amenity"] = tags["amenity"]
+    if "shop" in tags or "office" in tags: p["_city_use"] = True
+    if tags.get("roof:shape") == "gabled": p["_city_roof"] = "gabled"
+    if re.fullmatch(r"[1-9][0-9]{0,3}", tags.get("building:flats", "")): p["_city_flats"] = True
     member = (sites or {}).get(("w" if kind == "way" else "r", identity))
     if member: p["_city_site_relation"] = member
 
@@ -1116,7 +1122,7 @@ def finish(layer, counts):
     layer.warning("OSM snapshot via osmium 4.3.1; © OpenStreetMap contributors; ODbL-1.0; https://www.openstreetmap.org/copyright")
     layer.warning("OSM input counts: " + ", ".join(f"{key}={value}" for key, value in counts.items()))
     layer.warning("Selected ways and explicit multipolygons are imported; POIs, other ways/relations and other tags are omitted. No routing/access/oneway semantics.")
-    layer.warning("Ground elevation/base, missing width/height/surface, vegetation and materials are estimates; building levels/roof tags are not interpreted.")
+    layer.warning("Ground elevation/base, missing width/height/surface, vegetation and materials are estimates; building:levels estimate missing heights (3 m per level), roof:shape=gabled sets a gable roof on rectangular footprints, other roof tags are not interpreted.")
     if "closed_structural_ways" in counts:
         layer.warning("Closed roads and their incident ways split by original source node IDs. Structural loops and direct bridge/tunnel connections require complete explicit heights and two distinct ground anchors; no inferred ramps. Source kind/clearance and crop cuts remain reviewable. At most 16 native validation cells per adoption.")
     elif counts.get("closed_ground_ways"):

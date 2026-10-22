@@ -29,6 +29,20 @@ AREA_SURFACES = ("asphalt", "concrete", "gravel", "dirt", "grass")
 APARTMENT_COUNT = 2
 APARTMENT_TALL_M = 20.0
 RESIDENTIAL = ("apartments", "residential", "house", "detached", "terrace", "dormitory")
+# Facade rule inputs: OSM `building` values by MapKit use, in rule order.
+PUBLIC_BUILDINGS = ("public", "civic", "government", "school", "university", "college", "kindergarten", "hospital",
+                    "church", "cathedral", "chapel", "mosque", "temple", "synagogue", "shrine", "train_station",
+                    "transportation", "fire_station", "stadium", "sports_hall", "museum", "library")
+PUBLIC_AMENITIES = ("school", "university", "college", "kindergarten", "hospital", "clinic", "place_of_worship", "townhall",
+                    "police", "fire_station", "library", "community_centre", "public_building", "courthouse")
+TALL_RESIDENTIAL = ("apartments", "dormitory")
+HOUSES = ("house", "detached", "terrace", "semidetached_house", "bungalow", "villa", "cabin", "hut")
+COMMERCIAL_BUILDINGS = ("commercial", "retail", "office", "hotel", "supermarket", "kiosk", "shop", "mall")
+INDUSTRIAL_BUILDINGS = ("industrial", "warehouse", "factory", "manufacture", "service", "garage", "garages", "hangar",
+                        "greenhouse", "barn", "farm_auxiliary", "shed")
+WOODEN_INDUSTRIAL = ("greenhouse", "barn", "farm_auxiliary", "shed")
+HOUSE_TALL_M = 12.0  # Unknown residential below this is a brick house.
+LEVEL_M = 3.0  # Estimated storey height when `height` is missing.
 COVERAGE = 0.15
 GATE_M = 2.0  # Beyond a crossing way's half width.
 EXPLICIT_WINS_M = 3.0
@@ -65,9 +79,23 @@ def _lines(geometry):
 
 
 def _height(p):
-    """Building height for the tall-residential test: `height`, else 3 m per level."""
+    """Building height for the tall-residential and house tests: `height`,
+    else 3 m per level, else 0 (unknown)."""
     if "height_m" in p: return float(p["height_m"])
-    return 3.0 * p["_city_levels"] if "_city_levels" in p else 0.0
+    return LEVEL_M * p["_city_levels"] if "_city_levels" in p else 0.0
+
+
+def rectangular(geometry):
+    """An axis-aligned rectangle without holes: the only footprint MapKit
+    accepts under a gable roof (placement.rs)."""
+    if geometry.geom_type != "Polygon" or geometry.interiors or len(geometry.exterior.coords) != 5: return False
+    corners = list(geometry.exterior.coords)[:-1]
+    return len({x for x, y in corners}) == 2 and len({y for x, y in corners}) == 2
+
+
+def _building(p):
+    """The source `building` value (kept even after the facade rule sets the MapKit use)."""
+    return p.get("_city_building") or p.get("usage", "yes")
 
 
 class Sites:
@@ -92,6 +120,39 @@ class Sites:
             return ("site", self.ids[best])
         centre = geometry.centroid
         return ("tile", math.floor(centre.x / TILE_M), math.floor(centre.y / TILE_M))
+
+    def kind(self, key):
+        """The landuse/amenity kind of a ("site", id) key, else None."""
+        if key[0] != "site": return None
+        return next((f["properties"]["_city_site"] for (f, g), i in zip(self.items, self.ids) if i == key[1]), None)
+
+
+def facade(p, site_kind):
+    """Current-v1 facade of a city building: (material, usage, roof,
+    inferred) from the OSM `building` value, use tags, height and enclosing
+    site, in rule order. `inferred` is True when the use is not an explicit
+    MapKit use value, so review counts it as an estimate."""
+    value = p.get("_city_building") or p.get("usage", "yes")
+    amenity = p.get("_city_amenity")
+    height = _height(p)
+    roof = "gable" if p.get("_city_roof") == "gabled" else "flat"
+    inferred = value not in ("residential", "commercial", "industrial", "public")
+    if value in PUBLIC_BUILDINGS or amenity in PUBLIC_AMENITIES:
+        return "concrete", "public", roof, inferred
+    if value in TALL_RESIDENTIAL or p.get("_city_flats"):
+        return "concrete", "residential", roof, inferred
+    if value in HOUSES:
+        return "brick", "residential", roof, inferred
+    if value in COMMERCIAL_BUILDINGS or p.get("_city_use") or amenity:
+        return "concrete", "commercial", roof, inferred
+    if value in INDUSTRIAL_BUILDINGS:
+        return ("wood" if value in WOODEN_INDUSTRIAL else "concrete"), "industrial", roof, inferred
+    site = site_kind if value == "yes" else {"residential": "residential"}.get(value)
+    if site in ("commercial", "retail"): return "concrete", "commercial", roof, inferred
+    if site == "industrial": return "concrete", "industrial", roof, inferred
+    if site in ("school", "hospital", "university", "college"): return "concrete", "public", roof, inferred
+    if site == "residential" and 0 < height < HOUSE_TALL_M: return "brick", "residential", roof, inferred
+    return "concrete", "residential", roof, inferred
 
 
 def building_records(items, is_building, source_ids, key):
@@ -131,7 +192,7 @@ def building_records(items, is_building, source_ids, key):
             if names: p["_city_names"] = sorted(names)
             else: p.pop("_city_names", None)
             if any(f["properties"].get("_city_estimated_height") for f, g in chunk): p["_city_estimated_height"] = True
-            p["_city_parts"] = [{k: f["properties"][k] for k in ("height_m", "base_m") if k in f["properties"]} for f, g in chunk]
+            p["_city_parts"] = [{k: f["properties"][k] for k in ("height_m", "base_m", "_city_levels_height") if k in f["properties"]} for f, g in chunk]
             rest.append((feature, MultiPolygon([g for f, g in chunk])))
     return rest, counts
 
@@ -251,8 +312,8 @@ class Barriers:
             worker.spend(len(inside) + 1)
             if site == "residential":
                 covered = sum(b.intersection(g).area for _, b in inside)
-                tall = sum(1 for q, b in inside if g.contains(b.representative_point()) and (q["properties"].get("usage") == "apartments"
-                           or (q["properties"].get("usage", "yes") in RESIDENTIAL + ("yes",) and _height(q["properties"]) >= APARTMENT_TALL_M)))
+                tall = sum(1 for q, b in inside if g.contains(b.representative_point()) and (_building(q["properties"]) == "apartments"
+                           or (_building(q["properties"]) in RESIDENTIAL + ("yes",) and _height(q["properties"]) >= APARTMENT_TALL_M)))
                 if tall < APARTMENT_COUNT or g.area <= 0 or covered / g.area < COVERAGE: continue
             outline = p.get("_city_outline")
             if not outline: continue

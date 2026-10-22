@@ -68,19 +68,44 @@ def collection_features(features):
     return output, dict(profile="feature-leaves-v1", sources=sources, leaves=leaves)
 
 
-def city_building(identity, projected, solids, properties, layer, scalar):
-    """One city building record whose first polygon is the footprint and the
-    others its `parts`; each keeps its own height and base (source cm)."""
+def rectangular(rings):
+    """MapKit gable roofs need one axis-aligned rectangular ring of four
+    distinct corners at least 2 cm apart on both axes (placement.rs)."""
+    if len(rings) != 1 or len(rings[0]) != 5: return False
+    xs, ys = {p[0] for p in rings[0][:-1]}, {p[1] for p in rings[0][:-1]}
+    return len(xs) == 2 and len(ys) == 2 and max(xs) - min(xs) >= 2 and max(ys) - min(ys) >= 2
+
+
+def building_facade(properties, projected, layer, city):
+    """Current-v1 `usage`, `material` and `roof` of a building record. City
+    imports carry the facade rule's values (osm_sites.facade); a gable roof
+    needs every solid rectangular, else the record stays flat. Other imports
+    keep the concrete/flat defaults and fold unknown uses to residential."""
     usage = text(properties.get("usage", "unknown"), "usage", 64)
     if usage not in ("residential", "commercial", "industrial", "public"):
         usage = "residential"
         layer.estimate("usage")
         layer.warning("Unclassified building use is represented as residential; review before adoption. Original source classification is retained in the source file.")
+    elif city and properties.get("_city_usage_inferred"):
+        layer.estimate("usage")
+    material, roof = "concrete", "flat"
+    if city:
+        material = text(properties.get("material", "concrete"), "material", 16)
+        if material not in ("concrete", "brick", "wood"): raise ValueError("City building material must be concrete, brick or wood")
+        if properties.get("roof") == "gable" and all(rectangular(rings) for rings in projected): roof = "gable"
+    layer.estimate("material_roof")
+    return dict(usage=usage, material=material, roof=roof)
+
+
+def city_building(identity, projected, solids, properties, layer, scalar):
+    """One city building record whose first polygon is the footprint and the
+    others its `parts`; each keeps its own height and base (source cm)."""
+    facade = building_facade(properties, projected, layer, True)
     def solid(rings, values):
         if len(rings) > 17 or sum(len(r)-1 for r in rings) > 512:
             raise ValueError("courtyard supports at most 16 holes and 512 total vertices")
         if len(rings) > 1: layer.warning("Building courtyard uses the current flat-roof profile.")
-        if "height_m" not in values: layer.estimate("height_m")
+        if "height_m" not in values or values.get("_city_levels_height"): layer.estimate("height_m")
         if "base_m" not in values: layer.estimate("base_m")
         return dict(footprint=rings[0][:-1], **({"holes": [hole[:-1] for hole in rings[1:]]} if len(rings) > 1 else {}),
                     base_cm=round(number(values.get("base_m", 0), "base_m") * 100), height_cm=round(number(values.get("height_m", 12), "height_m", 0.01, 1000) * 100))
@@ -90,9 +115,8 @@ def city_building(identity, projected, solids, properties, layer, scalar):
         for key in ("base_cm", "height_cm"):
             if part[key] == first[key]: del part[key]
         rest.append(part)
-    layer.estimate("material_roof")
     layer.estimate("building_parts")
-    return {"id": identity, **first, "usage": usage, "material": "concrete", "roof": "flat", "parts": rest}
+    return {"id": identity, **first, **facade, "parts": rest}
 
 
 def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False, captured_source=None, city=False):
@@ -280,20 +304,16 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     layer.add("zones", {"id": part_id, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 3200 if city else 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]})
                     layer.estimate("vegetation_spacing_density")
                 else:
-                    usage = text(properties.get("usage", "unknown"), "usage", 64)
-                    if usage not in ("residential", "commercial", "industrial", "public"):
-                        usage = "residential"
-                        layer.estimate("usage")
-                        layer.warning("Unclassified building use is represented as residential; review before adoption. Original source classification is retained in the source file.")
+                    facade = building_facade(properties, [rings], layer, city and osm_graph)
                     if len(rings) > 1:
                         if len(rings) > 17 or sum(len(r)-1 for r in rings) > 512:
                             raise ValueError("courtyard supports at most 16 holes and 512 total vertices")
                         layer.warning("Building courtyard uses the current flat-roof profile.")
+                    if properties.get("_city_levels_height"): layer.estimate("height_m")
                     layer.add("buildings", {"id": part_id, "footprint": polygon,
                         **({"holes": [hole[:-1] for hole in rings[1:]]} if len(rings) > 1 else {}),
                         "base_cm": round(scalar("base_m", 0) * 100), "height_cm": round(scalar("height_m", 12, 0.01, 1000) * 100),
-                        "usage": text(usage, "usage", 64), "material": "concrete", "roof": "flat"})
-                    layer.estimate("material_roof")
+                        **facade})
         else:
             raise ValueError(f"unsupported geometry {kind}; no features imported")
         if osm_graph and properties.get("osm_source_id") and not properties.get("_city_sources"):

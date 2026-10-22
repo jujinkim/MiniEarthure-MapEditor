@@ -679,6 +679,50 @@ class CityRules(unittest.TestCase):
         self.assertEqual(len(records[("way/10", "way/11")]), 2, "a type=site relation groups across 256 m tiles")
         self.assertEqual(meta["after"]["buildings"], 8)
 
+    def test_facade_rules_set_material_use_roof_and_level_heights(self):
+        from geojson import convert
+        self.setup_city()
+        self.site(100, box(0, 0, 200, 100), "residential")
+        self.site(200, box(300, 0, 400, 100), "commercial")
+        self.site(300, box(500, 0, 600, 100), "industrial")
+        self.site(400, box(700, 0, 800, 100), "school")
+        self.add(1, box(10, 10, 30, 30), usage="apartments")
+        self.add(2, box(40, 10, 50, 20), usage="house", _city_roof="gabled")
+        self.add(3, Polygon([(60, 10), (70, 12), (68, 22), (58, 20)]), usage="house", _city_roof="gabled")  # Rotated: no gable.
+        self.add(4, box(80, 10, 90, 20), _city_levels=2)  # building=yes, 6 m: a house.
+        self.add(5, box(100, 10, 110, 20), _city_levels=10)  # building=yes, 30 m: a tower.
+        self.add(6, box(310, 10, 320, 20))
+        self.add(7, box(330, 10, 340, 20), _city_use=True)
+        self.add(8, box(510, 10, 520, 20))
+        self.add(9, box(530, 10, 540, 20), usage="shed")
+        self.add(10, box(710, 10, 720, 20))
+        self.add(11, box(730, 10, 740, 20), _city_amenity="hospital")
+        self.add(12, box(900, 10, 910, 20))
+        self.add(13, box(920, 10, 930, 20), usage="commercial")
+        worker = self.worker(3)
+        out, meta = worker.candidate(16)
+        facades = {tuple(f["properties"]["_city_sources"]): (f["properties"]["material"], f["properties"]["usage"], f["properties"]["roof"]) for f, solids in self.solids(worker, out)}
+        self.assertEqual(facades, {
+            ("way/1", "way/5"): ("concrete", "residential", "flat"), ("way/2",): ("brick", "residential", "gable"),
+            ("way/3", "way/4"): ("brick", "residential", "flat"),
+            ("way/6", "way/7"): ("concrete", "commercial", "flat"), ("way/8",): ("concrete", "industrial", "flat"),
+            ("way/9",): ("wood", "industrial", "flat"), ("way/10", "way/11"): ("concrete", "public", "flat"),
+            ("way/12",): ("concrete", "residential", "flat"), ("way/13",): ("concrete", "commercial", "flat")},
+            "records group one site's buildings only when their facade agrees")
+        houses = next(f["properties"] for f, _ in self.solids(worker, out) if f["properties"]["_city_sources"] == ["way/3", "way/4"])
+        self.assertEqual(sorted(part.get("height_m", 12) for part in houses["_city_parts"]), [6.0, 12], "levels estimate a missing height")
+        layer = convert(out, "synthetic", "ODbL-1.0", coordinates=self.options, osm_graph=True, city=True)
+        buildings = [p["after"] for p in layer.patches if p["field"] == "buildings"]
+        self.assertEqual(len(buildings), 9)
+        gables = [b for b in buildings if b["roof"] == "gable"]
+        self.assertEqual([len(b["footprint"]) for b in gables], [4], "only the axis-aligned house keeps its gable roof")
+        heights = lambda b: [b["height_cm"]] + [part.get("height_cm", b["height_cm"]) for part in b.get("parts", [])]
+        self.assertEqual(sorted(h for b in buildings if b["material"] == "brick" for h in heights(b)), [600, 1200, 1200])
+        self.assertEqual(Counter(b["material"] for b in buildings), Counter(concrete=6, brick=2, wood=1))
+        self.assertEqual(layer.estimates["usage"], 8, "every rule-assigned use is an estimate; explicit commercial is not")
+        self.assertEqual(layer.estimates["height_m"], 13, "level-derived heights stay estimates")
+        self.assertFalse(any("Unclassified building use" in w for w in layer.warnings))
+
     def test_record_parts_convert_to_one_building_with_its_own_heights(self):
         from geojson import convert
         self.setup_city()

@@ -797,8 +797,15 @@ class Generalizer:
                 # fusion). Its record key groups it with the buildings of its
                 # site (else 256 m source tile) and category as building parts.
                 site = self.sites.key(f, g)
-                landmark = p.get("_city_landmark") or float(p.get("height_m", 12)) >= 40 or p.get("usage") in ("public", "hospital", "school", "church", "cathedral")
+                if "_city_building" not in p: p["_city_building"] = p.get("usage", "yes")
+                if "height_m" not in p and "_city_levels" in p:
+                    p["height_m"] = osm_sites.LEVEL_M * p["_city_levels"]
+                    p["_city_levels_height"] = True
+                landmark = p.get("_city_landmark") or float(p.get("height_m", 12)) >= 40 or p["_city_building"] in ("public", "hospital", "school", "church", "cathedral")
                 protected = landmark or (p.get("_city_name") and site[0] == "tile")
+                # The facade (material, use, roof) is part of the record key, so
+                # grouped parts share one appearance (MapKit parts share them).
+                p["material"], p["usage"], p["roof"], p["_city_usage_inferred"] = osm_sites.facade(p, self.sites.kind(site))
                 properties = {k:v for k,v in p.items() if not k.startswith("_city") and k not in ("osm_source_id", "height_m", "base_m")}
                 record = json.dumps(["own", source_ids(f)] if protected else [list(site), properties], sort_keys=True)
                 f = dict(f, properties=dict(p, _city_record=record))
@@ -1093,6 +1100,16 @@ class Generalizer:
             covered.update(source_ids(f))
             items.extend((deepcopy(f),part) for part in (parts(snapped) if is_building(f,snapped) else self.native_polygon_parts(snapped)))
         items = self.resolve_buildings(items)
+        # A gable roof survives only on a final axis-aligned rectangular solid;
+        # the roof is part of the record key, so a flattened solid regroups.
+        for f, g in items:
+            p = f["properties"]
+            if is_building(f, g) and p.get("roof") == "gable" and not osm_sites.rectangular(g):
+                p["roof"] = "flat"
+                record = json.loads(p["_city_record"]) if p.get("_city_record") else None
+                if record and record[0] != "own":
+                    record[1]["roof"] = "flat"
+                    p["_city_record"] = json.dumps(record, sort_keys=True)
         # Nearby buildings of one site and category share a record (MapKit
         # building parts); each solid stays its own visible prism.
         items, self.record_counts = osm_sites.building_records(items, is_building, source_ids, _key)

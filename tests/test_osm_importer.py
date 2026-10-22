@@ -26,6 +26,15 @@ class OsmTests(unittest.TestCase):
         import import_layer
         import_layer.reset_limits()  # Limit warnings are process-wide; isolate tests.
 
+    def test_city_polygon_properties_record_facade_inputs(self):
+        geometry = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
+        p = {}
+        osm.city_polygon_properties(p, {"building": "yes", "building:levels": "5", "amenity": "school", "shop": "bakery", "roof:shape": "gabled", "building:flats": "12"}, geometry, "way", 1, {})
+        self.assertEqual(p, {"_city_levels": 5, "_city_building": "yes", "_city_amenity": "school", "_city_use": True, "_city_roof": "gabled", "_city_flats": True})
+        p = {}
+        osm.city_polygon_properties(p, {"building": "house", "roof:shape": "hipped", "building:flats": "x", "office": "yes"}, geometry, "relation", 2, {("r", 2): "relation/9"})
+        self.assertEqual(p, {"_city_building": "house", "_city_use": True, "_city_site_relation": "relation/9"})
+
     def test_generation_regions_source_ids_holes_and_protection(self):
         import xml.etree.ElementTree as ET
         root=ET.fromstring(multipolygon_xml().replace('k="landuse" v="forest"','k="landuse" v="residential"'))

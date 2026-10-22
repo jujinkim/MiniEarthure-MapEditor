@@ -140,10 +140,31 @@ remainder so lattice points are whole map centimetres.
   The site is a `type=site` relation the building belongs to, else the smallest
   enclosing landuse residential/commercial/retail/industrial or
   school/hospital/university/college polygon, else the 256 m source tile; the
-  category is the `building` value. Names of grouped buildings are kept as the
+  category is the facade below. Names of grouped buildings are kept as the
   record's names. Landmarks (historic, tourism or amenity tags, ≥40 m,
   public/hospital/school/church use) and named buildings outside a site stay their
   own records, unsimplified; a landmark's native pieces share its record.
+- Facade (`material`, `usage`, `roof`; the MapKit v1 values) follows the first
+  matching rule on the `building` value, use tags, height and enclosing site:
+  public (`public`, `civic`, `government`, school/university/college/kindergarten,
+  hospital, places of worship, stations, stadiums, museums, libraries, or an
+  `amenity` of those kinds) → concrete public; `apartments`, `dormitory` or
+  `building:flats` → concrete residential; `house`, `detached`, `terrace`,
+  `semidetached_house`, `bungalow`, `villa`, `cabin`, `hut` → brick residential;
+  `commercial`, `retail`, `office`, `hotel`, `supermarket`, `kiosk`, `shop`,
+  `mall`, any `shop`/`office` tag or other `amenity` → concrete commercial;
+  `industrial`, `warehouse`, `factory`, `manufacture`, `service`, `garage(s)`,
+  `hangar` → concrete industrial and `greenhouse`, `barn`, `farm_auxiliary`,
+  `shed` → wood industrial; otherwise the enclosing site decides
+  (commercial/retail → commercial, industrial → industrial, school/hospital/
+  university/college → public, residential below 12 m → brick residential), and
+  everything else is concrete residential. A missing `height` is estimated as
+  3 m × `building:levels`. `roof:shape=gabled` keeps a gable roof only on a solid
+  whose final footprint is an axis-aligned rectangle (MapKit's gable rule); other
+  solids and records are flat. Rule-assigned uses, level heights and every
+  material/roof count as estimates in review; the source value stays in the
+  source file. The renderer draws storeys, panes and night windows per facade
+  ([MapKit materials](../addons/mapkit/docs/RICHER_MATERIALS.md)).
 - Levels (0–64 m) set the simplification: lines ≤ level/4 (at most 4 m), areas ≤
   level/4 (at most 8 m), buildings ≤ level/4 (at most 1 m). A level repeating the
   tolerances of a larger one (32 m after 64 m) is not built. Levels whose line
