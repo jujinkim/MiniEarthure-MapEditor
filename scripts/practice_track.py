@@ -122,7 +122,7 @@ def source():
     d["paths"]=[dict(id="practice",pieces=[i["id"] for i in d["instances"]])]
     return d
 
-def build(destination, cli, resource_path="res://maps/practice/practice.memap"):
+def build(destination, cli, resource_path="res://maps/practice-large-rc/practice.memap"):
     destination.mkdir(parents=True,exist_ok=False)
     original=source()
     # Source references use compiler-owned tessellation. Resolve metres from its
@@ -167,5 +167,5 @@ if __name__=="__main__":
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("destination",type=Path)
     p.add_argument("--mapkit",type=Path,required=True)
-    p.add_argument("--resource-path",default="res://maps/practice/practice.memap")
+    p.add_argument("--resource-path",default="res://maps/practice-large-rc/practice.memap")
     a=p.parse_args();build(a.destination,a.mapkit.resolve(),a.resource_path)

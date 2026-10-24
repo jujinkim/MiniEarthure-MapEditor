@@ -105,8 +105,6 @@ rtk proxy python3 scripts/check_driving_school.py --mapkit addons/mapkit/target/
 the same town. `scripts/shop_block.py` owns the six Hanbit shops reused by the scale
 fixtures in [SYNTHETIC_FIXTURES](SYNTHETIC_FIXTURES.md).
 
-**Practice packages:** `examples/practice-large-rc/` is current (see
-[track authoring](TRACK_AUTHORING.md#reproducible-practice-course)).
-`examples/practice-tight-corners/`, `examples/practice-track/` and the dated `practice-*` directories are earlier
-compilations whose `entry.json` identifies each exact package; `human_completion`
-stays unverified.
+**Practice package:** `examples/practice-large-rc/` (see
+[track authoring](TRACK_AUTHORING.md#reproducible-practice-course)); its
+`entry.json` identifies the exact package and `human_completion` stays unverified.
