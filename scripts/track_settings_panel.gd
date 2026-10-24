@@ -107,7 +107,8 @@ func restore(value: Dictionary) -> void:
 	for id: String in selections: selections[id].button_pressed = id in value.categories
 	_update_enabled()
 
-const LENGTH_LABELS := {"short":"Short", "medium":"Medium", "long":"Long"}
+## "|track length" context keeps these apart from other Short/Medium/Long labels.
+const LENGTH_LABELS := {"short":"Short|track length", "medium":"Medium|track length", "long":"Long|track length"}
 
 func selected_length() -> String:
 	return str(length.get_item_metadata(length.selected)) if length.selected >= 0 else str(_defaults.length)

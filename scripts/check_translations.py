@@ -71,7 +71,8 @@ def main():
             else:
                 assert value.strip(), (code, key, "empty translation")
                 assert FORMAT.findall(key) == FORMAT.findall(value), (code, key, "format signature")
-                if code == "en" and key.isascii(): assert key == value, key
+                # "Label|context" keys disambiguate a shared English word; English shows the label.
+                if code == "en" and key.isascii(): assert value == key.split("|", 1)[0], key
     missing = sorted(set((path, key) for path, key in source_keys() if key not in base and key not in INVARIANTS and re.search(r"[a-zA-Z가-힣]", FORMAT.sub("", key))))
     assert not missing, "Missing display keys:\n" + "\n".join(map(str, missing))
     notice = (ROOT / "fonts/NOTICE.txt").read_text()
