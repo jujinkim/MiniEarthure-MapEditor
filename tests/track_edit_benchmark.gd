@@ -103,7 +103,7 @@ func run() -> void:
 	elif OS.get_environment("TRACK_BENCH_SEED") == "1":
 		var settings: Dictionary = bench.catalogue.defaults.duplicate(true)
 		settings.seed = 42
-		settings.duration_seconds = 90
+		settings.length = "medium"
 		var generated: Dictionary = JSON.parse_string(screen.store.bridge.generate_track(JSON.stringify(settings), ProjectSettings.globalize_path("user://benchmark-seed.memap")))
 		assert(generated.ok, str(generated.get("error", {})))
 		seeded_source = JSON.parse_string(screen.store.bridge.track_authoring_source(JSON.stringify(generated.data.document))).data

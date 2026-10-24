@@ -139,7 +139,7 @@ def shortcut(w,entry,exit,level,kind='ramp_low',rise=0):
     controls=[[0,round(y*100),round(t*length*100)] for t,y in
         [(0,0),(.12,0),(.22,rise),(.33,rise),(.44,rise),(.56,rise),(.67,rise),(.78,rise),(.88,0),(1,0)]]
     w.track_source=dict(original_seed=None,grounded_supports=False,
-        settings=dict(seed=13,circuit=False,duration_seconds=60,difficulty='normal',categories=['driving'],time_minutes=840),
+        settings=dict(seed=13,circuit=False,length='short',difficulty='normal',categories=['driving'],time_minutes=840),
         terrain_integration=True,terrain_policies={'scenic-shortcut':'auto_fit' if not rise else 'elevated'},
         instances=[dict(id='scenic-shortcut',preset='free_curve',position_cm=[0,0,0],rotation_mdeg=[0,0,0],
             width_cm=800,entry_width_cm=800,exit_width_cm=800,control_points=controls)],

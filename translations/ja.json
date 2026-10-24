@@ -54,10 +54,7 @@
     "Driving": "走行",
     "Gimmick": "ギミック",
     "Action": "アクション",
-    "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. The base route targets ±10% of the requested time at the reference speed; shortcut times are separate.": "シードにより有効なカテゴリから種類・幅・方向を選びます。すべての種類が含まれるとは限りません。基本ルートは基準速度で指定時間の±10%を目標とし、近道の時間は別に計算します。",
     "Seed must be an integer from 0 to 9007199254740991.": "シードは0から9007199254740991までの整数で指定してください。",
-    " / per lap · up to %d laps": " / 1周あたり · 最大%d周",
-    "Generated · %.1f m · base route %.1f s / target %d s · reference-speed estimate": "生成完了 · %.1f m · 基本ルート%.1f秒 / 目標%d秒 · 基準速度での推定",
     "Signs": "看板",
     "Map writing stays independent of UI language. Create a sign from a licensed font, or import a prepared PNG. Place it as a separate asset in Drawing; the building stays unchanged. Select an existing sign asset to restore text and provenance; reselect its licensed font to edit. Imported images retain their original layout.": "マップ上の文字はUI言語から独立しています。利用許諾のあるフォントで看板を作成するか、用意したPNGを読み込んでください。描画で別のアセットとして配置し、建物は変更しません。既存の看板を選ぶと文字と出典を復元します。編集時は利用許諾のあるフォントを再選択してください。読み込んだ画像は元の配置を保持します。",
     "Sign asset ID": "看板アセットID",
@@ -1053,8 +1050,6 @@
     "Travel %s (m)": "移動%s（m）",
     "Pad impulse %s (m/s)": "パッドの力積%s（m/s）",
     "Rotation (degrees)": "回転（度）",
-    "About 90 seconds": "約90秒",
-    "About %d minutes": "約%d分",
     "global": "共通",
     "roam": "フリー走行",
     "Hour ": "時刻 ",
@@ -2184,7 +2179,6 @@
     "Course needs more than 64 shared checkpoints": "このコースには共有チェックポイントが64個を超えて必要です。",
     "Course needs at least two non-overlapping checkpoints": "コースには重ならないチェックポイントが2個以上必要です。",
     "Pieces %d/%d types · Gimmicks %d/%d types": "ピース %d/%d種 · ギミック %d/%d種",
-    " · Below 50% variety target": " · 多様性の目標50%未達",
     "Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n": "歩道・自転車道・階段は道路ではなく走行可能な地面の塗装で表示: %d 本。\n",
     "Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n": "元の高さがない橋・トンネル・レイヤー道路のうち、他の道路と交差しないもの、および高さを推定できず塗装された歩道とのみ交差するものは地面の高さで描画: %d 本(推定)。\n",
     "Buildings above other features (positive layer, not roof canopies) stand on the ground: %d sources (estimate).\n": "他の施設の上にある建物(正のレイヤー、屋根キャノピーを除く)は地面に配置: %d 件の元データ(推定)。\n",
@@ -2430,6 +2424,13 @@
     "The map keeps its own ground surface; city ground is not repainted": "マップ独自の地面材質を保持し、都市の地面は塗り替えません",
     "Invalid dropped city barrier sources.": "除外した都市の障壁の元データが無効です。",
     "Invalid skipped city inputs.": "スキップした都市の入力が無効です。",
-    "Skipped city inputs": "スキップした都市の入力"
+    "Skipped city inputs": "スキップした都市の入力",
+    "Short": "短め",
+    "Medium": "普通",
+    "Long": "長め",
+    " · up to %d laps": " · 最大%d周",
+    " · %d pieces": " · %dピース",
+    "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. Length sets the lap count, sprint size and circuit scale; it is not a time target.": "シードにより有効なカテゴリから種類・幅・方向を選びます。すべての種類が含まれるとは限りません。長さは周回数、スプリントのピース数、周回コースの規模を決めるもので、時間の目標ではありません。",
+    "Generated · %.1f m · estimated %.1f s · %d pieces": "生成完了 · %.1f m · 推定%.1f秒 · %dピース"
   }
 }

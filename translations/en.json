@@ -54,10 +54,7 @@
     "Driving": "Driving",
     "Gimmick": "Gimmick",
     "Action": "Action",
-    "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. The base route targets ±10% of the requested time at the reference speed; shortcut times are separate.": "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. The base route targets ±10% of the requested time at the reference speed; shortcut times are separate.",
     "Seed must be an integer from 0 to 9007199254740991.": "Seed must be an integer from 0 to 9007199254740991.",
-    " / per lap · up to %d laps": " / per lap · up to %d laps",
-    "Generated · %.1f m · base route %.1f s / target %d s · reference-speed estimate": "Generated · %.1f m · base route %.1f s / target %d s · reference-speed estimate",
     "Signs": "Signs",
     "Map writing stays independent of UI language. Create a sign from a licensed font, or import a prepared PNG. Place it as a separate asset in Drawing; the building stays unchanged. Select an existing sign asset to restore text and provenance; reselect its licensed font to edit. Imported images retain their original layout.": "Map writing stays independent of UI language. Create a sign from a licensed font, or import a prepared PNG. Place it as a separate asset in Drawing; the building stays unchanged. Select an existing sign asset to restore text and provenance; reselect its licensed font to edit. Imported images retain their original layout.",
     "Sign asset ID": "Sign asset ID",
@@ -1053,8 +1050,6 @@
     "Travel %s (m)": "Travel %s (m)",
     "Pad impulse %s (m/s)": "Pad impulse %s (m/s)",
     "Rotation (degrees)": "Rotation (degrees)",
-    "About 90 seconds": "About 90 seconds",
-    "About %d minutes": "About %d minutes",
     "global": "global",
     "roam": "roam",
     "Hour ": "Hour ",
@@ -2184,7 +2179,6 @@
     "Course needs more than 64 shared checkpoints": "Course needs more than 64 shared checkpoints",
     "Course needs at least two non-overlapping checkpoints": "Course needs at least two non-overlapping checkpoints",
     "Pieces %d/%d types · Gimmicks %d/%d types": "Pieces %d/%d types · Gimmicks %d/%d types",
-    " · Below 50% variety target": " · Below 50% variety target",
     "Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n": "Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n",
     "Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n": "Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n",
     "Buildings above other features (positive layer, not roof canopies) stand on the ground: %d sources (estimate).\n": "Buildings above other features (positive layer, not roof canopies) stand on the ground: %d sources (estimate).\n",
@@ -2430,6 +2424,13 @@
     "The map keeps its own ground surface; city ground is not repainted": "The map keeps its own ground surface; city ground is not repainted",
     "Invalid dropped city barrier sources.": "Invalid dropped city barrier sources.",
     "Invalid skipped city inputs.": "Invalid skipped city inputs.",
-    "Skipped city inputs": "Skipped city inputs"
+    "Skipped city inputs": "Skipped city inputs",
+    "Short": "Short",
+    "Medium": "Medium",
+    "Long": "Long",
+    " · up to %d laps": " · up to %d laps",
+    " · %d pieces": " · %d pieces",
+    "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. Length sets the lap count, sprint size and circuit scale; it is not a time target.": "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. Length sets the lap count, sprint size and circuit scale; it is not a time target.",
+    "Generated · %.1f m · estimated %.1f s · %d pieces": "Generated · %.1f m · estimated %.1f s · %d pieces"
   }
 }

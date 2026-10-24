@@ -54,10 +54,7 @@
     "Driving": "주행",
     "Gimmick": "기믹",
     "Action": "액션",
-    "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. The base route targets ±10% of the requested time at the reference speed; shortcut times are separate.": "시드에 따라 활성 카테고리의 종류·폭·방향을 선택합니다. 모든 종류가 반드시 포함되지는 않습니다. 기본 경로는 기준 속도에서 요청 시간의 ±10%를 목표로 하며 지름길 시간은 별도입니다.",
     "Seed must be an integer from 0 to 9007199254740991.": "시드는 0에서 9007199254740991 사이의 정수여야 합니다.",
-    " / per lap · up to %d laps": " / 한 랩당 · 최대 %d랩",
-    "Generated · %.1f m · base route %.1f s / target %d s · reference-speed estimate": "생성 완료 · %.1f m · 기본 경로 %.1f초 / 목표 %d초 · 기준 속도 추정",
     "Signs": "간판",
     "Map writing stays independent of UI language. Create a sign from a licensed font, or import a prepared PNG. Place it as a separate asset in Drawing; the building stays unchanged. Select an existing sign asset to restore text and provenance; reselect its licensed font to edit. Imported images retain their original layout.": "맵의 문자는 UI 언어와 독립적입니다. 사용 허가된 글꼴로 간판을 만들거나 준비된 PNG를 가져오세요. 그리기에서 별도 자산으로 배치하며 건물은 바뀌지 않습니다. 기존 간판 자산을 선택하면 문자와 출처를 복원합니다. 편집하려면 사용 허가된 글꼴을 다시 선택하세요. 가져온 이미지는 원래 배치를 유지합니다.",
     "Sign asset ID": "간판 자산 ID",
@@ -1053,8 +1050,6 @@
     "Travel %s (m)": "이동 %s(m)",
     "Pad impulse %s (m/s)": "패드 충격량 %s(m/s)",
     "Rotation (degrees)": "회전(도)",
-    "About 90 seconds": "약 90초",
-    "About %d minutes": "약 %d분",
     "global": "공통",
     "roam": "자유 주행",
     "Hour ": "시각 ",
@@ -2184,7 +2179,6 @@
     "Course needs more than 64 shared checkpoints": "이 코스에는 공유 체크포인트가 64개 넘게 필요합니다.",
     "Course needs at least two non-overlapping checkpoints": "코스에는 겹치지 않는 체크포인트가 최소 2개 필요합니다.",
     "Pieces %d/%d types · Gimmicks %d/%d types": "조각 %d/%d종 · 기믹 %d/%d종",
-    " · Below 50% variety target": " · 다양성 목표 50% 미달",
     "Paths, footways, cycleways and steps painted as drivable ground, not roads: %d ways.\n": "보행로·자전거길·계단은 도로 대신 주행 가능한 바닥 표시로 칠함: %d개 경로.\n",
     "Bridges, tunnels and layered ways without source heights that cross no other road, or only painted paths when no height can be estimated, are drawn at ground level: %d ways (estimate).\n": "원본 높이가 없는 교량·터널·층(layer) 도로 중 다른 도로와 교차하지 않는 것과, 높이를 추정할 수 없고 칠한 보행로하고만 교차하는 것은 지면 높이로 그림: %d개 경로(추정).\n",
     "Buildings above other features (positive layer, not roof canopies) stand on the ground: %d sources (estimate).\n": "다른 시설 위에 있는 건물(양수 layer, 지붕 캐노피 제외)은 지면에 세움: %d개 원본(추정).\n",
@@ -2430,6 +2424,13 @@
     "The map keeps its own ground surface; city ground is not repainted": "맵의 기존 바닥 재질을 유지하며 도시 바닥을 다시 칠하지 않습니다",
     "Invalid dropped city barrier sources.": "제외한 도시 장벽 원본이 올바르지 않습니다.",
     "Invalid skipped city inputs.": "건너뛴 도시 입력이 올바르지 않습니다.",
-    "Skipped city inputs": "건너뛴 도시 입력"
+    "Skipped city inputs": "건너뛴 도시 입력",
+    "Short": "짧게",
+    "Medium": "중간",
+    "Long": "길게",
+    " · up to %d laps": " · 최대 %d랩",
+    " · %d pieces": " · %d조각",
+    "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. Length sets the lap count, sprint size and circuit scale; it is not a time target.": "시드에 따라 활성 카테고리의 종류·폭·방향을 선택합니다. 모든 종류가 반드시 포함되지는 않습니다. 길이는 랩 수, 스프린트 조각 수, 순환 코스 규모를 정하며 시간 목표가 아닙니다.",
+    "Generated · %.1f m · estimated %.1f s · %d pieces": "생성 완료 · %.1f m · 예상 %.1f초 · %d조각"
   }
 }

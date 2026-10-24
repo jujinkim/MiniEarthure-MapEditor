@@ -17,7 +17,7 @@ NAMES = ["Drive, brake and reverse", "Right turn", "Left turn",
 
 def source():
     d = dict(original_seed=None, grounded_supports=False,
-             settings=dict(seed=101, circuit=False, duration_seconds=120, difficulty="easy",
+             settings=dict(seed=101, circuit=False, length="long", difficulty="easy",
                            categories=["driving"], time_minutes=720),
              instances=[], connections=[], paths=[], checkpoints=[], actions=[], attachments=[],
              grind_lines=[], structures=[])

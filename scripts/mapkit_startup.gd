@@ -21,6 +21,6 @@ static func ensure_loaded() -> String:
 	if not result is Dictionary or result.get("ok") != true or not result.get("data") is Dictionary:
 		return "MapKit did not return a valid track catalogue."
 	var catalogue: Dictionary = result.data
-	if not catalogue.get("entries") is Array or not catalogue.get("obstacle_kinds") is Array or not catalogue.get("selection_ids") is Array or not catalogue.get("defaults") is Dictionary or not catalogue.get("duration_options") is Dictionary:
+	if not catalogue.get("entries") is Array or not catalogue.get("obstacle_kinds") is Array or not catalogue.get("selection_ids") is Array or not catalogue.get("defaults") is Dictionary or not catalogue.get("length_options") is Dictionary:
 		return "The MapKit track catalogue does not match this editor."
 	return ""

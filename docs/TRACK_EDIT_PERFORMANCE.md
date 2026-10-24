@@ -14,7 +14,8 @@ guarantees.
 
 ## Current latency issue
 
-The fixed seed-derived 49-piece completion p95 misses its target:
+The fixed seed-derived 49-piece completion p95 missed its target on the previous
+fixture (not yet re-measured on the Medium fixture below):
 
 | Metric | Last measured | Target/status |
 | --- | ---: | --- |
@@ -25,12 +26,12 @@ The fixed seed-derived 49-piece completion p95 misses its target:
 
 ## Benchmark
 
-The [fixed source](../tests/fixtures/track_bench_seed42_90s.json) and its
-[provenance](../tests/fixtures/track_bench_seed42_90s.provenance.json) contain 48
-pieces; the benchmark derives the 49-piece case.
+The [fixed source](../tests/fixtures/track_bench_seed42_medium.json) and its
+[provenance](../tests/fixtures/track_bench_seed42_medium.provenance.json) contain 84
+pieces (catalogue defaults, seed 42, Medium); the benchmark crops the 49-piece case.
 
 ```sh
-rtk proxy env TRACK_BENCH_SOURCE=/absolute/map-editor/tests/fixtures/track_bench_seed42_90s.json TRACK_BENCH_ONLY_49=1 TRACK_BENCH_EDITOR_REVISION=EDITOR_SHA TRACK_BENCH_MAPKIT_REVISION=MAPKIT_SHA .venv/bin/python scripts/run_godot_checks.py --project editor --script track_edit_benchmark --import-cache /tmp/track-edit-fixed-cache --log-dir /tmp/track-edit-fixed-results --strict-diagnostics
+rtk proxy env TRACK_BENCH_SOURCE=/absolute/map-editor/tests/fixtures/track_bench_seed42_medium.json TRACK_BENCH_ONLY_49=1 TRACK_BENCH_EDITOR_REVISION=EDITOR_SHA TRACK_BENCH_MAPKIT_REVISION=MAPKIT_SHA .venv/bin/python scripts/run_godot_checks.py --project editor --script track_edit_benchmark --import-cache /tmp/track-edit-fixed-cache --log-dir /tmp/track-edit-fixed-results --strict-diagnostics
 ```
 
 `TRACK_BENCH_PROBE=1` runs one diagnostic cycle; `TRACK_BENCH_SAVE_SOURCE` writes

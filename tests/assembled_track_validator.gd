@@ -67,16 +67,23 @@ func run() -> void:
 	check(panel.generate.disabled,"empty categories disable generation")
 	panel.restore(settings)
 	check(not panel.generate.disabled,"enabled category permits generation")
-	panel._refresh_duration(90)
-	check(panel.duration.get_item_text(panel.duration.selected).contains("90 seconds"),"exact 90 second label")
-	panel._refresh_duration(60)
+	panel._refresh_length("medium")
+	check(panel.selected_length()=="medium" and panel.length.get_item_text(panel.length.selected).begins_with("Medium") and not panel.length.get_item_text(panel.length.selected).contains(" s"),"length choice shows a label, not seconds")
+	check(panel.length.item_count==3,"three length tiers")
+	panel._refresh_length("short")
 	check(not panel.selections.has("slope_up") and not panel.selections.has("curve_left_down"),"ordinary grades are not gimmick choices")
 	panel.show_result(reopened.document.assembled_track)
-	check(panel.note.text.contains("base route") and panel.note.text.contains("target") and panel.note.text.contains("reference-speed"),"duration basis and target displayed")
+	check(panel.note.text.contains("estimated") and panel.note.text.contains("pieces") and not panel.note.text.contains("target"),"length, estimate and piece count displayed without a time target")
 	panel.free()
 	var seed_geometry: Dictionary=reopened.document.assembled_track.duplicate(true)
 	var source: Dictionary=reopened.track_source()
-	source.instances[3].position_cm[0]+=137
+	# Move a piece whose neighbours carry no obstacle or action, so the edit only
+	# converts the seed to authoring source instead of breaking a bypass.
+	var anchored := {}
+	for item: Dictionary in source.attachments + source.actions: anchored[item.piece]=true
+	var moved := 3
+	while moved+1 < source.instances.size() and (anchored.has(source.instances[moved-1].id) or anchored.has(source.instances[moved].id) or anchored.has(source.instances[moved+1].id)): moved+=1
+	source.instances[moved].position_cm[0]+=137
 	check(reopened.edit_track(source)=="","seed to manual edit")
 	check(reopened.document.assembled_track.authoring.original_seed==seed_geometry.settings,"original seed preserved")
 	check(reopened.document.assembled_track.authoring.grounded_supports,"manual conversion retains grounding policy")

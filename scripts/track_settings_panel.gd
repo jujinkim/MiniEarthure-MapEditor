@@ -4,10 +4,10 @@ signal requested(settings: Dictionary)
 signal cancelled
 var seed_input: LineEdit
 var circuit: CheckButton
-var duration: OptionButton
+var length: OptionButton
 var selections := {}
 var _defaults := {}
-var _duration_options := {}
+var _length_options := {}
 var note: Label
 var catalogue_ready := false
 var generate: Button
@@ -30,7 +30,7 @@ func _ready() -> void:
 		return
 	catalogue_ready = true
 	_defaults = catalogue.defaults
-	_duration_options = catalogue.duration_options
+	_length_options = catalogue.length_options
 	var toggle := Button.new()
 	toggle.text = I18N.t("Seed Track generation")
 	add_child(toggle)
@@ -50,10 +50,10 @@ func _ready() -> void:
 	circuit.text = I18N.t("Circuit")
 	circuit.button_pressed = _defaults.circuit
 	form.add_child(circuit)
-	duration = OptionButton.new()
-	_refresh_duration(int(_defaults.duration_seconds))
-	circuit.toggled.connect(func(_value: bool): _refresh_duration(duration.get_selected_id()))
-	form.add_child(duration)
+	length = OptionButton.new()
+	_refresh_length(str(_defaults.length))
+	circuit.toggled.connect(func(_value: bool): _refresh_length(selected_length()))
+	form.add_child(length)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	form.add_child(grid)
@@ -66,7 +66,7 @@ func _ready() -> void:
 		selections[id] = check
 		check.toggled.connect(func(_value: bool): _update_enabled())
 	note = Label.new()
-	note.text = I18N.t("The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. The base route targets ±10% of the requested time at the reference speed; shortcut times are separate.")
+	note.text = I18N.t("The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. Length sets the lap count, sprint size and circuit scale; it is not a time target.")
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	form.add_child(note)
 	progress=RING.new();form.add_child(progress);progress.hide()
@@ -91,7 +91,7 @@ func settings() -> Dictionary:
 	var enabled: Array = []
 	for id: String in selections:
 		if selections[id].button_pressed: enabled.append(id)
-	return {"seed":int(seed_input.text),"circuit":circuit.button_pressed,"duration_seconds":duration.get_selected_id(),
+	return {"seed":int(seed_input.text),"circuit":circuit.button_pressed,"length":selected_length(),
 		"difficulty":_defaults.difficulty,"time_minutes":seed_defaults().get("time_minutes",_defaults.time_minutes),"categories":enabled}
 
 func seed_defaults() -> Dictionary:
@@ -103,34 +103,38 @@ func restore(value: Dictionary) -> void:
 	if not catalogue_ready: return
 	seed_input.text = str(int(value.seed))
 	circuit.button_pressed = value.circuit
-	_refresh_duration(int(value.duration_seconds))
+	_refresh_length(str(value.length))
 	for id: String in selections: selections[id].button_pressed = id in value.categories
 	_update_enabled()
 
-func _refresh_duration(seconds: int) -> void:
-	duration.clear()
-	var choices: Array = _duration_options["circuit" if circuit.button_pressed else "sprint"]
+const LENGTH_LABELS := {"short":"Short", "medium":"Medium", "long":"Long"}
+
+func selected_length() -> String:
+	return str(length.get_item_metadata(length.selected)) if length.selected >= 0 else str(_defaults.length)
+
+func _refresh_length(id: String) -> void:
+	length.clear()
+	var choices: Array = _length_options["circuit" if circuit.button_pressed else "sprint"]
 	for item: Dictionary in choices:
-		var label := I18N.t("About 90 seconds") if int(item.seconds) == 90 else I18N.t("About %d minutes") % (int(item.seconds)/60)
-		if circuit.button_pressed: label += I18N.t(" / per lap · up to %d laps") % int(item.max_laps)
-		duration.add_item(label,int(item.seconds))
-	for i in duration.item_count:
-		if duration.get_item_id(i)==seconds: duration.select(i); return
-	duration.select(0)
+		var label := I18N.t(LENGTH_LABELS.get(str(item.length), str(item.length)))
+		if circuit.button_pressed: label += I18N.t(" · up to %d laps") % int(item.max_laps)
+		else: label += I18N.t(" · %d pieces") % int(item.pieces)
+		length.add_item(label)
+		length.set_item_metadata(length.item_count - 1, str(item.length))
+	for i in length.item_count:
+		if str(length.get_item_metadata(i)) == id: length.select(i); return
+	length.select(0)
 
 func show_result(assembly: Dictionary, summary: Dictionary = {}) -> void:
-	var seconds := float(assembly.estimated_msec) / 1000.0
-	note.text = I18N.t("Generated · %.1f m · base route %.1f s / target %d s · reference-speed estimate") % [float(assembly.length_cm)/100.0, seconds, int(assembly.settings.duration_seconds)]
-	for route: Dictionary in assembly.get("routes",[]).slice(1):
-		note.text += I18N.t(" · shortcut %.1f s") % (float(route.estimated_msec)/1000.0)
-
-
+	var routes: Array = assembly.get("routes", [])
+	var count: int = 0 if routes.is_empty() else (routes[0].get("pieces", []) as Array).size()
+	note.text = I18N.t("Generated · %.1f m · estimated %.1f s · %d pieces") % [float(assembly.length_cm)/100.0, float(assembly.estimated_msec)/1000.0, count]
+	for shortcut: Dictionary in routes.slice(1):
+		note.text += I18N.t(" · shortcut %.1f s") % (float(shortcut.estimated_msec)/1000.0)
 	if not summary.is_empty():
 		var pieces: Dictionary = summary.pieces
 		var gimmicks: Dictionary = summary.gimmicks
 		note.text += "\n" + I18N.t("Pieces %d/%d types · Gimmicks %d/%d types") % [int(pieces.used), int(pieces.total), int(gimmicks.used), int(gimmicks.total)]
-		if int(pieces.used) < int(pieces.target) or int(gimmicks.used) < int(gimmicks.target):
-			note.text += I18N.t(" · Below 50% variety target")
 
 func _update_enabled() -> void:
 	if not is_instance_valid(generate): return

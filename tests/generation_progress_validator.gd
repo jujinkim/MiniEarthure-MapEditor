@@ -14,7 +14,7 @@ func run()->void:
 	var states:Array=[];var results:Array=[]
 	job.progressed.connect(func(request:int,value:Dictionary):states.append([request,value]);panel.update_progress(value))
 	job.completed.connect(func(request:int,value:Dictionary):results.append([request,value]))
-	var settings:Dictionary=panel.settings();settings.circuit=false;settings.duration_seconds=60;settings.seed=42;settings.categories=["driving"]
+	var settings:Dictionary=panel.settings();settings.circuit=false;settings.length="short";settings.seed=42;settings.categories=["driving"]
 	var request:int=job.begin(settings,ProjectSettings.globalize_path("user://preview-progress.memap"),true)
 	var deadline:=Time.get_ticks_msec()+90000
 	while results.is_empty() and Time.get_ticks_msec()<deadline:await process_frame

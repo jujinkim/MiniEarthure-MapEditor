@@ -54,7 +54,7 @@ func run()->void:
 	screen.track_epoch=screen.store.command_epoch;screen.track_request=42
 	screen.track_job.completed.emit(42,result)
 	check(screen.environment_preview.weather==defaults.weather and screen.environment_preview.seconds==float(defaults.time_minutes)*60,"adoption resets preview to shared seed defaults")
-	check("1/32" in screen.track_panel.note.text and "50%" in screen.track_panel.note.text,"adopted result displays response summary")
+	check("1/32" in screen.track_panel.note.text and not "50%" in screen.track_panel.note.text,"adopted result displays response summary without a variety target")
 	var document:Dictionary=screen.store.document.duplicate(true)
 	screen.preview_time.select(4);screen.preview_time.item_selected.emit(4)
 	screen.preview_weather.select(2);screen.preview_weather.item_selected.emit(2)
@@ -64,7 +64,7 @@ func run()->void:
 	screen.track_epoch=screen.store.command_epoch;screen.track_request=43
 	screen.track_job.completed.emit(42,result)
 	check(screen.environment_preview.weather=="rain","late result preserves preview")
-	screen.track_job.completed.emit(43,{"ok":false,"error":{"code":"E_TRACK_DURATION","message":"controlled failure"}})
+	screen.track_job.completed.emit(43,{"ok":false,"error":{"code":"E_TRACK_LAYOUT","message":"controlled failure"}})
 	check(screen.environment_preview.weather=="rain" and screen.store.document==document,"failed result preserves map and preview")
 	screen.track_epoch=screen.store.command_epoch;screen.track_request=44
 	screen.track_job.completed.emit(44,result)

@@ -109,7 +109,7 @@ func run() -> void:
 	screen._open_track_generator()
 	var current: String=screen.store._signature(screen.store.document)
 	screen.track_epoch=screen.store.command_epoch
-	screen.track_job.completed.emit(1,{"ok":false,"error":{"code":"E_TRACK_DURATION","message":"Requested 60 s; closest 70 s; outside tolerance"}})
+	screen.track_job.completed.emit(1,{"ok":false,"error":{"code":"E_TRACK_LAYOUT","message":"No closed layout after 4 attempts"}})
 	check(screen.store._signature(screen.store.document)==current,"failed generation retains current map")
 	screen.track_epoch=screen.store.command_epoch-1
 	screen.track_job.completed.emit(2,{"ok":true,"data":{"document":store.document}})

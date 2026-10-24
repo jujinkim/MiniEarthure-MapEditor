@@ -62,19 +62,23 @@ a separate track.
 Seed Track creates a new unsaved document through MapKit's cancellable worker.
 Save/discard/Cancel protects the previous document; document and request epochs
 reject obsolete results. The dialog offers driving/gimmick/action toggles (all on by
-default; all off disables Generate), seed, circuit/sprint and a 60/90/120-second target. No category guarantees any member. The
-base route must meet MapKit's ±10% reference-time bound at 900 cm/s; actual time
-depends on vehicle and input. New panels pick a random seed; reopening restores the
-saved settings, source, placements and fingerprints.
+default; all off disables Generate), seed, circuit/sprint and a Short/Medium/Long
+length from the catalogue's `length_options` (짧게/중간/길게 in Korean). Length fixes
+the circuit lap limit, sprint piece count and circuit scale;
+the choice shows laps or pieces. No category guarantees any member.
+New panels pick a random seed; reopening restores the saved settings, source,
+placements and fingerprints. A layout that cannot close or fit reports
+`E_TRACK_LAYOUT`; invalid pipe control points report `E_PIPE_DIMENSIONS`.
 
-Successful generation displays MapKit's response-only piece/gimmick used/total
-counts and a notice when either 50% goal is unmet. Time and safety take priority;
-missing types remain in the denominator. Saved source and packages remain v1 and
-are not rewritten to add a summary. Taxonomy, candidate ranking and narrow-road
+Successful generation displays length, reference-speed estimate, base-route piece
+count, shortcut estimates and MapKit's response-only piece/gimmick used/total type
+counts. Missing types remain in the denominator. Saved
+source and packages remain v1 and are not rewritten to add a summary. Taxonomy, candidate ranking and narrow-road
 limits belong to [MapKit](https://github.com/jujinkim/MiniEarthure-MapKit/blob/main/docs/TRACK_DIVERSITY.md).
 
-Progress shows a translated stage and the shared circular percentage; search and
-preparation stay indeterminate. Generate is disabled while busy. Cancel, dialog
+Progress shows a translated stage (MapKit reports searching, closing, finishing and
+validating) and the shared circular percentage; search and preparation stay
+indeterminate. Generate is disabled while busy. Cancel, dialog
 close, document change or a newer request discard late results and keep the last
 valid document and preview environment. Successful adoption initializes preview
 time/weather from the shared MapKit seed query. Preview controls change them

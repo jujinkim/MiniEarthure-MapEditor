@@ -1,0 +1,2524 @@
+{
+	"actions": [
+		{
+			"height_cm": 125.0,
+			"id": "drop-52",
+			"kind": "jump_panel",
+			"landing": {
+				"piece": "piece-54",
+				"sample": 0.0
+			},
+			"panel_alignment": "center",
+			"panel_width_percent": 100.0,
+			"piece": "piece-52",
+			"sample": 3.0
+		}
+	],
+	"attachments": [
+		{
+			"kind": "jump_barrier",
+			"path": "main",
+			"piece": "piece-6",
+			"side": 1.0,
+			"station_cm": 650.0
+		},
+		{
+			"kind": "moving_obstacle",
+			"path": "main",
+			"piece": "piece-8",
+			"side": 1.0,
+			"station_cm": 450.0
+		},
+		{
+			"kind": "fixed_obstacle",
+			"path": "main",
+			"piece": "piece-21",
+			"side": -1.0,
+			"station_cm": 250.0
+		},
+		{
+			"kind": "slalom_gates",
+			"path": "main",
+			"piece": "piece-31",
+			"side": 1.0,
+			"station_cm": 550.0
+		},
+		{
+			"kind": "swing_gates",
+			"path": "main",
+			"piece": "piece-34",
+			"side": -1.0,
+			"station_cm": 450.0
+		},
+		{
+			"kind": "quarterpipe_left",
+			"path": "main",
+			"piece": "piece-51",
+			"side": -1.0,
+			"station_cm": 3250.0
+		},
+		{
+			"kind": "piston_gates",
+			"path": "main",
+			"piece": "piece-62",
+			"side": 1.0,
+			"station_cm": 350.0
+		},
+		{
+			"kind": "rotating_obstacle",
+			"path": "main",
+			"piece": "piece-64",
+			"side": -1.0,
+			"station_cm": 450.0
+		},
+		{
+			"kind": "moving_obstacle",
+			"path": "main",
+			"piece": "piece-69",
+			"side": -1.0,
+			"station_cm": 4450.0
+		}
+	],
+	"checkpoints": [
+		{
+			"piece": "piece-2",
+			"sample": 22.0
+		},
+		{
+			"piece": "piece-3",
+			"sample": 22.0
+		},
+		{
+			"piece": "piece-5",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-5",
+			"sample": 12.0
+		},
+		{
+			"piece": "piece-6",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-8",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-10",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-10",
+			"sample": 8.0
+		},
+		{
+			"piece": "piece-11",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-12",
+			"sample": 16.0
+		},
+		{
+			"piece": "piece-14",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-14",
+			"sample": 16.0
+		},
+		{
+			"piece": "piece-16",
+			"sample": 16.0
+		},
+		{
+			"piece": "piece-18",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-18",
+			"sample": 167.0
+		},
+		{
+			"piece": "piece-20",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-20",
+			"sample": 8.0
+		},
+		{
+			"piece": "piece-21",
+			"sample": 8.0
+		},
+		{
+			"piece": "piece-23",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-24",
+			"sample": 46.0
+		},
+		{
+			"piece": "piece-25",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-26",
+			"sample": 9.0
+		},
+		{
+			"piece": "piece-28",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-29",
+			"sample": 29.0
+		},
+		{
+			"piece": "piece-30",
+			"sample": 17.0
+		},
+		{
+			"piece": "piece-31",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-32",
+			"sample": 16.0
+		},
+		{
+			"piece": "piece-33",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-34",
+			"sample": 16.0
+		},
+		{
+			"piece": "piece-36",
+			"sample": 16.0
+		},
+		{
+			"piece": "piece-37",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-38",
+			"sample": 16.0
+		},
+		{
+			"piece": "piece-39",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-40",
+			"sample": 16.0
+		},
+		{
+			"piece": "piece-41",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-43",
+			"sample": 14.0
+		},
+		{
+			"piece": "piece-44",
+			"sample": 149.0
+		},
+		{
+			"piece": "piece-45",
+			"sample": 14.0
+		},
+		{
+			"piece": "piece-46",
+			"sample": 22.0
+		},
+		{
+			"piece": "piece-51",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-51",
+			"sample": 34.0
+		},
+		{
+			"piece": "piece-53",
+			"sample": 10.0
+		},
+		{
+			"piece": "piece-54",
+			"sample": 12.0
+		},
+		{
+			"piece": "piece-55",
+			"sample": 17.0
+		},
+		{
+			"piece": "piece-56",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-58",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-60",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-60",
+			"sample": 8.0
+		},
+		{
+			"piece": "piece-61",
+			"sample": 8.0
+		},
+		{
+			"piece": "piece-62",
+			"sample": 22.0
+		},
+		{
+			"piece": "piece-63",
+			"sample": 8.0
+		},
+		{
+			"piece": "piece-64",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-69",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-69",
+			"sample": 36.0
+		},
+		{
+			"piece": "piece-71",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-71",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-72",
+			"sample": 22.0
+		},
+		{
+			"piece": "piece-74",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-75",
+			"sample": 14.0
+		},
+		{
+			"piece": "piece-77",
+			"sample": 0.0
+		},
+		{
+			"piece": "piece-77",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-78",
+			"sample": 118.0
+		},
+		{
+			"piece": "piece-79",
+			"sample": 11.0
+		},
+		{
+			"piece": "piece-83",
+			"sample": 29.0
+		}
+	],
+	"connections": [
+		{
+			"from": "piece-0",
+			"to": "piece-1"
+		},
+		{
+			"from": "piece-1",
+			"to": "piece-2"
+		},
+		{
+			"from": "piece-2",
+			"to": "piece-3"
+		},
+		{
+			"from": "piece-3",
+			"to": "piece-4"
+		},
+		{
+			"from": "piece-4",
+			"to": "piece-5"
+		},
+		{
+			"from": "piece-5",
+			"to": "piece-6"
+		},
+		{
+			"from": "piece-6",
+			"to": "piece-7"
+		},
+		{
+			"from": "piece-7",
+			"to": "piece-8"
+		},
+		{
+			"from": "piece-8",
+			"to": "piece-9"
+		},
+		{
+			"from": "piece-9",
+			"to": "piece-10"
+		},
+		{
+			"from": "piece-10",
+			"to": "piece-11"
+		},
+		{
+			"from": "piece-11",
+			"to": "piece-12"
+		},
+		{
+			"from": "piece-12",
+			"to": "piece-13"
+		},
+		{
+			"from": "piece-13",
+			"to": "piece-14"
+		},
+		{
+			"from": "piece-14",
+			"to": "piece-15"
+		},
+		{
+			"from": "piece-15",
+			"to": "piece-16"
+		},
+		{
+			"from": "piece-16",
+			"to": "piece-17"
+		},
+		{
+			"from": "piece-17",
+			"to": "piece-18"
+		},
+		{
+			"from": "piece-18",
+			"to": "piece-19"
+		},
+		{
+			"from": "piece-19",
+			"to": "piece-20"
+		},
+		{
+			"from": "piece-20",
+			"to": "piece-21"
+		},
+		{
+			"from": "piece-21",
+			"to": "piece-22"
+		},
+		{
+			"from": "piece-22",
+			"to": "piece-23"
+		},
+		{
+			"from": "piece-23",
+			"to": "piece-24"
+		},
+		{
+			"from": "piece-24",
+			"to": "piece-25"
+		},
+		{
+			"from": "piece-25",
+			"to": "piece-26"
+		},
+		{
+			"from": "piece-26",
+			"to": "piece-27"
+		},
+		{
+			"from": "piece-27",
+			"to": "piece-28"
+		},
+		{
+			"from": "piece-28",
+			"to": "piece-29"
+		},
+		{
+			"from": "piece-29",
+			"to": "piece-30"
+		},
+		{
+			"from": "piece-30",
+			"to": "piece-31"
+		},
+		{
+			"from": "piece-31",
+			"to": "piece-32"
+		},
+		{
+			"from": "piece-32",
+			"to": "piece-33"
+		},
+		{
+			"from": "piece-33",
+			"to": "piece-34"
+		},
+		{
+			"from": "piece-34",
+			"to": "piece-35"
+		},
+		{
+			"from": "piece-35",
+			"to": "piece-36"
+		},
+		{
+			"from": "piece-36",
+			"to": "piece-37"
+		},
+		{
+			"from": "piece-37",
+			"to": "piece-38"
+		},
+		{
+			"from": "piece-38",
+			"to": "piece-39"
+		},
+		{
+			"from": "piece-39",
+			"to": "piece-40"
+		},
+		{
+			"from": "piece-40",
+			"to": "piece-41"
+		},
+		{
+			"from": "piece-41",
+			"to": "piece-42"
+		},
+		{
+			"from": "piece-42",
+			"to": "piece-43"
+		},
+		{
+			"from": "piece-43",
+			"to": "piece-44"
+		},
+		{
+			"from": "piece-44",
+			"to": "piece-45"
+		},
+		{
+			"from": "piece-45",
+			"to": "piece-46"
+		},
+		{
+			"from": "piece-46",
+			"to": "piece-47"
+		},
+		{
+			"from": "piece-47",
+			"to": "piece-48"
+		},
+		{
+			"from": "piece-48",
+			"to": "piece-49"
+		},
+		{
+			"from": "piece-49",
+			"to": "piece-50"
+		},
+		{
+			"from": "piece-50",
+			"to": "piece-51"
+		},
+		{
+			"from": "piece-51",
+			"to": "piece-52"
+		},
+		{
+			"from": "piece-52",
+			"to": "piece-53"
+		},
+		{
+			"from": "piece-53",
+			"to": "piece-54"
+		},
+		{
+			"from": "piece-54",
+			"to": "piece-55"
+		},
+		{
+			"from": "piece-55",
+			"to": "piece-56"
+		},
+		{
+			"from": "piece-56",
+			"to": "piece-57"
+		},
+		{
+			"from": "piece-57",
+			"to": "piece-58"
+		},
+		{
+			"from": "piece-58",
+			"to": "piece-59"
+		},
+		{
+			"from": "piece-59",
+			"to": "piece-60"
+		},
+		{
+			"from": "piece-60",
+			"to": "piece-61"
+		},
+		{
+			"from": "piece-61",
+			"to": "piece-62"
+		},
+		{
+			"from": "piece-62",
+			"to": "piece-63"
+		},
+		{
+			"from": "piece-63",
+			"to": "piece-64"
+		},
+		{
+			"from": "piece-64",
+			"to": "piece-65"
+		},
+		{
+			"from": "piece-65",
+			"to": "piece-66"
+		},
+		{
+			"from": "piece-66",
+			"to": "piece-67"
+		},
+		{
+			"from": "piece-67",
+			"to": "piece-68"
+		},
+		{
+			"from": "piece-68",
+			"to": "piece-69"
+		},
+		{
+			"from": "piece-69",
+			"to": "piece-70"
+		},
+		{
+			"from": "piece-70",
+			"to": "piece-71"
+		},
+		{
+			"from": "piece-71",
+			"to": "piece-72"
+		},
+		{
+			"from": "piece-72",
+			"to": "piece-73"
+		},
+		{
+			"from": "piece-73",
+			"to": "piece-74"
+		},
+		{
+			"from": "piece-74",
+			"to": "piece-75"
+		},
+		{
+			"from": "piece-75",
+			"to": "piece-76"
+		},
+		{
+			"from": "piece-76",
+			"to": "piece-77"
+		},
+		{
+			"from": "piece-77",
+			"to": "piece-78"
+		},
+		{
+			"from": "piece-78",
+			"to": "piece-79"
+		},
+		{
+			"from": "piece-79",
+			"to": "piece-80"
+		},
+		{
+			"from": "piece-80",
+			"to": "piece-81"
+		},
+		{
+			"from": "piece-81",
+			"to": "piece-82"
+		},
+		{
+			"from": "piece-82",
+			"to": "piece-83"
+		},
+		{
+			"from": "piece-83",
+			"to": "piece-0"
+		}
+	],
+	"grounded_supports": true,
+	"instances": [
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-0",
+			"position_cm": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-1",
+			"position_cm": [
+				0.0,
+				0.0,
+				800.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-2",
+			"position_cm": [
+				0.0,
+				0.0,
+				1600.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-3",
+			"position_cm": [
+				0.0,
+				0.0,
+				2400.0
+			],
+			"preset": "spiral180_right_down",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-4",
+			"position_cm": [
+				2200.0,
+				-400.0,
+				2400.0
+			],
+			"preset": "slope",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 1200.0,
+			"id": "piece-5",
+			"position_cm": [
+				2200.0,
+				-400.0,
+				1600.0
+			],
+			"preset": "right90_extra_wide_left",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 1200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 1200.0,
+			"exit_width_cm": 1200.0,
+			"id": "piece-6",
+			"position_cm": [
+				3000.0,
+				-400.0,
+				800.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 1200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 1200.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-7",
+			"position_cm": [
+				4600.0,
+				-400.0,
+				800.0
+			],
+			"preset": "curve_left",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-8",
+			"position_cm": [
+				9400.0,
+				-400.0,
+				5600.0
+			],
+			"preset": "sharp_curve_left",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-9",
+			"position_cm": [
+				8800.0,
+				-400.0,
+				6200.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-10",
+			"position_cm": [
+				8000.0,
+				-400.0,
+				6200.0
+			],
+			"preset": "sharp_curve_left",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-11",
+			"position_cm": [
+				7500.0,
+				-400.0,
+				5700.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-12",
+			"position_cm": [
+				7500.0,
+				-400.0,
+				4100.0
+			],
+			"preset": "hairpin",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-13",
+			"position_cm": [
+				6500.0,
+				-400.0,
+				4100.0
+			],
+			"preset": "slope_down",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-14",
+			"position_cm": [
+				6500.0,
+				-500.0,
+				4900.0
+			],
+			"preset": "hairpin_left",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-15",
+			"position_cm": [
+				5700.0,
+				-500.0,
+				4900.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-16",
+			"position_cm": [
+				5700.0,
+				-500.0,
+				4100.0
+			],
+			"preset": "hairpin",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-17",
+			"position_cm": [
+				4900.0,
+				-500.0,
+				4100.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-18",
+			"position_cm": [
+				4900.0,
+				-500.0,
+				4900.0
+			],
+			"preset": "loop",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-19",
+			"position_cm": [
+				4900.0,
+				-500.0,
+				8100.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-20",
+			"position_cm": [
+				4900.0,
+				-500.0,
+				8900.0
+			],
+			"preset": "sharp_curve_left",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-21",
+			"position_cm": [
+				4400.0,
+				-500.0,
+				9400.0
+			],
+			"preset": "sharp_curve",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-22",
+			"position_cm": [
+				3900.0,
+				-500.0,
+				9900.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-23",
+			"position_cm": [
+				3900.0,
+				-500.0,
+				10700.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-24",
+			"position_cm": [
+				3900.0,
+				-500.0,
+				12300.0
+			],
+			"preset": "offset_jump",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-25",
+			"position_cm": [
+				3900.0,
+				-500.0,
+				15500.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-26",
+			"position_cm": [
+				3900.0,
+				-500.0,
+				17100.0
+			],
+			"preset": "sharp_curve_left",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-27",
+			"position_cm": [
+				3300.0,
+				-500.0,
+				17700.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-28",
+			"position_cm": [
+				2500.0,
+				-500.0,
+				17700.0
+			],
+			"preset": "sharp_curve",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 1200.0,
+			"id": "piece-29",
+			"position_cm": [
+				2000.0,
+				-500.0,
+				18200.0
+			],
+			"preset": "spiral180_left_up",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 1200.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 1200.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-30",
+			"position_cm": [
+				-600.0,
+				-100.0,
+				18200.0
+			],
+			"preset": "hairpin",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-31",
+			"position_cm": [
+				-2000.0,
+				-100.0,
+				18200.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-32",
+			"position_cm": [
+				-2000.0,
+				-100.0,
+				19800.0
+			],
+			"preset": "hairpin_left",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-33",
+			"position_cm": [
+				-3000.0,
+				-100.0,
+				19800.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-34",
+			"position_cm": [
+				-3000.0,
+				-100.0,
+				18200.0
+			],
+			"preset": "hairpin",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-35",
+			"position_cm": [
+				-4000.0,
+				-100.0,
+				18200.0
+			],
+			"preset": "chicane",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-36",
+			"position_cm": [
+				-4000.0,
+				-100.0,
+				24600.0
+			],
+			"preset": "hairpin_left",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-37",
+			"position_cm": [
+				-5000.0,
+				-100.0,
+				24600.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-38",
+			"position_cm": [
+				-5000.0,
+				-100.0,
+				23000.0
+			],
+			"preset": "hairpin",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-39",
+			"position_cm": [
+				-6000.0,
+				-100.0,
+				23000.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-40",
+			"position_cm": [
+				-6000.0,
+				-100.0,
+				24600.0
+			],
+			"preset": "hairpin_left",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-41",
+			"position_cm": [
+				-7000.0,
+				-100.0,
+				24600.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-42",
+			"position_cm": [
+				-7000.0,
+				-100.0,
+				23000.0
+			],
+			"preset": "hairpin",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-43",
+			"position_cm": [
+				-8000.0,
+				-100.0,
+				23000.0
+			],
+			"preset": "tube_entry",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [
+				[
+					0.0,
+					0.0,
+					0.0
+				],
+				[
+					0.0,
+					0.0,
+					267.0
+				],
+				[
+					0.0,
+					0.0,
+					533.0
+				],
+				[
+					0.0,
+					0.0,
+					800.0
+				],
+				[
+					0.0,
+					0.0,
+					1628.0
+				],
+				[
+					-672.0,
+					0.0,
+					2300.0
+				],
+				[
+					-1500.0,
+					0.0,
+					2300.0
+				],
+				[
+					-2328.0,
+					0.0,
+					2300.0
+				],
+				[
+					-3000.0,
+					0.0,
+					1628.0
+				],
+				[
+					-3000.0,
+					0.0,
+					800.0
+				],
+				[
+					-3000.0,
+					0.0,
+					433.0
+				],
+				[
+					-3000.0,
+					0.0,
+					67.0
+				],
+				[
+					-3000.0,
+					0.0,
+					-300.0
+				]
+			],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-44",
+			"position_cm": [
+				-8000.0,
+				-100.0,
+				25400.0
+			],
+			"preset": "cylinder",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-45",
+			"position_cm": [
+				-11000.0,
+				-233.0,
+				25100.0
+			],
+			"preset": "tube_exit",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-46",
+			"position_cm": [
+				-11000.0,
+				-100.0,
+				22700.0
+			],
+			"preset": "boost_chain",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-47",
+			"position_cm": [
+				-11000.0,
+				-100.0,
+				21100.0
+			],
+			"preset": "spiral360_right_up",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-48",
+			"position_cm": [
+				-11000.0,
+				700.0,
+				21100.0
+			],
+			"preset": "slope_down",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-49",
+			"position_cm": [
+				-11000.0,
+				600.0,
+				20300.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-50",
+			"position_cm": [
+				-11000.0,
+				600.0,
+				19500.0
+			],
+			"preset": "slope_up",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-51",
+			"position_cm": [
+				-11000.0,
+				700.0,
+				18700.0
+			],
+			"preset": "chicane",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [
+				[
+					0.0,
+					0.0,
+					0.0
+				],
+				[
+					0.0,
+					0.0,
+					533.0
+				],
+				[
+					0.0,
+					0.0,
+					1067.0
+				],
+				[
+					0.0,
+					0.0,
+					1600.0
+				]
+			],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-52",
+			"position_cm": [
+				-11000.0,
+				700.0,
+				12300.0
+			],
+			"preset": "free_curve",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [
+				[
+					0.0,
+					0.0,
+					0.0
+				],
+				[
+					0.0,
+					0.0,
+					666.0
+				],
+				[
+					0.0,
+					-83.0,
+					1333.0
+				],
+				[
+					0.0,
+					-250.0,
+					2000.0
+				]
+			],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-53",
+			"position_cm": [
+				-11000.0,
+				700.0,
+				10700.0
+			],
+			"preset": "flight_curve",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [
+				[
+					0.0,
+					0.0,
+					0.0
+				],
+				[
+					0.0,
+					-150.0,
+					600.0
+				],
+				[
+					0.0,
+					-150.0,
+					1000.0
+				],
+				[
+					0.0,
+					-150.0,
+					1600.0
+				]
+			],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-54",
+			"position_cm": [
+				-11000.0,
+				450.0,
+				8700.0
+			],
+			"preset": "free_curve",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-55",
+			"position_cm": [
+				-11000.0,
+				300.0,
+				7100.0
+			],
+			"preset": "spiral90_left_down",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-56",
+			"position_cm": [
+				-9900.0,
+				100.0,
+				6000.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-57",
+			"position_cm": [
+				-8300.0,
+				100.0,
+				6000.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-58",
+			"position_cm": [
+				-7500.0,
+				100.0,
+				6000.0
+			],
+			"preset": "right90",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-59",
+			"position_cm": [
+				-7000.0,
+				100.0,
+				5500.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-60",
+			"position_cm": [
+				-7000.0,
+				100.0,
+				4700.0
+			],
+			"preset": "right90_left",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-61",
+			"position_cm": [
+				-6500.0,
+				100.0,
+				4200.0
+			],
+			"preset": "right90",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-62",
+			"position_cm": [
+				-6000.0,
+				100.0,
+				3700.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-63",
+			"position_cm": [
+				-6000.0,
+				100.0,
+				2900.0
+			],
+			"preset": "right90_left",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-64",
+			"position_cm": [
+				-5500.0,
+				100.0,
+				2400.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-65",
+			"position_cm": [
+				-3900.0,
+				100.0,
+				2400.0
+			],
+			"preset": "sharp_curve",
+			"rotation_mdeg": [
+				0.0,
+				90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-66",
+			"position_cm": [
+				-3300.0,
+				100.0,
+				1800.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-67",
+			"position_cm": [
+				-3300.0,
+				100.0,
+				1000.0
+			],
+			"preset": "slope_down",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-68",
+			"position_cm": [
+				-3300.0,
+				0.0,
+				200.0
+			],
+			"preset": "slope_up",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-69",
+			"position_cm": [
+				-3300.0,
+				100.0,
+				-600.0
+			],
+			"preset": "spiral360_right_down",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-70",
+			"position_cm": [
+				-3300.0,
+				-700.0,
+				-600.0
+			],
+			"preset": "slope",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-71",
+			"position_cm": [
+				-3300.0,
+				-700.0,
+				-1400.0
+			],
+			"preset": "sprint_lane",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 800.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 800.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-72",
+			"position_cm": [
+				-3300.0,
+				-700.0,
+				-3000.0
+			],
+			"preset": "boost_chain",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-73",
+			"position_cm": [
+				-3300.0,
+				-700.0,
+				-4600.0
+			],
+			"preset": "slope_up",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-74",
+			"position_cm": [
+				-3300.0,
+				-600.0,
+				-5400.0
+			],
+			"preset": "boost_chain",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-75",
+			"position_cm": [
+				-3300.0,
+				-600.0,
+				-7000.0
+			],
+			"preset": "spiral90_right_up",
+			"rotation_mdeg": [
+				0.0,
+				180000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-76",
+			"position_cm": [
+				-4300.0,
+				-400.0,
+				-8000.0
+			],
+			"preset": "straight",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-77",
+			"position_cm": [
+				-5100.0,
+				-400.0,
+				-8000.0
+			],
+			"preset": "tube_entry",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [
+				[
+					0.0,
+					0.0,
+					0.0
+				],
+				[
+					0.0,
+					0.0,
+					233.0
+				],
+				[
+					0.0,
+					0.0,
+					467.0
+				],
+				[
+					0.0,
+					0.0,
+					700.0
+				],
+				[
+					0.0,
+					0.0,
+					1200.0
+				],
+				[
+					267.0,
+					0.0,
+					1662.0
+				],
+				[
+					700.0,
+					0.0,
+					1912.0
+				],
+				[
+					1133.0,
+					0.0,
+					2163.0
+				],
+				[
+					1667.0,
+					0.0,
+					2163.0
+				],
+				[
+					2100.0,
+					0.0,
+					1912.0
+				],
+				[
+					2562.0,
+					0.0,
+					1646.0
+				],
+				[
+					3024.0,
+					0.0,
+					1379.0
+				],
+				[
+					3486.0,
+					0.0,
+					1112.0
+				]
+			],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-78",
+			"position_cm": [
+				-7500.0,
+				-400.0,
+				-8000.0
+			],
+			"preset": "banked_chicane",
+			"rotation_mdeg": [
+				0.0,
+				-90000.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 400.0,
+			"id": "piece-79",
+			"position_cm": [
+				-8612.0,
+				-533.0,
+				-4514.0
+			],
+			"preset": "tube_exit",
+			"rotation_mdeg": [
+				0.0,
+				30025.0,
+				0.0
+			],
+			"width_cm": 400.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 400.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-80",
+			"position_cm": [
+				-7411.0,
+				-400.0,
+				-2436.0
+			],
+			"preset": "spiral90_right_up",
+			"rotation_mdeg": [
+				0.0,
+				30025.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-81",
+			"position_cm": [
+				-6045.0,
+				-200.0,
+				-2071.0
+			],
+			"preset": "slope_up",
+			"rotation_mdeg": [
+				0.0,
+				120025.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 600.0,
+			"id": "piece-82",
+			"position_cm": [
+				-5352.0,
+				-100.0,
+				-2471.0
+			],
+			"preset": "gentle45_left",
+			"rotation_mdeg": [
+				0.0,
+				120025.0,
+				0.0
+			],
+			"width_cm": 600.0
+		},
+		{
+			"control_points": [
+				[
+					-3531.0,
+					-100.0,
+					-2711.0
+				],
+				[
+					-1983.0,
+					-100.0,
+					-2297.0
+				],
+				[
+					0.0,
+					0.0,
+					-1603.0
+				],
+				[
+					0.0,
+					0.0,
+					0.0
+				]
+			],
+			"entry_width_cm": 600.0,
+			"exit_width_cm": 800.0,
+			"id": "piece-83",
+			"position_cm": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"preset": "free_curve",
+			"rotation_mdeg": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"width_cm": 800.0
+		}
+	],
+	"original_seed": {
+		"categories": [
+			"action",
+			"driving",
+			"gimmick"
+		],
+		"circuit": true,
+		"difficulty": "normal",
+		"length": "medium",
+		"seed": 42.0,
+		"time_minutes": 1020.0
+	},
+	"paths": [
+		{
+			"id": "base",
+			"pieces": [
+				"piece-0",
+				"piece-1",
+				"piece-2",
+				"piece-3",
+				"piece-4",
+				"piece-5",
+				"piece-6",
+				"piece-7",
+				"piece-8",
+				"piece-9",
+				"piece-10",
+				"piece-11",
+				"piece-12",
+				"piece-13",
+				"piece-14",
+				"piece-15",
+				"piece-16",
+				"piece-17",
+				"piece-18",
+				"piece-19",
+				"piece-20",
+				"piece-21",
+				"piece-22",
+				"piece-23",
+				"piece-24",
+				"piece-25",
+				"piece-26",
+				"piece-27",
+				"piece-28",
+				"piece-29",
+				"piece-30",
+				"piece-31",
+				"piece-32",
+				"piece-33",
+				"piece-34",
+				"piece-35",
+				"piece-36",
+				"piece-37",
+				"piece-38",
+				"piece-39",
+				"piece-40",
+				"piece-41",
+				"piece-42",
+				"piece-43",
+				"piece-44",
+				"piece-45",
+				"piece-46",
+				"piece-47",
+				"piece-48",
+				"piece-49",
+				"piece-50",
+				"piece-51",
+				"piece-52",
+				"piece-53",
+				"piece-54",
+				"piece-55",
+				"piece-56",
+				"piece-57",
+				"piece-58",
+				"piece-59",
+				"piece-60",
+				"piece-61",
+				"piece-62",
+				"piece-63",
+				"piece-64",
+				"piece-65",
+				"piece-66",
+				"piece-67",
+				"piece-68",
+				"piece-69",
+				"piece-70",
+				"piece-71",
+				"piece-72",
+				"piece-73",
+				"piece-74",
+				"piece-75",
+				"piece-76",
+				"piece-77",
+				"piece-78",
+				"piece-79",
+				"piece-80",
+				"piece-81",
+				"piece-82",
+				"piece-83"
+			]
+		}
+	],
+	"settings": {
+		"categories": [
+			"action",
+			"driving",
+			"gimmick"
+		],
+		"circuit": true,
+		"difficulty": "normal",
+		"length": "medium",
+		"seed": 42.0,
+		"time_minutes": 1020.0
+	}
+}
