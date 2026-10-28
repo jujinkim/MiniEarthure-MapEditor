@@ -5,6 +5,9 @@ const LICENSE := "https://copernicus-dem-30m.s3.amazonaws.com/readme.html#licens
 const MAX_CELLS := 1024
 const WARN_CELLS := 256
 const STRUCTURE_FIT := preload("./dem_structure_fit.gd")
+const WATER_FIT := preload("./dem_water_fit.gd")
+## OSM-scaled maps keep only the ground (copernicus_dem.py BARE_EARTH).
+const BARE_EARTH := "osm-dem-bare-earth-v1: 150 source m opening, 60 source m Gaussian over the mosaic samples"
 ## Each tile file is bounded; decoding is bounded by the reviewed block budget.
 const MAX_SOURCES := 16
 const WARN_SOURCES := 4
@@ -29,6 +32,9 @@ func summary() -> String:
 	if value.dem.has("structure_fit"):
 		var fitted: Dictionary=value.dem.structure_fit
 		text+=I18N.t("\nEstimated bridges/tunnels fitted to this DSM: %d roads, %d nodes; %d anchor pads levelled, %d samples cut under decks, %d filled over tunnels (largest change %d cm); %d cells re-encoded. Disclosed estimate; terrain and roads share one Undo.\n") % [fitted.changed_roads,fitted.changed_nodes,fitted.pads,fitted.clamped,fitted.filled,maxi(fitted.max_pad_cm,maxi(fitted.max_cut_cm,fitted.max_fill_cm)),fitted.fitted_cells]
+	if value.dem.has("water_fit"):
+		var water: Dictionary=value.dem.water_fit
+		text+=I18N.t("\nImported water fitted to this terrain: %d pieces at %d levels (median shore height), %d samples sunk up to %d cm, %d samples beside ground roads kept, %d pieces outside this DEM unchanged. Disclosed estimate; terrain and water share one Undo.\n") % [water.pieces,water.levels,water.carved_samples,water.max_carve_cm,water.kept_by_roads,water.outside]
 	if value.dem.has("grounding"):
 		text+=I18N.t("\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n") % [value.dem.grounding.changes.size(),value.dem.grounding.skipped_partial]
 	for index in range(value.heightmaps.size()):
@@ -78,6 +84,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	if reviewed.get("cells")!=expected_cells or result.outputs.size()!=expected_cells.size(): return "Missing or changed DEM cells."
 	if raster.get("vertical_zero_m")!=options.vertical_zero_m or raster.get("resampling")!="bilinear across full-resolution COG sample centres; local rows +northing" or raster.get("source_accuracy_cm")!=null or not TYPES._finite(raster.get("offset_cm"),-1000000,1000000) or not TYPES._count(raster.get("step_cm"),100) or raster.step_cm<1: return "Invalid mosaic sampling contract."
 	if raster.offset_cm!=floor(float(raster.offset_cm)) or raster.get("max_quantization_error_cm")!=0.5+float(raster.step_cm)/2: return "Invalid mosaic quantization."
+	if raster.get("ground")!=(BARE_EARTH if options.has("osm_denominator") else null): return "Invalid mosaic sampling contract."
 	var records: Array = []
 	var previous: Array = []
 	var sampled: Array = []
@@ -95,6 +102,10 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	# fitted cells, roads and building bases share one candidate and one Undo.
 	var fit: Dictionary = STRUCTURE_FIT.prepare(terrain.store,sampled,sampled_blobs,options) if not doc.roads.is_empty() else {"patches":[],"fitted":{}}
 	if fit.has("error"): return fit.error
+	# Imported city water then takes levels on that terrain and sinks into it.
+	var water: Dictionary = WATER_FIT.prepare(terrain.store,sampled,sampled_blobs,fit.fitted,options)
+	if water.has("error"): return water.error
+	fit.fitted.merge(water.fitted,true)
 	for index in range(expected_cells.size()):
 		var record: Dictionary = sampled[index]
 		var cell := Vector2i(record.cell.x,record.cell.y)
@@ -112,6 +123,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		_cells.append_array(layer._cells)
 		layer.discard()
 	_patches.append_array(fit.patches)
+	_patches.append_array(water.patches)
 	# The stored notice names each source file with its size and hash; local and
 	# capture paths stay with the in-flight review and never enter the map.
 	# Helper warnings of the review and of this run join the candidate review;
@@ -125,6 +137,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		item.source = {"name":str(item.source.path).get_file(),"bytes":item.source.bytes,"sha256":item.source.sha256}
 	value={"import_version":1,"adapter":"copernicus-dem-v1","layer_id":context.get("layer_id", Crypto.new().generate_random_bytes(16).hex_encode()),"heightmaps":records,"previous":previous,"dem":{"receipt":stored,"sampling":raster.duplicate(true)}}
 	if not fit.get("receipt",{}).is_empty(): value.dem.structure_fit=fit.receipt
+	if not water.get("receipt",{}).is_empty(): value.dem.water_fit=water.receipt
 	if context.get("ground_buildings",false):
 		var grounded:=preload("./dem_building_grounding.gd").prepare(terrain.store,records,_blobs,options)
 		if grounded.has("error"): discard();return grounded.error

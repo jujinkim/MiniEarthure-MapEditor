@@ -246,6 +246,40 @@ class MosaicTests(unittest.TestCase):
             self.assertEqual(len(r["review"]["sources"]),4)
             self.assertEqual(events[-1],("sample",4*17*17,4*17*17))
             self.assertTrue(all(Path(s["source"]["captured_path"]).is_file() for s in r["review"]["sources"]))
+    def test_bare_earth_removes_blocks_and_keeps_broad_relief(self):
+        import numpy as np
+        step = 12.0  # Source metres between samples (400 map cm at 1:3).
+        y, x = np.mgrid[0:200, 0:200] * step
+        hill = 20.0 * np.exp(-((x - 1200) ** 2 + (y - 1200) ** 2) / (2 * 500.0 ** 2))
+        dsm = hill.copy()
+        dsm[90:96, 90:96] += 30.0  # A 72 m apartment block on the hill.
+        dsm[20:23, 150:153] += 12.0  # A 36 m tree clump.
+        ground = dem.bare_earth(np, dsm, step)
+        self.assertLess(abs(ground[93, 93] - hill[93, 93]), 1.0, "the block is removed")
+        self.assertLess(abs(ground[21, 151] - hill[21, 151]), 0.5, "the clump is removed")
+        self.assertGreater(ground[100, 100], 15.0, "the broad hill stays")
+        self.assertEqual(ground.shape, dsm.shape)
+
+    def test_osm_maps_sample_bare_earth_with_identical_shared_edges(self):
+        o=self.opts();o["osm_denominator"]=3.0
+        p=dem.plan(o)
+        with tempfile.TemporaryDirectory() as folder:
+            d=Path(folder)
+            r=dem.execute(dict(mode="dem",plan=p,destination=str(d/"capture")),d,lambda *a:None)
+            self.assertEqual(r["raster"]["ground"],dem.BARE_EARTH)
+            import numpy as np
+            grids=[]
+            for output in r["outputs"]:
+                png=Path(output["png_path"]).read_bytes();length=struct.unpack(">I",png[33:37])[0]
+                raw=zlib.decompress(png[41:41+length]);side=p["side"];stride=side*2+1
+                grids.append(np.frombuffer(b"".join(raw[i*stride+1:(i+1)*stride] for i in range(side)),dtype=">u2").reshape(side,side))
+            np.testing.assert_array_equal(grids[0][:,-1],grids[1][:,0])
+            np.testing.assert_array_equal(grids[0][-1,:],grids[2][0,:])
+        with tempfile.TemporaryDirectory() as folder:
+            d=Path(folder)
+            r=dem.execute(dict(mode="dem",plan=dem.plan(self.opts()),destination=str(d/"capture")),d,lambda *a:None)
+            self.assertNotIn("ground",r["raster"],"maps without an OSM scale keep the DSM")
+
     def test_combined_tiles_beyond_one_tile_limit_and_single_grid_pass(self):
         largest=max(s["source"]["bytes"] for s in dem.plan(self.opts())["sources"])
         with patch.object(dem,"MAX_SOURCE",largest):

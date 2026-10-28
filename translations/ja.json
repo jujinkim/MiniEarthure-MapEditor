@@ -2438,6 +2438,10 @@
     "City water count mismatch.": "都市の水域数が一致しません。",
     "Invalid city water.": "都市の水域レコードが無効です。",
     "Invalid dropped city water sources.": "取り込まない都市水域ソースの一覧が無効です。",
-    "Water records require OSM city optimization.": "水域レコードには OSM 都市最適化が必要です。"
+    "Water records require OSM city optimization.": "水域レコードには OSM 都市最適化が必要です。",
+    "OSM map: buildings and trees narrower than 150 source m are removed and the relief is smoothed over 60 source m (bare-earth estimate).\n": "OSM 地図: 元の 150 m より狭い建物と樹木を除き、元の 60 m の範囲で起伏を平滑化します(地表推定)。\n",
+    "\nImported water fitted to this terrain: %d pieces at %d levels (median shore height), %d samples sunk up to %d cm, %d samples beside ground roads kept, %d pieces outside this DEM unchanged. Disclosed estimate; terrain and water share one Undo.\n": "\n取り込んだ水域をこの地形に合わせました: %d 片、水位 %d 種類(岸の高さの中央値)、サンプル %d 点を最大 %d cm 下げ、地上道路の横のサンプル %d 点は維持、この DEM 外の %d 片は変更なし。公開された推定値で、地形と水域は 1 回の Undo で戻ります。\n",
+    "Water fitting would change terrain outside this DEM.": "水域の調整がこの DEM 外の地形を変更してしまいます。",
+    "Water fitting could not sample the DEM terrain.": "水域の調整で DEM 地形の高さを読み取れませんでした。"
   }
 }

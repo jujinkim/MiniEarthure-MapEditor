@@ -73,7 +73,12 @@ file with its bytes and SHA-256; local source and capture paths stay out of the 
 (the capture folder keeps its own review sidecars). DEM is optional: a region beyond
 the hard bounds is refused with that explanation and keeps its flat terrain. **Use imported OSM coordinates and full
 map extent** copies the imported frame, selects all cells and uses 4 m map spacing
-when the grid allows.
+when the grid allows. On an OSM-scaled map (the review sends `osm_denominator`) the
+mosaic samples become a bare-earth estimate before quantization: a morphological
+opening of 150 source m removes buildings and trees, then a 60 source m Gaussian
+smooths the relief, over the whole mosaic so shared cell edges stay identical.
+Relief stays true to scale ÷D. The sampling record adds `ground`
+(`osm-dem-bare-earth-v1`); other maps keep the raw DSM.
 
 **Place zero-base OSM buildings on this DSM (estimated)** is optional. It changes
 only imported OSM buildings whose base is still zero and whose footprint (and every
@@ -82,6 +87,15 @@ sets the base of each solid (a part keeps its own base when it differs).
 This is a disclosed surface estimate (roof/tree bias possible), not surveyed ground.
 Shapes, heights and other bases are unchanged. The receipt
 lists every changed base and uncovered count; terrain and buildings adopt as one Undo.
+
+Imported city water (`import-` water bodies) is fitted after the structures, in
+the same candidate: touching pieces whose shore heights stay within 100 cm share
+one level (a lake), others keep their own (a sloping stream steps). The level is the
+median terrain at the piece's vertices; the surface lies 3 cm above it (60 cm deep)
+and terrain samples inside sink 40 cm below it, at most 64 m at 1:D, except within
+one sample spacing of a ground road edge, whose surface follows the terrain. Pieces
+partly outside the DEM keep their flat heights. The notice adds `water_fit`
+(`osm-water-dem-fit-v1`, counts and the largest carve).
 
 Estimated city bridges and tunnels (`osm_estimated_structures`) assume flat ground,
 so adopting a DEM fits them to the DSM in the same candidate, before grounding:

@@ -383,6 +383,35 @@ def _sample(np, datasets, flat, windows, decode=True):
     return values
 
 
+# OSM-scaled maps (the Editor sends `osm_denominator`) keep only the ground: a
+# morphological opening removes buildings and trees narrower than BARE_OPEN_M,
+# then a Gaussian of BARE_SIGMA_M smooths the relief (source metres).
+BARE_OPEN_M = 150.0
+BARE_SIGMA_M = 60.0
+BARE_EARTH = "osm-dem-bare-earth-v1: 150 source m opening, 60 source m Gaussian over the mosaic samples"
+
+
+def bare_earth(np, mosaic, step_m):
+    """Bare-earth estimate of a DSM sample mosaic (rows +northing, step_m apart)."""
+    radius = max(1, round(BARE_OPEN_M / step_m / 2))
+    def running(values, axis, reduce):
+        pad = [(0, 0), (0, 0)]
+        pad[axis] = (radius, radius)
+        window = np.lib.stride_tricks.sliding_window_view(np.pad(values, pad, mode="edge"), 2 * radius + 1, axis=axis)
+        return reduce(window, axis=-1)
+    opened = running(running(running(running(mosaic, 0, np.min), 1, np.min), 0, np.max), 1, np.max)
+    sigma = BARE_SIGMA_M / step_m
+    reach = max(1, math.ceil(3 * sigma))
+    kernel = np.exp(-0.5 * (np.arange(-reach, reach + 1) / sigma) ** 2)
+    kernel /= kernel.sum()
+    def blur(values, axis):
+        pad = [(0, 0), (0, 0)]
+        pad[axis] = (reach, reach)
+        window = np.lib.stride_tricks.sliding_window_view(np.pad(values, pad, mode="edge"), 2 * reach + 1, axis=axis)
+        return window @ kernel
+    return blur(blur(opened, 0), 1)
+
+
 def mosaic_heights(paths, review, progress, grid=None):
     from contextlib import ExitStack
     paths = [local_source(path) for path in paths]
@@ -395,6 +424,18 @@ def mosaic_heights(paths, review, progress, grid=None):
         flat = np.asarray([p for group in groups for p in group],dtype=np.float64)
         values = _sample(np, datasets, flat, windows)
         if not np.isfinite(values).all() or (values < -1000).any() or (values > 10000).any(): raise ValueError("DEM elevation outside supported physical range")
+        ground = None
+        if "osm_denominator" in review["options"]:
+            # Filter the whole mosaic once, so shared cell edges stay identical.
+            nx, ny = [int(v) for v in review["options"]["cell_count"]]
+            edge = side - 1
+            cellwise = values.reshape(ny, nx, side, side)
+            mosaic = np.empty((ny * edge + 1, nx * edge + 1), dtype=np.float64)
+            for y in range(ny):
+                for x in range(nx): mosaic[y*edge:y*edge+side, x*edge:x*edge+side] = cellwise[y, x]
+            mosaic = bare_earth(np, mosaic, review["options"]["spacing_cm"] / 100 * review["options"]["osm_denominator"])
+            values = np.stack([mosaic[y*edge:y*edge+side, x*edge:x*edge+side] for y in range(ny) for x in range(nx)]).reshape(-1)
+            ground = BARE_EARTH
         heights=np.rint((values-zero)*100 / review["options"].get("osm_denominator", 1)).astype(np.int64).reshape(len(cells),side,side)
         low,high=int(heights.min()),int(heights.max())
         step=max(1,math.ceil((high-low)/65535))
@@ -403,7 +444,7 @@ def mosaic_heights(paths, review, progress, grid=None):
         return heights,dict(offset_cm=low,step_cm=step,source_accuracy_cm=None,vertical_zero_m=zero,
             resampling="bilinear across full-resolution COG sample centres; local rows +northing",
             quantization="shared nearest ties-to-even cm, then nearest PNG step",max_quantization_error_cm=0.5+step/2,
-            source_windows=windows,rasterio=rasterio.__version__,gdal=rasterio.__gdal_version__)
+            source_windows=windows,rasterio=rasterio.__version__,gdal=rasterio.__gdal_version__,**({"ground":ground} if ground else {}))
 
 
 def captured_cost(paths, items, windows):
