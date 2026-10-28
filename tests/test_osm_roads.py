@@ -204,24 +204,34 @@ class Roads(unittest.TestCase):
                 self.assertTrue(g.coords[-1][0] <= 0.01 or g.coords[0][0] >= 259.99)
         self.assert_connected(self.layer(result))
 
-    def test_a_dead_end_deck_keeps_its_level_lead_as_a_ground_road(self):
-        self.road([(-100, 0), (0, 0)], [9, 1], highway="primary")
-        self.road([(75, 50), (75, -50)], [7, 8], highway="primary")  # A crossing road under the deck.
-        self.road([(0, 0), (8, 0), (50, 0), (100, 0), (142, 0), (150, 0)], [1, 2, 3, 4, 5, 6], highway="primary",
+    def test_a_dead_end_deck_gives_the_outer_level_lead_to_a_ground_road(self):
+        self.road([(-100, 0), (0, 0)], [9, 1], highway="residential")
+        self.road([(75, 50), (75, -50)], [7, 8], highway="residential")  # A crossing road under the deck.
+        self.road([(0, 0), (12, 0), (50, 0), (100, 0), (138, 0), (150, 0)], [1, 2, 3, 4, 5, 6], highway="residential",
                   _city_estimated_m=[0.0, 0.0, 6.0, 6.0, 0.0, 0.0], _city_estimated_kind="bridge")
         worker, result, meta, roads = self.run_city()
         self.assertEqual(meta["road_rules"]["open_deck_ends"], 1)
         [lead] = [(p, g) for p, g in roads if p.get("_city_ground_lead")]
         [deck] = [(p, g) for p, g in roads if "_city_estimated_m" in p]
         synthetic = str(osm_roads.LEAD_REF_BASE + 6)
-        self.assertEqual(lead[0]["_city_ends"], [synthetic, "6"], "the dead end's level lead")
+        self.assertEqual(lead[0]["_city_ends"], [synthetic, "6"], "the dead end's outer level lead")
         self.assertEqual(deck[0]["_city_ends"], ["1", synthetic], "the connected end keeps its deck lead")
-        self.assertEqual([round(x) for x, y in lead[1].coords], [142, 150])
-        self.assertEqual(deck[0]["_city_estimated_m"][-1], 0.0, "the deck still meets the ground at 0 m")
+        keep = 9.0 / 2 + 1.0  # Half the widest (residential 300 map cm = 9 m) road + 1 m.
+        self.assertAlmostEqual(lead[1].coords[0][0], 138 + keep, delta=0.05, msg="the deck keeps a level mouth")
+        self.assertEqual(deck[0]["_city_estimated_m"][-2:], [0.0, 0.0])
         layer = self.layer(result)
         self.assert_connected(layer)
-        kinds = {p["after"]["id"]: p["after"]["kind"] for p in layer.patches if p["field"] == "roads"}
-        self.assertEqual(sorted(kinds.values()).count("bridge"), 1)
+        kinds = [p["after"]["kind"] for p in layer.patches if p["field"] == "roads"]
+        self.assertEqual(kinds.count("bridge"), 1)
+
+    def test_a_short_dead_end_lead_keeps_its_deck_cap(self):
+        self.road([(-100, 0), (0, 0)], [9, 1], highway="residential")
+        self.road([(75, 50), (75, -50)], [7, 8], highway="residential")
+        self.road([(0, 0), (8, 0), (50, 0), (100, 0), (144, 0), (150, 0)], [1, 2, 3, 4, 5, 6], highway="residential",
+                  _city_estimated_m=[0.0, 0.0, 6.0, 6.0, 0.0, 0.0], _city_estimated_kind="bridge")
+        worker, result, meta, roads = self.run_city()
+        self.assertEqual(meta["road_rules"].get("open_deck_ends", 0), 0, "6 m < 5.5 m mouth + 1 m ground")
+        self.assertFalse(any(p.get("_city_ground_lead") for p, g in roads))
 
     def test_a_structure_between_the_carriageways_blocks_the_merge(self):
         a, b = self.ladder(extra=lambda: self.road([(120, 10), (180, 10)], [900, 901], highway="tertiary",

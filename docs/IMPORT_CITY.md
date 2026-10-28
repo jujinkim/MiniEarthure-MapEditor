@@ -140,9 +140,11 @@ remainder so lattice points are whole map centimetres.
   removed, as an estimated way would be) or consumed by a relation is neither
   crossed nor absorbed, and a chain ending where such a way continued it is
   excluded, so no structure ends in the air or underground.
-  An estimated bridge end that meets no other vehicle road keeps its level lead
-  as a ground road (split at a synthetic node ref 8·10¹⁸ + the end ref), so no
-  deck cap rail crosses a ramp foot.
+  An estimated bridge end that meets no other vehicle road gives the outer part
+  of its level lead to a ground road (split at a synthetic node ref 8·10¹⁸ + the
+  end ref), so no deck cap rail crosses a ramp foot; the deck keeps half the
+  widest road width + 1 m of level lead for its junction mouth, and a shorter
+  lead stays whole.
   Estimated structures join ordinary ground roads, stay whole at crop edges with
   every way of their chain, keep
   building clearance plus 20 map cm (0.2·D m) of safety furniture each side (also when widened) and are

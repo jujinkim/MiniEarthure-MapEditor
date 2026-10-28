@@ -128,14 +128,17 @@ LEAD_REF_BASE = 8 * 10 ** 18  # Synthetic node refs (19 digits) above every OSM 
 
 
 def open_deck_ends(roads):
-    """An estimated bridge whose end meets no other vehicle road keeps its
-    level (0 m) lead as a ground road, so MapKit puts no deck cap rail across a
-    ramp foot. The split node gets a synthetic ref LEAD_REF_BASE + the end ref.
+    """An estimated bridge whose end meets no other vehicle road gives the outer
+    part of its level (0 m) lead to a ground road, so MapKit puts no deck cap
+    rail across a ramp foot. The deck keeps half the widest road width + 1 m of
+    level lead (its junction mouth stays level); a shorter lead stays whole. The
+    split node gets a synthetic ref LEAD_REF_BASE + the end ref.
     Returns (roads, count)."""
     def vehicle(f, g):
         return g.geom_type == "LineString" and f["properties"].get("_city_ends") and (
             tags(f).get("highway") not in PEDESTRIAN or "_city_estimated_m" in f["properties"])
     uses = Counter(ref for f, g in roads if vehicle(f, g) for ref in f["properties"]["_city_ends"] if ref is not None)
+    widest = max((float(f["properties"].get("width_m", 8)) for f, g in roads if vehicle(f, g)), default=8.0)
     output, count = [], 0
     for f, g in roads:
         p = f["properties"]
@@ -144,40 +147,55 @@ def open_deck_ends(roads):
         if p.get("_city_estimated_kind") != "bridge" or not heights or not refs or len(refs) != len(coords) or len(heights) != len(coords):
             output.append((f, g))
             continue
-        cuts = [0, len(coords) - 1]
-        dead = [None, None]
-        for end, at in ((0, 0), (1, len(coords) - 1)):
-            if ends[end] is None or uses[ends[end]] != 1 or heights[at] != 0: continue
-            order = range(len(coords)) if end == 0 else range(len(coords) - 1, -1, -1)
-            last = at
-            for i in order:
-                if heights[i] != 0: break
-                last = i
-            if last != at and 0 < last < len(coords) - 1:
-                cuts[end], dead[end] = last, ends[end]
-        if cuts == [0, len(coords) - 1] or cuts[0] >= cuts[1]:
+        widths = list(p.get("_city_widths_m") or [float(p.get("width_m", 8))] * (len(coords) - 1))
+        heights, refs = list(heights), list(refs)
+        pieces = []  # (from end, lead coords, lead refs, lead widths)
+        for end in (1, 0):  # The far end first keeps the near indices valid.
+            if ends[end] is None or uses[ends[end]] != 1: continue
+            order = list(range(len(coords))) if end == 0 else list(range(len(coords) - 1, -1, -1))
+            if heights[order[0]] != 0: continue
+            keep = widest / 2 + 1.0
+            run, travelled = [order[0]], 0.0
+            for a, b in zip(order, order[1:]):
+                if heights[b] != 0: break
+                travelled += math.dist(coords[a], coords[b])
+                run.append(b)
+            cut = travelled - keep  # Ground length from the dead end.
+            if cut < 1.0 or len(run) >= len(coords): continue
+            at, along = run[0], 0.0
+            for a, b in zip(run, run[1:]):
+                step = math.dist(coords[a], coords[b])
+                if along + step >= cut:
+                    t = (cut - along) / step
+                    point = (coords[a][0] + (coords[b][0] - coords[a][0]) * t, coords[a][1] + (coords[b][1] - coords[a][1]) * t)
+                    break
+                along += step
+                at = b
+            synthetic = LEAD_REF_BASE + int(ends[end])
+            nxt = order[order.index(at) + 1]
+            segment = min(at, nxt)
+            if end == 0:
+                lead = (coords[:at + 1] + [point], refs[:at + 1] + [synthetic], widths[:at + 1])
+                coords, heights, refs = [point] + coords[at + 1:], [0.0] + heights[at + 1:], [synthetic] + refs[at + 1:]
+                widths = widths[segment:]
+            else:
+                lead = ([point] + coords[at:], [synthetic] + refs[at:], widths[segment:])
+                coords, heights, refs = coords[:at] + [point], heights[:at] + [0.0], refs[:at] + [synthetic]
+                widths = widths[:segment + 1]
+            pieces.append((end, lead, str(synthetic)))
+        if not pieces:
             output.append((f, g))
             continue
-        def piece(a, b, from_end, to_end, lead):
-            q = dict(p, _city_refs=refs[a:b + 1], _city_ends=[from_end, to_end])
-            if p.get("_city_widths_m"): q["_city_widths_m"] = p["_city_widths_m"][a:b]
-            if lead:
-                for key in ("_city_estimated_m", "_city_estimated_kind", "_city_estimated_chain", "_city_estimated_clearance_m"): q.pop(key, None)
-                q["_city_sidewalk_m"], q["_city_ground_lead"] = 0.0, True
-            else:
-                q["_city_estimated_m"] = heights[a:b + 1]
-            return (dict(f, properties=q), LineString(coords[a:b + 1]))
-        synthetic = [str(LEAD_REF_BASE + int(ref)) if ref is not None else None for ref in dead]
-        for end in (0, 1):
-            if dead[end] is not None:
-                refs = list(refs)
-                refs[cuts[end]] = int(synthetic[end])
-        start = synthetic[0] or ends[0]
-        finish = synthetic[1] or ends[1]
-        if dead[0] is not None: output.append(piece(0, cuts[0], ends[0], synthetic[0], True))
-        output.append(piece(cuts[0], cuts[1], start, finish, False))
-        if dead[1] is not None: output.append(piece(cuts[1], len(coords) - 1, synthetic[1], ends[1], True))
-        count += (dead[0] is not None) + (dead[1] is not None)
+        new_ends = list(ends)
+        for end, lead, synthetic in pieces: new_ends[end] = synthetic
+        deck = dict(p, _city_refs=refs, _city_ends=new_ends, _city_estimated_m=heights, _city_widths_m=widths, width_m=max(widths))
+        output.append((dict(f, properties=deck), LineString(coords)))
+        for end, (lead_coords, lead_refs, lead_widths), synthetic in pieces:
+            q = {k: v for k, v in p.items() if k not in ("_city_estimated_m", "_city_estimated_kind", "_city_estimated_chain", "_city_estimated_clearance_m")}
+            q.update(_city_refs=lead_refs, _city_ends=[ends[0], synthetic] if end == 0 else [synthetic, ends[1]],
+                     _city_widths_m=lead_widths, width_m=max(lead_widths), _city_sidewalk_m=0.0, _city_ground_lead=True)
+            output.append((dict(f, properties=q), LineString(lead_coords)))
+            count += 1
     return output, count
 
 
