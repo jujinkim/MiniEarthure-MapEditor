@@ -90,6 +90,22 @@ class CropTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "do not overlap"):
             crop(dict(type="FeatureCollection", features=[road]), [.02,.02,.03,.03], region=region)
 
+    def test_play_area_rings_follow_the_window_on_the_map_lattice(self):
+        from shapely.geometry import Polygon
+        from osm_area import play_area
+        import math
+        options = dict(mode="wgs84-utm", origin=[9.005, 55.005], local_origin_m=[1000, 1000])
+        self.assertEqual(play_area([9, 55, 9.01, 55.01], None, options, 3), [])
+        # A wavy region (1,200 vertices) clipped by the rectangle's east edge.
+        wave = [(9 + .012 * i / 600, 55.0005 + .0003 * math.sin(i)) for i in range(601)]
+        region = Polygon(wave + [(9.012, 55.009), (9, 55.009)])
+        [ring] = play_area([9, 55, 9.01, 55.01], region, options, 3)
+        self.assertLessEqual(len(ring), 512)
+        self.assertTrue(all(v % 3 == 0 for point in ring for v in point), "source cm multiples of D")
+        self.assertTrue(Polygon(ring).is_valid and Polygon([(x/3, y/3) for x, y in ring]).is_valid)
+        xs = [x for x, y in ring]
+        self.assertLess(max(xs) - min(xs), 0.0101 * 64000 * 100 / 1, "clipped to the rectangle")
+
     def test_an_estimated_chain_is_kept_whole_when_any_way_touches_the_region(self):
         from shapely.geometry import box
         def way(identity, coordinates, heights, chain):

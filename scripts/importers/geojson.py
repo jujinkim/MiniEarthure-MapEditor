@@ -554,6 +554,9 @@ def main():
                 trial_crop["counts"]["pre_optimization_output_features"] = trial_crop["counts"]["output_features"]
                 trial_crop["counts"]["output_features"] = trial.feature_count
                 trial.coordinates["osm_crop"] = trial_crop
+                if region is not None:
+                    from osm_area import play_area
+                    trial.coordinates["osm_play_area"] = play_area(args.osm_bbox, region, options, scale)
                 trial = finish(trial, osm_counts)
                 trial.warning(f"Automatic city optimization at 1:{scale}: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Simplification level {metadata['gap_m']} source metres; buildings keep their own footprints, grouped by site into building records; inspect approximated heights.")
                 if len(osm_stream.get("areas", [])) > 1:

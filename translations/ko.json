@@ -2442,6 +2442,8 @@
     "OSM map: buildings and trees narrower than 150 source m are removed and the relief is smoothed over 60 source m (bare-earth estimate).\n": "OSM 지도: 원본 150 m보다 좁은 건물과 나무를 지우고 원본 60 m 범위로 기복을 부드럽게 합니다(지면 추정).\n",
     "\nImported water fitted to this terrain: %d pieces at %d levels (median shore height), %d samples sunk up to %d cm, %d samples beside ground roads kept, %d pieces outside this DEM unchanged. Disclosed estimate; terrain and water share one Undo.\n": "\n가져온 물을 이 지형에 맞춤: 조각 %d개, 수위 %d개(물가 높이 중앙값), 표본 %d개를 최대 %d cm 낮춤, 지면 도로 옆 표본 %d개는 유지, 이 DEM 밖 조각 %d개는 그대로. 공개된 추정값이며 지형과 물은 Undo 하나로 되돌립니다.\n",
     "Water fitting would change terrain outside this DEM.": "물 맞춤이 이 DEM 밖의 지형을 바꾸게 됩니다.",
-    "Water fitting could not sample the DEM terrain.": "물 맞춤에서 DEM 지형 높이를 읽지 못했습니다."
+    "Water fitting could not sample the DEM terrain.": "물 맞춤에서 DEM 지형 높이를 읽지 못했습니다.",
+    "Invalid city play area.": "도시 주행 영역이 잘못되었습니다.",
+    "Invalid imported play area.": "가져온 주행 영역이 잘못되었습니다."
   }
 }

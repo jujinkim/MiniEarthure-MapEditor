@@ -2442,6 +2442,8 @@
     "OSM map: buildings and trees narrower than 150 source m are removed and the relief is smoothed over 60 source m (bare-earth estimate).\n": "OSM map: buildings and trees narrower than 150 source m are removed and the relief is smoothed over 60 source m (bare-earth estimate).\n",
     "\nImported water fitted to this terrain: %d pieces at %d levels (median shore height), %d samples sunk up to %d cm, %d samples beside ground roads kept, %d pieces outside this DEM unchanged. Disclosed estimate; terrain and water share one Undo.\n": "\nImported water fitted to this terrain: %d pieces at %d levels (median shore height), %d samples sunk up to %d cm, %d samples beside ground roads kept, %d pieces outside this DEM unchanged. Disclosed estimate; terrain and water share one Undo.\n",
     "Water fitting would change terrain outside this DEM.": "Water fitting would change terrain outside this DEM.",
-    "Water fitting could not sample the DEM terrain.": "Water fitting could not sample the DEM terrain."
+    "Water fitting could not sample the DEM terrain.": "Water fitting could not sample the DEM terrain.",
+    "Invalid city play area.": "Invalid city play area.",
+    "Invalid imported play area.": "Invalid imported play area."
   }
 }

@@ -550,15 +550,42 @@ func patches(store: RefCounted) -> Array:
 		var extent := empty_map_extent(store.document,result)
 		if not extent.is_empty() and extent != store.document.bounds:
 			result.append({"field":"bounds","id":"","before":store.document.bounds.duplicate(true),"after":extent})
+		# The crop window (rectangle ∩ selected areas) becomes the drivable area
+		# of a map without one, clipped to the final map rectangle.
+		var crop: Variant = value.coordinates.get("osm_play_area", [])
+		if value.coordinates.has("osm_city") and crop is Array and not crop.is_empty() and store.document.get("play_area", []).is_empty():
+			var area := play_area(crop, osm_denominator(), extent if not extent.is_empty() else store.document.bounds)
+			if not area.is_empty(): result.append({"field":"play_area","id":"","before":null,"after":area})
 	var attribution := {"source": value.source.name + "#" + value.layer_id, "license": value.source.license, "notice": JSON.stringify(metadata)}
 	result.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
 	result.append({"field":"free_roam","id":"","before":store.document.free_roam,"after":true})
 	return result
 
+## Source-cm crop rings ÷D, clipped to `bounds`; at most 16 rings of 3..512 vertices.
+static func play_area(rings: Array, denominator: int, bounds: Dictionary) -> Array:
+	var rect := PackedVector2Array([Vector2(bounds.min[0], bounds.min[1]), Vector2(bounds.max[0], bounds.min[1]), Vector2(bounds.max[0], bounds.max[1]), Vector2(bounds.min[0], bounds.max[1])])
+	var result: Array = []
+	for ring: Variant in rings:
+		if ring is not Array or ring.size() < 3: continue
+		var polygon := PackedVector2Array()
+		for point: Variant in preload("./import_units.gd")._coordinates(ring, denominator):
+			polygon.append(Vector2(point[0], point[1]))
+		var pieces: Array = Geometry2D.intersect_polygons(polygon, rect)
+		for clipped: PackedVector2Array in pieces:
+			# A hole lies inside another piece; crop windows keep outer rings only.
+			if pieces.any(func(other: PackedVector2Array) -> bool: return other != clipped and Geometry2D.is_point_in_polygon(clipped[0], other)): continue
+			var points: Array = []
+			for v in clipped:
+				var p := [roundi(v.x), roundi(v.y)]
+				if points.is_empty() or points[-1] != p: points.append(p)
+			if points.size() > 1 and points[0] == points[-1]: points.pop_back()
+			if points.size() >= 3 and points.size() <= 512 and result.size() < 16: result.append(points)
+	return result
+
 # A blank project has no cell payloads to relocate. Fit its first imported
 # region before native generation; populated maps retain their authored extent.
 static func empty_map_extent(document: Dictionary, incoming: Array) -> Dictionary:
-	if document.get("assembled_track") is not Dictionary: return {}
+	if document.get("assembled_track") is not Dictionary and not document.get("free_roam", false): return {}
 	for field in ["nodes","roads","buildings","placements","heightmaps","zones","surface_areas","water_bodies","pois","gimmicks","barriers"]:
 		if not document.get(field,[]).is_empty(): return {}
 	if not (document.get("assembled_track",{}) if document.get("assembled_track") is Dictionary else {}).get("pieces",[]).is_empty(): return {}
@@ -575,7 +602,7 @@ static func empty_map_extent(document: Dictionary, incoming: Array) -> Dictionar
 				points.append_array(record.footprint)
 				for part: Dictionary in record.get("parts", []): points.append_array(part.footprint)
 			"barriers": points.append_array(record.line)
-			"zones", "surface_areas": points.append_array(record.polygon)
+			"zones", "surface_areas", "water_bodies": points.append_array(record.polygon)
 	if points.is_empty(): return {}
 	var low: Array = points[0].duplicate(); var high: Array = points[0].duplicate()
 	for point: Array in points:

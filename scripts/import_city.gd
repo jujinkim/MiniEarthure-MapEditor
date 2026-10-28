@@ -83,6 +83,12 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 			for part: Variant in parts:
 				if part is not Dictionary or part.get("footprint") is not Array or part.footprint.size() < 3: return "Invalid city building parts."
 	if barrier_count != int(meta.after.get("barriers", 0)): return "City barrier count mismatch."
+	var crop: Variant = raw.coordinates.get("osm_play_area", [])
+	if crop is not Array or crop.size() > 16: return "Invalid city play area."
+	for ring: Variant in crop:
+		if ring is not Array or ring.size() < 3 or ring.size() > 512: return "Invalid city play area."
+		for point: Variant in ring:
+			if point is not Array or point.size() != 2 or not boundary._finite(point[0], -100000000, 100000000) or not boundary._finite(point[1], -100000000, 100000000) or point[0] != floor(point[0]) or point[1] != floor(point[1]): return "Invalid city play area."
 	var water: Variant = meta.get("water", {})
 	if water is not Dictionary or water_count != int(water.get("pieces", 0)) or water.get("dropped_sources", []) is not Array: return "City water count mismatch."
 	for source: Variant in water.get("dropped_sources", []):

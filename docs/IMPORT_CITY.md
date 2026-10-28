@@ -260,6 +260,12 @@ remainder so lattice points are whole map centimetres.
   and each piece maps to the sources it covers. Surfaces are 3 map cm above the
   ground and 60 cm deep (estimates; terrain fitting gives depth). A waterway wholly
   under roads is disclosed as dropped.
+- Play area: with selected administrative areas, the crop window (rectangle ∩
+  areas; its 16 largest outer rings, holes dropped) is simplified to at most 512
+  vertices per ring on the 1:D lattice (`osm_play_area`). Adopting onto a map
+  without a play area sets `play_area` to those rings ÷D, clipped to the final map
+  rectangle; vehicles stop and the edge is drawn at it. An empty free-roam map,
+  like an empty track project, fits its rectangle to the data (+16 m, whole cells).
 - MapKit checks surface areas pairwise within touching bounds and charges that work
   to the shared road work budget the game enforces; a large green city can exceed
   it (the Editor warns that the game refuses the map).

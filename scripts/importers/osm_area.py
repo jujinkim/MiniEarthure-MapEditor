@@ -172,6 +172,40 @@ def projected_bounds(value, coordinates):
     return [w,s,e,n]
 
 
+PLAY_AREA_RINGS = 16
+PLAY_AREA_VERTICES = 512
+
+
+def play_area(selected, region, options, denominator):
+    """Source-centimetre rings (multiples of D, so ÷D adoption is exact) of the
+    crop window rectangle ∩ selected administrative areas: its largest outer
+    rings, holes dropped, simplified until each has at most 512 vertices and stays
+    a simple ring on the 1:D map lattice. [] without a region."""
+    if region is None: return []
+    import shapely
+    from projection import Coordinates
+    window = shapely.make_valid(shapely.box(*bounds(selected)).intersection(region))
+    coordinates = Coordinates(options)
+    parts = [g for g in getattr(window, "geoms", [window]) if g.geom_type == "Polygon" and not g.is_empty]
+    parts.sort(key=lambda g: -g.area)
+    rings = []
+    for part in parts[:PLAY_AREA_RINGS]:
+        projected = shapely.Polygon([coordinates.point([x, y]) for x, y in part.exterior.coords])
+        tolerance = 2.0 * denominator
+        while True:
+            simple = projected.simplify(tolerance, preserve_topology=True)
+            ring = []
+            for x, y in list(simple.exterior.coords)[:-1]:
+                point = [round(x / denominator) * denominator, round(y / denominator) * denominator]
+                if not ring or ring[-1] != point: ring.append(point)
+            if len(ring) > 1 and ring[0] == ring[-1]: ring.pop()
+            if len(ring) <= PLAY_AREA_VERTICES and len(ring) >= 3 and shapely.Polygon(ring).is_valid: break
+            if tolerance > 1e7: ring = []; break
+            tolerance *= 2
+        if ring: rings.append(ring)
+    return rings
+
+
 def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region=None, areas=None, denominator=8):
     """Clip to the rectangle, or to rectangle ∩ `region` (the exact union of selected
     administrative boundaries, `areas` naming them) when one is given. `denominator`

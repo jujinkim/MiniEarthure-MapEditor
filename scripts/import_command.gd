@@ -81,6 +81,11 @@ static func decode(value: Variant, allow_assets: bool = false, allow_generation:
 			if patch.get("id") != "" or patch.get("before") != null or patch.get("after") != TYPES.CITY_GROUND_SURFACE or candidate.get("ground_surface") != patch.after:
 				return {"error":"Invalid imported ground surface."}
 			continue
+		if not allow_assets and patch is Dictionary and patch.get("field") == "play_area":
+			# A city import's crop window becomes the drivable area of a map without one.
+			if patch.get("id") != "" or patch.get("before") != null or patch.get("after") is not Array or patch.after.is_empty() or candidate.get("play_area") != patch.after:
+				return {"error":"Invalid imported play area."}
+			continue
 		if not allow_assets and patch is Dictionary and patch.get("field") == "free_roam":
 			if patch.get("id") != "" or patch.get("before") is not bool or patch.get("after") != true or candidate.get("free_roam") != true:
 				return {"error":"Invalid imported map free-roam policy."}

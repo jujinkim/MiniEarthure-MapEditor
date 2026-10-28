@@ -20,9 +20,9 @@ const HISTORY_BYTES := 16 * 1024 * 1024
 const UNDO_RELEASED := "This change cannot be undone; earlier Undo history was released."
 const HISTORY_COMMANDS := 200
 const RECORD_FIELDS := ["pois", "nodes", "roads", "buildings", "water_bodies", "surface_areas", "zones", "assets", "placements", "gimmicks", "repetitions", "heightmaps", "attributions", "courses", "grind_lines", "surface_attachments", "barriers"]
-const VALUE_FIELDS := ["map_id", "free_roam", "backdrop", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment", "assembled_track", "ground_surface"]
+const VALUE_FIELDS := ["map_id", "free_roam", "backdrop", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment", "assembled_track", "ground_surface", "play_area"]
 ## Optional map values: absence is a value (Undo restores it).
-const OPTIONAL_VALUES := ["environment", "assembled_track", "backdrop", "ground_surface"]
+const OPTIONAL_VALUES := ["environment", "assembled_track", "backdrop", "ground_surface", "play_area"]
 var document: Dictionary = {}
 var project_path := ""
 var undo_stack: Array[Dictionary] = []
@@ -964,6 +964,7 @@ func _prepare_track(source: Dictionary, record_history := true) -> Dictionary:
 		candidate.free_roam = document.free_roam
 		if document.has("backdrop"): candidate.backdrop = document.backdrop
 		if document.has("ground_surface"): candidate.ground_surface = document.ground_surface
+		if document.has("play_area"): candidate.play_area = document.play_area
 		candidate.provenance = document.provenance.duplicate(true)
 		candidate.attributions = document.get("attributions",[]).duplicate(true)
 		if candidate.free_roam:
