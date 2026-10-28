@@ -35,9 +35,29 @@ remainder so lattice points are whole map centimetres.
   explicit heights keep the exact rules.
 - Equal adjacent centimetre vertices are removed after the single 1:D quantization;
   nonempty holes are never discarded.
-- Missing road widths come from `lanes` (lanes × 3.25 m + 0.5 m) or else disclosed
-  highway-class estimates, widened to at least 20 map cm (0.2·D source m);
-  source surfaces map to game materials.
+- Vehicle roads take game road-class profiles in map centimetres (the car is
+  about 61 cm wide), applied after dual carriageways merge on their source widths:
+  lanes × 120 cm + both edges, at least the class floor. Lanes come from `lanes`
+  (capped per class) or the class default; `width` tags do not set vehicle roads.
+  One-way roads use half the default and maximum lanes (at least one).
+
+  | Class | Default / max lanes | Edge | Floor |
+  | --- | --- | --- | --- |
+  | motorway, trunk | 4 / 8 | 40 | 520 |
+  | primary | 4 / 8 | 30 | 500 |
+  | secondary | 4 / 6 | 30 | 500 |
+  | tertiary | 2 / 4 | 30 | 300 |
+  | unclassified, residential, road, busway | 2 / 2 | 25 | 300 |
+  | living_street | 2 / 2 | 20 | 280 |
+  | service | 1 / 2 | 20 | 200 |
+  | track | 1 / 1 | 20 | 180 |
+  | `*_link` | 1 / 2 | 25–30 | 200 |
+
+  A one-way floor is max(one lane + edges, half the floor + one edge). A merged
+  road keeps its source median gap plus two one-way profile carriageways. Walking
+  ways and other classes keep `width` or lane estimates (lanes × 3.25 m + 0.5 m,
+  else class estimates), widened to at least 20 map cm (0.2·D source m); source
+  surfaces map to game materials.
 - Dual carriageways (one-way motorway, trunk, primary, secondary or tertiary
   pairs, not links or roundabouts) merge into one two-way road. A pair runs
   anti-parallel (direction dot < −0.9) with the same class and, where both are
@@ -48,13 +68,14 @@ remainder so lattice points are whole map centimetres.
   or aligned nodes across the median (along-road offset within max(10 m, the
   separation)). Each merged run needs one real rung (converge node or piece);
   motorway and trunk sections between ramps may merge between aligned nodes
-  alone. A slip road beside its carriageway runs the same way and never pairs. No building, water or
+  alone, as may any pair whose centres lie closer than half their summed one-way
+  profile widths (they would overlap on the map). A slip road beside its carriageway runs the same way and never pairs. No building, water or
   other road may lie between the carriageways; median links, U-turns and junction
   pieces joined only to the pair are absorbed. The merged centreline is the
   midline: the first carriageway's nodes move to it with every incident road, the
   second's rung nodes are renamed to them and a side road meeting only the second
   carriageway gets its own midline node. Width is both carriageways plus the
-  median per segment, `lanes` their sum (at most 8), `oneway` is removed. Every
+  median per segment (then profiled as above), `lanes` their sum (at most 8), `oneway` is removed. Every
   absorbed way stays in the merged road's sources, as does a road looping back onto
   one merged node (a jughandle U-turn, up to 150 m; a longer loop stops the merge).
   Merging stops a lead length (8 m) before any structure anchor, explicit-height
@@ -119,6 +140,9 @@ remainder so lattice points are whole map centimetres.
   removed, as an estimated way would be) or consumed by a relation is neither
   crossed nor absorbed, and a chain ending where such a way continued it is
   excluded, so no structure ends in the air or underground.
+  An estimated bridge end that meets no other vehicle road keeps its level lead
+  as a ground road (split at a synthetic node ref 8·10¹⁸ + the end ref), so no
+  deck cap rail crosses a ramp foot.
   Estimated structures join ordinary ground roads, stay whole at crop edges with
   every way of their chain, keep
   building clearance plus 20 map cm (0.2·D m) of safety furniture each side (also when widened) and are

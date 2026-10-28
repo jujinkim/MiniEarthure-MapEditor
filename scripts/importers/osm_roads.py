@@ -46,6 +46,20 @@ TURN_SLACK = 0.005  # Radians: map-centimetre rounding of the adopted vertices.
 SERVICE_PAINT = ("parking_aisle", "driveway", "drive-through")
 STUB_M = 15.0
 ROAD_FLOOR_CM = 150  # Editor adoption floor (import_units.gd), raises paint radii.
+# Game road classes, in map centimetres at every scale (the car is about 61 cm
+# wide). A vehicle road is its lanes × LANE_CM plus both edges, never narrower
+# than its class floor. Lanes come from the `lanes` tag (capped per class) or
+# the class default; `width` tags do not set vehicle road widths. One-way roads
+# use half the default and maximum (at least one lane). Other classes keep
+# their source width.
+LANE_CM = 120
+# class: (default lanes, maximum lanes, edge per side, floor) for two-way roads.
+PROFILES = {"motorway": (4, 8, 40, 520), "trunk": (4, 8, 40, 520), "primary": (4, 8, 30, 500),
+            "secondary": (4, 6, 30, 500), "tertiary": (2, 4, 30, 300), "unclassified": (2, 2, 25, 300),
+            "residential": (2, 2, 25, 300), "living_street": (2, 2, 20, 280), "road": (2, 2, 25, 300),
+            "busway": (2, 2, 25, 300), "service": (1, 2, 20, 200), "track": (1, 1, 20, 180),
+            "motorway_link": (1, 2, 30, 200), "trunk_link": (1, 2, 30, 200), "primary_link": (1, 2, 30, 200),
+            "secondary_link": (1, 2, 25, 200), "tertiary_link": (1, 2, 25, 200)}
 
 
 def tags(feature):
@@ -63,6 +77,108 @@ def lane_width(road_tags):
     """Source metres of a road with a lane count and no width tag, else None."""
     count = lanes(road_tags)
     return round(count * LANE_M + LANE_MARGIN_M, 2) if count else None
+
+
+def profile_lanes(road_tags, one_way, total=None):
+    """Lane count of a vehicle road under its class profile. `total` is a
+    merged dual carriageway's lane count (both directions)."""
+    default, maximum, edge, floor = PROFILES[road_tags["highway"]]
+    if one_way: default, maximum = max(1, default // 2), max(1, maximum // 2)
+    count = total if total is not None else lanes(road_tags)
+    return max(1, min(maximum, count or default))
+
+
+def profile_cm(road_tags, one_way, count):
+    """Map centimetres of one carriageway with `count` lanes."""
+    default, maximum, edge, floor = PROFILES[road_tags["highway"]]
+    if one_way: floor = max(LANE_CM + 2 * edge, floor // 2 + edge)
+    return max(floor, count * LANE_CM + 2 * edge)
+
+
+def apply_profiles(items, scale):
+    """Vehicle road widths (source metres) from the class profiles, after dual
+    carriageways merged on their source widths. A merged road keeps its median
+    gap and takes two profile carriageways. Markings keep their own lane rule.
+    Returns counts."""
+    counts = Counter()
+    for f, g in items:
+        p = f["properties"]
+        t = tags(f)
+        if g.geom_type != "LineString" or t.get("highway") not in PROFILES or p.get("_city_ground_paint"): continue
+        if p.get("_city_dual") and p.get("_city_carriageway_m"):
+            total = p.get("_city_lanes")
+            each = profile_lanes(t, True, None if total is None else max(1, total // 2))
+            pair = 2 * profile_cm(t, True, each) * scale / 100
+            wa, wb = p["_city_carriageway_m"]
+            widths = p.get("_city_widths_m") or [float(p.get("width_m", 8))] * (len(g.coords) - 1)
+            widths = [round(max(0.0, w - wa - wb) + pair, 2) for w in widths]
+            p["_city_widths_m"], p["width_m"] = widths, max(widths)
+            counts["dual"] += 1
+        else:
+            if "_city_width_estimate" not in p: counts["tagged_width_ignored"] += 1
+            one_way = oneway(t) != 0
+            count = profile_lanes(t, one_way)
+            p["width_m"] = round(profile_cm(t, one_way, count) * scale / 100, 2)
+            p.pop("_city_widths_m", None)
+            counts["one_way" if one_way else "two_way"] += 1
+    return counts
+
+
+LEAD_REF_BASE = 8 * 10 ** 18  # Synthetic node refs (19 digits) above every OSM node ID.
+
+
+def open_deck_ends(roads):
+    """An estimated bridge whose end meets no other vehicle road keeps its
+    level (0 m) lead as a ground road, so MapKit puts no deck cap rail across a
+    ramp foot. The split node gets a synthetic ref LEAD_REF_BASE + the end ref.
+    Returns (roads, count)."""
+    def vehicle(f, g):
+        return g.geom_type == "LineString" and f["properties"].get("_city_ends") and (
+            tags(f).get("highway") not in PEDESTRIAN or "_city_estimated_m" in f["properties"])
+    uses = Counter(ref for f, g in roads if vehicle(f, g) for ref in f["properties"]["_city_ends"] if ref is not None)
+    output, count = [], 0
+    for f, g in roads:
+        p = f["properties"]
+        heights, refs, ends = p.get("_city_estimated_m"), p.get("_city_refs"), p.get("_city_ends")
+        coords = list(g.coords)
+        if p.get("_city_estimated_kind") != "bridge" or not heights or not refs or len(refs) != len(coords) or len(heights) != len(coords):
+            output.append((f, g))
+            continue
+        cuts = [0, len(coords) - 1]
+        dead = [None, None]
+        for end, at in ((0, 0), (1, len(coords) - 1)):
+            if ends[end] is None or uses[ends[end]] != 1 or heights[at] != 0: continue
+            order = range(len(coords)) if end == 0 else range(len(coords) - 1, -1, -1)
+            last = at
+            for i in order:
+                if heights[i] != 0: break
+                last = i
+            if last != at and 0 < last < len(coords) - 1:
+                cuts[end], dead[end] = last, ends[end]
+        if cuts == [0, len(coords) - 1] or cuts[0] >= cuts[1]:
+            output.append((f, g))
+            continue
+        def piece(a, b, from_end, to_end, lead):
+            q = dict(p, _city_refs=refs[a:b + 1], _city_ends=[from_end, to_end])
+            if p.get("_city_widths_m"): q["_city_widths_m"] = p["_city_widths_m"][a:b]
+            if lead:
+                for key in ("_city_estimated_m", "_city_estimated_kind", "_city_estimated_chain", "_city_estimated_clearance_m"): q.pop(key, None)
+                q["_city_sidewalk_m"], q["_city_ground_lead"] = 0.0, True
+            else:
+                q["_city_estimated_m"] = heights[a:b + 1]
+            return (dict(f, properties=q), LineString(coords[a:b + 1]))
+        synthetic = [str(LEAD_REF_BASE + int(ref)) if ref is not None else None for ref in dead]
+        for end in (0, 1):
+            if dead[end] is not None:
+                refs = list(refs)
+                refs[cuts[end]] = int(synthetic[end])
+        start = synthetic[0] or ends[0]
+        finish = synthetic[1] or ends[1]
+        if dead[0] is not None: output.append(piece(0, cuts[0], ends[0], synthetic[0], True))
+        output.append(piece(cuts[0], cuts[1], start, finish, False))
+        if dead[1] is not None: output.append(piece(cuts[1], len(coords) - 1, synthetic[1], ends[1], True))
+        count += (dead[0] is not None) + (dead[1] is not None)
+    return output, count
 
 
 def oneway(road_tags):
@@ -140,9 +256,10 @@ class DualCarriageways:
     anchor or explicit-height node.
     """
 
-    def __init__(self, items, spend=lambda count=1: None):
+    def __init__(self, items, spend=lambda count=1: None, scale=None):
         self.items = list(items)
         self.spend = spend
+        self.scale = scale  # With a scale, rungless pairs whose profile widths overlap merge.
         self.stats = Counter()
         self.reasons = Counter()  # Diagnostics only: why cells were not merged.
 
@@ -474,6 +591,17 @@ class DualCarriageways:
             return None  # Another road between the carriageways.
         return sorted(members)
 
+    def overlapping(self, a_run, b_run):
+        """Carriageways whose class-profile widths would overlap on the map
+        (median centre separation below half their summed profile widths):
+        drawn as one road even without a real rung."""
+        if self.scale is None: return False
+        a_line, b_line = self.line(a_run), self.line(b_run)
+        samples = [a_line.interpolate(d) for d in np.linspace(0, a_line.length, 9)]
+        separation = float(np.median([b_line.distance(q) for q in samples]))
+        width = lambda i: profile_cm(tags(self.items[i][0]), True, profile_lanes(tags(self.items[i][0]), True)) * self.scale / 100
+        return tags(self.items[a_run[0]][0]).get("highway") in PROFILES and separation < (max(map(width, a_run)) + max(map(width, b_run))) / 2
+
     def merge(self, A, B, a_nodes, b_nodes, position, run):
         items = self.items
         (k_start, j_start, _), (k_end, j_end, _) = run[0][0], run[-1][1]
@@ -482,7 +610,8 @@ class DualCarriageways:
             self.reasons['merge_short'] += 1
             return
         rungs = [run[0][0]] + [r1 for _, r1, _ in run]
-        if all(c == VIRTUAL for _, _, c in rungs) and tags(items[a_run[0]][0]).get("highway") not in RUNGLESS:
+        rungless = all(c == VIRTUAL for _, _, c in rungs) and tags(items[a_run[0]][0]).get("highway") not in RUNGLESS
+        if rungless and not self.overlapping(a_run, b_run):
             self.reasons["merge_rungless"] += 1
             return
         links = sorted({i for _, _, cell in run for i in cell})
@@ -586,6 +715,7 @@ class DualCarriageways:
             p["_city_road_tags"] = {k: v for k, v in tags(f).items() if k not in ("oneway", "dual_carriageway")}
             p["_city_dual"] = True
             p["_city_lanes"] = total
+            p["_city_carriageway_m"] = [self.width[i], wb]  # Source widths; profiles widen them.
             cuts = [0] + [n for n in range(1, len(refs) - 1) if refs[n] in splits[i]] + [len(refs) - 1]
             pieces[i] = []
             for a, b in zip(cuts, cuts[1:]):
@@ -611,6 +741,7 @@ class DualCarriageways:
         self.used.update(a_run)
         self.used.update(absorbed)
         self.stats["merged_pairs"] += 1
+        self.stats["overlap_merged_pairs"] += rungless
         self.stats["merged_ways"] += len(a_run) + len(b_run)
         self.stats["absorbed_links"] += len(links) + len(connectors)
         self.stats["merged_m"] += round(merged_m)

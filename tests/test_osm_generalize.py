@@ -458,7 +458,7 @@ class City(unittest.TestCase):
         from osm_review import Review
         self.setup_city()
         self.add(1,LineString([(0,0),(150,3),(300,0)]),width_m=6,_city_refs=[1,2,3],_city_road_tags=dict(highway="residential"))
-        self.add(2,box(146,-3.6,154,-1.2))  # Inside the straightened (4 m tolerance) road only.
+        self.add(2,box(146,-12.4,154,-10.2))  # Inside the straightened (4 m tolerance) 24 m 1:8 profile road only.
         for i in range(12):
             self.add(10+i,box(20+i*14,40,30+i*14,60),height_m=9)
         collection = lambda: dict(type="FeatureCollection",features=deepcopy(self.features))

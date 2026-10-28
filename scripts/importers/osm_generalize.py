@@ -309,9 +309,10 @@ class Generalizer:
         # City road rules before any buffer, so every gap shares them: service
         # paint, dual carriageways merged into one road, explicit sidewalks.
         self.road_rules.update({"painted_" + k: n for k, n in osm_roads.paint_service(self.features).items()})
-        merger = osm_roads.DualCarriageways(self.features, self.spend)
+        merger = osm_roads.DualCarriageways(self.features, self.spend, self.scale)
         self.features = merger.run()
         self.road_rules.update({"dual_" + k: n for k, n in merger.stats.items()})
+        self.road_rules.update({"profile_" + k: n for k, n in osm_roads.apply_profiles(self.features, self.scale).items()})
         self.features, sidewalk_counts = osm_roads.sidewalks(self.features, self.scale, self.spend)
         self.road_rules.update({("sidewalk_" + k if not k[0].isdigit() else "sidewalk_cm_" + k): n for k, n in sidewalk_counts.items()})
         self.crossing_points = list(dict.fromkeys(c for f, g in self.features for c in f["properties"].get("_city_crossing_points", [])))
@@ -643,7 +644,8 @@ class Generalizer:
             if len(points) < 2: continue
             p["_city_estimated_m"], p["_city_refs"] = heights, refs
             joined[index] = (feature, LineString(points))
-        return joined + output
+        roads, self.road_rules["open_deck_ends"] = osm_roads.open_deck_ends(joined + output)
+        return roads
 
     def snap(self, point):
         """Nearest whole 1:scale map centimetre in this projection's local metres."""
