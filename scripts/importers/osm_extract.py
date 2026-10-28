@@ -1132,9 +1132,17 @@ def city_polygon_properties(p, tags, geometry, kind, identity, sites):
     if "amenity" in tags: p["_city_amenity"] = tags["amenity"]
     if "shop" in tags or "office" in tags: p["_city_use"] = True
     if tags.get("roof:shape") == "gabled": p["_city_roof"] = "gabled"
+    material = BUILDING_MATERIALS.get(tags.get("building:material", ""))
+    if material: p["_city_material"] = material
     if re.fullmatch(r"[1-9][0-9]{0,3}", tags.get("building:flats", "")): p["_city_flats"] = True
     member = (sites or {}).get(("w" if kind == "way" else "r", identity))
     if member: p["_city_site_relation"] = member
+
+
+# OSM building:material onto MapKit's three wall materials.
+BUILDING_MATERIALS = {"brick": "brick", "wood": "wood", "timber_framing": "wood", "concrete": "concrete",
+                      "reinforced_concrete": "concrete", "cement_block": "concrete", "plaster": "concrete",
+                      "stone": "concrete", "glass": "concrete", "metal": "concrete", "steel": "concrete"}
 
 
 def barrier_features(ways, nodes, node_tags, counts):

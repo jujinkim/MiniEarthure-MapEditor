@@ -723,6 +723,8 @@ class CityRules(unittest.TestCase):
         self.assertEqual(layer.estimates["usage"], 8, "every rule-assigned use is an estimate; explicit commercial is not")
         self.assertEqual(layer.estimates["height_m"], 13, "level-derived heights stay estimates")
         self.assertFalse(any("Unclassified building use" in w for w in layer.warnings))
+        import osm_sites
+        self.assertEqual(osm_sites.facade({"_city_building": "apartments", "_city_material": "brick"}, None)[:2], ("brick", "residential"), "a tagged material replaces the rule's")
 
     def test_untagged_apartment_complex_blocks_get_seeded_storeys(self):
         self.setup_city()

@@ -168,8 +168,14 @@ def complex_height(sites, key, p, geometry, source_id):
 def facade(p, site_kind):
     """Current-v1 facade of a city building: (material, usage, roof,
     inferred) from the OSM `building` value, use tags, height and enclosing
-    site, in rule order. `inferred` is True when the use is not an explicit
-    MapKit use value, so review counts it as an estimate."""
+    site, in rule order; a tagged `building:material` replaces the rule's
+    material. `inferred` is True when the use is not an explicit MapKit use
+    value, so review counts it as an estimate."""
+    material, usage, roof, inferred = _facade(p, site_kind)
+    return p.get("_city_material", material), usage, roof, inferred
+
+
+def _facade(p, site_kind):
     value = p.get("_city_building") or p.get("usage", "yes")
     amenity = p.get("_city_amenity")
     height = _height(p)

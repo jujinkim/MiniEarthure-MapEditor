@@ -91,10 +91,11 @@ remainder so lattice points are whole map centimetres.
   the road's sources instead of being painted. Widths are whole map centimetres,
   0 or 20..1000. Building trimming and junction clearance include the sidewalk.
 - Road markings: `lanes` (merged: the sum), else 4 lanes for motorway, trunk and
-  primary and 2 for secondary and tertiary; none for lower classes without
-  `lanes`. Center lines on two-way roads with an even lane count, no edge lines,
-  asphalt or concrete only. A junction end (three or more roads) gets a crosswalk
-  when a `highway=crossing` node on the road or a `footway=crossing` way across it
+  primary and 2 for secondary, tertiary and two-way residential streets; none for
+  other lower classes without `lanes`. Center lines on two-way roads with an even
+  lane count, edge lines on motorway, trunk and primary, asphalt or concrete only.
+  Residential streets carry no junction stop lines, arrows or generated signals.
+  A junction end (three or more roads) gets a crosswalk when a `highway=crossing` node on the road or a `footway=crossing` way across it
   lies within max(15 m, √2 × the widest half width + 10 m). A marked road and its
   marked two-arm neighbours stay within the 128 paint segments MapKit draws joined
   per road and cell, counted as MapKit does (a fillet arc per vertex, half a join
@@ -184,7 +185,9 @@ remainder so lattice points are whole map centimetres.
   `shed` → wood industrial; otherwise the enclosing site decides
   (commercial/retail → commercial, industrial → industrial, school/hospital/
   university/college → public, residential below 12 m → brick residential), and
-  everything else is concrete residential. A missing `height` is estimated as
+  everything else is concrete residential. A tagged `building:material` replaces
+  the rule's material (brick → brick, wood/timber framing → wood, concrete,
+  plaster, stone, glass, metal → concrete). A missing `height` is estimated as
   3 m × `building:levels`. Inside an apartment complex (a residential site with
   at least two `building=apartments`), an untagged apartment, residential or `yes`
   building of at least 250 m² gets a seeded storey count instead: the site's base
@@ -193,8 +196,9 @@ remainder so lattice points are whole map centimetres.
   whose final footprint is an axis-aligned rectangle (MapKit's gable rule); other
   solids and records are flat. Rule-assigned uses, level heights and every
   material/roof count as estimates in review; the source value stays in the
-  source file. The renderer draws storeys, panes and night windows per facade
-  ([MapKit materials](../addons/mapkit/docs/RICHER_MATERIALS.md)).
+  source file. The renderer draws storeys, panes, night windows, a seeded
+  per-building tone and pane pattern, and storefront signs on commercial ground
+  floors ([MapKit materials](../addons/mapkit/docs/RICHER_MATERIALS.md)).
 - Levels (0–64 m) set the simplification: lines ≤ level/4 (at most 4 m), areas ≤
   level/4 (at most 8 m), buildings ≤ level/4 (at most 1 m). A level repeating the
   tolerances of a larger one (32 m after 64 m) is not built. Levels whose line
@@ -271,11 +275,11 @@ remainder so lattice points are whole map centimetres.
   map rectangle are dropped.
 - Road convention: the OSM panel's driving side (right/left) and signal style
   (horizontal/vertical) become `MapDocument.traffic` on a map without one. Marked
-  roads get `stop_lines` (stop lines and lane arrows at junction ends) and their
-  `one_way` direction.
+  roads above residential get `stop_lines` (stop lines and lane arrows at junction
+  ends); marked roads keep their `one_way` direction.
 - Street furniture (`osm_furniture.py`, MapKit builtins at game scale, fixed
   seeds, positions only from OSM): a signal pole per inbound arm at junctions of
-  three or more vehicle roads where two marked roads meet or an OSM signal node lies
+  three or more vehicle roads where two roads with stop lines meet or an OSM signal node lies
   within 15 m (the driver's near-side corner, the head over the road); a bus shelter
   facing the road at each bus stop, subway entrances and station signs beside the
   nearest road; parks (park, garden, playground, recreation ground, village green)

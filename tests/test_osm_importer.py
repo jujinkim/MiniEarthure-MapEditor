@@ -34,6 +34,13 @@ class OsmTests(unittest.TestCase):
         p = {}
         osm.city_polygon_properties(p, {"building": "house", "roof:shape": "hipped", "building:flats": "x", "office": "yes"}, geometry, "relation", 2, {("r", 2): "relation/9"})
         self.assertEqual(p, {"_city_building": "house", "_city_use": True, "_city_site_relation": "relation/9"})
+        for tag, material in (("timber_framing", "wood"), ("glass", "concrete"), ("brick", "brick")):
+            p = {}
+            osm.city_polygon_properties(p, {"building": "yes", "building:material": tag}, geometry, "way", 3, {})
+            self.assertEqual(p.get("_city_material"), material, tag)
+        p = {}
+        osm.city_polygon_properties(p, {"building": "yes", "building:material": "adobe"}, geometry, "way", 4, {})
+        self.assertNotIn("_city_material", p, "unknown materials keep the rule material")
 
     def test_generation_regions_source_ids_holes_and_protection(self):
         import xml.etree.ElementTree as ET

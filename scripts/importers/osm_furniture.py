@@ -127,7 +127,7 @@ class Furniture:
 
     def signals(self, signal_points):
         """One pole per inbound arm at junctions of three or more vehicle roads
-        where two marked roads meet or an OSM signal node lies within 15 m."""
+        where two roads with stop lines meet or an OSM signal node lies within 15 m."""
         tagged = STRtree([Point(p["position"]) for p in signal_points]) if signal_points else None
         incident = {}
         for r in self.vehicle:
@@ -137,7 +137,7 @@ class Furniture:
             if len(arms) < 3 or node not in self.nodes: continue
             at = self.nodes[node]["position"]
             centre = Point(at[0], at[2])
-            arterial = sum(bool(r.get("markings")) for r, end in arms) >= 2
+            arterial = sum(bool((r.get("markings") or {}).get("stop_lines")) for r, end in arms) >= 2
             signalled = tagged is not None and len(tagged.query(centre.buffer(1500)))  # An OSM signal within 15 source m.
             if not (arterial or signalled): continue
             reach = math.sqrt(2) * self.half[node] + (CLEARANCE_CM + SIZES[self.signal][1] + 2) * self.scale

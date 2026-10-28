@@ -12,7 +12,7 @@ SCALE = 3
 
 def road(identity, a, b, marked=True, width=1500, sidewalk=300):
     return dict(field="roads", id=identity, after=dict(id=identity, **{"from": a[0], "to": b[0]}, points=[[a[1], 0, a[2]], [b[1], 0, b[2]]],
-                widths_cm=[width], surfaces=["asphalt"], kind="ground", sidewalk_cm=sidewalk, markings=dict(lanes=4) if marked else None))
+                widths_cm=[width], surfaces=["asphalt"], kind="ground", sidewalk_cm=sidewalk, markings=dict(lanes=4, stop_lines=True) if marked else None))
 
 
 def node(identity, x, y):
@@ -56,6 +56,10 @@ class Furniture(unittest.TestCase):
         patches = crossroad(marked=False)
         records, _ = osm_furniture.generate("l" * 32, patches, {}, SCALE, {})
         self.assertEqual(records, [])
+        streets = crossroad()
+        for patch in streets:
+            if patch["field"] == "roads": patch["after"]["markings"]["stop_lines"] = False
+        self.assertEqual(osm_furniture.generate("l" * 32, streets, {}, SCALE, {})[0], [], "residential center lines alone bring no signals")
         tagged = {"osm_street_points": [dict(kind="traffic_signals", category="traffic_signals", source_id="node/9", position=[300, 200])]}
         records, _ = osm_furniture.generate("l" * 32, patches, tagged, SCALE, {})
         self.assertEqual(len(records), 4)

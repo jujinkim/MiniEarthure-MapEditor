@@ -36,7 +36,10 @@ FOOTWAY_REACH_M = 8.0
 CROSSWALK_M = 15.0
 MARKED = {"motorway": 4, "trunk": 4, "primary": 4, "secondary": 2, "tertiary": 2,
           "motorway_link": None, "trunk_link": None, "primary_link": None, "secondary_link": None, "tertiary_link": None,
-          "unclassified": None, "residential": None}
+          "unclassified": None, "residential": 2}
+# Painted edge lines on these classes; residential streets get only a center line
+# (two-way), without junction stop lines or signals.
+EDGE_LINED = ("motorway", "trunk", "primary")
 # MapKit (road_paint.rs, road_style.rs): a marked road's paint path segments in
 # a cell plus those of its two-arm neighbours may not exceed 128. Counted here
 # for whole records, so the bound holds for any cell size.
@@ -969,7 +972,8 @@ def markings(kind, lane_count, two_way, surface):
     count = lane_count or MARKED[kind]
     if not count: return None
     count = max(1, min(MAX_LANES, count))
-    return dict(lanes=count, center_line=bool(two_way and count % 2 == 0), edge_lines=False, crosswalk_start=False, crosswalk_end=False)
+    if kind == "residential" and not two_way: return None
+    return dict(lanes=count, center_line=bool(two_way and count % 2 == 0), edge_lines=kind in EDGE_LINED, crosswalk_start=False, crosswalk_end=False)
 
 
 def _arc(a, p, b, width):
@@ -1074,7 +1078,7 @@ def finish(roads, scale, crossing_points, crossing_lines, is_road, spend=lambda 
         mark = markings(t.get("highway", "road"), p.get("_city_lanes", lanes(t)), oneway(t) == 0, p.get("surface", "asphalt"))
         if mark is None: continue
         # Junction stop lines and lane arrows (MapKit paints them from the arms).
-        mark["stop_lines"] = True
+        mark["stop_lines"] = t.get("highway") != "residential"
         if oneway(t): mark["one_way"] = oneway(t)
         width = float(p.get("width_m", 8))
         for end, key in enumerate(node_keys(f)):
