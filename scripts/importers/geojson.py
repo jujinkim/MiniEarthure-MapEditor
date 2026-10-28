@@ -296,7 +296,15 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                         polygon=polygon, holes=[hole[:-1] for hole in rings[1:]],
                         protected=properties.get("protected", False), tags=properties.get("region_tags", {})))
                 if osm_graph and properties.get("osm_region") and not zone: continue
-                if properties.get("_city_paint"):
+                if properties.get("_city_water"):
+                    water = properties["_city_water"]
+                    if not (city and osm_graph) or len(rings) > 1:
+                        raise ValueError("City water must be one hole-free current-v1 water polygon")
+                    layer.add("water_bodies", {"id": part_id, "polygon": polygon, "islands": [],
+                        "surface_cm": round(number(water["surface_m"], "water surface", -10000, 10000) * 100),
+                        "bottom_cm": round(number(water["bottom_m"], "water bottom", -10000, 10000) * 100), "flow_cm_s": [0, 0]})
+                    layer.estimate("water_level")
+                elif properties.get("_city_paint"):
                     if not (city and osm_graph) or len(rings) > 1 or properties["_city_paint"] not in ("asphalt", "concrete", "dirt", "gravel", "grass"):
                         raise ValueError("City ground paint must be one hole-free current-v1 surface polygon")
                     layer.add("surface_areas", {"id": part_id, "polygon": polygon, "surface": properties["_city_paint"]})

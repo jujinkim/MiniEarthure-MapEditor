@@ -17,7 +17,9 @@ static func osm_patches(source: Array, city := false, terrain_base_cm := 0, deno
 			if record.has(key): record[key] = _coordinates(record[key], denominator)
 		for key in ["widths_cm"]:
 			if record.has(key): record[key] = _coordinates(record[key], denominator)
-		for key in ["height_cm", "base_cm", "clearance_cm", "sidewalk_cm", "spacing_cm", "thickness_cm"]:
+		for key in ["islands"]:
+			if record.has(key): record[key] = _coordinates(record[key], denominator)
+		for key in ["height_cm", "base_cm", "clearance_cm", "sidewalk_cm", "spacing_cm", "thickness_cm", "surface_cm", "bottom_cm"]:
 			if record.get(key) != null: record[key] = roundi(float(record[key]) / denominator)
 		# City building parts: each solid scales like its record.
 		for part: Dictionary in record.get("parts", []):
@@ -41,6 +43,9 @@ static func osm_patches(source: Array, city := false, terrain_base_cm := 0, deno
 			if patch.field == "barriers": record.line = _line_duplicates(record.line)
 			if terrain_base_cm != 0:
 				if patch.field == "nodes" and not patch.id.contains("-osm-node-"): record.position[1] += terrain_base_cm
+				if patch.field == "water_bodies":
+					record.surface_cm += terrain_base_cm
+					record.bottom_cm += terrain_base_cm
 				if patch.field == "roads" and not (str(record.from) + str(record.to)).contains("-osm-node-"):
 					for point: Array in record.points: point[1] += terrain_base_cm
 	return result

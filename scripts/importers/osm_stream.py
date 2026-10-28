@@ -21,7 +21,7 @@ from import_layer import MAX_INPUT, MAX_POINTS, BudgetExceeded, soft_limit
 from osm_review import Review
 from osm_disk_nodes import DiskNodes, SharedRoadNodes, MissingNode, FILES as NODE_FILES, MAX_LOOKUP
 from osm_area import bounds
-from osm_extract import dependency, category, build_features, city_area, CITY_BARRIERS, MAX_ENTITIES, MAX_REFS, MAX_FEATURES, MAX_TAGS, TAG_CEILING, TAG_TEXT
+from osm_extract import dependency, category, build_features, city_area, CITY_BARRIERS, CITY_WATERWAYS, MAX_ENTITIES, MAX_REFS, MAX_FEATURES, MAX_TAGS, TAG_CEILING, TAG_TEXT
 
 # Source-work budgets warn (soft_limit) and the import continues. The CEILING
 # values and the disk-sized index quota are memory/disk guards and still refuse.
@@ -394,7 +394,7 @@ def _potential(tags, city=False, relation=False):
     if bool(tags.get("highway") or tags.get("building", "no") != "no" or "building:part" in tags or tags.get("landuse") or tags.get("natural") in ("wood","water","wetland","bare_rock","scrub","grassland") or tags.get("leisure") in ("park","nature_reserve") or tags.get("boundary")=="protected_area"):
         return True
     if not city or relation and tags.get("type") != "multipolygon": return False
-    return city_area(tags) or not relation and tags.get("barrier") in CITY_BARRIERS
+    return city_area(tags) or not relation and (tags.get("barrier") in CITY_BARRIERS or tags.get("waterway") in CITY_WATERWAYS)
 
 
 def _structure_closure(db, event, size, read_way=None, limits=None):
@@ -696,7 +696,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             if candidate:
                 try:
                     kind = category(tags, city)
-                    if (tags.get("type") != "multipolygon" and not (kind=="region" and tags.get("type")=="boundary")) or kind in ("road", "barrier"):
+                    if (tags.get("type") != "multipolygon" and not (kind=="region" and tags.get("type")=="boundary")) or kind in ("road", "barrier", "waterway"):
                         raise ValueError("selected relation requires supported multipolygon semantics")
                 except ValueError as exc:
                     review.reject("relation/" + str(entity.id), exc)

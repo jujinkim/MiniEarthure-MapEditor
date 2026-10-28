@@ -2433,6 +2433,11 @@
     " · up to %d laps": " · 最大%d周",
     " · %d pieces": " · %dピース",
     "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. Length sets the lap count, sprint size and circuit scale; it is not a time target.": "シードにより有効なカテゴリから種類・幅・方向を選びます。すべての種類が含まれるとは限りません。長さは周回数、スプリントのピース数、周回コースの規模を決めるもので、時間の目標ではありません。",
-    "Generated · %.1f m · estimated %.1f s · %d pieces": "生成完了 · %.1f m · 推定%.1f秒 · %dピース"
+    "Generated · %.1f m · estimated %.1f s · %d pieces": "生成完了 · %.1f m · 推定%.1f秒 · %dピース",
+    "Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n": "水域: %d 片(水域 %d 件、幅の帯の水路 %d 件)、道路と歩行路の部分は除外。水面の高さと深さは推定値。道路の下に完全に隠れた水路 %d 件は取り込みません。\n",
+    "City water count mismatch.": "都市の水域数が一致しません。",
+    "Invalid city water.": "都市の水域レコードが無効です。",
+    "Invalid dropped city water sources.": "取り込まない都市水域ソースの一覧が無効です。",
+    "Water records require OSM city optimization.": "水域レコードには OSM 都市最適化が必要です。"
   }
 }

@@ -250,6 +250,16 @@ remainder so lattice points are whole map centimetres.
   overlap. Area pieces under one map square metre are not painted, and exactly
   collinear vertices are dropped from every piece. Buildings stand on top and roads
   keep precedence natively. Each piece maps to the area sources it covers.
+- Water: OSM water areas (`natural=water`, `landuse=reservoir|basin`) plus
+  waterway lines (`waterway=river|canal|stream|drain|ditch`, on the ground; culverts
+  and other off-ground ways are skipped) as ribbons of their `width` (else river
+  12, canal 8, stream 3, drain 2, ditch 1.5 m; at least 150 map cm) become
+  `water_bodies`. Ground vehicle roads with their sidewalks and clearance and
+  walking ways are cut out, the union is cut per 128 map m like paint into
+  hole-free pieces of at most 256 vertices (under one map square metre dropped),
+  and each piece maps to the sources it covers. Surfaces are 3 map cm above the
+  ground and 60 cm deep (estimates; terrain fitting gives depth). A waterway wholly
+  under roads is disclosed as dropped.
 - MapKit checks surface areas pairwise within touching bounds and charges that work
   to the shared road work budget the game enforces; a large green city can exceed
   it (the Editor warns that the game refuses the map).

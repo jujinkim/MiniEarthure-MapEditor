@@ -803,6 +803,46 @@ class CityRules(unittest.TestCase):
         self.assertTrue(any(s == "asphalt" and src == ["way/4"] for s, src, _ in paint), "a tagged hard pitch surface wins over grass")
         self.assertEqual(meta["ground_paint"]["grass"] + meta["ground_paint"]["asphalt"] + meta["ground_paint"]["pedestrian"], meta["ground_paint"]["pieces"])
 
+    def test_city_water_from_areas_and_waterways_minus_roads(self):
+        from geojson import convert
+        self.setup_city()
+        self.add(1, box(0, 0, 100, 60), osm_region=True, landuse="water", protected=False)  # A lake.
+        stream = lambda identity, line, width: self.features.append(dict(type="Feature", properties=dict(osm_source_id=f"way/{identity}",
+            _city_waterway=dict(kind="stream", width_m=width)), geometry=json.loads(json.dumps(mapping(transform(self.inverse, line))))))
+        stream(2, LineString([(100, 30), (400, 30)]), 6.0)  # Leaves the lake, crosses a road at x=250.
+        stream(3, LineString([(250, -100), (250, -60)]), 1.0)  # Wholly under the road below.
+        self.add(4, LineString([(250, -200), (250, 200)]), width_m=8, _city_refs=[1, 2], _city_road_tags=dict(highway="residential"))
+        worker = self.worker(3)
+        out, meta = worker.candidate(0)
+        water = [(f["properties"]["_city_sources"], transform(worker.project, shape(f["geometry"]))) for f in out["features"] if "_city_water" in f["properties"]]
+        self.assertGreater(len(water), 1, "the lake and the stream on both sides of the road")
+        union = unary_union([g for s, g in water])
+        self.assertAlmostEqual(union.intersection(box(0, 0, 100, 60)).area, 6000, delta=30, msg="the lake is water")
+        road = LineString([(250, -200), (250, 200)]).buffer(4.5)  # 300 map cm residential profile, 9 m at 1:3.
+        self.assertLess(union.intersection(road).area, 0.01, "roads cut the water")
+        self.assertTrue(any("way/2" in s for s, g in water) and not any("way/3" in s for s, g in water))
+        self.assertEqual(meta["water"]["dropped_sources"], ["way/3"], "a waterway wholly under a road is disclosed")
+        self.assertIn("way/2", meta["source_ids"])
+        self.assertNotIn("way/3", meta["source_ids"])
+        layer = convert(out, "synthetic", "ODbL-1.0", coordinates=self.options, osm_graph=True, city=True)
+        bodies = [p["after"] for p in layer.patches if p["field"] == "water_bodies"]
+        self.assertEqual(len(bodies), len(water))
+        self.assertTrue(all(b["surface_cm"] == 9 and b["bottom_cm"] == -180 and b["islands"] == [] and len(b["polygon"]) <= 256 for b in bodies),
+                        "3 map cm above the ground, 60 map cm deep (source cm at 1:3)")
+
+    def test_city_waterways_are_selected_and_culverts_skipped(self):
+        from osm_extract import category, waterway_features
+        self.assertEqual(category(dict(waterway="stream"), True), "waterway")
+        self.assertIsNone(category(dict(waterway="stream")), "only the city profile selects waterway lines")
+        self.assertEqual(category(dict(natural="water", water="river")), "region")
+        nodes = {1: (9.0, 55.0), 2: (9.001, 55.0), 3: (9.002, 55.0)}
+        counts = {}
+        out = waterway_features([(10, "waterway", [1, 2], dict(waterway="stream", width="20")), (11, "waterway", [2, 3], dict(waterway="river")),
+                                 (12, "waterway", [1, 3], dict(waterway="stream", tunnel="culvert")), (13, "road", [1, 2], dict(highway="residential"))], nodes, {}, counts)
+        self.assertEqual([(f["properties"]["osm_source_id"], f["properties"]["_city_waterway"]) for f in out],
+                         [("way/10", dict(kind="stream", width_m=20.0)), ("way/11", dict(kind="river", width_m=12.0))])
+        self.assertEqual(counts, dict(waterway_ways=2, skipped_waterways=1))
+
     def test_explicit_barrier_kinds_and_heights_follow_the_scale(self):
         for scale in (3, 8):
             with self.subTest(scale=scale):

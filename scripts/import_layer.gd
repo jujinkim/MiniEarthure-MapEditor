@@ -21,7 +21,7 @@ const WARN_AREAS := 8
 const MAX_CHECK_CELLS := 16384
 ## Count re-checks of own adapter output: shape sanity only, never a budget.
 const SANITY := 1000000000000
-const FIELDS := ["nodes", "roads", "buildings", "zones", "surface_areas", "pois", "barriers"]
+const FIELDS := ["nodes", "roads", "buildings", "zones", "surface_areas", "pois", "barriers", "water_bodies"]
 ## City imports pave unpainted ground (MapKit `ground_surface`) of a map without one.
 const CITY_GROUND_SURFACE := "concrete"
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
@@ -267,6 +267,7 @@ func _load(raw: Variant, expected_id: String, requested: Dictionary, notes: Arra
 		if patch.field == "pois" and raw.adapter != "facility-csv-v1": return "Facility records require the CSV adapter."
 		if patch.field == "surface_areas" and not raw.coordinates.has("osm_city"): return "Ground paint records require OSM city optimization."
 		if patch.field == "barriers" and not raw.coordinates.has("osm_city"): return "Barrier records require OSM city optimization."
+		if patch.field == "water_bodies" and not raw.coordinates.has("osm_city"): return "Water records require OSM city optimization."
 		if patch.field == "buildings" and patch.after.has("parts") and not raw.coordinates.has("osm_city"): return "Building parts require OSM city optimization."
 		if patch.id is not String or not patch.id.begins_with(prefix) or patch.id.length() > 128 or patch.after.get("id") != patch.id or ids.has(patch.id): return "Invalid/duplicate import record identity."
 		if raw.adapter == "overture-buildings-v1" and not overture_building_ids.has(patch.id): return "Unmapped Overture building."

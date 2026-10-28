@@ -2433,6 +2433,11 @@
     " · up to %d laps": " · up to %d laps",
     " · %d pieces": " · %d pieces",
     "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. Length sets the lap count, sprint size and circuit scale; it is not a time target.": "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. Length sets the lap count, sprint size and circuit scale; it is not a time target.",
-    "Generated · %.1f m · estimated %.1f s · %d pieces": "Generated · %.1f m · estimated %.1f s · %d pieces"
+    "Generated · %.1f m · estimated %.1f s · %d pieces": "Generated · %.1f m · estimated %.1f s · %d pieces",
+    "Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n": "Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n",
+    "City water count mismatch.": "City water count mismatch.",
+    "Invalid city water.": "Invalid city water.",
+    "Invalid dropped city water sources.": "Invalid dropped city water sources.",
+    "Water records require OSM city optimization.": "Water records require OSM city optimization."
   }
 }

@@ -65,6 +65,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 			trimmed[source] = true
 	if raw.get("patches") is not Array: return "Invalid city output records."
 	var barrier_count := 0
+	var water_count := 0
 	for patch: Variant in raw.patches:
 		if patch is Dictionary and patch.get("field") == "zones":
 			if patch.get("after") is not Dictionary or patch.after.get("spacing_cm") != 3200 or patch.after.get("density_per_mille") != 750: return "Invalid city vegetation estimates."
@@ -72,12 +73,20 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 			var barrier: Variant = patch.get("after")
 			if barrier is not Dictionary or barrier.get("kind") not in ["hedge", "fence", "wall"] or barrier.get("line") is not Array or barrier.line.size() < 2 or not boundary._count(barrier.get("height_cm"), 1000 * denominator) or not boundary._count(barrier.get("thickness_cm"), 100 * denominator): return "Invalid city barrier."
 			barrier_count += 1
+		if patch is Dictionary and patch.get("field") == "water_bodies":
+			var body: Variant = patch.get("after")
+			if body is not Dictionary or body.get("polygon") is not Array or body.polygon.size() < 3 or body.get("islands") is not Array or not body.islands.is_empty() or body.get("flow_cm_s") is not Array or body.flow_cm_s.size() != 2 or body.flow_cm_s.any(func(v: Variant) -> bool: return v != 0) or not (body.get("surface_cm") is int or body.get("surface_cm") is float) or not (body.get("bottom_cm") is int or body.get("bottom_cm") is float) or float(body.bottom_cm) >= float(body.surface_cm): return "Invalid city water."
+			water_count += 1
 		if patch is Dictionary and patch.get("field") == "buildings":
 			var parts: Variant = patch.get("after", {}).get("parts", []) if patch.get("after") is Dictionary else null
 			if parts is not Array or parts.size() > 255: return "Invalid city building parts."
 			for part: Variant in parts:
 				if part is not Dictionary or part.get("footprint") is not Array or part.footprint.size() < 3: return "Invalid city building parts."
 	if barrier_count != int(meta.after.get("barriers", 0)): return "City barrier count mismatch."
+	var water: Variant = meta.get("water", {})
+	if water is not Dictionary or water_count != int(water.get("pieces", 0)) or water.get("dropped_sources", []) is not Array: return "City water count mismatch."
+	for source: Variant in water.get("dropped_sources", []):
+		if source is not String or pattern.search(source) == null or sources.has(source) or excluded.has(source): return "Invalid dropped city water sources."
 	# Dropped barrier sources (bridge guard rails, below one map centimetre) are
 	# disclosed, never also imported, and come from the cropped barrier sources.
 	var dropped: Variant = meta.get("barriers", {}).get("dropped_sources", []) if meta.get("barriers", {}) is Dictionary else null
@@ -218,6 +227,8 @@ static func summary(meta: Dictionary) -> String:
 		result += I18N.t("City sites: %d building records with %d solids (nearby buildings of one site and category share a record as separate parts).\n") % [int(records.get("records", 0)), int(records.get("solids", 0))]
 		result += I18N.t("Barriers: %d pieces from %d explicit OSM barrier ways and %d pieces of %d inferred site perimeters, opened at paths, painted driveways and gates; heights are estimates.\n") % [int(barriers.get("explicit_records", 0)), int(barriers.get("explicit_ways", 0)), int(barriers.get("inferred_records", 0)), int(barriers.get("inferred_sites", 0))]
 		result += I18N.t("Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n") % [int(paint.get("pieces", 0)), int(paint.get("pedestrian", 0)), int(paint.get("grass", 0)), int(paint.get("asphalt", 0)), int(paint.get("concrete", 0)), int(paint.get("dirt", 0)), int(paint.get("gravel", 0))]
+		var water: Dictionary = meta.get("water", {})
+		result += I18N.t("Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n") % [int(water.get("pieces", 0)), int(water.get("areas", 0)), int(water.get("waterways", 0)), water.get("dropped_sources", []).size()]
 		var skipped: Dictionary = meta.get("skipped", {})
 		result += I18N.t("Not imported: %d barrier sources dropped (guard rails on bridges, wholly within gates or crossings, shorter than one map centimetre), %d barrier ways off the ground or with unsupported tags, %d city-only areas that cannot be imported.\n") % [barriers.get("dropped_sources", []).size(), int(skipped.get("barrier_ways", 0)), int(skipped.get("city_areas", 0))]
 	result += I18N.t("Complex polygons are partitioned with a %.2f source m separation (%.2f map m); source IDs and courtyards remain recorded.\n") % [meta.polygon_partition_gap_m,meta.polygon_partition_gap_m/denominator]

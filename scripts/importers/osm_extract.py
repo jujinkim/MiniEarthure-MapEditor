@@ -40,6 +40,8 @@ def dependency():
 # City-only areas and barriers (urban ground paint, building sites, barriers).
 # The exact profile never selects them.
 CITY_BARRIERS = ("fence", "wall", "hedge", "retaining_wall", "guard_rail")
+# City waterway lines and their source-metre widths when `width` is missing.
+CITY_WATERWAYS = {"river": 12.0, "canal": 8.0, "stream": 3.0, "drain": 2.0, "ditch": 1.5}
 CITY_GREEN_LEISURE = ("park", "garden", "playground", "pitch")
 CITY_GREEN_LANDUSE = ("grass", "meadow", "recreation_ground", "village_green", "cemetery", "farmland", "orchard", "forest")
 CITY_GREEN_NATURAL = ("grassland", "scrub", "wood")
@@ -78,6 +80,8 @@ def category(tags, city=False):
         return "region"
     if not kinds and city and tags.get("barrier") in CITY_BARRIERS:
         return "barrier"
+    if not kinds and city and tags.get("waterway") in CITY_WATERWAYS:
+        return "waterway"
     return kinds[0] if kinds else None
 
 
@@ -788,7 +792,7 @@ def parse(raw, input_format, supplement=None, city=False):
                 if refs > MAX_REFS:
                     soft_limit("osm_references", refs, MAX_REFS, "OSM reference budget exceeded")
                 selected = category(tags, city)
-                if selected == "barrier": selected = None  # Barrier relations are not lines.
+                if selected in ("barrier", "waterway"): selected = None  # Barrier and waterway relations are not lines.
                 if selected:
                     if (tags.get("type") != "multipolygon" and not (selected=="region" and tags.get("type")=="boundary")) or selected == "road":
                         raise ValueError("OSM selected relation requires an area multipolygon or protected boundary")
@@ -942,8 +946,8 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                 tags = city_tags(tags)
             if identity in level or identity in estimated:
                 tags = {key: value for key, value in tags.items() if key not in LEVEL_TAGS}
-            if kind == "barrier":
-                continue  # Barrier lines are added below (city profile).
+            if kind in ("barrier", "waterway"):
+                continue  # Barrier and waterway lines are added below (city profile).
             if city and kind != "road" and city_only(tags):
                 try:
                     features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology, city=city))
@@ -1052,6 +1056,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
             if len(connected_features)>feature_limit: soft_limit("osm_split_features", len(connected_features), feature_limit, "OSM split feature budget exceeded")
     if city:
         connected_features.extend(barrier_features(ways, nodes, node_tags, counts))
+        connected_features.extend(waterway_features(ways, nodes, node_tags, counts))
     collection["features"] = connected_features
     if connections: collection["osm_connections"] = connections
     if loop_sources:
@@ -1111,6 +1116,30 @@ def barrier_features(ways, nodes, node_tags, counts):
         properties = dict(osm_source_id="way/" + str(identity), _city_barrier=city_barrier(tags))
         gates = gate_points(references, nodes, node_tags)
         if gates: properties["_city_gates"] = gates
+        output.append(dict(type="Feature", properties=properties, geometry=dict(type="LineString", coordinates=points)))
+    return output
+
+
+def waterway_features(ways, nodes, node_tags, counts):
+    """City profile: OSM waterway lines (river, canal, stream, drain, ditch) on
+    the ground, with their source-metre width (`width`, else a class default).
+    Culverts and other ways off the ground are not imported (counted)."""
+    output = []
+    for identity, kind, references, tags in sorted(ways):
+        if kind != "waterway": continue
+        points = []
+        for ref in references:
+            if ref in nodes and (not points or points[-1] != nodes[ref]): points.append(list(nodes[ref]))
+        if (off_ground(tags) or tags.get("_source_error") or any(node_tags.get(ref, {}).get("_source_error") for ref in references)
+                or len(points) < 2 or any(ref not in nodes for ref in references)):
+            counts["skipped_waterways"] = counts.get("skipped_waterways", 0) + 1
+            continue
+        width = CITY_WATERWAYS[tags["waterway"]]
+        if "width" in tags:
+            try: width = metres(tags, "width")
+            except ValueError: pass
+        counts["waterway_ways"] = counts.get("waterway_ways", 0) + 1
+        properties = dict(osm_source_id="way/" + str(identity), _city_waterway=dict(kind=tags["waterway"], width_m=round(min(max(width, 0.5), 200.0), 2)))
         output.append(dict(type="Feature", properties=properties, geometry=dict(type="LineString", coordinates=points)))
     return output
 

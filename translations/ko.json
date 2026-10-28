@@ -2433,6 +2433,11 @@
     " · up to %d laps": " · 최대 %d바퀴",
     " · %d pieces": " · %d조각",
     "The seed chooses types, widths and directions from enabled categories. Not every type is guaranteed. Length sets the lap count, sprint size and circuit scale; it is not a time target.": "시드에 따라 활성 카테고리의 종류·폭·방향을 선택합니다. 모든 종류가 반드시 포함되지는 않습니다. 길이는 랩 수, 스프린트 조각 수, 순환 코스 규모를 정하며 시간 목표가 아닙니다.",
-    "Generated · %.1f m · estimated %.1f s · %d pieces": "생성 완료 · %.1f m · 예상 %.1f초 · %d조각"
+    "Generated · %.1f m · estimated %.1f s · %d pieces": "생성 완료 · %.1f m · 예상 %.1f초 · %d조각",
+    "Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n": "물: 조각 %d개(물 영역 %d개, 폭만큼의 띠인 수로 %d개), 도로와 보행로 자리는 잘라 냄. 수면 높이와 깊이는 추정값. 도로 밑에 완전히 묻힌 수로 %d개는 가져오지 않음.\n",
+    "City water count mismatch.": "도시 물 수가 일치하지 않습니다.",
+    "Invalid city water.": "도시 물 레코드가 잘못되었습니다.",
+    "Invalid dropped city water sources.": "가져오지 않은 도시 물 원본 목록이 잘못되었습니다.",
+    "Water records require OSM city optimization.": "물 레코드에는 OSM 도시 최적화가 필요합니다."
   }
 }

@@ -51,6 +51,13 @@ MIN_AREA_PIECE_CM2 = 10000  # Area paint pieces under one map square metre are n
 # rounding of the earlier piece's cuts (0.5 cm), of the margin (0.71 cm) and of
 # the new piece's cuts (0.5 cm) never close it.
 PAINT_MARGIN_CM = 2
+# City water (map centimetres): a flat surface just above the ground (terrain
+# carving gives it depth), stream ribbons at least WATER_MIN_WIDTH_CM wide,
+# pieces cut per WATER_CELL_CM like paint (hole-free, ≤ PAINT_VERTICES).
+WATER_SURFACE_CM = 3
+WATER_DEPTH_CM = 60
+WATER_MIN_WIDTH_CM = 150
+WATER_CELL_CM = 12800
 WIDTHS = {"motorway":12,"trunk":10,"primary":8,"secondary":8,"tertiary":6,"residential":6,
           "living_street":4,"service":3,"track":3,"path":1.6,"footway":1.6,"cycleway":2.4,"pedestrian":4,"steps":1.6}
 
@@ -257,6 +264,7 @@ class Generalizer:
         self.estimated_widths = Counter()
         self.road_rules = Counter()
         barrier_sources = []
+        water_lines = []
         # Meter precision in the source frame, before the single 1:scale adoption.
         # Scalars or coordinate arrays; arrays give the same per-point values.
         def project(x, y, z=None):
@@ -282,6 +290,9 @@ class Generalizer:
             if "_city_barrier" in feature["properties"]:
                 barrier_sources.append((feature, geometry))  # Barrier lines are not roads.
                 continue
+            if "_city_waterway" in feature["properties"]:
+                water_lines.append((feature, geometry))  # Waterway lines become water, not roads.
+                continue
             if "_city_outline" in feature["properties"]:
                 feature["properties"]["_city_outline"] = [list(zip(*project(*np.array(ring, dtype=float).T))) for ring in feature["properties"]["_city_outline"]]
             if geometry.geom_type == "LineString":
@@ -305,7 +316,7 @@ class Generalizer:
                     p["width_m"] = self.minimum_width  # Current-v1 minimum width: 20 map cm.
                     self.widened_roads += 1
             self.features.append((feature, geometry))
-        self.before = self.counts(self.features + barrier_sources)
+        self.before = self.counts(self.features + barrier_sources + water_lines)
         # City road rules before any buffer, so every gap shares them: service
         # paint, dual carriageways merged into one road, explicit sidewalks.
         self.road_rules.update({"painted_" + k: n for k, n in osm_roads.paint_service(self.features).items()})
@@ -349,7 +360,9 @@ class Generalizer:
         self.source_ids = source_ids
         self.sites = osm_sites.Sites(self.features, source_ids)
         self.barriers = osm_sites.Barriers(self, barrier_sources)
-        self.input_ids = sorted({s for f,g in self.features for s in source_ids(f)} | {s for f,g in self.barriers.items for s in source_ids(f)})
+        self.water_items, self.water_counts, self.water_dropped = self.water(water_lines)
+        self.input_ids = sorted({s for f,g in self.features for s in source_ids(f)} | {s for f,g in self.barriers.items for s in source_ids(f)}
+                                | {s for f,g in self.water_items for s in source_ids(f)})
         self.uses = Counter(ref for f,g in self.features if g.geom_type == "LineString"
                             for ref in set(f["properties"].get("osm_node_refs", f["properties"].get("_city_refs", []))))
         # Chaining joins driving roads where exactly two driving roads meet;
@@ -382,7 +395,8 @@ class Generalizer:
         counts = dict(features=len(items), positions=0, roads=0, buildings=0, areas=0, barriers=0)
         for feature, geometry in items:
             counts["positions"] += positions(geometry)
-            counts["barriers" if "_city_barrier" in feature["properties"] else "roads" if geometry.geom_type == "LineString" else "areas" if feature["properties"].get("osm_region") or feature["properties"].get("_city_paint") or feature["properties"].get("landuse") in ("forest", "orchard") else "buildings"] += 1
+            p = feature["properties"]
+            counts["barriers" if "_city_barrier" in p else "areas" if "_city_waterway" in p or "_city_water" in p else "roads" if geometry.geom_type == "LineString" else "areas" if p.get("osm_region") or p.get("_city_paint") or p.get("landuse") in ("forest", "orchard") else "buildings"] += 1
         return counts
 
     def barrier(self, geometry, extra=0):
@@ -853,6 +867,74 @@ class Generalizer:
                 result.extend(self.native_polygon_parts(shapely.intersection(part,rectangle,grid_size=self.grid),depth+1))
         return result
 
+    def water(self, lines):
+        """City water: OSM water areas plus waterway ribbons (source width,
+        at least WATER_MIN_WIDTH_CM on the map) minus ground vehicle roads with
+        their sidewalks and clearance, and walking ways. United on the map
+        lattice and cut like paint into hole-free pieces per WATER_CELL_CM; each
+        piece keeps the sources it covers. A waterway wholly under roads is
+        disclosed as dropped. Returns (items, counts, dropped sources)."""
+        counts = Counter()
+        sources = []
+        for f, g in self.features:
+            p = f["properties"]
+            if g.geom_type != "LineString" and p.get("osm_region") and p.get("landuse") in osm_sites.WATER:
+                sources.append((source_ids(f), g))
+                counts["areas"] += 1
+        minimum = WATER_MIN_WIDTH_CM * self.scale / 100
+        for f, g in lines:
+            width = max(float(f["properties"]["_city_waterway"]["width_m"]), minimum)
+            sources.append((source_ids(f), g.buffer(width / 2, quad_segs=2)))
+            counts["waterways"] += 1
+        if not sources:
+            return [], counts, []
+        cuts = []
+        for f, g in self.features:
+            p = f["properties"]
+            if g.geom_type != "LineString" or not osm_roads.ground(f, g) or "_city_estimated_m" in p: continue
+            if is_walking(f):
+                cuts.append(g.buffer(float(p.get("width_m", 1.6)) / 2, quad_segs=2))
+            elif osm_roads.driving(f, g):
+                cuts.append(g.buffer(clear_width(f, self.furniture) / 2 + self.road_clearance, quad_segs=2))
+        self.spend(sum(positions(g) for _, g in sources) + sum(positions(g) for g in cuts))
+        lx, ly = self.local
+        factor, grid = self.to_map_factor, self.grid
+        to_map = lambda x, y: ((x+lx)*factor, (y+ly)*factor)
+        from_map = lambda x, y: (x*grid-lx, y*grid-ly)
+        areal = lambda g: g if g.geom_type in ("Polygon", "MultiPolygon") else shapely.union_all(parts(g), grid_size=1)
+        shapes = [areal(shapely.make_valid(shapely.set_precision(moved(g, to_map), 1))) for _, g in sources]
+        water = areal(shapely.union_all(shapes, grid_size=1))
+        if cuts:
+            blocked = shapely.union_all(list(shapely.set_precision(moved(np.array(cuts, dtype=object), to_map), 1)), grid_size=1)
+            water = areal(shapely.difference(water, blocked, grid_size=1))
+        tree = STRtree(shapes)
+        output, kept = [], set()
+        if not water.is_empty:
+            x0, y0, x1, y1 = water.bounds
+            for i in range(math.floor(x0/WATER_CELL_CM), math.floor(x1/WATER_CELL_CM)+1):
+                for j in range(math.floor(y0/WATER_CELL_CM), math.floor(y1/WATER_CELL_CM)+1):
+                    cell = box(i*WATER_CELL_CM, j*WATER_CELL_CM, (i+1)*WATER_CELL_CM, (j+1)*WATER_CELL_CM)
+                    local = areal(shapely.intersection(water, cell, grid_size=1))
+                    if local.is_empty: continue
+                    for piece in self.paint_parts(local):
+                        if piece.area < MIN_AREA_PIECE_CM2:
+                            counts["slivers"] += 1
+                            continue
+                        owners = set()
+                        for k in tree.query(piece):
+                            self.spend()
+                            if shapely.intersection(shapes[k], piece).area > 0: owners.update(sources[k][0])
+                        if not owners: continue
+                        kept.update(owners)
+                        output.append((dict(type="Feature", properties=dict(_city_water=dict(surface_m=round(WATER_SURFACE_CM*self.scale/100, 2),
+                            bottom_m=round(-WATER_DEPTH_CM*self.scale/100, 2)), _city_sources=sorted(owners), osm_source_id=min(owners)), geometry=None), piece))
+        counts["pieces"] = len(output)
+        counts["positions"] = sum(positions(g) for f, g in output)
+        dropped = sorted({s for ids, g in sources for s in ids} - kept)
+        line_ids = {s for f, g in lines for s in source_ids(f)}
+        dropped = [s for s in dropped if s in line_ids]  # Water areas stay mapped as regions.
+        return [(f, g) for (f, _), g in zip(output, moved([g for f, g in output], from_map))], counts, dropped
+
     def paint_parts(self, geometry, depth=0):
         # Native surface areas are simple and hole-free. Cut through each hole
         # (or the middle of an oversized part) along a whole map-centimetre line.
@@ -1123,6 +1205,7 @@ class Generalizer:
         # building parts); each solid stays its own visible prism.
         items, self.record_counts = osm_sites.building_records(items, is_building, source_ids, _key)
         items += [(deepcopy(f), g) for f, g in self.barriers.items]
+        items += [(deepcopy(f), g) for f, g in self.water_items]
         # Area paint simplifies like other areas, so it is shared only by gaps
         # with the same area tolerance as well as the same road space.
         area_tolerance = min(8.0, gap/4)
@@ -1190,7 +1273,8 @@ class Generalizer:
                     groups=groups, protected_buildings=sum(bool(f["properties"].get("_city_name") or f["properties"].get("_city_landmark") or float(f["properties"].get("height_m",12))>=40) for f,g in items if is_building(f,g)),
                     building_records=dict(sorted(self.record_counts.items())),
                     barriers=dict(sorted((self.barriers.counts + Counter({"kind_" + k: n for k, n in self.barriers.kinds.items()})).items()), dropped_sources=sorted(set(self.barriers.dropped) - set(self.input_ids))),
-                    ground_paint=dict(sorted(self.context.get("paint_counts", {}).items())))
+                    ground_paint=dict(sorted(self.context.get("paint_counts", {}).items())),
+                    water=dict(sorted(self.water_counts.items()), dropped_sources=self.water_dropped))
         return result, meta
 
 
