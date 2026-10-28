@@ -15,7 +15,33 @@ func _ready() -> void:
 	# Keep this dynamic: loading editor_main first constructs a document store
 	# before the native class is registered in a source checkout without imports.
 	var scene := "res://scripts/import_native_worker.tscn" if worker else "res://main.tscn"
-	add_child(load(scene).instantiate())
+	var editor: Node = load(scene).instantiate()
+	add_child(editor)
+	var recipe := args.find("--real-city-recipe")
+	if not worker and recipe >= 0: _run_recipe.call_deferred(editor, args, recipe)
+
+## Headless real-city build: `-- --real-city-recipe recipe.json [--report out.json]`
+## runs the same steps as File → New real-city map, prints the report and quits
+## with 0 on success.
+func _run_recipe(editor: Control, args: PackedStringArray, at: int) -> void:
+	var RECIPE := preload("./real_city_recipe.gd")
+	var path := args[at + 1] if at + 1 < args.size() else ""
+	var report_at := args.find("--report")
+	var report_path := args[report_at + 1] if report_at >= 0 and report_at + 1 < args.size() else ""
+	var parsed: Dictionary = RECIPE.parse(FileAccess.get_file_as_string(path), path.get_base_dir()) if FileAccess.file_exists(path) else {"ok":false, "error":"Recipe file not found: " + path}
+	var report: Dictionary = parsed
+	if parsed.ok:
+		for i in 2: await get_tree().process_frame
+		if is_instance_valid(editor.start_panel): editor.start_panel.hide()
+		var runner: RefCounted = RECIPE.new(editor, func(text: String): print("REAL_CITY ", text))
+		report = await runner.run(parsed.recipe)
+		editor.store.dirty = false
+	var text := JSON.stringify(report, "  ")
+	print("REAL_CITY_REPORT ", text)
+	if report_path != "":
+		var file := FileAccess.open(report_path, FileAccess.WRITE)
+		if file != null: file.store_string(text)
+	get_tree().quit(0 if report.get("ok", false) else 1)
 
 func _show_startup_error(failure: String) -> void:
 	var panel := PanelContainer.new()

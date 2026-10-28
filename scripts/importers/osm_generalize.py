@@ -1231,6 +1231,14 @@ class Generalizer:
         retained = {identity for f,g in items for identity in source_ids(f)}
         expected = set(self.input_ids) - self.excluded_sources
         missing = expected - retained
+        # A road-trimmed building whose remainder vanished on the lattice must
+        # not come back untrimmed inside the road: exclude it explicitly.
+        for identity in sorted(missing & self.trimmed_buildings):
+            self.review.reject(identity, f"Building footprint outside derived ground-road space is smaller than the 1:{self.scale} map lattice; it cannot retain a solid without blocking the road. Road widths may be estimates. Explicit source exclusion is required.")
+            self.excluded_sources.add(identity)
+        self.trimmed_buildings.difference_update(self.excluded_sources)
+        expected = set(self.input_ids) - self.excluded_sources
+        missing = expected - retained
         if missing:
             # Quantization or a derived courtyard clearance must not erase a
             # small source island. Keep those original features unmerged; they

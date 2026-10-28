@@ -24,6 +24,9 @@ var source_path: LineEdit
 var place_choices: OptionButton
 var place_status: Label
 var places: Array = []
+## Set by a caller that consumes search results itself (real-city recipe/wizard);
+## the crop dialog then stays closed.
+var search_callback := Callable()
 ## Places whose exact boundary union clips the import (empty: rectangle crop).
 var selected_areas: Array = []
 const LIMITS := preload("./limit_warnings.gd")
@@ -280,6 +283,9 @@ func finish_search(job: RefCounted, result: Dictionary) -> void:
 		if job != null and not job.adapter_texts.is_empty(): place_status.text += "\n" + "\n".join(job.adapter_texts)
 	else: place_status.text = str(result.get("error",{}).get("message","PBF lookup failed."))
 	ui._status(place_status.text)
+	if search_callback.is_valid():
+		search_callback.call(places.duplicate(true) if result.get("ok",false) else [])
+		return
 	dialog.popup_centered(Vector2i(840,680))
 
 func select_place(index: int) -> void:

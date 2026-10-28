@@ -94,8 +94,9 @@ regional sources from the immutable snapshot and audits all dependencies with
 capacity report shows total transfer size, expanded records, shared asset bytes,
 audit peak, retained index/overview and the largest source validation allowance.
 
-**Reopen .mkregions** sizes its restore/audit memory from the file and RAM
-(1–8 GiB) and restores the canonical document and every original payload,
+**Reopen .mkregions** (and Restore package for `.memap`) allows half the machine's
+RAM (1–8 GiB) for its restore/audit memory; the reader admits only the package's own
+planned validation peak. It restores the canonical document and every original payload,
 including unused assets, into a new adjacent `<package>.source` directory, which must
 not exist. Adoption then follows the ordinary unsaved-document flow. A cancelled or
 stale reopen leaves a restored directory intact and reports its path. The Editor

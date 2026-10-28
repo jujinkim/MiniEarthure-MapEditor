@@ -5,6 +5,21 @@ for the exact profile in [IMPORTS](IMPORTS.md). This is an Editor-owned derived
 approximation with no city-specific coordinates and no change to the original PBF.
 It separates larger bounded source work from the smaller output MapKit accepts.
 
+## Real-city maps: wizard and recipe
+
+**Create → New real-city map…** (`real_city_wizard.gd`) and the headless
+`-- --real-city-recipe recipe.json [--report report.json]` user argument run the
+same steps (`real_city_recipe.gd`, Editor tool format v1): new free-roam map
+(terrain 0, `cell_cm` default 12800) → PBF areas found by exact name (optional
+`source_id`/`admin_level`) → city import at 1:`scale` with review exclusions and
+`traffic` → adopt → optional facility CSV (`facilities`) → optional Copernicus
+`dem` folder (mosaic over the imported frame, grounded buildings) → save to
+`project` → Export to `package` (`full_check` default true; `mobile_check` opens it
+under the 1.5 GiB phone budget). Recipe keys outside that list are refused; paths
+are relative to the recipe file. Every step keeps its review and limits; a step
+that fails stops the run with `failed_step` and the status text (exit code 1). The
+wizard saves its settings as a recipe. Recommended: 1:3, 128 m cells, one district.
+
 ## Map scale 1:D
 
 **City map scale 1:** chooses the denominator D, an integer from 1 to 8 (default 3;
@@ -329,7 +344,7 @@ Review reports before/after objects and positions, gaps/tolerances, building rec
 estimates, painted pedestrian ways, road cuts and overlap changes. A compact table maps every supported source
 to contiguous output records; missing, duplicate or excluded claims fail validation.
 No supported source is dropped to fit a limit. A building entirely inside derived road
-space fails that candidate with its source ID unless exclusion review is enabled; then
+space, or road-trimmed to a remainder smaller than the map lattice, fails that candidate with its source ID unless exclusion review is enabled; then
 the whole source is excluded with a warning and the inspected-exclusions checkbox is
 required.
 

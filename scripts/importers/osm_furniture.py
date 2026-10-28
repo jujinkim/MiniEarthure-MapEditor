@@ -58,8 +58,10 @@ class Furniture:
         for r in roads:
             points = [(q[0], q[2]) for q in r["points"]]
             sidewalk = r.get("sidewalk_cm") or 0
-            for (a, b), width in zip(zip(points, points[1:]), r["widths_cm"]):
-                if a != b: blocks.append(LineString([a, b]).buffer(width / 2 + sidewalk + margin, quad_segs=2))
+            # MapKit's corridor keeps the outer corner of a bend (a mitre, not a
+            # round join): buffer the whole line at its widest with mitred joins.
+            if len(set(points)) >= 2:
+                blocks.append(LineString(points).buffer(max(r["widths_cm"]) / 2 + sidewalk + margin, quad_segs=2, join_style="mitre", mitre_limit=10.0))
         for p in patches:
             if p["field"] == "buildings":
                 rings = [p["after"]["footprint"]] + [part["footprint"] for part in p["after"].get("parts", [])]

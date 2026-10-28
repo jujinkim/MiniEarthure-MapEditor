@@ -76,6 +76,19 @@ class Furniture(unittest.TestCase):
         self.assertGreater(shelter["position"][2], 750 + 300, "beyond the road edge and sidewalk")
         self.assertEqual((shelter["quarter_turns"], shelter.get("yaw_offset_mdeg", 0)), (2, 0), "the open front (local +y) faces the road to the south")
 
+    def test_shelters_keep_clear_of_the_outer_corner_of_a_bend(self):
+        # A 110-degree bend: a round-join corridor would let the shelter touch
+        # MapKit's mitred outer corner.
+        bend = [node("a", 3843, 9591), node("v", 0, 0), node("b", 3213, -1734),
+                dict(field="roads", id="r", after=dict(id="r", **{"from": "a", "to": "b"}, points=[[3843, 0, 9591], [0, 0, 0], [3213, 0, -1734]],
+                     widths_cm=[900, 900], surfaces=["asphalt"] * 2, kind="ground", sidewalk_cm=0, markings=None))]
+        stops = {"osm_street_points": [dict(kind="bus_stop", category="bus_stop", source_id="node/1", position=[-560, -260])]}
+        records, counts = osm_furniture.generate("l" * 32, bend, stops, SCALE, {})
+        mitred = LineString([(3843, 9591), (0, 0), (3213, -1734)]).buffer(450, join_style="mitre", mitre_limit=10.0)
+        for r in records:
+            footprint = osm_furniture.Furniture([], {}, SCALE, {}).footprint(r["asset_id"], r["position"][0], r["position"][2], r["quarter_turns"] * 90 + r.get("yaw_offset_mdeg", 0) / 1000)
+            self.assertFalse(footprint.intersects(mitred), counts)
+
     def test_parks_scatter_seeded_details_inside_their_area(self):
         park = dict(source_id="way/7", landuse="park", polygon=[[20000, 20000], [40000, 20000], [40000, 40000], [20000, 40000]], holes=[])
         records, counts = osm_furniture.generate("l" * 32, [], {"generation_regions": [park, dict(park, source_id="way/8", landuse="industrial")]}, SCALE, {})

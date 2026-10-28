@@ -1140,6 +1140,7 @@ func _register_commands() -> void:
 	commands.register("View", "Object lists", func(): track_workbench.object_lists = not track_workbench.object_lists; track_workbench.refresh(), "", {"id":"view.object_lists","icon":"list"})
 	commands.register("Create", "Create track", func(): _show_start(), "", {"id":"create.track","icon":"plus"})
 	commands.register("Create", "Import OSM / PBF", _guided_osm, "", {"id":"create.osm","icon":"import"})
+	commands.register("Create", "New real-city map…", open_real_city, "", {"id":"create.real_city","icon":"import"})
 	commands.register("Create", "Advanced tools…", open_advanced, "", {"id":"create.advanced","icon":"settings"})
 	for mode in ["2d", "3d", "split"]:
 		commands.register("View", mode.to_upper(), _set_view_mode.bind(mode), "", {"id":"view." + mode, "icon":mode})
@@ -2204,10 +2205,19 @@ func _show_start() -> void:
 		_label(box,"Build a course and drive")
 		_button(box,"Create track",func(): start_panel.hide(); _request_document_action("new")).custom_minimum_size.x = 440
 		_button(box,"Import OSM / PBF",func(): start_panel.hide(); _guided_osm()).custom_minimum_size.x = 440
+		_button(box,"New real-city map…",func(): start_panel.hide(); open_real_city()).custom_minimum_size.x = 440
 		_button(box,"Open existing project",func(): start_panel.hide(); _choose("open")).custom_minimum_size.x = 440
 		_button(box,"Seed track options…",func(): start_panel.hide(); _open_track_generator()).custom_minimum_size.x = 440
 		_button(box,"Continue editing",func(): start_panel.hide()).custom_minimum_size.x = 440
 	start_panel.show()
+
+var real_city_wizard: ConfirmationDialog
+func open_real_city() -> void:
+	if not is_instance_valid(real_city_wizard):
+		real_city_wizard = preload("./real_city_wizard.gd").new()
+		add_child(real_city_wizard)
+		real_city_wizard.setup(self)
+	real_city_wizard.open()
 
 func _guided_osm() -> void:
 	_ensure_import_ui()

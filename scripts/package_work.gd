@@ -361,15 +361,13 @@ func reopen_package(path: String, destination: String) -> Dictionary:
 	var result: Dictionary = JSON.parse_string(native.unpack_source(destination,budget,native.begin_request()))
 	return result
 
-# The user's own package: size the memory allowance from the file and the machine,
-# never below the previous 1 GiB. Runtime readers keep their own defaults.
-static func reopen_budget(path: String) -> int:
-	var file := FileAccess.open(path, FileAccess.READ)
-	var length := file.get_length() if file != null else 0
-	if file != null: file.close()
+# The user's own package: the allowance is half the machine's memory (1–8 GiB);
+# the reader admits only the package's own planned validation peak, which the
+# compressed size does not predict (dense city documents compress well).
+# Runtime readers keep their own defaults.
+static func reopen_budget(_path: String) -> int:
 	var physical := int(OS.get_memory_info().get("physical", 0))
-	var ceiling := REOPEN_MAX_BYTES if physical <= 0 else clampi(physical / 2, REOPEN_MIN_BYTES, REOPEN_MAX_BYTES)
-	return clampi(length * 8, REOPEN_MIN_BYTES, ceiling)
+	return REOPEN_MAX_BYTES if physical <= 0 else clampi(physical / 2, REOPEN_MIN_BYTES, REOPEN_MAX_BYTES)
 
 
 static func runtime_cell_budget(message: String) -> bool:

@@ -453,6 +453,19 @@ class City(unittest.TestCase):
         for gap, codes in seen.items():
             self.assertTrue(set(stages.values()) <= codes, f"gap {gap}: {codes}")
 
+    def test_a_trimmed_building_whose_remainder_vanishes_is_excluded_not_restored_untrimmed(self):
+        from osm_review import Review
+        self.setup_city()
+        self.add(1,LineString([(0,0),(100,0)]),width_m=4,_city_refs=[1,2])
+        # Road space reaches 2 m + 0.8 m clearance at 1:8; the 2 cm remainder is below the 8 cm lattice.
+        self.add(2,box(40,1,60,2.82))
+        review = Review(True)
+        worker = Generalizer(dict(type="FeatureCollection",features=deepcopy(self.features)),self.options,review)
+        out, meta = worker.candidate(0)
+        self.assertNotIn("way/2", meta["source_ids"])
+        reasons = {r["source_id"]: r["reason"] for r in review.metadata()["excluded"]}
+        self.assertIn("smaller than the 1:8 map lattice", reasons.get("way/2", ""), reasons)
+
     def test_candidates_start_from_the_largest_gap_and_drop_exclusions_of_a_replaced_road_space(self):
         from osm_generalize import candidates
         from osm_review import Review
