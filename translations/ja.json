@@ -2446,6 +2446,18 @@
     "Invalid city play area.": "都市の走行範囲が無効です。",
     "Invalid imported play area.": "取り込んだ走行範囲が無効です。",
     "Invalid city street points.": "都市の街路地点の一覧が無効です。",
-    "Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n": "場所: 名前のある OSM の場所 %d 件を地図の地点にします(駅、名所、学校、病院、店舗。順位の高い順)。バス停・駅・地下鉄出入口・信号 %d 件は生成する街路設備の位置になります。\n"
+    "Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n": "場所: 名前のある OSM の場所 %d 件を地図の地点にします(駅、名所、学校、病院、店舗。順位の高い順)。バス停・駅・地下鉄出入口・信号 %d 件は生成する街路設備の位置になります。\n",
+    "Invalid city street furniture.": "都市の街路設備が無効です。",
+    "City street furniture count mismatch.": "都市の街路設備の数が一致しません。",
+    "Imported placements are city street furniture builtins.": "取り込んだ配置は都市の街路設備の組み込みアセットでなければなりません。",
+    "Invalid imported road convention.": "取り込んだ道路規則が無効です。",
+    "Invalid city road convention.": "都市の道路規則が無効です。",
+    "Driving side": "通行方向",
+    "Signals": "信号機",
+    "Right-hand traffic": "右側通行",
+    "Left-hand traffic": "左側通行",
+    "Horizontal signals": "横型信号機",
+    "Vertical signals": "縦型信号機",
+    "Street furniture: %d signal poles at marked junctions, %d bus shelters, %d subway entrances and %d station signs beside the road; parks get %d trees, %d benches and %d shrubs from fixed seeds. Shapes and spots are generated, not surveyed; %d candidates without a free spot are skipped.\n": "街路設備: 表示された交差点の信号柱 %d 本、道路脇のバス停シェルター %d 基・地下鉄出入口 %d 基・駅標識 %d 基。公園には固定シードで樹木 %d 本・ベンチ %d 基・低木 %d 株。形と位置は生成したもので実測ではありません。空きのない候補 %d 件は省略します。\n"
   }
 }

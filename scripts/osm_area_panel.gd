@@ -9,6 +9,8 @@ var exclusions: CheckBox
 var city: CheckBox
 ## City map scale 1:D (D in 1..8); locked to the scale of OSM layers already in the map.
 var scale: SpinBox
+var driving_side: OptionButton
+var signal_style: OptionButton
 ## Denominator the automatic origin was placed with; 0 after a manual origin.
 var origin_denominator := 0
 const UNITS := preload("./import_units.gd")
@@ -99,6 +101,16 @@ func setup(owner_ui: Control) -> void:
 	scale = ui._import_number(scale_row,"City map scale 1:",UNITS.MIN_DENOMINATOR,UNITS.MAX_DENOMINATOR,UNITS.CITY_DEFAULT_DENOMINATOR,1)
 	scale.rounded = true
 	ui._label(scale_row,"Smaller numbers make the city larger. Exact OSM without city optimization stays 1:8.")
+	var traffic_row := HBoxContainer.new()
+	layout.add_child(traffic_row)
+	ui._label(traffic_row, "Driving side")
+	driving_side = OptionButton.new()
+	for label in ["Right-hand traffic", "Left-hand traffic"]: driving_side.add_item(I18N.t(label))
+	traffic_row.add_child(driving_side)
+	ui._label(traffic_row, "Signals")
+	signal_style = OptionButton.new()
+	for label in ["Horizontal signals", "Vertical signals"]: signal_style.add_item(I18N.t(label))
+	traffic_row.add_child(signal_style)
 	ui._label(layout, "City optimization combines compatible road chains, nearby unnamed low buildings and matching vegetation.\nRoad corridors, junctions, courtyards and landmarks are protected. Review before/after counts and approximations.")
 	exclusions = CheckBox.new()
 	exclusions.text = I18N.t("Review and exclude unsupported source objects (PBF streaming)")
@@ -175,6 +187,10 @@ func locked_denominator() -> int:
 ## Adoption scale 1:D of the next OSM import: the map's stored D for city
 ## optimization once the map has OSM layers, otherwise the chosen city scale;
 ## exact OSM is always 1:8.
+## Road convention for generated markings and street furniture.
+func traffic() -> Dictionary:
+	return {"driving_side": "left" if driving_side.selected == 1 else "right", "signal_style": "vertical" if signal_style.selected == 1 else "horizontal"}
+
 func denominator() -> int:
 	if not (city.button_pressed and streaming.button_pressed): return UNITS.OSM_DENOMINATOR
 	var locked := locked_denominator()

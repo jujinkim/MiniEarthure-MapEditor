@@ -11,7 +11,7 @@ const PIPE_LIMIT := 64 * 1024 * 1024
 const RUNNING_TIME := "running_time"
 const LINE_LIMIT := 4096
 const READ_BUDGET := 16384
-const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "osm_generalize.py", "osm_roads.py", "osm_sites.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
+const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "osm_generalize.py", "osm_roads.py", "osm_sites.py", "osm_furniture.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
 var pid := -1
 var identity := ""
 var directory := ""
@@ -117,6 +117,9 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		var scale: Variant = coordinates.get("osm_scale", preload("./import_units.gd").OSM_DENOMINATOR)
 		if not preload("./import_units.gd").valid_denominator(scale): cleanup(); return "City map scale must be 1:1 to 1:8."
 		arguments.append_array(PackedStringArray(["--osm-scale", str(int(scale))]))
+		var traffic: Variant = coordinates.get("osm_traffic", {"driving_side":"right", "signal_style":"horizontal"})
+		if traffic is not Dictionary or traffic.get("driving_side") not in ["right", "left"] or traffic.get("signal_style") not in ["horizontal", "vertical"]: cleanup(); return "Invalid city road convention."
+		arguments.append_array(PackedStringArray(["--osm-driving-side", traffic.driving_side, "--osm-signal-style", traffic.signal_style]))
 	elif coordinates.has("osm_scale"): cleanup(); return "A city map scale requires automatic city optimization."
 	if coordinates.get("osm_review_exclusions",false):
 		if not streaming: cleanup(); return "Object exclusion review requires PBF streaming."

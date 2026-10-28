@@ -21,7 +21,7 @@ const WARN_AREAS := 8
 const MAX_CHECK_CELLS := 16384
 ## Count re-checks of own adapter output: shape sanity only, never a budget.
 const SANITY := 1000000000000
-const FIELDS := ["nodes", "roads", "buildings", "zones", "surface_areas", "pois", "barriers", "water_bodies"]
+const FIELDS := ["nodes", "roads", "buildings", "zones", "surface_areas", "pois", "barriers", "water_bodies", "placements"]
 ## City imports pave unpainted ground (MapKit `ground_surface`) of a map without one.
 const CITY_GROUND_SURFACE := "concrete"
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
@@ -268,6 +268,7 @@ func _load(raw: Variant, expected_id: String, requested: Dictionary, notes: Arra
 		if patch.field == "surface_areas" and not raw.coordinates.has("osm_city"): return "Ground paint records require OSM city optimization."
 		if patch.field == "barriers" and not raw.coordinates.has("osm_city"): return "Barrier records require OSM city optimization."
 		if patch.field == "water_bodies" and not raw.coordinates.has("osm_city"): return "Water records require OSM city optimization."
+		if patch.field == "placements" and (not raw.coordinates.has("osm_city") or not str(patch.get("after", {}).get("asset_id", "")).begins_with("builtin:")): return "Imported placements are city street furniture builtins."
 		if patch.field == "buildings" and patch.after.has("parts") and not raw.coordinates.has("osm_city"): return "Building parts require OSM city optimization."
 		if patch.id is not String or not patch.id.begins_with(prefix) or patch.id.length() > 128 or patch.after.get("id") != patch.id or ids.has(patch.id): return "Invalid/duplicate import record identity."
 		if raw.adapter == "overture-buildings-v1" and not overture_building_ids.has(patch.id): return "Unmapped Overture building."
@@ -561,6 +562,9 @@ func patches(store: RefCounted) -> Array:
 		result = kept
 		# The crop window (rectangle ∩ selected areas) becomes the drivable area
 		# of a map without one, clipped to the final map rectangle.
+		var convention: Variant = value.coordinates.get("osm_traffic")
+		if value.coordinates.has("osm_city") and convention is Dictionary and store.document.get("traffic") == null:
+			result.append({"field":"traffic","id":"","before":null,"after":convention.duplicate(true)})
 		var crop: Variant = value.coordinates.get("osm_play_area", [])
 		if value.coordinates.has("osm_city") and crop is Array and not crop.is_empty() and store.document.get("play_area", []).is_empty():
 			var area := play_area(crop, osm_denominator(), extent if not extent.is_empty() else store.document.bounds)

@@ -434,6 +434,8 @@ def main():
     parser.add_argument("--osm-city", action="store_true")
     # City map scale 1:D. Exact (non-city) OSM adoption stays at 1:8.
     parser.add_argument("--osm-scale", type=int, choices=range(1, 9))
+    parser.add_argument("--osm-driving-side", choices=("right", "left"), default="right")
+    parser.add_argument("--osm-signal-style", choices=("horizontal", "vertical"), default="horizontal")
     parser.add_argument("--osm-areas", nargs="+", type=int)
     parser.add_argument("--osm-review-exclusions", action="store_true")
     parser.add_argument("--vertical-request", type=Path)
@@ -591,6 +593,11 @@ def main():
                                        "source": {"source": "https://www.openstreetmap.org/" + poi["source_id"], "license": LICENSE, "notice": ""}})
                 trial.coordinates["osm_street_points"] = street
                 metadata["places"] = dict(points=len(pois), street=len(street))
+                from osm_furniture import generate as furniture
+                traffic = dict(driving_side=args.osm_driving_side, signal_style=args.osm_signal_style)
+                places, metadata["furniture"] = furniture(trial.layer_id, trial.patches, trial.coordinates, scale, traffic)
+                for record in places: trial.add("placements", record)
+                trial.coordinates["osm_traffic"] = traffic
                 trial = finish(trial, osm_counts)
                 trial.warning(f"Automatic city optimization at 1:{scale}: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Simplification level {metadata['gap_m']} source metres; buildings keep their own footprints, grouped by site into building records; inspect approximated heights.")
                 if len(osm_stream.get("areas", [])) > 1:

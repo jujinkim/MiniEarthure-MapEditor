@@ -2446,6 +2446,18 @@
     "Invalid city play area.": "Invalid city play area.",
     "Invalid imported play area.": "Invalid imported play area.",
     "Invalid city street points.": "Invalid city street points.",
-    "Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n": "Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n"
+    "Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n": "Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n",
+    "Invalid city street furniture.": "Invalid city street furniture.",
+    "City street furniture count mismatch.": "City street furniture count mismatch.",
+    "Imported placements are city street furniture builtins.": "Imported placements are city street furniture builtins.",
+    "Invalid imported road convention.": "Invalid imported road convention.",
+    "Invalid city road convention.": "Invalid city road convention.",
+    "Driving side": "Driving side",
+    "Signals": "Signals",
+    "Right-hand traffic": "Right-hand traffic",
+    "Left-hand traffic": "Left-hand traffic",
+    "Horizontal signals": "Horizontal signals",
+    "Vertical signals": "Vertical signals",
+    "Street furniture: %d signal poles at marked junctions, %d bus shelters, %d subway entrances and %d station signs beside the road; parks get %d trees, %d benches and %d shrubs from fixed seeds. Shapes and spots are generated, not surveyed; %d candidates without a free spot are skipped.\n": "Street furniture: %d signal poles at marked junctions, %d bus shelters, %d subway entrances and %d station signs beside the road; parks get %d trees, %d benches and %d shrubs from fixed seeds. Shapes and spots are generated, not surveyed; %d candidates without a free spot are skipped.\n"
   }
 }

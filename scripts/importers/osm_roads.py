@@ -1073,6 +1073,9 @@ def finish(roads, scale, crossing_points, crossing_lines, is_road, spend=lambda 
         t = tags(f)
         mark = markings(t.get("highway", "road"), p.get("_city_lanes", lanes(t)), oneway(t) == 0, p.get("surface", "asphalt"))
         if mark is None: continue
+        # Junction stop lines and lane arrows (MapKit paints them from the arms).
+        mark["stop_lines"] = True
+        if oneway(t): mark["one_way"] = oneway(t)
         width = float(p.get("width_m", 8))
         for end, key in enumerate(node_keys(f)):
             if key is None or graph.degree(key) < 3: continue

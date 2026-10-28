@@ -1548,6 +1548,7 @@ func _start_import(source: String, license_name: String) -> void:
 		if osm_panel.city.button_pressed:
 			import_coordinates_request.osm_city = true
 			import_coordinates_request.osm_scale = osm_panel.denominator()
+			import_coordinates_request.osm_traffic = osm_panel.traffic()
 	if input_format in ["osm", "pbf"] and osm_panel.enabled.button_pressed:
 		if osm_panel.error() != "":
 			_status(I18N.diagnostic(osm_panel.error()))

@@ -269,6 +269,21 @@ remainder so lattice points are whole map centimetres.
   Bus stops, stations, subway entrances and traffic signals are kept by position
   in `osm_street_points` for generated street furniture. Places outside the final
   map rectangle are dropped.
+- Road convention: the OSM panel's driving side (right/left) and signal style
+  (horizontal/vertical) become `MapDocument.traffic` on a map without one. Marked
+  roads get `stop_lines` (stop lines and lane arrows at junction ends) and their
+  `one_way` direction.
+- Street furniture (`osm_furniture.py`, MapKit builtins at game scale, fixed
+  seeds, positions only from OSM): a signal pole per inbound arm at junctions of
+  three or more vehicle roads where two marked roads meet or an OSM signal node lies
+  within 15 m (the driver's near-side corner, the head over the road); a bus shelter
+  facing the road at each bus stop, subway entrances and station signs beside the
+  nearest road; parks (park, garden, playground, recreation ground, village green)
+  get trees, benches and shrubs on seeded jittered grids. Every piece keeps clear of
+  road corridors with sidewalks (+30 map cm), junction mouths, buildings, water and
+  other pieces (+10 cm); a candidate without a free spot is skipped and counted
+  (at most 8,000). Places and furniture follow the mapped records in the layer.
+  DEM adoption with building grounding also stands imported furniture on the terrain.
 - Play area: with selected administrative areas, the crop window (rectangle ∩
   areas; its 16 largest outer rings, holes dropped) is simplified to at most 512
   vertices per ring on the 1:D lattice (`osm_play_area`). Adopting onto a map

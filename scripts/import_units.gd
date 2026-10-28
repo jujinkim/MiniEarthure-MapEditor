@@ -43,6 +43,7 @@ static func osm_patches(source: Array, city := false, terrain_base_cm := 0, deno
 			if patch.field == "barriers": record.line = _line_duplicates(record.line)
 			if terrain_base_cm != 0:
 				if patch.field == "nodes" and not patch.id.contains("-osm-node-"): record.position[1] += terrain_base_cm
+				if patch.field == "placements": record.position[1] += terrain_base_cm
 				if patch.field == "water_bodies":
 					record.surface_cm += terrain_base_cm
 					record.bottom_cm += terrain_base_cm

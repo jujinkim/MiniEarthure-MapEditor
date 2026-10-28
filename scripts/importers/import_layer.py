@@ -19,7 +19,7 @@ CITY_POINTS = 800_000  # Leave room below current-v1's 1,000,000 vertices.
 CITY_FEATURES = 100_000
 DOCUMENT_OBJECTS = 200_000  # current-v1 document maxima; the game refuses more.
 DOCUMENT_VERTICES = 1_000_000
-FIELDS = ("nodes", "roads", "buildings", "zones", "surface_areas", "pois", "barriers", "water_bodies")
+FIELDS = ("nodes", "roads", "buildings", "zones", "surface_areas", "pois", "barriers", "water_bodies", "placements")
 LIMIT_PREFIX = "Limit warning: "
 MAX_WARNINGS = 50
 

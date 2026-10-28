@@ -10,8 +10,8 @@ const WARN_SAMPLES := 1000000
 static func layers(document: Dictionary) -> Dictionary:
 	var result := {}
 	var active := {}
-	for field in ["nodes","buildings"]:
-		for record: Dictionary in document[field]:
+	for field in ["nodes","buildings","placements"]:
+		for record: Dictionary in document.get(field, []):
 			if str(record.id).begins_with("import-"): active[str(record.id).left(40)]=true
 	for attribution: Dictionary in document.attributions:
 		var parser := JSON.new()
@@ -97,10 +97,31 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 		var base: int=bases[0]
 		patches.append({"field":"buildings","id":before.id,"before":before.duplicate(true),"after":after})
 		changes.append({"id":before.id,"before_cm":before.base_cm,"after_cm":base})
+	# Imported street furniture still at the flat terrain base stands on the DEM
+	# at its anchor point (the same estimate, one sample each).
+	var furniture := 0
+	for placement: Dictionary in store.document.get("placements", []):
+		var prefix:=str(placement.id).left(40)
+		if not sources.has(prefix) or int(placement.position[1])!=int(store.document.get("terrain_base_cm",0)): continue
+		var at := Vector2(placement.position[0],placement.position[2])
+		if at.x<low[0] or at.y<low[1] or at.x>high[0] or at.y>high[1]: continue
+		result=JSON.parse_string(native.height(at))
+		if not result.ok: return {"error":store.reason(result)}
+		var after: Dictionary=placement.duplicate(true)
+		after.position[1]=int(result.data.height)
+		if after==placement: continue
+		patches.append({"field":"placements","id":placement.id,"before":placement.duplicate(true),"after":after})
+		furniture+=1
 	LIMITS.over(notes, "dem_grounding_samples", samples, WARN_SAMPLES, "Terrain samples for building grounding")
-	return {"patches":patches,"receipt":{"profile":PROFILE,"estimated":true,"samples":samples,"skipped_partial":skipped,"changes":changes},"limit_warnings":notes}
+	return {"patches":patches,"receipt":{"profile":PROFILE,"estimated":true,"samples":samples,"skipped_partial":skipped,"changes":changes,"placements":furniture},"limit_warnings":notes}
 
 static func valid_patch(patch: Dictionary, enabled: bool) -> bool:
+	if enabled and patch.get("field")=="placements" and patch.get("before") is Dictionary and patch.get("after") is Dictionary:
+		# Only the height of an imported placement may change.
+		var moved: Dictionary=patch.after.duplicate(true)
+		if moved.get("position") is not Array or moved.position.size()!=3 or not TYPES._finite(moved.position[1],-1000000,1000000): return false
+		moved.position[1]=patch.before.position[1]
+		return moved==patch.before and str(patch.get("id","")).begins_with("import-") and patch.before.get("id")==patch.id
 	if not enabled or patch.get("field")!="buildings" or patch.get("before") is not Dictionary or patch.get("after") is not Dictionary: return false
 	var before: Dictionary=patch.before
 	var after: Dictionary=patch.after

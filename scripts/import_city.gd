@@ -2,6 +2,7 @@ extends RefCounted
 const I18N := preload("./locale_text.gd")
 const LIMITS := preload("./limit_warnings.gd")
 const UNITS := preload("./import_units.gd")
+const FURNITURE := ["builtin:signal_h", "builtin:signal_v", "builtin:bus_shelter", "builtin:subway_entrance", "builtin:station_sign", "builtin:bench", "builtin:shrub", "builtin:tree"]
 
 ## A source-metre value of `cm` whole map centimetres at 1:denominator.
 static func _map_cm(value: Variant, cm: int, denominator: int) -> bool:
@@ -66,6 +67,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 	if raw.get("patches") is not Array: return "Invalid city output records."
 	var barrier_count := 0
 	var water_count := 0
+	var furniture_count := 0
 	for patch: Variant in raw.patches:
 		if patch is Dictionary and patch.get("field") == "zones":
 			if patch.get("after") is not Dictionary or patch.after.get("spacing_cm") != 3200 or patch.after.get("density_per_mille") != 750: return "Invalid city vegetation estimates."
@@ -73,6 +75,10 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 			var barrier: Variant = patch.get("after")
 			if barrier is not Dictionary or barrier.get("kind") not in ["hedge", "fence", "wall"] or barrier.get("line") is not Array or barrier.line.size() < 2 or not boundary._count(barrier.get("height_cm"), 1000 * denominator) or not boundary._count(barrier.get("thickness_cm"), 100 * denominator): return "Invalid city barrier."
 			barrier_count += 1
+		if patch is Dictionary and patch.get("field") == "placements":
+			var placed: Variant = patch.get("after")
+			if placed is not Dictionary or placed.get("asset_id") not in FURNITURE or placed.get("position") is not Array or placed.position.size() != 3 or not boundary._count(placed.get("quarter_turns"), 3): return "Invalid city street furniture."
+			furniture_count += 1
 		if patch is Dictionary and patch.get("field") == "water_bodies":
 			var body: Variant = patch.get("after")
 			if body is not Dictionary or body.get("polygon") is not Array or body.polygon.size() < 3 or body.get("islands") is not Array or not body.islands.is_empty() or body.get("flow_cm_s") is not Array or body.flow_cm_s.size() != 2 or body.flow_cm_s.any(func(v: Variant) -> bool: return v != 0) or not (body.get("surface_cm") is int or body.get("surface_cm") is float) or not (body.get("bottom_cm") is int or body.get("bottom_cm") is float) or float(body.bottom_cm) >= float(body.surface_cm): return "Invalid city water."
@@ -93,6 +99,12 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 		if ring is not Array or ring.size() < 3 or ring.size() > 512: return "Invalid city play area."
 		for point: Variant in ring:
 			if point is not Array or point.size() != 2 or not boundary._finite(point[0], -100000000, 100000000) or not boundary._finite(point[1], -100000000, 100000000) or point[0] != floor(point[0]) or point[1] != floor(point[1]): return "Invalid city play area."
+	var furniture: Variant = meta.get("furniture", {})
+	if furniture is not Dictionary: return "Invalid city street furniture."
+	var expected_furniture := 0
+	for key: String in furniture:
+		if not key.begins_with("skipped_") and key != "over_limit": expected_furniture += int(furniture[key])
+	if expected_furniture != furniture_count: return "City street furniture count mismatch."
 	var water: Variant = meta.get("water", {})
 	if water is not Dictionary or water_count != int(water.get("pieces", 0)) or water.get("dropped_sources", []) is not Array: return "City water count mismatch."
 	for source: Variant in water.get("dropped_sources", []):
@@ -110,7 +122,14 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 	for key: Variant in skipped:
 		if key not in ["barrier_ways", "city_areas"] or not boundary._soft(notes, "city_skipped_" + key, skipped[key], 250000, "Skipped city inputs"): return "Invalid skipped city inputs."
 	if int(skipped.get("barrier_ways", 0)) + int(skipped.get("city_areas", 0)) > int(raw.coordinates.osm_stream.selected.ways) + int(raw.coordinates.osm_stream.selected.relations): return "Invalid skipped city inputs."
+	# Generated places and street furniture follow the mapped source records.
 	var record_count: int = raw.patches.size()
+	for index in range(raw.patches.size()):
+		if raw.patches[index] is Dictionary and raw.patches[index].get("field") in ["pois", "placements"]:
+			record_count = index
+			break
+	for index in range(record_count, raw.patches.size()):
+		if raw.patches[index] is not Dictionary or raw.patches[index].get("field") not in ["pois", "placements"]: return "Noncontiguous city output mapping."
 	var next_record := 0
 	var references := 0
 	for group: Variant in meta.groups:
@@ -239,6 +258,8 @@ static func summary(meta: Dictionary) -> String:
 		result += I18N.t("Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n") % [int(paint.get("pieces", 0)), int(paint.get("pedestrian", 0)), int(paint.get("grass", 0)), int(paint.get("asphalt", 0)), int(paint.get("concrete", 0)), int(paint.get("dirt", 0)), int(paint.get("gravel", 0))]
 		var places: Dictionary = meta.get("places", {})
 		result += I18N.t("Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n") % [int(places.get("points", 0)), int(places.get("street", 0))]
+		var furniture: Dictionary = meta.get("furniture", {})
+		result += I18N.t("Street furniture: %d signal poles at marked junctions, %d bus shelters, %d subway entrances and %d station signs beside the road; parks get %d trees, %d benches and %d shrubs from fixed seeds. Shapes and spots are generated, not surveyed; %d candidates without a free spot are skipped.\n") % [int(furniture.get("signals", 0)), int(furniture.get("bus_stop", 0)), int(furniture.get("subway_entrance", 0)), int(furniture.get("station", 0)), int(furniture.get("park_tree", 0)), int(furniture.get("park_bench", 0)), int(furniture.get("park_shrub", 0)), furniture.keys().filter(func(k: String) -> bool: return k.begins_with("skipped_")).reduce(func(sum: int, k: String) -> int: return sum + int(furniture[k]), 0)]
 		var water: Dictionary = meta.get("water", {})
 		result += I18N.t("Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n") % [int(water.get("pieces", 0)), int(water.get("areas", 0)), int(water.get("waterways", 0)), water.get("dropped_sources", []).size()]
 		var skipped: Dictionary = meta.get("skipped", {})
