@@ -11,6 +11,7 @@ Editor-only city rules on projected source-metre features (current v1):
 """
 from collections import Counter, defaultdict
 from copy import deepcopy
+import hashlib
 import json
 import math
 
@@ -43,6 +44,14 @@ INDUSTRIAL_BUILDINGS = ("industrial", "warehouse", "factory", "manufacture", "se
 WOODEN_INDUSTRIAL = ("greenhouse", "barn", "farm_auxiliary", "shed")
 HOUSE_TALL_M = 12.0  # Unknown residential below this is a brick house.
 LEVEL_M = 3.0  # Estimated storey height when `height` is missing.
+# Untagged blocks of an apartment complex (a residential site with at least
+# APARTMENT_COUNT apartment buildings): one seeded base storey count per site,
+# each block varies by the site's seeded spread, clamped to COMPLEX_FLOORS.
+COMPLEX_FLOORS = (10, 50)
+COMPLEX_BASE = (15, 35)
+COMPLEX_SPREAD = (5, 10)
+COMPLEX_MIN_AREA_M2 = 250.0  # Smaller untagged buildings are annexes.
+COMPLEX_BUILDINGS = ("apartments", "residential", "dormitory", "yes")
 COVERAGE = 0.15
 GATE_M = 2.0  # Beyond a crossing way's half width.
 EXPLICIT_WINS_M = 3.0
@@ -53,6 +62,9 @@ LINE_TOLERANCE_M = 0.5
 MAX_POINTS = 4096
 HEIGHT_CM = (10, 1000)
 THICKNESS_CM = (5, 100)
+# Barrier heights on the map are this fraction of the source height ÷D, so
+# fences and walls only frame the road instead of hiding the city.
+BARRIER_HEIGHT_FACTOR = 1 / 3
 # Source-metre heights of inferred perimeters (kind, height, thickness).
 INFERRED = {"residential": ("fence", 1.2, 0.1), "school": ("fence", 2.0, 0.1), "hospital": ("fence", 2.0, 0.1),
             "university": ("fence", 2.0, 0.1), "college": ("fence", 2.0, 0.1), "industrial": ("wall", 2.0, 0.3)}
@@ -76,6 +88,11 @@ def _lines(geometry):
     if geometry.is_empty: return []
     if geometry.geom_type == "LineString": return [geometry]
     return [p for g in getattr(geometry, "geoms", []) for p in _lines(g)]
+
+
+def _seeded(*parts):
+    """Stable integer from text parts (independent of Python hash seeds)."""
+    return int.from_bytes(hashlib.sha256("\x1f".join(str(part) for part in parts).encode()).digest()[:8], "big")
 
 
 def _height(p):
@@ -107,6 +124,15 @@ class Sites:
         self.tree = STRtree([g for f, g in self.items])
         self.ids = [min(source_ids(f)) for f, g in self.items]
         self.areas = [g.area for f, g in self.items]
+        # Residential sites holding at least APARTMENT_COUNT apartment buildings.
+        apartments = Counter()
+        for f, g in features:
+            p = f["properties"]
+            if g.geom_type == "LineString" or p.get("osm_region") or p.get("landuse") in ("forest", "orchard"): continue
+            if not (_building(p) in TALL_RESIDENTIAL or p.get("_city_flats")): continue
+            key = self.key(f, g)
+            if key[0] == "site": apartments[key[1]] += 1
+        self.complexes = {i for i, count in apartments.items() if count >= APARTMENT_COUNT and self.kind(("site", i)) == "residential"}
 
     def key(self, feature, geometry):
         """("relation", id) for a type=site member, ("site", id) for the smallest
@@ -125,6 +151,18 @@ class Sites:
         """The landuse/amenity kind of a ("site", id) key, else None."""
         if key[0] != "site": return None
         return next((f["properties"]["_city_site"] for (f, g), i in zip(self.items, self.ids) if i == key[1]), None)
+
+
+def complex_height(sites, key, p, geometry, source_id):
+    """Seeded height (source metres) of an untagged apartment-complex block,
+    else None. Tagged `height` or `building:levels` always wins."""
+    if key[0] != "site" or key[1] not in sites.complexes: return None
+    if "height_m" in p or "_city_levels" in p or _building(p) not in COMPLEX_BUILDINGS: return None
+    if geometry.area < COMPLEX_MIN_AREA_M2: return None
+    base = COMPLEX_BASE[0] + _seeded("complex-base", key[1]) % (COMPLEX_BASE[1] - COMPLEX_BASE[0] + 1)
+    spread = COMPLEX_SPREAD[0] + _seeded("complex-spread", key[1]) % (COMPLEX_SPREAD[1] - COMPLEX_SPREAD[0] + 1)
+    floors = base - spread + _seeded("complex-block", key[1], source_id) % (2 * spread + 1)
+    return LEVEL_M * min(COMPLEX_FLOORS[1], max(COMPLEX_FLOORS[0], floors))
 
 
 def facade(p, site_kind):
@@ -291,7 +329,7 @@ class Barriers:
                 chunk = points[start:start + MAX_POINTS]
                 if len(chunk) < 2: continue
                 feature = dict(type="Feature", properties=dict(osm_source_id=min(sources), _city_sources=sorted(sources),
-                    _city_barrier=dict(kind=kind, height_m=self.quantized(height, HEIGHT_CM), thickness_m=self.quantized(thickness, THICKNESS_CM), origin=origin)), geometry=None)
+                    _city_barrier=dict(kind=kind, height_m=self.quantized(height * BARRIER_HEIGHT_FACTOR, HEIGHT_CM), thickness_m=self.quantized(thickness, THICKNESS_CM), origin=origin)), geometry=None)
                 self.items.append((feature, LineString(chunk)))
                 self.counts[origin + "_records"] += 1
                 self.counts["points"] += len(chunk)

@@ -159,7 +159,11 @@ remainder so lattice points are whole map centimetres.
   (commercial/retail → commercial, industrial → industrial, school/hospital/
   university/college → public, residential below 12 m → brick residential), and
   everything else is concrete residential. A missing `height` is estimated as
-  3 m × `building:levels`. `roof:shape=gabled` keeps a gable roof only on a solid
+  3 m × `building:levels`. Inside an apartment complex (a residential site with
+  at least two `building=apartments`), an untagged apartment, residential or `yes`
+  building of at least 250 m² gets a seeded storey count instead: the site's base
+  (15–35 storeys) varied by its seeded spread (±5–10), clamped to 10–50 storeys of
+  3 m. Tagged `height` or `building:levels` always wins. `roof:shape=gabled` keeps a gable roof only on a solid
   whose final footprint is an axis-aligned rectangle (MapKit's gable rule); other
   solids and records are flat. Rule-assigned uses, level heights and every
   material/roof count as estimates in review; the source value stays in the
@@ -223,6 +227,8 @@ remainder so lattice points are whole map centimetres.
 - MapKit checks surface areas pairwise within touching bounds and charges that work
   to the shared road work budget the game enforces; a large green city can exceed
   it (the Editor warns that the game refuses the map).
+- Barrier heights on the map are a third of the source heights below (÷D,
+  at least 10 map cm), so fences frame roads without hiding the city.
 - Explicit barrier ways become `barriers`: `hedge` 0.8 m, `wall` and
   `retaining_wall` walls 2.0 m, `fence` its `height` tag or 1.2 m (fence types
   such as chain_link keep 1.2 m), `guard_rail` a 0.8 m fence, skipped where at least

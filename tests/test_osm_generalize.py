@@ -14,6 +14,7 @@ from shapely.geometry import shape, box, LineString, mapping, Polygon, MultiPoly
 from shapely.ops import transform, unary_union
 from collections import Counter
 from osm_generalize import Generalizer
+import osm_sites
 from polygon_geometry import Budget, SpatialBudget, group_rings
 
 
@@ -723,6 +724,40 @@ class CityRules(unittest.TestCase):
         self.assertEqual(layer.estimates["height_m"], 13, "level-derived heights stay estimates")
         self.assertFalse(any("Unclassified building use" in w for w in layer.warnings))
 
+    def test_untagged_apartment_complex_blocks_get_seeded_storeys(self):
+        self.setup_city()
+        self.site(100, box(0, 0, 300, 100), "residential")
+        boxes = {i: box(10 + 45 * (i - 1), 10, 40 + 45 * (i - 1), 40) for i in range(1, 7)}
+        boxes.update({7: box(10, 60, 40, 90), 8: box(60, 60, 90, 90), 9: box(110, 60, 120, 70), 10: box(140, 60, 170, 90), 11: box(410, 10, 440, 40)})
+        for i in range(1, 7): self.add(i, boxes[i], usage="apartments")
+        self.add(7, boxes[7], usage="apartments", height_m=21)  # Tagged height wins.
+        self.add(8, boxes[8], usage="apartments", _city_levels=4)  # Tagged levels win.
+        self.add(9, boxes[9], usage="apartments")  # 100 m² annex stays 12 m.
+        self.add(10, boxes[10], usage="commercial")  # Not a residential block.
+        self.site(200, box(400, 0, 500, 100), "residential")  # One apartment: not a complex.
+        self.add(11, boxes[11], usage="apartments")
+        heights = {}
+        for _ in range(2):
+            worker = self.worker(3)
+            out, meta = worker.candidate(16)
+            run = {}
+            for f, solids in self.solids(worker, out):
+                p = f["properties"]
+                parts = p.get("_city_parts") or [p]
+                for solid, part in zip(solids, parts):
+                    [source] = [i for i, b in boxes.items() if b.contains(solid.representative_point())]
+                    run[f"way/{source}"] = part.get("height_m")
+            if heights: self.assertEqual(run, heights, "seeded heights are stable")
+            heights = run
+        blocks = [heights[f"way/{i}"] for i in range(1, 7)]
+        floors = [round(h / osm_sites.LEVEL_M) for h in blocks]
+        self.assertTrue(all(10 <= n <= 50 for n in floors), floors)
+        self.assertLessEqual(max(floors) - min(floors), 2 * osm_sites.COMPLEX_SPREAD[1], "one complex varies around its base")
+        self.assertEqual((heights["way/7"], heights["way/8"]), (21, 12.0))
+        self.assertIsNone(heights["way/9"])
+        self.assertIsNone(heights["way/10"])
+        self.assertIsNone(heights["way/11"])
+
     def test_record_parts_convert_to_one_building_with_its_own_heights(self):
         from geojson import convert
         self.setup_city()
@@ -787,7 +822,7 @@ class CityRules(unittest.TestCase):
                 for source, (kind, height, thickness) in expected.items():
                     b = found[source]
                     self.assertEqual(b["kind"], kind)
-                    self.assertEqual(round(b["height_m"] * 100 / scale), cm(height), "height in source metres ÷D")
+                    self.assertEqual(round(b["height_m"] * 100 / scale), min(1000, max(10, cm(height * osm_sites.BARRIER_HEIGHT_FACTOR))), "a third of the source height ÷D")
                     self.assertEqual(round(b["thickness_m"] * 100 / scale), min(100, max(5, cm(thickness))), "thickness ÷D within 5..100 map cm")
                 closed = next(g for b, g in self.barriers(worker, out) if g.length > 150)
                 self.assertEqual(closed.coords[0], closed.coords[-1], "a closed perimeter repeats its first point")
@@ -850,16 +885,16 @@ class CityRules(unittest.TestCase):
         found = [(f["properties"]["_city_sources"], f["properties"]["_city_barrier"], transform(worker.project, shape(f["geometry"]))) for f in out["features"] if "_city_barrier" in f["properties"]]
         complex_ = [(b, g) for s, b, g in found if s == ["way/100"]]
         self.assertEqual(len(complex_), 2, "the footway gate splits the perimeter")
-        self.assertTrue(all(b["kind"] == "fence" and round(b["height_m"] * 100 / 3) == 40 for b, g in complex_))
+        self.assertTrue(all(b["kind"] == "fence" and round(b["height_m"] * 100 / 3) == 13 for b, g in complex_))
         gate = shapely.Point(60, 0)
         self.assertGreater(min(g.distance(gate) for b, g in complex_), 2.7, "gate of half the footway width + 2 m")
         self.assertTrue(all(g.distance(LineString([(0, 101), (120, 101)])) > 2.9 for b, g in complex_), "the explicit fence wins within 3 m")
         self.assertFalse(any(s == ["way/200"] for s, b, g in found), "below 15 % coverage no perimeter is inferred")
         [(school, sg)] = [(b, g) for s, b, g in found if s == ["way/300"]]
-        self.assertEqual((school["kind"], round(school["height_m"] * 100 / 3)), ("fence", 67))
+        self.assertEqual((school["kind"], round(school["height_m"] * 100 / 3)), ("fence", 22))
         self.assertEqual(sg.coords[0], sg.coords[-1])
         [(industry, ig)] = [(b, g) for s, b, g in found if s == ["way/400"]]
-        self.assertEqual((industry["kind"], round(industry["height_m"] * 100 / 3)), ("wall", 67))
+        self.assertEqual((industry["kind"], round(industry["height_m"] * 100 / 3)), ("wall", 22))
         self.assertNotEqual(ig.coords[0], ig.coords[-1], "a gate node opens the inferred wall")
         self.assertGreater(ig.distance(shapely.Point(650, 0)), 1.4)
         self.assertFalse(any(s == ["way/500"] for s, b, g in found), "commercial land gets no perimeter")

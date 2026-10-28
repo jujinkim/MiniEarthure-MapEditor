@@ -194,7 +194,7 @@ func run_rules() -> void:
 		var document: Dictionary=ui.store.document
 		check(document.get("barriers",[]).size()==int(meta.after.barriers) and document.barriers.size()>=8,"barriers adopt: %d" % document.get("barriers",[]).size())
 		check(document.barriers.all(func(b: Dictionary) -> bool: return b.kind in ["hedge","fence","wall"] and b.height_cm>=10 and b.height_cm<=1000 and b.thickness_cm>=5 and b.thickness_cm<=100),"barrier heights and thicknesses within MapKit ranges")
-		check(document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="fence" and b.height_cm==40) and document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="wall" and b.height_cm==67) and document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="hedge" and b.height_cm==27),"source-metre barrier heights ÷3")
+		check(document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="fence" and b.height_cm==13) and document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="wall" and b.height_cm==22) and document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="hedge" and b.height_cm==10),"a third of the source-metre barrier heights ÷3")
 		check(document.buildings.size()==6 and document.buildings.filter(func(b: Dictionary) -> bool: return not b.get("parts",[]).is_empty()).size()==3,"site and category records carry building parts")
 		check(document.surface_areas.any(func(a: Dictionary) -> bool: return a.surface=="grass") and document.surface_areas.any(func(a: Dictionary) -> bool: return a.surface=="asphalt"),"green land is grass and parking asphalt")
 		check(document.get("ground_surface")==("asphalt" if keep else "concrete"),"ground surface: %s" % document.get("ground_surface"))

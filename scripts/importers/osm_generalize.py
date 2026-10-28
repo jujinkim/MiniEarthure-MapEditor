@@ -803,6 +803,13 @@ class Generalizer:
                     p["_city_levels_height"] = True
                 landmark = p.get("_city_landmark") or float(p.get("height_m", 12)) >= 40 or p["_city_building"] in ("public", "hospital", "school", "church", "cathedral")
                 protected = landmark or (p.get("_city_name") and site[0] == "tile")
+                # Untagged apartment-complex blocks get a seeded storey count
+                # after the landmark test, which keeps the source height.
+                tall = osm_sites.complex_height(self.sites, site, p, g, min(source_ids(f)))
+                if tall is not None:
+                    p["height_m"] = tall
+                    p["_city_levels_height"] = True
+                    p["_city_complex_height"] = True
                 # The facade (material, use, roof) is part of the record key, so
                 # grouped parts share one appearance (MapKit parts share them).
                 p["material"], p["usage"], p["roof"], p["_city_usage_inferred"] = osm_sites.facade(p, self.sites.kind(site))
