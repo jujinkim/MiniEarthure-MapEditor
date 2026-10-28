@@ -106,6 +106,25 @@ class CropTests(unittest.TestCase):
         xs = [x for x, y in ring]
         self.assertLess(max(xs) - min(xs), 0.0101 * 64000 * 100 / 1, "clipped to the rectangle")
 
+    def test_city_points_rank_named_places_and_keep_street_positions(self):
+        from shapely.geometry import box as area
+        from osm_area import city_points, POI_LIMIT
+        from osm_extract import city_point
+        self.assertEqual(city_point(dict(railway="station", name="영통역"))[:3], ("station", "station", 10))
+        self.assertEqual(city_point(dict(highway="bus_stop"))[0], "bus_stop", "street points need no name")
+        self.assertIsNone(city_point(dict(amenity="cafe")), "an unnamed place is not a map point")
+        self.assertEqual(city_point(dict(shop="bakery", name="빵집", **{"name:ko": "동네빵집"}))[3], "동네빵집")
+        options = dict(mode="wgs84-utm", origin=[9.005, 55.005], local_origin_m=[1000, 1000])
+        points = [[1, 9.001, 55.001, "poi", "food", 1, "Cafe"], [2, 9.002, 55.002, "station", "station", 10, "Central"],
+                  [3, 9.003, 55.003, "bus_stop", "bus_stop", 1, ""], [4, 9.009, 55.009, "poi", "attraction", 8, "Outside region"],
+                  [5, 9.004, 55.004, "traffic_signals", "traffic_signals", 0, ""]]
+        pois, street = city_points(points, [9, 55, 9.01, 55.01], area(9, 55, 9.005, 55.005), options)
+        self.assertEqual([p["name"] for p in pois], ["Central", "Cafe"], "ranked by weight; outside the region dropped")
+        self.assertEqual([p["kind"] for p in street], ["station", "bus_stop", "traffic_signals"])
+        self.assertTrue(all(isinstance(v, int) for p in pois + street for v in p["position"]))
+        many = [[i, 9.001, 55.001, "poi", "shop", 1, f"Shop {i:04d}"] for i in range(POI_LIMIT + 5)]
+        self.assertEqual(len(city_points(many, [9, 55, 9.01, 55.01], None, options)[0]), POI_LIMIT)
+
     def test_an_estimated_chain_is_kept_whole_when_any_way_touches_the_region(self):
         from shapely.geometry import box
         def way(identity, coordinates, heights, chain):

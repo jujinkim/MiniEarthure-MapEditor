@@ -206,6 +206,37 @@ def play_area(selected, region, options, denominator):
     return rings
 
 
+POI_LIMIT = 400  # Named city places kept as map POIs, highest weight first.
+
+
+def city_points(points, selected, region, options):
+    """Stream city points inside the crop window: (pois, street) where `pois` are
+    the named places (source-cm position, ranked by weight then name, at most
+    POI_LIMIT) and `street` the positions of bus stops, stations, subway
+    entrances and traffic signals for generated street furniture."""
+    import shapely
+    from projection import Coordinates
+    window = shapely.box(*bounds(selected))
+    if region is not None: window = shapely.make_valid(window.intersection(region))
+    shapely.prepare(window)
+    coordinates = Coordinates(options)
+    pois, street = [], []
+    for identity, lon, lat, kind, category, weight, name in points:
+        if not window.contains(shapely.Point(lon, lat)): continue
+        x, y = coordinates.point([lon, lat])
+        item = dict(source_id=identity if isinstance(identity, str) and "/" in identity else f"node/{identity}", kind=kind, category=category, position=[x, y])
+        if kind == "poi" or (name and kind == "station"):
+            pois.append(dict(item, name=name, weight=weight))
+        if kind != "poi": street.append(item)
+    pois.sort(key=lambda p: (-p["weight"], p["name"], p["source_id"]))
+    named, unique = set(), []
+    for poi in pois:  # One map point per name (the highest ranked).
+        if poi["name"] in named: continue
+        named.add(poi["name"])
+        unique.append(poi)
+    return unique[:POI_LIMIT], street
+
+
 def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region=None, areas=None, denominator=8):
     """Clip to the rectangle, or to rectangle ∩ `region` (the exact union of selected
     administrative boundaries, `areas` naming them) when one is given. `denominator`

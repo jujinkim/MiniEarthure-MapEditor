@@ -119,6 +119,32 @@ def city_building(identity, projected, solids, properties, layer, scalar):
     return {"id": identity, **first, **facade, "parts": rest}
 
 
+# Named landmark buildings (historic, tourism or amenity tags) are map places too.
+# amenity → (category, weight); other amenities weigh 1 and tourism/historic
+# landmarks without one weigh 6.
+LANDMARK_CATEGORIES = {"hospital": ("hospital", 7), "clinic": ("hospital", 3), "school": ("school", 4), "kindergarten": ("school", 2),
+                       "university": ("university", 7), "college": ("university", 7), "townhall": ("public", 6), "police": ("public", 4),
+                       "fire_station": ("public", 4), "library": ("public", 4), "community_centre": ("public", 3), "place_of_worship": ("worship", 3)}
+
+
+def landmark_points(collection):
+    """Stream-point rows ([id, lon, lat, kind, category, weight, name]) at the
+    representative point of each named landmark building of a city candidate."""
+    from shapely.geometry import shape
+    rows = []
+    for feature in collection["features"]:
+        p = feature["properties"]
+        name = str(p.get("_city_name") or "").strip()[:256]
+        if not name or not (p.get("_city_landmark") or p.get("_city_amenity")) or feature["geometry"]["type"] not in ("Polygon", "MultiPolygon"): continue
+        if p.get("osm_region") or p.get("_city_paint") or p.get("_city_water"): continue
+        point = shape(feature["geometry"]).representative_point()
+        identity = str(p.get("osm_source_id", "way/0"))
+        amenity = p.get("_city_amenity")
+        category, weight = LANDMARK_CATEGORIES.get(amenity, ("landmark", 1 if amenity else 6))
+        rows.append([identity, point.x, point.y, "poi", category, weight, name])
+    return rows
+
+
 def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False, captured_source=None, city=False):
     if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or "crs" in value:
         raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
@@ -489,6 +515,7 @@ def main():
             from osm_stream import extract
             value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event,supplement,review,city=args.osm_city,areas=args.osm_areas)
             region = osm_stream.pop("_region", None)
+            stream_points = osm_stream.pop("_points", [])
             captured_source = Source(args.source_name or args.source.name, osm_stream["source_sha256"], osm_stream["source_bytes"], args.license, args.accuracy)
         else:
             value, osm_counts = parse(raw, args.input_format, supplement)
@@ -557,6 +584,13 @@ def main():
                 if region is not None:
                     from osm_area import play_area
                     trial.coordinates["osm_play_area"] = play_area(args.osm_bbox, region, options, scale)
+                from osm_area import city_points
+                pois, street = city_points(stream_points + landmark_points(candidate), args.osm_bbox, region, options)
+                for index, poi in enumerate(pois):
+                    trial.add("pois", {"id": f"import-{trial.layer_id}-poi-{index:04d}", "name": poi["name"], "category": poi["category"], "position": poi["position"],
+                                       "source": {"source": "https://www.openstreetmap.org/" + poi["source_id"], "license": LICENSE, "notice": ""}})
+                trial.coordinates["osm_street_points"] = street
+                metadata["places"] = dict(points=len(pois), street=len(street))
                 trial = finish(trial, osm_counts)
                 trial.warning(f"Automatic city optimization at 1:{scale}: {metadata['before']['features']} → {metadata['after']['features']} features; {metadata['before']['positions']} → {metadata['after']['positions']} positions. Simplification level {metadata['gap_m']} source metres; buildings keep their own footprints, grouped by site into building records; inspect approximated heights.")
                 if len(osm_stream.get("areas", [])) > 1:

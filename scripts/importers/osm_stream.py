@@ -21,7 +21,7 @@ from import_layer import MAX_INPUT, MAX_POINTS, BudgetExceeded, soft_limit
 from osm_review import Review
 from osm_disk_nodes import DiskNodes, SharedRoadNodes, MissingNode, FILES as NODE_FILES, MAX_LOOKUP
 from osm_area import bounds
-from osm_extract import dependency, category, build_features, city_area, CITY_BARRIERS, CITY_WATERWAYS, MAX_ENTITIES, MAX_REFS, MAX_FEATURES, MAX_TAGS, TAG_CEILING, TAG_TEXT
+from osm_extract import dependency, category, build_features, city_area, city_point, CITY_BARRIERS, CITY_WATERWAYS, MAX_ENTITIES, MAX_REFS, MAX_FEATURES, MAX_TAGS, TAG_CEILING, TAG_TEXT
 
 # Source-work budgets warn (soft_limit) and the import continues. The CEILING
 # values and the disk-sized index quota are memory/disk guards and still refuse.
@@ -497,6 +497,7 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             CREATE TABLE structural_ways(id INTEGER PRIMARY KEY);
             CREATE TABLE loop_ways(id INTEGER PRIMARY KEY);
             CREATE TABLE sites(id INTEGER PRIMARY KEY, members TEXT);
+            CREATE TABLE city_points(id INTEGER PRIMARY KEY, x INTEGER, y INTEGER, data TEXT);
 
         """)
         locations = DiskNodes(directory, db, quota)
@@ -571,10 +572,20 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                     raise ValueError("OSM invalid node location")
                 locations.add_many(ids, xy)
             return tagged_only
+        window = [round(v * 10000000) for v in selected]
+        def point(entity, tags):
+            # Standalone city points inside the crop rectangle (roads keep theirs too).
+            found = city_point(tags) if city else None
+            if not found: return
+            location = entity.location
+            if not location.valid() or not (window[0] <= location.x <= window[2] and window[1] <= location.y <= window[3]): return
+            tag_insert.execute("INSERT INTO city_points VALUES(?,?,?,?)", (entity.id, location.x, location.y, json.dumps(found)))
         def node(entity):
             if decoded["dense"]:
                 tags = scalar(entity, "nodes", counted=False)
-                if tags: tag_insert.execute("INSERT INTO node_tags VALUES(?,?)", (entity.id,json.dumps(tags)))
+                if tags:
+                    tag_insert.execute("INSERT INTO node_tags VALUES(?,?)", (entity.id,json.dumps(tags)))
+                    point(entity, tags)
                 return
             tags = scalar(entity, "nodes")
             location = entity.location
@@ -582,7 +593,9 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             x, y = location.x, location.y
             if not -1800000000 <= x <= 1800000000 or not -900000000 <= y <= 900000000: raise ValueError("OSM invalid node location")
             locations.add(entity.id,x,y)
-            if tags: tag_insert.execute("INSERT INTO node_tags VALUES(?,?)", (entity.id,json.dumps(tags)))
+            if tags:
+                tag_insert.execute("INSERT INTO node_tags VALUES(?,?)", (entity.id,json.dumps(tags)))
+                point(entity, tags)
         pending_ways, pending_refs, pending_bytes = [], 0, 0
         block_offset = 0
         def decoded_rest():
@@ -835,6 +848,11 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                     scan=totals,structure_closure=closure,selected=dict(nodes=len(nodes),ways=len(all_ways),relations=len(relations),references=selected_refs,bytes=selection_bytes))
         if city: meta.update(index_policy="source-block-pointers-v1", resolved_way_blocks=resolved_blocks)
         if region is not None: meta.update(areas=area_meta, _region=region)
+        if city:
+            # [node id, lon, lat, kind, category, weight, name], in ID order.
+            meta["_points"] = [[identity, x / 10000000, y / 10000000, *json.loads(data)]
+                               for identity, x, y, data in db.execute("SELECT id,x,y,data FROM city_points ORDER BY id")]
+            counts["city_points"] = len(meta["_points"])
         return value, counts, meta
     except (sqlite3.Error, RuntimeError, zlib.error) as exc:
         raise ValueError("invalid/budget-exceeding PBF stream: " + str(exc)[:300]) from exc

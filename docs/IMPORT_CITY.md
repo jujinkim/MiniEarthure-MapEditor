@@ -260,6 +260,15 @@ remainder so lattice points are whole map centimetres.
   and each piece maps to the sources it covers. Surfaces are 3 map cm above the
   ground and 60 cm deep (estimates; terrain fitting gives depth). A waterway wholly
   under roads is disclosed as dropped.
+- Places: tagged standalone OSM nodes inside the crop rectangle are collected
+  while streaming. Named ones (stations, attractions, historic sites, hospitals,
+  universities, public offices, schools, shopping, parks and sports, worship,
+  hotels, fuel, food, shops) and named landmark buildings (historic, tourism or
+  amenity tags) inside the crop window become map `pois` (category, OSM name;
+  ranked by category weight, one per name, at most 400; IDs keep the rank order).
+  Bus stops, stations, subway entrances and traffic signals are kept by position
+  in `osm_street_points` for generated street furniture. Places outside the final
+  map rectangle are dropped.
 - Play area: with selected administrative areas, the crop window (rectangle ∩
   areas; its 16 largest outer rings, holes dropped) is simplified to at most 512
   vertices per ring on the 1:D lattice (`osm_play_area`). Adopting onto a map

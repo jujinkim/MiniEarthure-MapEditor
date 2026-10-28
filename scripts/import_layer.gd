@@ -264,7 +264,7 @@ func _load(raw: Variant, expected_id: String, requested: Dictionary, notes: Arra
 		if patch is not Dictionary or not patch.has_all(["field", "id", "before", "after"]): return "Invalid import patch."
 		if raw.adapter == "overture-buildings-v1" and patch.field != "buildings": return "Overture profile may only add buildings."
 		if patch.field not in FIELDS or patch.before != null or patch.after is not Dictionary: return "Import may only add supported records."
-		if patch.field == "pois" and raw.adapter != "facility-csv-v1": return "Facility records require the CSV adapter."
+		if patch.field == "pois" and raw.adapter != "facility-csv-v1" and not (raw.adapter == "osm-extract-v1" and raw.coordinates.has("osm_city")): return "Facility records require the CSV adapter."
 		if patch.field == "surface_areas" and not raw.coordinates.has("osm_city"): return "Ground paint records require OSM city optimization."
 		if patch.field == "barriers" and not raw.coordinates.has("osm_city"): return "Barrier records require OSM city optimization."
 		if patch.field == "water_bodies" and not raw.coordinates.has("osm_city"): return "Water records require OSM city optimization."
@@ -550,6 +550,15 @@ func patches(store: RefCounted) -> Array:
 		var extent := empty_map_extent(store.document,result)
 		if not extent.is_empty() and extent != store.document.bounds:
 			result.append({"field":"bounds","id":"","before":store.document.bounds.duplicate(true),"after":extent})
+		# City places outside the final rectangle (a hand-sized extent) are dropped.
+		var final_bounds: Dictionary = extent if not extent.is_empty() else store.document.bounds
+		var kept: Array = []
+		for patch: Dictionary in result:
+			if patch.field == "pois" and value.coordinates.has("osm_city"):
+				var p: Array = patch.after.position
+				if p[0] < final_bounds.min[0] or p[1] < final_bounds.min[1] or p[0] > final_bounds.max[0] or p[1] > final_bounds.max[1]: continue
+			kept.append(patch)
+		result = kept
 		# The crop window (rectangle ∩ selected areas) becomes the drivable area
 		# of a map without one, clipped to the final map rectangle.
 		var crop: Variant = value.coordinates.get("osm_play_area", [])

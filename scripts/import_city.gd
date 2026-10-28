@@ -83,6 +83,10 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 			for part: Variant in parts:
 				if part is not Dictionary or part.get("footprint") is not Array or part.footprint.size() < 3: return "Invalid city building parts."
 	if barrier_count != int(meta.after.get("barriers", 0)): return "City barrier count mismatch."
+	var street: Variant = raw.coordinates.get("osm_street_points", [])
+	if street is not Array or street.size() > 100000: return "Invalid city street points."
+	for item: Variant in street:
+		if item is not Dictionary or item.get("kind") not in ["station", "subway_entrance", "bus_stop", "traffic_signals"] or item.get("source_id") is not String or not str(item.source_id).begins_with("node/") or item.get("position") is not Array or item.position.size() != 2 or not boundary._finite(item.position[0], -100000000, 100000000) or not boundary._finite(item.position[1], -100000000, 100000000): return "Invalid city street points."
 	var crop: Variant = raw.coordinates.get("osm_play_area", [])
 	if crop is not Array or crop.size() > 16: return "Invalid city play area."
 	for ring: Variant in crop:
@@ -233,6 +237,8 @@ static func summary(meta: Dictionary) -> String:
 		result += I18N.t("City sites: %d building records with %d solids (nearby buildings of one site and category share a record as separate parts).\n") % [int(records.get("records", 0)), int(records.get("solids", 0))]
 		result += I18N.t("Barriers: %d pieces from %d explicit OSM barrier ways and %d pieces of %d inferred site perimeters, opened at paths, painted driveways and gates; heights are estimates.\n") % [int(barriers.get("explicit_records", 0)), int(barriers.get("explicit_ways", 0)), int(barriers.get("inferred_records", 0)), int(barriers.get("inferred_sites", 0))]
 		result += I18N.t("Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n") % [int(paint.get("pieces", 0)), int(paint.get("pedestrian", 0)), int(paint.get("grass", 0)), int(paint.get("asphalt", 0)), int(paint.get("concrete", 0)), int(paint.get("dirt", 0)), int(paint.get("gravel", 0))]
+		var places: Dictionary = meta.get("places", {})
+		result += I18N.t("Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n") % [int(places.get("points", 0)), int(places.get("street", 0))]
 		var water: Dictionary = meta.get("water", {})
 		result += I18N.t("Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n") % [int(water.get("pieces", 0)), int(water.get("areas", 0)), int(water.get("waterways", 0)), water.get("dropped_sources", []).size()]
 		var skipped: Dictionary = meta.get("skipped", {})

@@ -2444,6 +2444,8 @@
     "Water fitting would change terrain outside this DEM.": "물 맞춤이 이 DEM 밖의 지형을 바꾸게 됩니다.",
     "Water fitting could not sample the DEM terrain.": "물 맞춤에서 DEM 지형 높이를 읽지 못했습니다.",
     "Invalid city play area.": "도시 주행 영역이 잘못되었습니다.",
-    "Invalid imported play area.": "가져온 주행 영역이 잘못되었습니다."
+    "Invalid imported play area.": "가져온 주행 영역이 잘못되었습니다.",
+    "Invalid city street points.": "도시 거리 지점 목록이 잘못되었습니다.",
+    "Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n": "장소: 이름 있는 OSM 장소 %d곳을 지도 지점으로 만듭니다(역, 명소, 학교, 병원, 상점; 순위 높은 것부터). 버스정류장·역·지하철 출입구·신호등 %d곳은 생성 거리 시설물 위치가 됩니다.\n"
   }
 }

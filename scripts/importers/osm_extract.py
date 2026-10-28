@@ -56,6 +56,45 @@ def off_ground(tags):
     return any(tags.get(key, "no") not in ("no", "0") for key in OFF_GROUND if key in tags)
 
 
+# City point inputs from standalone OSM nodes: (kind, category, weight). `poi`
+# kinds with a name become map POIs (minimap places, ranked by weight); street
+# kinds place generated street furniture by position only.
+CITY_POINTS = (
+    ("railway", ("station", "halt"), "station", "station", 10),
+    ("station", ("subway", "train", "light_rail"), "station", "station", 10),
+    ("public_transport", ("station",), "station", "station", 9),
+    ("railway", ("subway_entrance", "train_station_entrance"), "subway_entrance", "subway_entrance", 2),
+    ("highway", ("bus_stop",), "bus_stop", "bus_stop", 1),
+    ("highway", ("traffic_signals",), "traffic_signals", "traffic_signals", 0),
+    ("tourism", ("museum", "attraction", "viewpoint", "gallery", "zoo", "theme_park", "aquarium"), "poi", "attraction", 8),
+    ("historic", None, "poi", "historic", 7),
+    ("amenity", ("hospital",), "poi", "hospital", 7),
+    ("amenity", ("university", "college"), "poi", "university", 7),
+    ("amenity", ("townhall", "courthouse", "police", "fire_station", "post_office", "library", "community_centre"), "poi", "public", 5),
+    ("amenity", ("school", "kindergarten"), "poi", "school", 4),
+    ("amenity", ("marketplace",), "poi", "shopping", 6),
+    ("shop", ("mall", "department_store", "supermarket"), "poi", "shopping", 6),
+    ("leisure", ("stadium", "sports_centre", "water_park"), "poi", "sports", 5),
+    ("leisure", ("park",), "poi", "park", 4),
+    ("amenity", ("place_of_worship",), "poi", "worship", 3),
+    ("tourism", ("hotel",), "poi", "hotel", 3),
+    ("amenity", ("fuel",), "poi", "fuel", 2),
+    ("amenity", ("restaurant", "cafe", "fast_food"), "poi", "food", 1),
+    ("shop", None, "poi", "shop", 1),
+)
+
+
+def city_point(tags):
+    """(kind, category, weight, name) of a standalone city node, or None."""
+    for key, values, kind, category, weight in CITY_POINTS:
+        value = tags.get(key)
+        if value and (values is None or value in values):
+            name = (tags.get("name:ko") or tags.get("name") or "").strip()[:256]
+            if kind == "poi" and not name: return None
+            return kind, category, weight, name
+    return None
+
+
 def city_area(tags):
     """A city-only selected area: green leisure, parking or a school/hospital site."""
     return (not off_ground(tags) and (tags.get("leisure") in CITY_GREEN_LEISURE
