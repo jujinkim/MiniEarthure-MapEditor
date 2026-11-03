@@ -826,6 +826,13 @@ class Generalizer:
                     p["height_m"] = tall
                     p["_city_levels_height"] = True
                     p["_city_complex_height"] = True
+                # Other untagged buildings get seeded storeys of their category
+                # (so low residential blocks can become brick below 12 m).
+                seeded = osm_sites.seeded_height(p, osm_sites.facade(p, self.sites.kind(site))[1], g, min(source_ids(f)))
+                if seeded is not None:
+                    p["height_m"] = seeded
+                    p["_city_levels_height"] = True
+                    p["_city_seeded_height"] = True
                 # The facade (material, use, roof) is part of the record key, so
                 # grouped parts share one appearance (MapKit parts share them).
                 p["material"], p["usage"], p["roof"], p["_city_usage_inferred"] = osm_sites.facade(p, self.sites.kind(site))

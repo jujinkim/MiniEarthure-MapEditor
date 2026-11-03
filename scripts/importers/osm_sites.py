@@ -52,6 +52,14 @@ COMPLEX_BASE = (15, 35)
 COMPLEX_SPREAD = (5, 10)
 COMPLEX_MIN_AREA_M2 = 250.0  # Smaller untagged buildings are annexes.
 COMPLEX_BUILDINGS = ("apartments", "residential", "dormitory", "yes")
+# Untagged buildings outside complexes: seeded storeys per category (houses,
+# small and large residential blocks, commercial by footprint, public,
+# industrial). Tagged `height` or `building:levels` always wins.
+SEEDED_FLOORS = {"house": (1, 2), "residential": (2, 5), "residential_large": (3, 7), "commercial": (2, 4),
+                 "commercial_mid": (3, 6), "commercial_large": (4, 8), "public": (2, 5), "industrial": (1, 3)}
+SMALL_RESIDENTIAL_M2 = 250.0
+SMALL_COMMERCIAL_M2 = 200.0
+LARGE_COMMERCIAL_M2 = 1000.0
 COVERAGE = 0.15
 GATE_M = 2.0  # Beyond a crossing way's half width.
 EXPLICIT_WINS_M = 3.0
@@ -163,6 +171,21 @@ def complex_height(sites, key, p, geometry, source_id):
     spread = COMPLEX_SPREAD[0] + _seeded("complex-spread", key[1]) % (COMPLEX_SPREAD[1] - COMPLEX_SPREAD[0] + 1)
     floors = base - spread + _seeded("complex-block", key[1], source_id) % (2 * spread + 1)
     return LEVEL_M * min(COMPLEX_FLOORS[1], max(COMPLEX_FLOORS[0], floors))
+
+
+def seeded_height(p, usage, geometry, source_id):
+    """Seeded height (source metres) of an untagged building outside an
+    apartment complex, else None when the source has a height."""
+    if "height_m" in p or "_city_levels" in p: return None
+    area = geometry.area
+    if usage == "residential":
+        kind = "house" if _building(p) in HOUSES else "residential" if area < SMALL_RESIDENTIAL_M2 else "residential_large"
+    elif usage == "commercial":
+        kind = "commercial" if area < SMALL_COMMERCIAL_M2 else "commercial_mid" if area < LARGE_COMMERCIAL_M2 else "commercial_large"
+    else:
+        kind = "public" if usage == "public" else "industrial"
+    low, high = SEEDED_FLOORS[kind]
+    return LEVEL_M * (low + _seeded("storeys", source_id) % (high - low + 1))
 
 
 def facade(p, site_kind):

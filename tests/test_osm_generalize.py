@@ -18,6 +18,12 @@ import osm_sites
 from polygon_geometry import Budget, SpatialBudget, group_rings
 
 
+def seeded_storeys(source, kind):
+    """Expected seeded height (source metres) of an untagged building."""
+    low, high = osm_sites.SEEDED_FLOORS[kind]
+    return osm_sites.LEVEL_M * (low + osm_sites._seeded("storeys", source) % (high - low + 1))
+
+
 class City(unittest.TestCase):
     def setUp(self):
         import import_layer
@@ -725,14 +731,15 @@ class CityRules(unittest.TestCase):
             ("way/12",): ("concrete", "residential", "flat"), ("way/13",): ("concrete", "commercial", "flat")},
             "records group one site's buildings only when their facade agrees")
         houses = next(f["properties"] for f, _ in self.solids(worker, out) if f["properties"]["_city_sources"] == ["way/3", "way/4"])
-        self.assertEqual(sorted(part.get("height_m", 12) for part in houses["_city_parts"]), [6.0, 12], "levels estimate a missing height")
+        self.assertEqual(sorted(part.get("height_m", 12) for part in houses["_city_parts"]), sorted([6.0, seeded_storeys("way/3", "house")]), "levels estimate a missing height; a house takes seeded storeys")
         layer = convert(out, "synthetic", "ODbL-1.0", coordinates=self.options, osm_graph=True, city=True)
         buildings = [p["after"] for p in layer.patches if p["field"] == "buildings"]
         self.assertEqual(len(buildings), 9)
         gables = [b for b in buildings if b["roof"] == "gable"]
         self.assertEqual([len(b["footprint"]) for b in gables], [4], "only the axis-aligned house keeps its gable roof")
         heights = lambda b: [b["height_cm"]] + [part.get("height_cm", b["height_cm"]) for part in b.get("parts", [])]
-        self.assertEqual(sorted(h for b in buildings if b["material"] == "brick" for h in heights(b)), [600, 1200, 1200])
+        self.assertEqual(sorted(h for b in buildings if b["material"] == "brick" for h in heights(b)),
+                         sorted([600, round(seeded_storeys("way/2", "house") * 100), round(seeded_storeys("way/3", "house") * 100)]))
         self.assertEqual(Counter(b["material"] for b in buildings), Counter(concrete=6, brick=2, wood=1))
         self.assertEqual(layer.estimates["usage"], 8, "every rule-assigned use is an estimate; explicit commercial is not")
         self.assertEqual(layer.estimates["height_m"], 13, "level-derived heights stay estimates")
@@ -770,9 +777,10 @@ class CityRules(unittest.TestCase):
         self.assertTrue(all(10 <= n <= 50 for n in floors), floors)
         self.assertLessEqual(max(floors) - min(floors), 2 * osm_sites.COMPLEX_SPREAD[1], "one complex varies around its base")
         self.assertEqual((heights["way/7"], heights["way/8"]), (21, 12.0))
-        self.assertIsNone(heights["way/9"])
-        self.assertIsNone(heights["way/10"])
-        self.assertIsNone(heights["way/11"])
+        # Annexes, other uses and lone apartments take their category's seeded storeys.
+        self.assertEqual(heights["way/9"], seeded_storeys("way/9", "residential"), "a 100 m² annex: a small block")
+        self.assertEqual(heights["way/10"], seeded_storeys("way/10", "commercial_mid"), "a 900 m² commercial building")
+        self.assertEqual(heights["way/11"], seeded_storeys("way/11", "residential_large"), "one apartment block is no complex")
 
     def test_record_parts_convert_to_one_building_with_its_own_heights(self):
         from geojson import convert
@@ -786,7 +794,7 @@ class CityRules(unittest.TestCase):
         [building] = [p["after"] for p in layer.patches if p["field"] == "buildings"]
         self.assertEqual(len(building["parts"]), 2)
         heights = [building["height_cm"]] + [part.get("height_cm", building["height_cm"]) for part in building["parts"]]
-        self.assertEqual(sorted(heights), [900, 1200, 3000], "every solid keeps its own source height")
+        self.assertEqual(sorted(heights), sorted([900, round(seeded_storeys("way/3", "residential") * 100), 3000]), "every solid keeps its own (or seeded) height")
         self.assertTrue(all("base_cm" not in part for part in building["parts"]), "equal bases are inherited")
 
     def test_ground_paint_grass_parking_and_water(self):

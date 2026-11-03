@@ -213,13 +213,20 @@ remainder so lattice points are whole map centimetres.
   at least two `building=apartments`), an untagged apartment, residential or `yes`
   building of at least 250 m² gets a seeded storey count instead: the site's base
   (15–35 storeys) varied by its seeded spread (±5–10), clamped to 10–50 storeys of
-  3 m. Tagged `height` or `building:levels` always wins. `roof:shape=gabled` keeps a gable roof only on a solid
+  3 m. Every other untagged building gets seeded storeys of its category (stable
+  per source ID): houses 1–2, residential under 250 m² 2–5 and larger 3–7,
+  commercial under 200 m² 2–4, under 1,000 m² 3–6 and larger 4–8, public 2–5,
+  industrial 1–3; the facade rule then sees that height, so a low untagged
+  residential building can become brick. Tagged `height` or `building:levels`
+  always wins. `roof:shape=gabled` keeps a gable roof only on a solid
   whose final footprint is an axis-aligned rectangle (MapKit's gable rule); other
   solids and records are flat. Rule-assigned uses, level heights and every
   material/roof count as estimates in review; the source value stays in the
-  source file. The renderer draws storeys, panes, night windows, a seeded
-  per-building tone and pane pattern, and storefront signs on commercial ground
-  floors ([MapKit materials](../addons/mapkit/docs/RICHER_MATERIALS.md)).
+  source file. The renderer draws storeys, panes, night windows, storefront signs
+  on commercial ground floors and a record palette (one site and category shares
+  its wall body, roof colour, pane pattern and, for apartment complexes, accent
+  columns and base storey) that the distant mesh keeps at every distance
+  ([MapKit materials](../addons/mapkit/docs/RICHER_MATERIALS.md)).
 - Levels (0–64 m) set the simplification: lines ≤ level/4 (at most 4 m), areas ≤
   level/4 (at most 8 m), buildings ≤ level/4 (at most 1 m). A level repeating the
   tolerances of a larger one (32 m after 64 m) is not built. Levels whose line
