@@ -56,8 +56,9 @@ remainder so lattice points are whole map centimetres.
   (capped per class) or the class default; `width` tags do not set vehicle roads.
   One-way roads use half the default and maximum lanes (at least one). Painted
   lanes are always 120 cm; the rest of the width is shoulder, so minor classes
-  get wide edges, and bridges and tunnels (explicit or estimated, not flattened
-  level ones) add 60 cm per side.
+  get wide edges, and estimated bridges and tunnels add 60 cm per side
+  (source-height structures keep their class width: their junction mouths are
+  separated by the source geometry).
 
   | Class | Default / max lanes | Edge | Floor |
   | --- | --- | --- | --- |

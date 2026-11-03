@@ -56,8 +56,8 @@ ROAD_FLOOR_CM = 150  # Editor adoption floor (import_units.gd), raises paint rad
 # use half the default and maximum (at least one lane). Other classes keep
 # their source width. Every painted lane is LANE_CM wide; the rest of a road's
 # width is shoulder outside the edge lines. Minor classes get wide shoulders
-# (their floors equal lanes × LANE_CM + both edges), and bridges and tunnels add
-# STRUCTURE_SHOULDER_CM per side.
+# (their floors equal lanes × LANE_CM + both edges), and estimated bridges and
+# tunnels add STRUCTURE_SHOULDER_CM per side.
 LANE_CM = 120
 STRUCTURE_SHOULDER_CM = 60
 # class: (default lanes, maximum lanes, edge per side, floor) for two-way roads.
@@ -108,6 +108,13 @@ def structure(feature):
     return p.get("_city_estimated_kind") in ("bridge", "tunnel") or p.get("road_kind", "ground") in ("bridge", "tunnel")
 
 
+def estimated_structure(feature):
+    """An estimated bridge or tunnel chain: no side roads along it, so shoulders
+    cannot crowd a structural junction (explicit source-height structures keep
+    their class width; their junction mouths are separated by source geometry)."""
+    return feature["properties"].get("_city_estimated_kind") in ("bridge", "tunnel")
+
+
 def painted_lanes(feature):
     """Profile lane count painted on a vehicle road (both directions of a merged
     dual carriageway)."""
@@ -141,7 +148,7 @@ def apply_profiles(items, scale):
             if "_city_width_estimate" not in p: counts["tagged_width_ignored"] += 1
             one_way = oneway(t) != 0
             count = profile_lanes(t, one_way)
-            shoulders = 2 * STRUCTURE_SHOULDER_CM if structure(f) else 0
+            shoulders = 2 * STRUCTURE_SHOULDER_CM if estimated_structure(f) else 0
             p["width_m"] = round((profile_cm(t, one_way, count) + shoulders) * scale / 100, 2)
             if shoulders: counts["structure_shoulders"] += 1
             p.pop("_city_widths_m", None)

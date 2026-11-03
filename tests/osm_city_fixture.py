@@ -21,15 +21,16 @@ def xml():
     def rectangle(identity,x,y,width,height,tags):
         refs=[node(x,y),node(x+width,y),node(x+width,y+height),node(x,y+height)]
         way(identity,refs+[refs[0]],tags)
-    for i in range(6): rectangle(i+1,10+i*6,20,8,8,{"building":"yes"})
-    rectangle(10,80,20,8,8,{"building":"yes","name":"한글 도서관"})
-    rectangle(11,100,20,8,8,{"building":"yes","height":"80"})
+    # Buildings clear the 1:8 residential road (400 map cm = 32 m, plus clearance).
+    for i in range(6): rectangle(i+1,10+i*6,30,8,8,{"building":"yes"})
+    rectangle(10,80,30,8,8,{"building":"yes","name":"한글 도서관"})
+    rectangle(11,100,30,8,8,{"building":"yes","height":"80"})
     a,b,c=node(0,0),node(40,0),node(80,0)
     way(20,[a,b],{"highway":"residential","width":"4"})
     way(21,[b,c],{"highway":"residential","width":"4"})
-    way(22,[node(0,45),node(80,45)],{"highway":"footway"})
-    rectangle(30,20,60,20,20,{"landuse":"forest"})
-    rectangle(31,30,60,20,20,{"landuse":"forest"})
+    way(22,[node(0,55),node(80,55)],{"highway":"footway"})
+    rectangle(30,20,70,20,20,{"landuse":"forest"})
+    rectangle(31,30,70,20,20,{"landuse":"forest"})
     root.extend(nodes+sorted(ways,key=lambda w:int(w.attrib["id"])))
     return ET.tostring(root,encoding="unicode")
 

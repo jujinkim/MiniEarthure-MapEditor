@@ -110,7 +110,8 @@ def structural_junctions_xml(interior=False):
             n = ET.SubElement(root,"node",id=str(identity),lon=str(9+px/64000),lat=str(55+pz/111000))
             ET.SubElement(n,"tag",k="ele",v=str(h))
         node(base,x,z,height)
-        directions = [(-60,0),(30,52),(30,-52)] if len(kinds) == 3 else [(-60,0),(60,0)]
+        # Arms long enough to separate 240 map cm service mouths at 1:8.
+        directions = [(-75,0),(37.5,65),(37.5,-65)] if len(kinds) == 3 else [(-75,0),(75,0)]
         for index, (kind,(dx,dz)) in enumerate(zip(kinds,directions)):
             refs = [base]
             for offset, (t,h) in enumerate([(0.2,height),(0.85,0),(1,0),(1.2,0)],1):

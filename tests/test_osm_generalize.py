@@ -377,9 +377,9 @@ class City(unittest.TestCase):
                 self.setup_city()
                 structure = dict(road_kind=kind, elevations_m=[6.0 if kind == "bridge" else -6.0]*2, osm_way_id=1, osm_node_refs=[1, 2], width_m=6, _city_road_tags=dict(highway="residential"))
                 self.add(1, LineString([(0, 0), (100, 0)]), **structure)
-                # Residential 400 + 2 × 60 map cm structure at 1:8: within 20.8 + 1.6 + 0.8 m.
-                self.add(2, box(20, 22, 40, 40), height_m=12, _city_layer_building=True)
-                self.add(3, box(60, 22, 80, 40), height_m=12)
+                # Residential 400 map cm source-height structure at 1:8: within 16 + 1.6 + 0.8 m.
+                self.add(2, box(20, 16, 40, 40), height_m=12, _city_layer_building=True)
+                self.add(3, box(60, 16, 80, 40), height_m=12)
                 self.add(4, box(45, -3, 55, 3), height_m=12, _city_layer_building=True)
                 review = Review(True)
                 out, meta = Generalizer(dict(type="FeatureCollection", features=self.features), self.options, review).candidate(0)

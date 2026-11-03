@@ -143,10 +143,15 @@ func verify_package(ui: Control, name: String, raw: Dictionary) -> void:
 				if node.id == id: at = node.position
 			var floor_seen := false
 			var ceiling_seen := false
+			# Cross-section vertices at the join lie on the road edges: look within
+			# the widest joined road's half width (structures carry shoulders).
+			var reach := 0
+			for road: Dictionary in ui.store.document.roads:
+				if road.from == id or road.to == id: reach = maxi(reach, int(road.widths_cm.max()) / 2 + 1)
 			for triangle: Dictionary in generated.data.chunk.triangles:
 				for point: Array in triangle.vertices:
 					if absi(int(point[0])-int(at[0])) > 1: continue
-					if absi(int(point[2])-int(at[2])) > 201: continue
+					if absi(int(point[2])-int(at[2])) > reach: continue
 					floor_seen = floor_seen or (triangle.spawnable and point[1] == at[1])
 					ceiling_seen = ceiling_seen or (not triangle.spawnable and point[1] == at[1]+56)
 			check(floor_seen,"floor reaches source join " + join.ref + " " + name)
