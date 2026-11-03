@@ -70,9 +70,9 @@ LINE_TOLERANCE_M = 0.5
 MAX_POINTS = 4096
 HEIGHT_CM = (10, 1000)
 THICKNESS_CM = (5, 100)
-# Barrier heights on the map are this fraction of the source height ÷D, so
-# fences and walls frame the road (taller than the car) without hiding the city.
-BARRIER_HEIGHT_FACTOR = 2 / 3
+# Barrier heights on the map are this fraction of the source height ÷D: the full
+# height, so fences and walls frame the road at the scale of the city around them.
+BARRIER_HEIGHT_FACTOR = 1.0
 # Source-metre heights of inferred perimeters (kind, height, thickness).
 INFERRED = {"residential": ("fence", 1.2, 0.1), "school": ("fence", 2.0, 0.1), "hospital": ("fence", 2.0, 0.1),
             "university": ("fence", 2.0, 0.1), "college": ("fence", 2.0, 0.1), "industrial": ("wall", 2.0, 0.3)}

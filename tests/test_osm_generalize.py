@@ -903,7 +903,7 @@ class CityRules(unittest.TestCase):
                 for source, (kind, height, thickness) in expected.items():
                     b = found[source]
                     self.assertEqual(b["kind"], kind)
-                    self.assertEqual(round(b["height_m"] * 100 / scale), min(1000, max(10, cm(height * osm_sites.BARRIER_HEIGHT_FACTOR))), "two thirds of the source height ÷D")
+                    self.assertEqual(round(b["height_m"] * 100 / scale), min(1000, max(10, cm(height * osm_sites.BARRIER_HEIGHT_FACTOR))), "the source height ÷D")
                     self.assertEqual(round(b["thickness_m"] * 100 / scale), min(100, max(5, cm(thickness))), "thickness ÷D within 5..100 map cm")
                 closed = next(g for b, g in self.barriers(worker, out) if g.length > 150)
                 self.assertEqual(closed.coords[0], closed.coords[-1], "a closed perimeter repeats its first point")
@@ -966,16 +966,16 @@ class CityRules(unittest.TestCase):
         found = [(f["properties"]["_city_sources"], f["properties"]["_city_barrier"], transform(worker.project, shape(f["geometry"]))) for f in out["features"] if "_city_barrier" in f["properties"]]
         complex_ = [(b, g) for s, b, g in found if s == ["way/100"]]
         self.assertEqual(len(complex_), 2, "the footway gate splits the perimeter")
-        self.assertTrue(all(b["kind"] == "fence" and round(b["height_m"] * 100 / 3) == 27 for b, g in complex_), "two thirds of 1.2 m ÷3")
+        self.assertTrue(all(b["kind"] == "fence" and round(b["height_m"] * 100 / 3) == 40 for b, g in complex_), "1.2 m ÷3")
         gate = shapely.Point(60, 0)
         self.assertGreater(min(g.distance(gate) for b, g in complex_), 2.7, "gate of half the footway width + 2 m")
         self.assertTrue(all(g.distance(LineString([(0, 101), (120, 101)])) > 2.9 for b, g in complex_), "the explicit fence wins within 3 m")
         self.assertFalse(any(s == ["way/200"] for s, b, g in found), "below 15 % coverage no perimeter is inferred")
         [(school, sg)] = [(b, g) for s, b, g in found if s == ["way/300"]]
-        self.assertEqual((school["kind"], round(school["height_m"] * 100 / 3)), ("fence", 44))
+        self.assertEqual((school["kind"], round(school["height_m"] * 100 / 3)), ("fence", 67))
         self.assertEqual(sg.coords[0], sg.coords[-1])
         [(industry, ig)] = [(b, g) for s, b, g in found if s == ["way/400"]]
-        self.assertEqual((industry["kind"], round(industry["height_m"] * 100 / 3)), ("wall", 44))
+        self.assertEqual((industry["kind"], round(industry["height_m"] * 100 / 3)), ("wall", 67))
         self.assertNotEqual(ig.coords[0], ig.coords[-1], "a gate node opens the inferred wall")
         self.assertGreater(ig.distance(shapely.Point(650, 0)), 1.4)
         self.assertFalse(any(s == ["way/500"] for s, b, g in found), "commercial land gets no perimeter")

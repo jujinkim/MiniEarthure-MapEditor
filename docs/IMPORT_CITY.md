@@ -329,9 +329,9 @@ remainder so lattice points are whole map centimetres.
 - MapKit checks surface areas pairwise within touching bounds and charges that work
   to the shared road work budget the game enforces; a large green city can exceed
   it (the Editor warns that the game refuses the map).
-- Barrier heights on the map are two thirds of the source heights below (÷D,
-  at least 10 map cm), so fences stand above the car (a 1.2 m fence is 27 map cm
-  at 1:3) without hiding the city.
+- Barrier heights on the map are the source heights below ÷D (at least 10 map cm),
+  at the scale of the city around them (at 1:3 a 1.2 m fence is 40 map cm, a 2 m
+  wall 67 map cm and a 0.8 m hedge or guard rail 27 map cm).
 - Explicit barrier ways become `barriers`: `hedge` 0.8 m, `wall` and
   `retaining_wall` walls 2.0 m, `fence` its `height` tag or 1.2 m (fence types
   such as chain_link keep 1.2 m), `guard_rail` a 0.8 m fence, skipped where at least
