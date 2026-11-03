@@ -309,7 +309,8 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     raise ValueError(f"{properties.get('osm_source_id', index)}: {exc}") from exc
                 if regrouped != projected:
                     raise ValueError("polygon holes must belong to their declared outer after projection")
-            zone = properties.get("landuse") in ("forest", "orchard")
+            city_zone = properties.get("_city_zone") if city and osm_graph else None
+            zone = properties.get("landuse") in ("forest", "orchard") or city_zone is not None
             if solids is not None:
                 layer.add("buildings", city_building(identity, projected, solids, properties, layer, scalar))
                 projected = []
@@ -335,7 +336,13 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                         raise ValueError("City ground paint must be one hole-free current-v1 surface polygon")
                     layer.add("surface_areas", {"id": part_id, "polygon": polygon, "surface": properties["_city_paint"]})
                 elif zone:
-                    layer.add("zones", {"id": part_id, "polygon": polygon, "kind": properties["landuse"], "spacing_cm": 3200 if city else 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]})
+                    record = {"id": part_id, "polygon": polygon, "kind": properties["landuse"] if properties["landuse"] in ("forest", "orchard") else "forest",
+                              "spacing_cm": 3200 if city else 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]}
+                    if city_zone:
+                        # Map-scale city trees: spacing in source cm (÷D at
+                        # adoption), the tree footprint already in map cm.
+                        record.update(spacing_cm=int(city_zone["spacing_cm"]), density_per_mille=int(city_zone["density_per_mille"]), tree=dict(city_zone["tree"]))
+                    layer.add("zones", record)
                     layer.estimate("vegetation_spacing_density")
                 else:
                     facade = building_facade(properties, [rings], layer, city and osm_graph)

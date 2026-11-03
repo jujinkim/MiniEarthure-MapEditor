@@ -93,7 +93,7 @@ class Furniture(unittest.TestCase):
         park = dict(source_id="way/7", landuse="park", polygon=[[20000, 20000], [40000, 20000], [40000, 40000], [20000, 40000]], holes=[])
         records, counts = osm_furniture.generate("l" * 32, [], {"generation_regions": [park, dict(park, source_id="way/8", landuse="industrial")]}, SCALE, {})
         kinds = {r["asset_id"] for r in records}
-        self.assertTrue({"builtin:tree", "builtin:bench", "builtin:shrub"} <= kinds, counts)
+        self.assertEqual(kinds, {"builtin:bench", "builtin:shrub"}, "park trees are vegetation zones, not placements")
         area = Polygon(park["polygon"])
         self.assertTrue(all(area.contains(Point(r["position"][0], r["position"][2])) for r in records))
         self.assertTrue(all(r["id"].startswith("import-" + "l" * 32 + "-place-") for r in records))

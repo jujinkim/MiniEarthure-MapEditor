@@ -34,7 +34,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 	if not boundary._count(meta.get("level_structures"),meta.before.roads): return "Invalid city ground-level structure count."
 	if not boundary._count(meta.get("layered_buildings"),meta.before.buildings): return "Invalid city layered building count."
 	if not boundary._count(meta.get("estimated_structure_roads"),meta.after.roads) or int(meta.estimated_structure_roads) != raw.coordinates.get("osm_estimated_structures",[]).size(): return "Invalid city estimated structure count."
-	if meta.get("vegetation_spacing_m") != 32 or meta.get("vegetation_density_per_mille") != 750: return "Invalid city vegetation estimates."
+	if not is_equal_approx(float(meta.get("vegetation_spacing_m", 0)), 5.0 * denominator) or meta.get("vegetation_density_per_mille") != 750: return "Invalid city vegetation estimates."
 	if not boundary._count(meta.get("widened_roads"),meta.before.roads) or not _map_cm(meta.get("minimum_road_width_m"),20,denominator) or meta.get("surface_mappings") is not Array: return "Invalid city road approximations."
 	LIMITS.over(notes, "city_surface_mappings", meta.surface_mappings.size(), 512, "City road surface mappings")
 	var mapped := {}
@@ -70,7 +70,12 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 	var furniture_count := 0
 	for patch: Variant in raw.patches:
 		if patch is Dictionary and patch.get("field") == "zones":
-			if patch.get("after") is not Dictionary or patch.after.get("spacing_cm") != 3200 or patch.after.get("density_per_mille") != 750: return "Invalid city vegetation estimates."
+			# City trees: forests/orchards, parks and lawns (map cm × D, per mille).
+			var zone: Variant = patch.get("after")
+			if zone is not Dictionary or zone.get("tree") is not Dictionary: return "Invalid city vegetation estimates."
+			var planted := [int(zone.get("spacing_cm", -1)), int(zone.get("density_per_mille", -1))]
+			var tree: Dictionary = zone.tree
+			if planted not in [[500 * denominator, 750], [700 * denominator, 450], [900 * denominator, 300]] or tree.size() != 3 or str(tree.get("asset_id")) != "builtin:city_tree" or int(tree.get("radius_cm", -1)) != 120 or int(tree.get("clearance_cm", -1)) != 30: return "Invalid city vegetation estimates."
 		if patch is Dictionary and patch.get("field") == "barriers":
 			var barrier: Variant = patch.get("after")
 			if barrier is not Dictionary or barrier.get("kind") not in ["hedge", "fence", "wall"] or barrier.get("line") is not Array or barrier.line.size() < 2 or not boundary._count(barrier.get("height_cm"), 1000 * denominator) or not boundary._count(barrier.get("thickness_cm"), 100 * denominator): return "Invalid city barrier."

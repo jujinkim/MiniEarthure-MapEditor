@@ -232,6 +232,25 @@ def is_walking(feature, structural=frozenset()):
     return "osm_node_refs" not in p or ("osm_loop_range" in p and structural.isdisjoint(p["osm_node_refs"]))
 
 
+# City vegetation zones of map-scale city trees (builtin:city_tree): map-cm
+# spacing and density per mille for forests and orchards, parks and lawns.
+CITY_ZONES = {"forest": (500, 750), "park": (700, 450), "lawn": (900, 300)}
+CITY_PARKS = ("park", "garden", "recreation_ground", "village_green")
+CITY_LAWN_M2 = 300.0  # Smaller grass strips keep paint only.
+CITY_TREE = dict(asset_id="builtin:city_tree", radius_cm=120, clearance_cm=30)
+
+
+def city_zone(p, geometry, scale):
+    """Zone parameters (spacing in source cm) of a city forest, orchard, park or
+    lawn area, else None."""
+    if geometry.geom_type not in ("Polygon", "MultiPolygon"): return None
+    landuse = p.get("landuse")
+    kind = "forest" if landuse in ("forest", "orchard") else "park" if p.get("osm_region") and landuse in CITY_PARKS else \
+        "lawn" if p.get("osm_region") and landuse == "grass" and geometry.area >= CITY_LAWN_M2 else None
+    if kind is None: return None
+    spacing, density = CITY_ZONES[kind]
+    return dict(spacing_cm=spacing * scale, density_per_mille=density, tree=dict(CITY_TREE))
+
 class Generalizer:
     def __init__(self, collection, options, review=None, scale=SCALE):
         from osm_review import Review
@@ -1267,12 +1286,14 @@ class Generalizer:
         for feature, geometry in items:
             p = feature["properties"]
             p["_city_sources"] = source_ids(feature)
+            zone = city_zone(p, geometry, self.scale)
+            if zone: p["_city_zone"] = zone
             groups.append(dict(source_ids=p["_city_sources"], name=p.get("_city_name", ""), names=p.get("_city_names",[]), estimated_height=bool(p.get("_city_estimated_height"))))
             if "osm_node_refs" not in p:
                 feature["geometry"] = json.loads(json.dumps(mapping(next(derived))))
             result["features"].append(feature)
         meta = dict(profile=PROFILE, scale_denominator=self.scale, gap_m=gap, grid_m=self.grid,
-                    vegetation_spacing_m=32, vegetation_density_per_mille=750,
+                    vegetation_spacing_m=round(CITY_ZONES["forest"][0] * self.scale / 100, 2), vegetation_density_per_mille=CITY_ZONES["forest"][1],
                     surface_mappings=[dict(source=s,target=t,features=n) for (s,t),n in sorted(self.surface_mappings.items())],
                     widened_roads=self.widened_roads, minimum_road_width_m=self.minimum_width,
                     estimated_road_widths=dict(sorted(self.estimated_widths.items())),

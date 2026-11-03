@@ -32,9 +32,9 @@ the map's cell size (the city check refuses more than 16,384).
 
 The profile id stays `scale-aware-city-v1` with `scale_denominator: D`. One map
 centimetre is D/100 source metres; every map-unit value below derives from it.
-Simplification levels, tolerances, the 256 m record tiles, barrier heights,
-vegetation spacing and structure estimates (6 m levels, 8 % ramps) stay in source
-metres. 1:8 keeps its
+Simplification levels, tolerances, the 256 m record tiles, barrier heights and
+structure estimates (6 m levels, 8 % ramps) stay in source metres; city tree
+spacing is in map metres like the trees. 1:8 keeps its
 original working frame; at other scales the frame is shifted by the local origin's
 remainder so lattice points are whole map centimetres.
 
@@ -172,9 +172,12 @@ remainder so lattice points are whole map centimetres.
   building clearance plus 20 map cm (0.2·D m) of safety furniture each side (also when widened) and are
   listed in `osm_estimated_structures`. Other crossing structures need explicit
   heights and are otherwise excluded.
-- Compatible vegetation polygons are unioned. Illustrative trees use a 32 m source
-  lattice (32/D m on the map: 4 m at 1:8, about 10.7 m at 1:3) at 750 ‰ density;
-  they are estimates, not surveyed trees.
+- Compatible vegetation polygons are unioned. Illustrative city trees
+  (`builtin:city_tree`, a 120 cm zone footprint with 30 cm clearance) grow in MapKit
+  vegetation zones: forests and orchards every 5 map m at 750 ‰, parks (park,
+  garden, recreation ground, village green) every 7 map m at 450 ‰ and grass areas
+  of at least 300 source m² every 9 map m at 300 ‰, on their grass paint and clear
+  of paths, roads, water and buildings; they are estimates, not surveyed trees.
   The exact profile keeps an 8 m source lattice.
 
 ## Buildings
@@ -311,7 +314,7 @@ remainder so lattice points are whole map centimetres.
   within 15 m (the driver's near-side corner, the head over the road); a bus shelter
   facing the road at each bus stop, subway entrances and station signs beside the
   nearest road; parks (park, garden, playground, recreation ground, village green)
-  get trees, benches and shrubs on seeded jittered grids. Every piece keeps clear of
+  get benches and shrubs on seeded jittered grids (their trees are zones above). Every piece keeps clear of
   road corridors with sidewalks (+30 map cm), junction mouths, buildings, water and
   other pieces (+10 cm); a candidate without a free spot is skipped and counted
   (at most 8,000). Places and furniture follow the mapped records in the layer.

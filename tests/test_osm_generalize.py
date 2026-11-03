@@ -59,7 +59,7 @@ class City(unittest.TestCase):
                 for key,cm in expected.items():
                     self.assertEqual(meta[key],cm*scale/100,key)
                     self.assertAlmostEqual(meta[key]/meta["grid_m"],cm,places=9,msg="a multiple of the lattice")
-                self.assertEqual(meta["vegetation_spacing_m"],32,"vegetation spacing stays in source metres")
+                self.assertEqual(meta["vegetation_spacing_m"],5*scale,"forest city trees every 5 map metres, in source metres")
         self.assertEqual(next(iter(candidates(dict(type="FeatureCollection",features=self.features),self.options,scale=3)))[1]["scale_denominator"],3)
         for bad in (0, 9, 2.0, True, "3"):
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError,"integer denominator"):

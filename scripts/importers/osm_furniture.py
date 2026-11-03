@@ -22,8 +22,9 @@ SIZES = {"builtin:signal_h": (4, 4), "builtin:signal_v": (4, 4), "builtin:bus_sh
 CLEARANCE_CM = 30  # Beyond the road edge and sidewalk.
 GAP_CM = 10  # Between placements.
 PARK_KINDS = ("park", "garden", "playground", "recreation_ground", "village_green")
-PARK_GRID_CM = {"builtin:tree": 1000, "builtin:bench": 1500, "builtin:shrub": 600}
-PARK_CHANCE = {"builtin:tree": 0.35, "builtin:bench": 0.25, "builtin:shrub": 0.35}
+# Park trees are MapKit vegetation zones of city trees (osm_generalize.CITY_ZONES).
+PARK_GRID_CM = {"builtin:bench": 1500, "builtin:shrub": 600}
+PARK_CHANCE = {"builtin:bench": 0.25, "builtin:shrub": 0.35}
 MAX_PLACEMENTS = 8000
 BUCKET_CM = 3000
 SIGNAL_CLASSES = ("motorway", "trunk", "primary", "secondary", "tertiary")
