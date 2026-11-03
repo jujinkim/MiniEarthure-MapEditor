@@ -85,12 +85,12 @@ class Roads(unittest.TestCase):
                 worker = Generalizer(dict(type="FeatureCollection", features=self.features), self.options, scale=scale)
                 widths = {f["properties"]["osm_source_id"]: round(f["properties"]["width_m"] * 100 / scale) for f, g in worker.features if g.geom_type == "LineString"}
                 self.assertEqual(widths["way/1"], 500, "three primary lanes: the class floor (map cm)")
-                self.assertEqual(widths["way/2"], 300, "residential: two lanes, its floor")
+                self.assertEqual(widths["way/2"], 2 * osm_roads.LANE_CM + 2 * 80, "residential: two 120 cm lanes and 80 cm shoulders")
                 self.assertEqual(widths["way/3"], 500, "a tagged width does not set a vehicle road")
                 self.assertEqual(widths["way/4"], 6 * osm_roads.LANE_CM + 60)
                 self.assertEqual(widths["way/5"], 8 * osm_roads.LANE_CM + 60, "lanes capped per class")
-                self.assertEqual(widths["way/6"], 200, "service: one lane, its floor")
-                self.assertEqual(widths["way/7"], 175, "a one-way residential lane")
+                self.assertEqual(widths["way/6"], osm_roads.LANE_CM + 2 * 60, "service: one lane and 60 cm shoulders")
+                self.assertEqual(widths["way/7"], osm_roads.LANE_CM + 2 * 80, "a one-way residential lane keeps the class shoulders")
                 self.assertEqual(widths["way/8"], round(200 / scale), "walking ways keep their source width")
                 self.assertEqual(worker.road_rules["profile_tagged_width_ignored"], 2)
                 self.assertEqual(worker.road_rules["lane_widths"], 3)
@@ -216,7 +216,9 @@ class Roads(unittest.TestCase):
         synthetic = str(osm_roads.LEAD_REF_BASE + 6)
         self.assertEqual(lead[0]["_city_ends"], [synthetic, "6"], "the dead end's outer level lead")
         self.assertEqual(deck[0]["_city_ends"], ["1", synthetic], "the connected end keeps its deck lead")
-        keep = 9.0 / 2 + 1.0  # Half the widest (residential 300 map cm = 9 m) road + 1 m.
+        # Half the deck's own end width + 1 m: residential 400 map cm plus two
+        # 60 cm structure shoulders = 520 map cm = 15.6 m at 1:3.
+        keep = (400 + 2 * osm_roads.STRUCTURE_SHOULDER_CM) * 3 / 100 / 2 + 1.0
         self.assertAlmostEqual(lead[1].coords[0][0], 138 + keep, delta=0.05, msg="the deck keeps a level mouth")
         self.assertEqual(deck[0]["_city_estimated_m"][-2:], [0.0, 0.0])
         layer = self.layer(result)
@@ -397,7 +399,7 @@ class Roads(unittest.TestCase):
         tagged_no = self.road([(0, 150), (100, 150)], [7, 8], highway="tertiary", sidewalk="no")
         service = self.road([(0, 200), (100, 200)], [9, 10], highway="service")
         separate = self.road([(0, 250), (100, 250)], [11, 12], highway="residential", sidewalk="separate", width_m=6.0)
-        footway = self.road([(0, 256), (100, 256)], [13, 14], highway="footway", footway="sidewalk")
+        footway = self.road([(0, 257.5), (100, 257.5)], [13, 14], highway="footway", footway="sidewalk")
         worker = Generalizer(dict(type="FeatureCollection", features=self.features), self.options, scale=3)
         sidewalk = {f["properties"]["osm_source_id"]: f["properties"].get("_city_sidewalk_m") for f, g in worker.features if g.geom_type == "LineString"}
         self.assertEqual(sidewalk[primary], 3.0, "primary in urban land: 3 m (100 map cm at 1:3)")
@@ -405,7 +407,7 @@ class Roads(unittest.TestCase):
         self.assertEqual(sidewalk[residential], 2.01, "2 m on the 1:3 lattice: 67 map cm")
         self.assertEqual(sidewalk[tagged_no], 0.0)
         self.assertEqual(sidewalk[service], 0.0, "service roads: no sidewalk")
-        self.assertEqual(sidewalk[separate], 2.49, "to the footway's outer edge (6 - 4.5 + 0.8 m, in 0.25 m steps): 83 map cm")
+        self.assertEqual(sidewalk[separate], 2.49, "to the footway's outer edge (7.5 - 6 + 0.8 m, in 0.25 m steps): 83 map cm")
         self.assertNotIn(footway, sidewalk, "the covered sidewalk footway is absorbed")
         owner = next(f for f, g in worker.features if f["properties"]["osm_source_id"] == separate)
         self.assertIn(footway, owner["properties"]["_city_sources"])

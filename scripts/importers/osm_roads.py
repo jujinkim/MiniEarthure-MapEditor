@@ -35,7 +35,7 @@ URBAN = ("residential", "commercial", "retail", "industrial", "education", "reli
 FOOTWAY_REACH_M = 8.0
 CROSSWALK_M = 15.0
 MARKED = {"motorway": 4, "trunk": 4, "primary": 4, "secondary": 2, "tertiary": 2,
-          "motorway_link": None, "trunk_link": None, "primary_link": None, "secondary_link": None, "tertiary_link": None,
+          "motorway_link": 1, "trunk_link": 1, "primary_link": 1, "secondary_link": 1, "tertiary_link": 1,
           "unclassified": None, "residential": 2}
 # Painted edge lines on these classes; residential streets get only a center line
 # (two-way), without junction stop lines or signals.
@@ -54,13 +54,17 @@ ROAD_FLOOR_CM = 150  # Editor adoption floor (import_units.gd), raises paint rad
 # than its class floor. Lanes come from the `lanes` tag (capped per class) or
 # the class default; `width` tags do not set vehicle road widths. One-way roads
 # use half the default and maximum (at least one lane). Other classes keep
-# their source width.
+# their source width. Every painted lane is LANE_CM wide; the rest of a road's
+# width is shoulder outside the edge lines. Minor classes get wide shoulders
+# (their floors equal lanes × LANE_CM + both edges), and bridges and tunnels add
+# STRUCTURE_SHOULDER_CM per side.
 LANE_CM = 120
+STRUCTURE_SHOULDER_CM = 60
 # class: (default lanes, maximum lanes, edge per side, floor) for two-way roads.
 PROFILES = {"motorway": (4, 8, 40, 520), "trunk": (4, 8, 40, 520), "primary": (4, 8, 30, 500),
-            "secondary": (4, 6, 30, 500), "tertiary": (2, 4, 30, 300), "unclassified": (2, 2, 25, 300),
-            "residential": (2, 2, 25, 300), "living_street": (2, 2, 20, 280), "road": (2, 2, 25, 300),
-            "busway": (2, 2, 25, 300), "service": (1, 2, 20, 200), "track": (1, 1, 20, 180),
+            "secondary": (4, 6, 30, 500), "tertiary": (2, 4, 30, 300), "unclassified": (2, 2, 80, 400),
+            "residential": (2, 2, 80, 400), "living_street": (2, 2, 65, 370), "road": (2, 2, 80, 400),
+            "busway": (2, 2, 80, 400), "service": (1, 2, 60, 240), "track": (1, 1, 50, 220),
             "motorway_link": (1, 2, 30, 200), "trunk_link": (1, 2, 30, 200), "primary_link": (1, 2, 30, 200),
             "secondary_link": (1, 2, 25, 200), "tertiary_link": (1, 2, 25, 200)}
 
@@ -98,6 +102,22 @@ def profile_cm(road_tags, one_way, count):
     return max(floor, count * LANE_CM + 2 * edge)
 
 
+def structure(feature):
+    """An explicit or estimated bridge or tunnel (not a flattened level one)."""
+    p = feature["properties"]
+    return p.get("_city_estimated_kind") in ("bridge", "tunnel") or p.get("road_kind", "ground") in ("bridge", "tunnel")
+
+
+def painted_lanes(feature):
+    """Profile lane count painted on a vehicle road (both directions of a merged
+    dual carriageway)."""
+    p, t = feature["properties"], tags(feature)
+    if p.get("_city_dual") and p.get("_city_carriageway_m"):
+        total = p.get("_city_lanes")
+        return 2 * profile_lanes(t, True, None if total is None else max(1, total // 2))
+    return profile_lanes(t, oneway(t) != 0)
+
+
 def apply_profiles(items, scale):
     """Vehicle road widths (source metres) from the class profiles, after dual
     carriageways merged on their source widths. A merged road keeps its median
@@ -121,7 +141,9 @@ def apply_profiles(items, scale):
             if "_city_width_estimate" not in p: counts["tagged_width_ignored"] += 1
             one_way = oneway(t) != 0
             count = profile_lanes(t, one_way)
-            p["width_m"] = round(profile_cm(t, one_way, count) * scale / 100, 2)
+            shoulders = 2 * STRUCTURE_SHOULDER_CM if structure(f) else 0
+            p["width_m"] = round((profile_cm(t, one_way, count) + shoulders) * scale / 100, 2)
+            if shoulders: counts["structure_shoulders"] += 1
             p.pop("_city_widths_m", None)
             counts["one_way" if one_way else "two_way"] += 1
     return counts
@@ -133,7 +155,7 @@ LEAD_REF_BASE = 8 * 10 ** 18  # Synthetic node refs (19 digits) above every OSM 
 def open_deck_ends(roads):
     """An estimated bridge whose end meets no other vehicle road gives the outer
     part of its level (0 m) lead to a ground road, so MapKit puts no deck cap
-    rail across a ramp foot. The deck keeps half the widest road width + 1 m of
+    rail across a ramp foot. The deck keeps half its own end width + 1 m of
     level lead (its junction mouth stays level); a shorter lead stays whole. The
     split node gets a synthetic ref LEAD_REF_BASE + the end ref.
     Returns (roads, count)."""
@@ -141,7 +163,6 @@ def open_deck_ends(roads):
         return g.geom_type == "LineString" and f["properties"].get("_city_ends") and (
             tags(f).get("highway") not in PEDESTRIAN or "_city_estimated_m" in f["properties"])
     uses = Counter(ref for f, g in roads if vehicle(f, g) for ref in f["properties"]["_city_ends"] if ref is not None)
-    widest = max((float(f["properties"].get("width_m", 8)) for f, g in roads if vehicle(f, g)), default=8.0)
     output, count = [], 0
     for f, g in roads:
         p = f["properties"]
@@ -157,7 +178,8 @@ def open_deck_ends(roads):
             if ends[end] is None or uses[ends[end]] != 1: continue
             order = list(range(len(coords))) if end == 0 else list(range(len(coords) - 1, -1, -1))
             if heights[order[0]] != 0: continue
-            keep = widest / 2 + 1.0
+            # The split node joins this deck and its own lead: half its width + 1 m.
+            keep = widths[0 if end == 0 else -1] / 2 + 1.0
             run, travelled = [order[0]], 0.0
             for a, b in zip(order, order[1:]):
                 if heights[b] != 0: break
@@ -966,14 +988,16 @@ def sidewalks(items, scale, spend=lambda count=1: None):
     return [item for i, item in enumerate(items) if i not in drop], counts
 
 
-def markings(kind, lane_count, two_way, surface):
-    """MapKit markings for a road record, or None."""
+def markings(kind, lane_count, two_way, surface, on_structure=False):
+    """MapKit markings for a road record, or None. Lanes are LANE_CM wide; edge
+    lines bound them on edge-lined classes and on every bridge and tunnel."""
     if kind not in MARKED or surface not in ("asphalt", "concrete"): return None
     count = lane_count or MARKED[kind]
     if not count: return None
     count = max(1, min(MAX_LANES, count))
     if kind == "residential" and not two_way: return None
-    return dict(lanes=count, center_line=bool(two_way and count % 2 == 0), edge_lines=kind in EDGE_LINED, crosswalk_start=False, crosswalk_end=False)
+    return dict(lanes=count, center_line=bool(two_way and count % 2 == 0), edge_lines=kind in EDGE_LINED or on_structure,
+                crosswalk_start=False, crosswalk_end=False, lane_width_cm=LANE_CM)
 
 
 def _arc(a, p, b, width):
@@ -1075,7 +1099,11 @@ def finish(roads, scale, crossing_points, crossing_lines, is_road, spend=lambda 
         p = f["properties"]
         if not is_road(f, g) or not driving(f, g) or tags(f).get("highway") in PEDESTRIAN: continue
         t = tags(f)
-        mark = markings(t.get("highway", "road"), p.get("_city_lanes", lanes(t)), oneway(t) == 0, p.get("surface", "asphalt"))
+        kind = t.get("highway", "road")
+        # Paint the profile's lane count; classes without a default (unclassified)
+        # stay unpainted unless tagged with lanes.
+        listed = t.get("highway") in PROFILES and (MARKED.get(kind) or p.get("_city_lanes", lanes(t)))
+        mark = markings(kind, painted_lanes(f) if listed else p.get("_city_lanes", lanes(t)), oneway(t) == 0, p.get("surface", "asphalt"), structure(f))
         if mark is None: continue
         # Junction stop lines and lane arrows (MapKit paints them from the arms).
         mark["stop_lines"] = t.get("highway") != "residential"

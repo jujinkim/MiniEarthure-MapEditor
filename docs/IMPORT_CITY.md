@@ -54,7 +54,10 @@ remainder so lattice points are whole map centimetres.
   about 61 cm wide), applied after dual carriageways merge on their source widths:
   lanes × 120 cm + both edges, at least the class floor. Lanes come from `lanes`
   (capped per class) or the class default; `width` tags do not set vehicle roads.
-  One-way roads use half the default and maximum lanes (at least one).
+  One-way roads use half the default and maximum lanes (at least one). Painted
+  lanes are always 120 cm; the rest of the width is shoulder, so minor classes
+  get wide edges, and bridges and tunnels (explicit or estimated, not flattened
+  level ones) add 60 cm per side.
 
   | Class | Default / max lanes | Edge | Floor |
   | --- | --- | --- | --- |
@@ -62,10 +65,10 @@ remainder so lattice points are whole map centimetres.
   | primary | 4 / 8 | 30 | 500 |
   | secondary | 4 / 6 | 30 | 500 |
   | tertiary | 2 / 4 | 30 | 300 |
-  | unclassified, residential, road, busway | 2 / 2 | 25 | 300 |
-  | living_street | 2 / 2 | 20 | 280 |
-  | service | 1 / 2 | 20 | 200 |
-  | track | 1 / 1 | 20 | 180 |
+  | unclassified, residential, road, busway | 2 / 2 | 80 | 400 |
+  | living_street | 2 / 2 | 65 | 370 |
+  | service | 1 / 2 | 60 | 240 |
+  | track | 1 / 1 | 50 | 220 |
   | `*_link` | 1 / 2 | 25–30 | 200 |
 
   A one-way floor is max(one lane + edges, half the floor + one edge). A merged
@@ -105,10 +108,12 @@ remainder so lattice points are whole map centimetres.
   (0.25 m steps); a sidewalk footway wholly inside the sidewalk is absorbed into
   the road's sources instead of being painted. Widths are whole map centimetres,
   0 or 20..1000. Building trimming and junction clearance include the sidewalk.
-- Road markings: `lanes` (merged: the sum), else 4 lanes for motorway, trunk and
-  primary and 2 for secondary, tertiary and two-way residential streets; none for
-  other lower classes without `lanes`. Center lines on two-way roads with an even
-  lane count, edge lines on motorway, trunk and primary, asphalt or concrete only.
+- Road markings paint the profile's lane count (merged: both carriageways) at
+  `lane_width_cm` 120 on motorway to tertiary, `*_link` and two-way residential
+  streets; unclassified roads only when tagged with `lanes`. Center lines on
+  two-way roads with an even lane count, edge lines (bounding the lanes, shoulder
+  outside) on motorway, trunk, primary and every bridge and tunnel, asphalt or
+  concrete only.
   Residential streets carry no junction stop lines, arrows or generated signals.
   A junction end (three or more roads) gets a crosswalk when a `highway=crossing` node on the road or a `footway=crossing` way across it
   lies within max(15 m, √2 × the widest half width + 10 m). A marked road and its
@@ -158,9 +163,9 @@ remainder so lattice points are whole map centimetres.
   excluded, so no structure ends in the air or underground.
   An estimated bridge end that meets no other vehicle road gives the outer part
   of its level lead to a ground road (split at a synthetic node ref 8·10¹⁸ + the
-  end ref), so no deck cap rail crosses a ramp foot; the deck keeps half the
-  widest road width + 1 m of level lead for its junction mouth, and a shorter
-  lead stays whole.
+  end ref), so no deck cap rail crosses a ramp foot; the deck keeps half its own
+  end width + 1 m of level lead for its junction mouth, and a shorter lead stays
+  whole.
   Estimated structures join ordinary ground roads, stay whole at crop edges with
   every way of their chain, keep
   building clearance plus 20 map cm (0.2·D m) of safety furniture each side (also when widened) and are
@@ -312,8 +317,9 @@ remainder so lattice points are whole map centimetres.
 - MapKit checks surface areas pairwise within touching bounds and charges that work
   to the shared road work budget the game enforces; a large green city can exceed
   it (the Editor warns that the game refuses the map).
-- Barrier heights on the map are a third of the source heights below (÷D,
-  at least 10 map cm), so fences frame roads without hiding the city.
+- Barrier heights on the map are two thirds of the source heights below (÷D,
+  at least 10 map cm), so fences stand above the car (a 1.2 m fence is 27 map cm
+  at 1:3) without hiding the city.
 - Explicit barrier ways become `barriers`: `hedge` 0.8 m, `wall` and
   `retaining_wall` walls 2.0 m, `fence` its `height` tag or 1.2 m (fence types
   such as chain_link keep 1.2 m), `guard_rail` a 0.8 m fence, skipped where at least

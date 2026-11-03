@@ -377,8 +377,9 @@ class City(unittest.TestCase):
                 self.setup_city()
                 structure = dict(road_kind=kind, elevations_m=[6.0 if kind == "bridge" else -6.0]*2, osm_way_id=1, osm_node_refs=[1, 2], width_m=6, _city_road_tags=dict(highway="residential"))
                 self.add(1, LineString([(0, 0), (100, 0)]), **structure)
-                self.add(2, box(20, 4.5, 40, 20), height_m=12, _city_layer_building=True)  # Within 3 + 1.6 + 0.8 m.
-                self.add(3, box(60, 4.5, 80, 20), height_m=12)
+                # Residential 400 + 2 × 60 map cm structure at 1:8: within 20.8 + 1.6 + 0.8 m.
+                self.add(2, box(20, 22, 40, 40), height_m=12, _city_layer_building=True)
+                self.add(3, box(60, 22, 80, 40), height_m=12)
                 self.add(4, box(45, -3, 55, 3), height_m=12, _city_layer_building=True)
                 review = Review(True)
                 out, meta = Generalizer(dict(type="FeatureCollection", features=self.features), self.options, review).candidate(0)
@@ -471,7 +472,7 @@ class City(unittest.TestCase):
         from osm_review import Review
         self.setup_city()
         self.add(1,LineString([(0,0),(150,3),(300,0)]),width_m=6,_city_refs=[1,2,3],_city_road_tags=dict(highway="residential"))
-        self.add(2,box(146,-12.4,154,-10.2))  # Inside the straightened (4 m tolerance) 24 m 1:8 profile road only.
+        self.add(2,box(146,-16.4,154,-14.2))  # Inside the straightened (4 m tolerance) 32 m 1:8 profile road only.
         for i in range(12):
             self.add(10+i,box(20+i*14,40,30+i*14,60),height_m=9)
         collection = lambda: dict(type="FeatureCollection",features=deepcopy(self.features))
@@ -877,7 +878,7 @@ class CityRules(unittest.TestCase):
                 for source, (kind, height, thickness) in expected.items():
                     b = found[source]
                     self.assertEqual(b["kind"], kind)
-                    self.assertEqual(round(b["height_m"] * 100 / scale), min(1000, max(10, cm(height * osm_sites.BARRIER_HEIGHT_FACTOR))), "a third of the source height ÷D")
+                    self.assertEqual(round(b["height_m"] * 100 / scale), min(1000, max(10, cm(height * osm_sites.BARRIER_HEIGHT_FACTOR))), "two thirds of the source height ÷D")
                     self.assertEqual(round(b["thickness_m"] * 100 / scale), min(100, max(5, cm(thickness))), "thickness ÷D within 5..100 map cm")
                 closed = next(g for b, g in self.barriers(worker, out) if g.length > 150)
                 self.assertEqual(closed.coords[0], closed.coords[-1], "a closed perimeter repeats its first point")
@@ -940,16 +941,16 @@ class CityRules(unittest.TestCase):
         found = [(f["properties"]["_city_sources"], f["properties"]["_city_barrier"], transform(worker.project, shape(f["geometry"]))) for f in out["features"] if "_city_barrier" in f["properties"]]
         complex_ = [(b, g) for s, b, g in found if s == ["way/100"]]
         self.assertEqual(len(complex_), 2, "the footway gate splits the perimeter")
-        self.assertTrue(all(b["kind"] == "fence" and round(b["height_m"] * 100 / 3) == 13 for b, g in complex_))
+        self.assertTrue(all(b["kind"] == "fence" and round(b["height_m"] * 100 / 3) == 27 for b, g in complex_), "two thirds of 1.2 m ÷3")
         gate = shapely.Point(60, 0)
         self.assertGreater(min(g.distance(gate) for b, g in complex_), 2.7, "gate of half the footway width + 2 m")
         self.assertTrue(all(g.distance(LineString([(0, 101), (120, 101)])) > 2.9 for b, g in complex_), "the explicit fence wins within 3 m")
         self.assertFalse(any(s == ["way/200"] for s, b, g in found), "below 15 % coverage no perimeter is inferred")
         [(school, sg)] = [(b, g) for s, b, g in found if s == ["way/300"]]
-        self.assertEqual((school["kind"], round(school["height_m"] * 100 / 3)), ("fence", 22))
+        self.assertEqual((school["kind"], round(school["height_m"] * 100 / 3)), ("fence", 44))
         self.assertEqual(sg.coords[0], sg.coords[-1])
         [(industry, ig)] = [(b, g) for s, b, g in found if s == ["way/400"]]
-        self.assertEqual((industry["kind"], round(industry["height_m"] * 100 / 3)), ("wall", 22))
+        self.assertEqual((industry["kind"], round(industry["height_m"] * 100 / 3)), ("wall", 44))
         self.assertNotEqual(ig.coords[0], ig.coords[-1], "a gate node opens the inferred wall")
         self.assertGreater(ig.distance(shapely.Point(650, 0)), 1.4)
         self.assertFalse(any(s == ["way/500"] for s, b, g in found), "commercial land gets no perimeter")
