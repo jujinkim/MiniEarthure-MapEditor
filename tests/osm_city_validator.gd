@@ -64,7 +64,7 @@ func run_scale(denominator: int) -> void:
 	check(meta.after.roads==1 and meta.after.buildings==3 and meta.after.areas>=2,"compatible chain/vegetation merge, footprints group as parts while named/tall buildings stay records")
 	check(meta.building_records.solids==8 and meta.building_records.grouped_records==1,"every source footprint stays its own solid: "+JSON.stringify(meta.building_records))
 	check(meta.painted_pedestrian_ways==1 and ui.import_summary.text.contains("painted as drivable ground"),"the footway is disclosed as ground paint, not a road")
-	check(meta.vegetation_spacing_m==32 and meta.vegetation_density_per_mille==750,"illustrative vegetation density is explicitly disclosed")
+	check(is_equal_approx(meta.vegetation_spacing_m,5.0*denominator) and meta.vegetation_density_per_mille==750 and ui.import_summary.text.contains("illustrative estimates"),"illustrative city tree spacing (5 map m) and density are explicitly disclosed")
 	check(meta.scale_denominator==denominator and is_equal_approx(meta.grid_m,denominator/100.0) and is_equal_approx(meta.road_clearance_m,denominator/10.0),"the city lattice and clearances follow 1:%d" % denominator)
 	check(ui.import_summary.text.contains("Automatic city optimization · 1:%d" % denominator) and ui.import_summary.text.contains("→") and ui.import_summary.text.contains("÷ %d," % denominator),"review shows measured reductions at the chosen scale")
 	check(ui.store.document==before,"review leaves document unchanged")
