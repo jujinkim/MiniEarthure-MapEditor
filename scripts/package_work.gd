@@ -23,7 +23,7 @@ const REOPEN_MAX_BYTES := 8 * 1024 * 1024 * 1024
 ## Authoring profile the triangle (2,000,000) and work budgets warn first; a
 ## cell that still fails with one of these is past a raised guard. Any other
 ## E_BUDGET is an Editor-side check budget.
-const RUNTIME_CELL_BUDGETS := ["chunk triangle budget", "occupancy limit", "occupied solid budget", "road local ", "road sampling limit", "road subdivision work", "road paint exceeds", "sidewalk fragments", "courtyard topology", "water shoreline work"]
+const RUNTIME_CELL_BUDGETS := ["chunk triangle budget", "occupancy limit", "occupied solid budget", "road local ", "road sampling limit", "road subdivision work", "sidewalk fragments", "courtyard topology", "water shoreline work"]
 var regional_side_cells := 0
 var working: RefCounted
 var mutex := Mutex.new()

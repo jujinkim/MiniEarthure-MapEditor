@@ -118,11 +118,16 @@ remainder so lattice points are whole map centimetres.
   Residential streets carry no junction stop lines, arrows or generated signals.
   A junction end (three or more roads) gets a crosswalk when a `highway=crossing` node on the road or a `footway=crossing` way across it
   lies within max(15 m, √2 × the widest half width + 10 m). A marked road and its
-  marked two-arm neighbours stay within the 128 paint segments MapKit draws joined
-  per road and cell, counted as MapKit does (a fillet arc per vertex, half a join
-  arc at two-arm ends) over whole records, so for any cell size: longer records
-  split at source nodes (at most 42 segments beside marked neighbours), a record
-  that cannot split keeps no markings, and adoption refuses a layer over the bound.
+  marked two-arm neighbours stay within the 128 centre-line paint segments MapKit
+  draws joined per road and cell. The importer counts whole records (a fillet arc
+  per vertex, half a join arc at two-arm ends), an upper bound on MapKit's count,
+  which also merges every road's almost-collinear samples within one source
+  centimetre, so for any cell size: longer records split at source nodes (at most
+  42 segments beside marked neighbours), a record that cannot split keeps no
+  markings, and adoption refuses a layer over the bound. Edge-line exteriors are
+  not counted. A road whose paint still exceeds 128 segments in a cell loses its
+  paint there (Authoring warning `road_paint_segments`; an over-cap join falls
+  back to each road's own path, `road_paint_join`) and the cell still loads.
 - Parking aisles, driveways, drive-throughs and dead-end service stubs under 15 m
   become asphalt ground paint and tracks dirt paint (a tagged surface wins), like
   footways: drivable terrain mapped to their sources. A service way or track that
@@ -225,8 +230,11 @@ remainder so lattice points are whole map centimetres.
   whose final footprint is an axis-aligned rectangle (MapKit's gable rule); other
   solids and records are flat. Rule-assigned uses, level heights and every
   material/roof count as estimates in review; the source value stays in the
-  source file. The renderer draws storeys, panes, night windows, storefront signs
-  on commercial ground floors and a record palette (one site and category shares
+  source file. The renderer draws storeys, panes, night windows, a 1.5-floor shop
+  storey on commercial buildings (door, mullioned display windows and a fascia
+  sign per slot) with whole storeys fitted below the eaves (a commercial solid of
+  L ≥ 3 whole levels shows the shop storey and L − 2 taller storeys, two levels a plain
+  parapet), and a record palette (one site and category shares
   its wall body, roof colour, pane pattern and, for apartment complexes, accent
   columns and base storey) that the distant mesh keeps at every distance
   ([MapKit materials](../addons/mapkit/docs/RICHER_MATERIALS.md)).
