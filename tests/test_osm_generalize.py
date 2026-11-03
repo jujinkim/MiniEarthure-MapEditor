@@ -561,6 +561,23 @@ class City(unittest.TestCase):
         self.assertLess(building.area, 11.7**2, "only the corner is trimmed")
         self.assertGreater(building.area, 11.7**2 - 2)
 
+    def test_buildings_keep_clear_of_the_inside_fillet_of_a_bend(self):
+        # Yeongtong 1:3 regression: a 250 map cm one-way living street bends 90°
+        # within one road; MapKit rounds that inside corner like a junction's.
+        from osm_generalize import corner_radius_cm
+        self.setup_city()
+        w = 7.5
+        self.add(1, LineString([(60, 0), (0, 0), (0, 60)]), width_m=w, _city_refs=[1, 2, 3])
+        h = w / 2
+        self.add(2, box(h + 0.3, h + 0.3, h + 12, h + 12))
+        worker = self.worker(3)
+        out, meta = worker.candidate(0)
+        [(feature, [building])] = self.solids(worker, out)
+        r = corner_radius_cm(round(w * 100 / 3)) * 3 / 100
+        fillet = box(h, h, h + r, h + r).difference(shapely.Point(h + r, h + r).buffer(r, quad_segs=64))
+        self.assertGreater(building.distance(fillet), 0.25, "the building keeps the road clearance from the bend's curb fillet")
+        self.assertLess(building.area, 11.7**2, "only the corner is trimmed")
+
     def test_erased_source_returns_trimmed_on_the_map_lattice(self):
         for scale in (8, 3):
             with self.subTest(scale=scale):

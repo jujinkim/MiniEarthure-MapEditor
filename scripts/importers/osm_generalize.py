@@ -109,26 +109,35 @@ def corner_radius_cm(width_cm):
 def corner_fillets(roads, scale):
     """Triangles (source metres) covering MapKit's inside-corner curb fillets.
 
-    At every node joining two or more road ends, each pair of angularly adjacent
-    arms meets at the corner C of their road edges (carriageway half widths). The
+    At every node joining two or more road ends, and at every interior bend of a
+    road (its two segments are the arms), each pair of angularly adjacent arms
+    meets at the corner C of their road edges (carriageway half widths). The
     fillet of radius R (from the arm width in map cm) is tangent to both edges at
     R / tan(φ/2) from C, φ the block angle between the arms; the road area it adds
     lies inside the triangle C and both tangent points."""
     arms = defaultdict(list)
+    bends = []
     for f, g in roads:
         p = f["properties"]
         if g.geom_type != "LineString" or len(g.coords) < 2: continue
         widths = p.get("_city_widths_m")
         if not widths or len(widths) != len(g.coords) - 1: widths = [float(p.get("width_m", 8))] * (len(g.coords) - 1)
         coords = list(g.coords)
+        for i in range(1, len(coords) - 1):
+            bends.append([(coords[i], coords[i - 1], widths[i - 1]), (coords[i], coords[i + 1], widths[i])])
         for point, toward, width in ((coords[0], coords[1], widths[0]), (coords[-1], coords[-2], widths[-1])):
             dx, dy = toward[0] - point[0], toward[1] - point[1]
             length = math.hypot(dx, dy)
             if length == 0: continue
             arms[(round(point[0], 2), round(point[1], 2))].append((math.atan2(dy, dx), dx / length, dy / length, float(width), point))
+    def arm(point, toward, width):
+        dx, dy = toward[0] - point[0], toward[1] - point[1]
+        length = math.hypot(dx, dy)
+        return (math.atan2(dy, dx), dx / length, dy / length, float(width), point) if length else None
+    groups = [sorted(arms[key]) for key in sorted(arms)]
+    groups += [sorted(a for a in (arm(*first), arm(*second)) if a) for first, second in bends]
     wedges = []
-    for key in sorted(arms):
-        group = sorted(arms[key])
+    for group in groups:
         if len(group) < 2: continue
         for k, (alpha, ux, uy, wa, point) in enumerate(group):
             beta, vx, vy, wb, _ = group[(k + 1) % len(group)]
