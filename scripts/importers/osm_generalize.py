@@ -248,7 +248,11 @@ def is_walking(feature, structural=frozenset()):
 CITY_ZONES = {"forest": (500, 750), "park": (700, 450), "lawn": (900, 300)}
 CITY_PARKS = ("park", "garden", "recreation_ground", "village_green")
 CITY_LAWN_M2 = 300.0  # Smaller grass strips keep paint only.
-CITY_TREE = dict(asset_id="builtin:city_tree", radius_cm=120, clearance_cm=30)
+# Zone trees take MapKit's largest city-tree footprint (200 map cm, validated
+# 120..200): placement keeps that square clear of buildings, roads and other
+# trees, and the renderer grows a wide park crown inside it. Street and
+# authored builtin:city_tree placements keep the 120 cm placement footprint.
+CITY_TREE = dict(asset_id="builtin:city_tree", radius_cm=200, clearance_cm=30)
 
 
 def city_zone(p, geometry, scale):

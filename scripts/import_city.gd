@@ -75,7 +75,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 			if zone is not Dictionary or zone.get("tree") is not Dictionary: return "Invalid city vegetation estimates."
 			var planted := [int(zone.get("spacing_cm", -1)), int(zone.get("density_per_mille", -1))]
 			var tree: Dictionary = zone.tree
-			if planted not in [[500 * denominator, 750], [700 * denominator, 450], [900 * denominator, 300]] or tree.size() != 3 or str(tree.get("asset_id")) != "builtin:city_tree" or int(tree.get("radius_cm", -1)) != 120 or int(tree.get("clearance_cm", -1)) != 30: return "Invalid city vegetation estimates."
+			if planted not in [[500 * denominator, 750], [700 * denominator, 450], [900 * denominator, 300]] or tree.size() != 3 or str(tree.get("asset_id")) != "builtin:city_tree" or int(tree.get("radius_cm", -1)) != 200 or int(tree.get("clearance_cm", -1)) != 30: return "Invalid city vegetation estimates."
 		if patch is Dictionary and patch.get("field") == "barriers":
 			var barrier: Variant = patch.get("after")
 			if barrier is not Dictionary or barrier.get("kind") not in ["hedge", "fence", "wall"] or barrier.get("line") is not Array or barrier.line.size() < 2 or not boundary._count(barrier.get("height_cm"), 1000 * denominator) or not boundary._count(barrier.get("thickness_cm"), 100 * denominator): return "Invalid city barrier."

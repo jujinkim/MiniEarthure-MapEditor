@@ -178,8 +178,9 @@ remainder so lattice points are whole map centimetres.
   listed in `osm_estimated_structures`. Other crossing structures need explicit
   heights and are otherwise excluded.
 - Compatible vegetation polygons are unioned. Illustrative city trees
-  (`builtin:city_tree`, a 120 cm zone footprint with 30 cm clearance) grow in MapKit
-  vegetation zones: forests and orchards every 5 map m at 750 ‰, parks (park,
+  (`builtin:city_tree`, MapKit's widest 200 cm zone footprint with 30 cm clearance,
+  drawn as broad park crowns about 3.1–3.9 m across; street trees keep 120 cm) grow
+  in MapKit vegetation zones: forests and orchards every 5 map m at 750 ‰, parks (park,
   garden, recreation ground, village green) every 7 map m at 450 ‰ and grass areas
   of at least 300 source m² every 9 map m at 300 ‰, on their grass paint and clear
   of paths, roads, water and buildings; they are estimates, not surveyed trees.

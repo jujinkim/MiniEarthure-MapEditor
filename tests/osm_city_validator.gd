@@ -113,7 +113,7 @@ func run_scale(denominator: int) -> void:
 	check(ui.store.document.surface_areas.size()==meta.after.areas-1 and ui.store.document.surface_areas.all(func(area: Dictionary) -> bool: return area.surface in ["concrete","grass"]) and ui.store.document.surface_areas.any(func(area: Dictionary) -> bool: return area.surface=="grass"),"the footway is painted concrete and the forest grass, cut at cell lines")
 	check(ui.store.document.get("ground_surface")=="concrete","a city import paves unpainted ground")
 	var forest: Dictionary = ui.store.document.zones[0]
-	check(forest.spacing_cm==500 and forest.density_per_mille==750 and forest.get("tree",{}).get("asset_id")=="builtin:city_tree" and forest.tree.radius_cm==120,"city forests grow city trees every 5 map m after one scale conversion")
+	check(forest.spacing_cm==500 and forest.density_per_mille==750 and forest.get("tree",{}).get("asset_id")=="builtin:city_tree" and forest.tree.radius_cm==200,"city forests grow wide city trees every 5 map m after one scale conversion")
 	check(preload("res://scripts/import_units.gd").dem_denominator(ui.store.document)==denominator,"DEM and CSV read the adopted 1:%d back" % denominator)
 	var adopted: Dictionary=ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.buildings.is_empty() and not ui.store.document.has("ground_surface"),"atomic city Undo restores the ground surface")

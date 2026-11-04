@@ -178,6 +178,26 @@ class City(unittest.TestCase):
         self.assertEqual(meta["after"]["areas"],2)
         self.assertEqual({f["properties"]["landuse"] for f in value["features"]},{"forest","orchard"})
 
+    def test_zone_trees_take_the_widest_city_tree_footprint(self):
+        from osm_generalize import CITY_ZONES
+        self.setup_city()
+        self.add(1,box(0,0,40,40),landuse="forest")
+        self.add(2,box(60,0,100,40),landuse="park",osm_region=True)
+        self.add(3,box(120,0,160,40),landuse="grass",osm_region=True)
+        value,meta=self.worker(3).candidate(4)
+        zones={f["properties"]["landuse"]:f["properties"]["_city_zone"] for f in value["features"] if "_city_zone" in f["properties"]}
+        self.assertEqual(set(zones),{"forest","park","grass"})
+        for landuse,kind in (("forest","forest"),("park","park"),("grass","lawn")):
+            with self.subTest(landuse=landuse):
+                zone=zones[landuse]
+                self.assertEqual((zone["spacing_cm"],zone["density_per_mille"]),(CITY_ZONES[kind][0]*3,CITY_ZONES[kind][1]))
+                # MapKit's widest validated city-tree footprint (120..200 map cm);
+                # the renderer grows a wide park crown inside it.
+                self.assertEqual(zone["tree"],dict(asset_id="builtin:city_tree",radius_cm=200,clearance_cm=30))
+        # Every zone carries its own copy: editing one never edits another.
+        zones["forest"]["tree"]["radius_cm"]=150
+        self.assertEqual(zones["park"]["tree"]["radius_cm"],200)
+
     def test_invalid_source_is_not_repaired_and_output_is_deterministic(self):
         self.setup_city()
         self.add(1,box(1,1,11,11))
