@@ -2,23 +2,22 @@ extends RefCounted
 ## Fits imported city water to a reviewed DEM (disclosed estimate). Connected
 ## water pieces whose shore heights stay within LEVEL_RANGE_CM share one level
 ## (a lake); other pieces keep their own (a sloping stream steps). The level is
-## the median shore terrain; the surface lies SURFACE_CM above it and terrain
-## samples inside sink CARVE_CM below it, except within one sample spacing of a
-## ground road, whose surface follows the terrain.
+## the lowest shore terrain height, sampled at every polygon vertex and along
+## every shore edge at the DEM spacing, so the surface, SURFACE_CM below it,
+## lies under every sampled bank; the bottom lies DEPTH_CM below the surface.
+## Terrain samples are not carved: MapKit sinks an earth basin under OSM-city
+## water when it generates ground.
 const UNITS := preload("./import_units.gd")
 const PROFILE := "osm-water-dem-fit-v1"
-const SURFACE_CM := 3
+const SURFACE_CM := -8
 const DEPTH_CM := 60
-const CARVE_CM := 40
+## DEM samples inside water are no longer lowered (MapKit basins give depth).
+const CARVE_CM := 0
 const LEVEL_RANGE_CM := 100
-const MAX_EDIT_M := 64.0
-const BUCKET_CM := 2000
 
 var _native: RefCounted
 var _min: Vector2i
 var _spacing := 0
-var _samples := {}
-var _failed := 0
 
 ## `fitted` holds the structure-fitted cells ({cell: {path, offset_cm, step_cm,
 ## bytes}}); water fits on top of them. Returns {patches, fitted, receipt} or {error}.
@@ -53,14 +52,9 @@ static func valid_patch(patch: Dictionary, bodies: Dictionary) -> bool:
 		if not (after[key] is int or after[key] is float) or after[key] != floor(after[key]) or absf(after[key]) > 1000000: return false
 	return after.surface_cm - after.bottom_cm == DEPTH_CM
 
-func _sample(key: Vector2i) -> int:
-	if not _samples.has(key):
-		var result: Dictionary = JSON.parse_string(_native.height(Vector2(_min.x + key.x * _spacing, _min.y + key.y * _spacing)))
-		if not result.ok:
-			_failed += 1
-			return 0
-		_samples[key] = int(result.data.height)
-	return _samples[key]
+## The lowest of the sorted shore heights.
+static func _low(heights: Array) -> int:
+	return heights[0]
 
 func _height(point: Vector2) -> Variant:
 	var result: Dictionary = JSON.parse_string(_native.height(point))
@@ -75,7 +69,7 @@ static func _find(group: Dictionary, key: int) -> int:
 	while group[key] != key: key = group[key]
 	return key
 
-func _run(store: RefCounted, records: Array, blobs: Dictionary, fitted: Dictionary, options: Dictionary, bodies: Array, denominator: int) -> Dictionary:
+func _run(store: RefCounted, records: Array, blobs: Dictionary, fitted: Dictionary, options: Dictionary, bodies: Array, _denominator: int) -> Dictionary:
 	var document: Dictionary = store.document
 	_spacing = int(records[0].spacing_cm)
 	_min = Vector2i(int(document.bounds.min[0]), int(document.bounds.min[1]))
@@ -116,7 +110,8 @@ func _run(store: RefCounted, records: Array, blobs: Dictionary, fitted: Dictiona
 	if not result.ok: return {"error":store.reason(result)}
 	# Shore heights of every piece inside the DEM.
 	var pieces: Array = []
-	var report := {"profile":PROFILE, "estimated":true, "pieces":0, "outside":0, "levels":0, "carved_samples":0, "kept_by_roads":0, "max_carve_cm":0, "surface_cm":SURFACE_CM, "carve_cm":CARVE_CM}
+	# The carve counters stay zero: no DEM sample is lowered.
+	var report := {"profile":PROFILE, "estimated":true, "pieces":0, "outside":0, "levels":0, "carved_samples":0, "kept_by_roads":0, "max_carve_cm":0, "surface_cm":SURFACE_CM, "carve_cm":CARVE_CM, "level":"lowest-shore-sample"}
 	for body: Dictionary in bodies:
 		var polygon := _polygon(body)
 		var inside := true
@@ -125,11 +120,17 @@ func _run(store: RefCounted, records: Array, blobs: Dictionary, fitted: Dictiona
 		if not inside:
 			report.outside += 1
 			continue
+		# Every vertex, and points along each edge no farther apart than one
+		# DEM sample spacing.
 		var heights: Array = []
-		for point in polygon:
-			var h: Variant = _height(point)
-			if h == null: return {"error":"Water fitting could not sample the DEM terrain."}
-			heights.append(h)
+		for k in range(polygon.size()):
+			var a := polygon[k]
+			var b := polygon[(k + 1) % polygon.size()]
+			var steps := maxi(1, ceili(a.distance_to(b) / float(_spacing)))
+			for step in range(steps):
+				var h: Variant = _height(a.lerp(b, float(step) / steps))
+				if h == null: return {"error":"Water fitting could not sample the DEM terrain."}
+				heights.append(h)
 		heights.sort()
 		var box := Rect2(polygon[0], Vector2.ZERO)
 		for point in polygon: box = box.expand(point)
@@ -159,74 +160,11 @@ func _run(store: RefCounted, records: Array, blobs: Dictionary, fitted: Dictiona
 		all.sort()
 		if all[-1] - all[0] <= LEVEL_RANGE_CM:
 			report.levels += 1
-			for i: int in members[root]: level[i] = all[all.size() / 2]
+			for i: int in members[root]: level[i] = _low(all)
 		else:
 			for i: int in members[root]:
 				report.levels += 1
-				level[i] = pieces[i].heights[pieces[i].heights.size() / 2]
-	# Ground roads keep the terrain they follow within one sample spacing.
-	var segments: Array = []
-	var buckets := {}
-	for road: Dictionary in document.roads:
-		if road.kind != "ground": continue
-		for i in range(road.points.size() - 1):
-			var a := Vector2(road.points[i][0], road.points[i][2])
-			var b := Vector2(road.points[i + 1][0], road.points[i + 1][2])
-			var reach: float = road.widths_cm[i] * 0.5 + float(road.get("sidewalk_cm", 0) if road.get("sidewalk_cm") != null else 0) + _spacing
-			var index := segments.size()
-			segments.append([a, b, reach])
-			var box := Rect2(a, Vector2.ZERO).expand(b).grow(reach)
-			for x in range(floori(box.position.x / BUCKET_CM), floori(box.end.x / BUCKET_CM) + 1):
-				for y in range(floori(box.position.y / BUCKET_CM), floori(box.end.y / BUCKET_CM) + 1):
-					var bucket := Vector2i(x, y)
-					if not buckets.has(bucket): buckets[bucket] = []
-					buckets[bucket].append(index)
-	var max_edit := floori(MAX_EDIT_M * 100.0 / denominator)
-	var target := {}
-	for i in range(pieces.size()):
-		var piece: Dictionary = pieces[i]
-		var box: Rect2 = piece.box
-		var deepest: int = level[i] - CARVE_CM
-		for ky in range(ceili((box.position.y - _min.y) / float(_spacing)), floori((box.end.y - _min.y) / float(_spacing)) + 1):
-			for kx in range(ceili((box.position.x - _min.x) / float(_spacing)), floori((box.end.x - _min.x) / float(_spacing)) + 1):
-				var key := Vector2i(kx, ky)
-				var p := Vector2(_min.x + kx * _spacing, _min.y + ky * _spacing)
-				if p.x < low.x or p.y < low.y or p.x > high.x or p.y > high.y: continue
-				if not Geometry2D.is_point_in_polygon(p, piece.polygon): continue
-				var near := false
-				for index: int in buckets.get(Vector2i(floori(p.x / BUCKET_CM), floori(p.y / BUCKET_CM)), []):
-					var s: Array = segments[index]
-					if p.distance_to(Geometry2D.get_closest_point_to_segment(p, s[0], s[1])) < s[2]: near = true; break
-				if near:
-					report.kept_by_roads += 1
-					continue
-				var before := _sample(key)
-				var after := maxi(mini(before, deepest), before - max_edit)
-				if after < before: target[key] = mini(target.get(key, after), after)
-	if _failed > 0: return {"error":"Water fitting could not sample the DEM terrain."}
-	var delta := PackedInt32Array()
-	for key: Vector2i in target:
-		var before := _sample(key)
-		report.max_carve_cm = maxi(report.max_carve_cm, before - target[key])
-		delta.append_array([key.x, key.y, before, target[key]])
-	report.carved_samples = delta.size() / 4
-	var out_fitted := {}
-	if not delta.is_empty():
-		result = JSON.parse_string(_native.apply_delta(delta, false))
-		if not result.ok: return {"error":store.reason(result)}
-		var materialized: Dictionary = _native.materialize()
-		if not materialized.get("ok", false): return {"error":store.reason(materialized)}
-		var canonical: Dictionary = JSON.parse_string(materialized.data.canonical)
-		var touched := {}
-		var per_cell := size / _spacing
-		for row in range(0, delta.size(), 4):
-			for y in range(maxi(0, floori((delta[row + 1] - 1) / float(per_cell))), delta[row + 1] / per_cell + 1):
-				for x in range(maxi(0, floori((delta[row] - 1) / float(per_cell))), delta[row] / per_cell + 1): touched[Vector2i(x, y)] = true
-		for record: Dictionary in canonical.heightmaps:
-			var cell := Vector2i(int(record.cell.x), int(record.cell.y))
-			if materialized.data.blobs.has(record.path) and touched.has(cell):
-				if not covered.has(cell): return {"error":"Water fitting would change terrain outside this DEM."}
-				out_fitted[cell] = {"path":record.path, "offset_cm":int(record.offset_cm), "step_cm":int(record.step_cm), "bytes":materialized.data.blobs[record.path]}
+				level[i] = _low(pieces[i].heights)
 	var patches: Array = []
 	for i in range(pieces.size()):
 		var body: Dictionary = pieces[i].body
@@ -235,5 +173,5 @@ func _run(store: RefCounted, records: Array, blobs: Dictionary, fitted: Dictiona
 		after.bottom_cm = level[i] + SURFACE_CM - DEPTH_CM
 		if after != body: patches.append({"field":"water_bodies", "id":body.id, "before":body.duplicate(true), "after":after})
 	report.changed_water = patches.size()
-	report.fitted_cells = out_fitted.size()
-	return {"patches":patches, "fitted":out_fitted, "receipt":report}
+	report.fitted_cells = 0
+	return {"patches":patches, "fitted":{}, "receipt":report}

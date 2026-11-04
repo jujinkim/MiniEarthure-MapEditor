@@ -301,9 +301,11 @@ remainder so lattice points are whole map centimetres.
   `water_bodies`. Ground vehicle roads with their sidewalks and clearance and
   walking ways are cut out, the union is cut per 128 map m like paint into
   hole-free pieces of at most 256 vertices (under one map square metre dropped),
-  and each piece maps to the sources it covers. Surfaces are 3 map cm above the
-  ground and 60 cm deep (estimates; terrain fitting gives depth). A waterway wholly
-  under roads is disclosed as dropped.
+  and each piece maps to the sources it covers. Surfaces are 8 map cm below the
+  ground and 60 cm deep (estimates), so water never floats above its bank; MapKit
+  sinks an earth basin under OSM-city water when it generates ground
+  ([MapKit water](../addons/mapkit/docs/WATER.md#real-city-earth-basins)). A
+  waterway wholly under roads is disclosed as dropped.
 - Places: tagged standalone OSM nodes inside the crop rectangle are collected
   while streaming. Named ones (stations, attractions, historic sites, hospitals,
   universities, public offices, schools, shopping, parks and sports, worship,

@@ -91,11 +91,17 @@ lists every changed base and uncovered count; terrain and buildings adopt as one
 Imported city water (`import-` water bodies) is fitted after the structures, in
 the same candidate: touching pieces whose shore heights stay within 100 cm share
 one level (a lake), others keep their own (a sloping stream steps). The level is the
-median terrain at the piece's vertices; the surface lies 3 cm above it (60 cm deep)
-and terrain samples inside sink 40 cm below it, at most 64 m at 1:D, except within
-one sample spacing of a ground road edge, whose surface follows the terrain. Pieces
-partly outside the DEM keep their flat heights. The notice adds `water_fit`
-(`osm-water-dem-fit-v1`, counts and the largest carve).
+lowest shore terrain, sampled at every vertex and along every edge at the DEM
+spacing, and the surface lies 8 cm below it, so the water never floats above a
+sampled bank (a median level did on sloped shores). A dipped sample at a culvert or
+road edge only makes that water shallower; a steep stream piece gets a low level
+and a wide dry margin instead. The bottom lies 60 cm below the surface. DEM samples
+are not carved: MapKit sinks an earth basin under OSM-city water when it generates
+ground (bank width 3× the depth, at most 240 cm; at most depth + 8 cm under the
+terrain, so banks stay as gentle as on flat maps; terrain kept under roads), so
+narrow streams between 400 cm samples get depth too. Pieces partly outside the DEM
+keep their flat heights. The notice adds `water_fit` (`osm-water-dem-fit-v1`,
+counts, `level: lowest-shore-sample`; its carve counts stay zero).
 
 Estimated city bridges and tunnels (`osm_estimated_structures`) assume flat ground,
 so adopting a DEM fits them to the DSM in the same candidate, before grounding:

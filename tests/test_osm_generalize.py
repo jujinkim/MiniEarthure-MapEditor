@@ -868,8 +868,8 @@ class CityRules(unittest.TestCase):
         layer = convert(out, "synthetic", "ODbL-1.0", coordinates=self.options, osm_graph=True, city=True)
         bodies = [p["after"] for p in layer.patches if p["field"] == "water_bodies"]
         self.assertEqual(len(bodies), len(water))
-        self.assertTrue(all(b["surface_cm"] == 9 and b["bottom_cm"] == -180 and b["islands"] == [] and len(b["polygon"]) <= 256 for b in bodies),
-                        "3 map cm above the ground, 60 map cm deep (source cm at 1:3)")
+        self.assertTrue(all(b["surface_cm"] == -24 and b["bottom_cm"] == -204 and b["islands"] == [] and len(b["polygon"]) <= 256 for b in bodies),
+                        "8 map cm below the ground, 60 map cm deep (source cm at 1:3)")
 
     def test_city_waterways_are_selected_and_culverts_skipped(self):
         from osm_extract import category, waterway_features

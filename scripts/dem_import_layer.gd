@@ -34,7 +34,7 @@ func summary() -> String:
 		text+=I18N.t("\nEstimated bridges/tunnels fitted to this DSM: %d roads, %d nodes; %d anchor pads levelled, %d samples cut under decks, %d filled over tunnels (largest change %d cm); %d cells re-encoded. Disclosed estimate; terrain and roads share one Undo.\n") % [fitted.changed_roads,fitted.changed_nodes,fitted.pads,fitted.clamped,fitted.filled,maxi(fitted.max_pad_cm,maxi(fitted.max_cut_cm,fitted.max_fill_cm)),fitted.fitted_cells]
 	if value.dem.has("water_fit"):
 		var water: Dictionary=value.dem.water_fit
-		text+=I18N.t("\nImported water fitted to this terrain: %d pieces at %d levels (median shore height), %d samples sunk up to %d cm, %d samples beside ground roads kept, %d pieces outside this DEM unchanged. Disclosed estimate; terrain and water share one Undo.\n") % [water.pieces,water.levels,water.carved_samples,water.max_carve_cm,water.kept_by_roads,water.outside]
+		text+=I18N.t("\nImported water fitted to this terrain: %d pieces at %d levels (8 cm under the lowest shore height), %d pieces outside this DEM unchanged; generated ground sinks an earth basin under the water. Disclosed estimate; terrain and water share one Undo.\n") % [water.pieces,water.levels,water.outside]
 	if value.dem.has("grounding"):
 		text+=I18N.t("\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n") % [value.dem.grounding.changes.size(),value.dem.grounding.skipped_partial]
 	for index in range(value.heightmaps.size()):
@@ -102,7 +102,8 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	# fitted cells, roads and building bases share one candidate and one Undo.
 	var fit: Dictionary = STRUCTURE_FIT.prepare(terrain.store,sampled,sampled_blobs,options) if not doc.roads.is_empty() else {"patches":[],"fitted":{}}
 	if fit.has("error"): return fit.error
-	# Imported city water then takes levels on that terrain and sinks into it.
+	# Imported city water then takes levels on that terrain; MapKit sinks the
+	# earth basin under it when it generates ground.
 	var water: Dictionary = WATER_FIT.prepare(terrain.store,sampled,sampled_blobs,fit.fitted,options)
 	if water.has("error"): return water.error
 	fit.fitted.merge(water.fitted,true)

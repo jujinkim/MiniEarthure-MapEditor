@@ -1,7 +1,8 @@
 extends SceneTree
 ## Imported city water fitted to a two-cell DEM: a gentle west cell and a
 ## steep east cell, a lake of two touching pieces, a stream of two touching
-## pieces on the slope and a pond beside a ground road.
+## pieces on the slope and a pond beside a ground road. Levels sit 8 cm under a
+## low shore height; the DEM itself is never carved (MapKit sinks the basins).
 const STORE := preload("res://scripts/document_store.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
 const PNG := preload("res://scripts/terrain_png.gd")
@@ -74,7 +75,26 @@ func run() -> void:
 		surface[patch.id.trim_prefix(prefix())] = int(patch.after.surface_cm)
 	check(surface.get("lake-a") == surface.get("lake-b") and surface.get("lake-a", 0) > 1000, "touching lake pieces share one surface: " + str(surface))
 	check(surface.get("stream-d", 0) - surface.get("stream-c", 0) > 100, "a stream on a slope steps down by piece: " + str(surface))
-	# Carved terrain: inside the lake below its level; beside the road unchanged.
+	# The lake level is its lowest shore sample minus 8 cm.
+	var shore := samples(store, dem, [Vector2(2000, 2000), Vector2(6000, 2000), Vector2(6000, 6000), Vector2(2000, 6000),
+		Vector2(9000, 2000), Vector2(9000, 6000)])
+	var lowest: int = shore.min()
+	check(surface.get("lake-a") == lowest + FIT.SURFACE_CM and FIT.SURFACE_CM < 0, "the lake surface lies below its lowest shore: %s vs %s" % [surface, shore])
+	for patch: Dictionary in fit.patches:
+		check(int(patch.after.surface_cm) - int(patch.after.bottom_cm) == FIT.DEPTH_CM, "every fitted body keeps its depth: " + patch.id)
+		# The water never floats: every shore vertex and edge midpoint lies at
+		# least 8 cm above the fitted surface.
+		var ring: Array = patch.after.polygon
+		var points: Array = []
+		for k in range(ring.size()):
+			var a := Vector2(ring[k][0], ring[k][1])
+			var b := Vector2(ring[(k + 1) % ring.size()][0], ring[(k + 1) % ring.size()][1])
+			points.append(a); points.append((a + b) / 2)
+		var banks := samples(store, dem, points)
+		check(banks.min() >= int(patch.after.surface_cm) - FIT.SURFACE_CM, "%s lies below every sampled bank: %d vs %s" % [patch.id, patch.after.surface_cm, banks])
+	# The terrain itself is not carved; ground roads need no protection.
+	check(fit.fitted.is_empty() and FIT.CARVE_CM == 0, "no DEM cell changes")
+	check(receipt.carved_samples == 0 and receipt.max_carve_cm == 0 and receipt.kept_by_roads == 0 and receipt.level == "lowest-shore-sample", "the receipt discloses no carving")
 	var after := {"records":[], "blobs":{}}
 	for record: Dictionary in dem.records:
 		var cell := Vector2i(record.cell.x, record.cell.y)
@@ -84,15 +104,12 @@ func run() -> void:
 			item.path = fit.fitted[cell].path; item.offset_cm = fit.fitted[cell].offset_cm; item.step_cm = fit.fitted[cell].step_cm
 			bytes = fit.fitted[cell].bytes
 		after.records.append(item); after.blobs[item.path] = bytes
-	var before_heights := samples(store, dem, [Vector2(4000, 4000), Vector2(12400, 10000)])
-	var after_heights := samples(store, after, [Vector2(4000, 4000), Vector2(12400, 10000)])
-	check(after_heights[0] <= surface.get("lake-a", 0) - FIT.SURFACE_CM - FIT.CARVE_CM, "the lake bed sinks below its surface: %s → %s" % [before_heights[0], after_heights[0]])
-	check(after_heights[1] == before_heights[1], "a sample within one spacing of the road keeps the road's terrain")
-	check(receipt.kept_by_roads > 0 and receipt.carved_samples > 0, "carving and road protection are disclosed")
+	check(samples(store, after, [Vector2(4000, 4000), Vector2(12400, 10000)]) == samples(store, dem, [Vector2(4000, 4000), Vector2(12400, 10000)]),
+		"terrain inside the lake and beside the road is unchanged")
 	var heightmap_patches: Array = []
 	for record: Dictionary in after.records: heightmap_patches.append({"field":"heightmaps", "id":store.record_id("heightmaps", record), "before":null, "after":record})
 	var accepted := FILES.apply(store, "DEM", heightmap_patches + fit.patches, after.blobs, [Vector2i(0, 0), Vector2i(1, 0)], true)
-	check(accepted == "", "fitted terrain, road and water pass native generation: " + accepted)
+	check(accepted == "", "terrain, road and fitted water pass native generation (with basins): " + accepted)
 	var moved: Dictionary = fit.patches[0].duplicate(true)
 	moved.after.polygon[0][0] += 1
 	check(not FIT.valid_patch(moved, FIT.index(store.document)), "a horizontal water change is rejected")

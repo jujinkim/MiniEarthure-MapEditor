@@ -51,10 +51,12 @@ MIN_AREA_PIECE_CM2 = 10000  # Area paint pieces under one map square metre are n
 # rounding of the earlier piece's cuts (0.5 cm), of the margin (0.71 cm) and of
 # the new piece's cuts (0.5 cm) never close it.
 PAINT_MARGIN_CM = 2
-# City water (map centimetres): a flat surface just above the ground (terrain
-# carving gives it depth), stream ribbons at least WATER_MIN_WIDTH_CM wide,
-# pieces cut per WATER_CELL_CM like paint (hole-free, ≤ PAINT_VERTICES).
-WATER_SURFACE_CM = 3
+# City water (map centimetres): a flat surface just below the flat ground, so
+# it never floats above a bank, WATER_DEPTH_CM deep (MapKit sinks an earth basin
+# to the bottom under OSM-city water), stream ribbons at least
+# WATER_MIN_WIDTH_CM wide, pieces cut per WATER_CELL_CM like paint (hole-free,
+# ≤ PAINT_VERTICES).
+WATER_SURFACE_CM = -8
 WATER_DEPTH_CM = 60
 WATER_MIN_WIDTH_CM = 150
 WATER_CELL_CM = 12800
@@ -962,7 +964,7 @@ class Generalizer:
                         if not owners: continue
                         kept.update(owners)
                         output.append((dict(type="Feature", properties=dict(_city_water=dict(surface_m=round(WATER_SURFACE_CM*self.scale/100, 2),
-                            bottom_m=round(-WATER_DEPTH_CM*self.scale/100, 2)), _city_sources=sorted(owners), osm_source_id=min(owners)), geometry=None), piece))
+                            bottom_m=round((WATER_SURFACE_CM-WATER_DEPTH_CM)*self.scale/100, 2)), _city_sources=sorted(owners), osm_source_id=min(owners)), geometry=None), piece))
         counts["pieces"] = len(output)
         counts["positions"] = sum(positions(g) for f, g in output)
         dropped = sorted({s for ids, g in sources for s in ids} - kept)
