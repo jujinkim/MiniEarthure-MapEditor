@@ -8,9 +8,10 @@ loss, tool/view changes, popups and camera gestures cancel without editing.
 Road/landscape preview (`road_preview_job.gd`) uses a camera-centred 3 × 3 window of
 32 m cells with original height payloads and real assets. Stale requests are
 discarded, scene installation yields after 3 ms per frame, picking is bounded to
-40,000 triangles (later cells are not pickable, with a warning) and special-piece
-templates to 24; display resources above 128 MiB warn. These are not frame-rate
-guarantees.
+40,000 triangles (later cells are not pickable, with a warning; instanced
+street furniture, signals, shelters and transit details are picked by their
+object ids against their simple far meshes) and special-piece templates to 24;
+display resources above 128 MiB warn. These are not frame-rate guarantees.
 
 ## Current latency issue
 

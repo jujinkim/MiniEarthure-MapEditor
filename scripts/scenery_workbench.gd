@@ -161,6 +161,15 @@ func pick(screen: Vector2) -> Dictionary:
 func pick_nodes(node: Node, id: String, records: Dictionary, ray_origin: Vector3, ray: Vector3, best: Dictionary) -> void:
 	id = node.get_meta("mapkit_object_id",id)
 	if node is MeshInstance3D and node.mesh != null and records.has(id): pick_triangles(Array(node.mesh.get_faces()),node.global_transform,id,ray_origin,ray,best)
+	# Instanced display-only details (street furniture, signals, transit) list their instances' object ids;
+	# their simple far mesh (always drawn) is the pick hull.
+	if node is MultiMeshInstance3D and node.get_meta("mapkit_furniture_lod","far") == "far" and node.multimesh != null and node.multimesh.mesh != null and node.has_meta("mapkit_object_ids"):
+		var ids: PackedStringArray = node.get_meta("mapkit_object_ids")
+		var faces: Array
+		for i in mini(ids.size(),node.multimesh.instance_count):
+			if not records.has(ids[i]): continue
+			if faces.is_empty(): faces = Array(node.multimesh.mesh.get_faces())
+			pick_triangles(faces,node.global_transform*node.multimesh.get_instance_transform(i),ids[i],ray_origin,ray,best)
 	for child in node.get_children(): pick_nodes(child,id,records,ray_origin,ray,best)
 
 func pick_triangles(vertices: Array, transform: Transform3D, id: String, ray_origin: Vector3, ray: Vector3, best: Dictionary) -> void:
