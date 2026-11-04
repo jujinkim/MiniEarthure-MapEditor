@@ -97,9 +97,13 @@ sampled bank (a median level did on sloped shores). A dipped sample at a culvert
 road edge only makes that water shallower; a steep stream piece gets a low level
 and a wide dry margin instead. The bottom lies 60 cm below the surface. DEM samples
 are not carved: MapKit sinks an earth basin under OSM-city water when it generates
-ground (bank width 3× the depth, at most 240 cm; at most depth + 8 cm under the
-terrain, so banks stay as gentle as on flat maps; terrain kept under roads), so
-narrow streams between 400 cm samples get depth too. Pieces partly outside the DEM
+ground (banks fall 68 cm per 180 cm for the 60 cm import depth, about 21° as on
+flat maps, down to the bottom up to 12 m from the shore, so terrain inside a
+wide polygon above the low surface falls under the water rather than staying a
+flat dry bed; terrain kept under roads), so narrow streams between 400 cm
+samples get depth too. A narrow stream keeps its bank within its width, so where
+its terrain lies well above the one lowest-shore level it stays a dirt trough
+with little water showing. Pieces partly outside the DEM
 keep their flat heights. The notice adds `water_fit` (`osm-water-dem-fit-v1`,
 counts, `level: lowest-shore-sample`; its carve counts stay zero).
 
