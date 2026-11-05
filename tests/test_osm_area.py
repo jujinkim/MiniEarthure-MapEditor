@@ -116,6 +116,11 @@ class CropTests(unittest.TestCase):
         self.assertEqual(city_point(dict(shop="bakery", name="빵집", **{"name:ko": "동네빵집"}))[3], "동네빵집")
         self.assertEqual(city_point(dict(highway="stop"))[:2], ("stop", "stop"), "stop and give-way nodes place road signs")
         self.assertEqual(city_point(dict(highway="give_way"))[:2], ("give_way", "give_way"))
+        # OSM trees anchor generated street trees with a species hint.
+        for tags, hint in ((dict(genus="Ginkgo"), "ginkgo"), (dict(species="Zelkova serrata"), "zelkova"), (dict(taxon="Platanus"), "plane"),
+                           ({"species:ko": "왕벚나무"}, "cherry"), (dict(species="Pinus bungeana"), "pine"), (dict(name="은행나무"), "ginkgo"),
+                           (dict(leaf_type="needleleaved"), "pine"), (dict(leaf_type="broadleaved"), "tree")):
+            self.assertEqual(city_point(dict(natural="tree", **tags))[:3], ("tree", hint, 0), tags)
         from osm_extract import speed_kmh
         for value, expected in (("60", 60), ("100 km/h", 100), ("30km/h", 30), ("KR:urban", 50), ("30 mph", None), ("none", None),
                                 ("walk", None), ("signals", None), ("5", None), ("", None), (None, None)):
@@ -123,10 +128,11 @@ class CropTests(unittest.TestCase):
         options = dict(mode="wgs84-utm", origin=[9.005, 55.005], local_origin_m=[1000, 1000])
         points = [[1, 9.001, 55.001, "poi", "food", 1, "Cafe"], [2, 9.002, 55.002, "station", "station", 10, "Central"],
                   [3, 9.003, 55.003, "bus_stop", "bus_stop", 1, ""], [4, 9.009, 55.009, "poi", "attraction", 8, "Outside region"],
-                  [5, 9.004, 55.004, "traffic_signals", "traffic_signals", 0, ""]]
+                  [5, 9.004, 55.004, "traffic_signals", "traffic_signals", 0, ""], [6, 9.0045, 55.0045, "tree", "pine", 0, ""]]
         pois, street = city_points(points, [9, 55, 9.01, 55.01], area(9, 55, 9.005, 55.005), options)
         self.assertEqual([p["name"] for p in pois], ["Central", "Cafe"], "ranked by weight; outside the region dropped")
-        self.assertEqual([p["kind"] for p in street], ["station", "bus_stop", "traffic_signals"])
+        self.assertEqual([p["kind"] for p in street], ["station", "bus_stop", "traffic_signals", "tree"])
+        self.assertEqual(street[-1]["category"], "pine", "the species hint travels with the position")
         self.assertTrue(all(isinstance(v, int) for p in pois + street for v in p["position"]))
         many = [[i, 9.001, 55.001, "poi", "shop", 1, f"Shop {i:04d}"] for i in range(POI_LIMIT + 5)]
         self.assertEqual(len(city_points(many, [9, 55, 9.01, 55.01], None, options)[0]), POI_LIMIT)

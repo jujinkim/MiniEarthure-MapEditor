@@ -179,7 +179,8 @@ remainder so lattice points are whole map centimetres.
   heights and are otherwise excluded.
 - Compatible vegetation polygons are unioned. Illustrative city trees
   (`builtin:city_tree`, MapKit's widest 200 cm zone footprint with 30 cm clearance,
-  drawn as broad park crowns about 3.1–3.9 m across; street trees keep 120 cm) grow
+  drawn as broad park crowns about 3.1–3.9 m across; placed city trees keep
+  120 cm) grow
   in MapKit vegetation zones: forests and orchards every 5 map m at 750 ‰, parks (park,
   garden, recreation ground, village green) every 7 map m at 450 ‰ and grass areas
   of at least 300 source m² every 9 map m at 300 ‰, on their grass paint and clear
@@ -315,12 +316,15 @@ remainder so lattice points are whole map centimetres.
   hotels, fuel, food, shops) and named landmark buildings (historic, tourism or
   amenity tags) inside the crop window become map `pois` (category, OSM name;
   ranked by category weight, one per name, at most 400; IDs keep the rank order).
-  Bus stops, stations, subway entrances, traffic signals and stop/give-way nodes
-  are kept by position in `osm_street_points` for generated street furniture and
-  road signs. Places outside the final map rectangle are dropped. A road's
-  `maxspeed` (km/h or `KR:urban`; a chain takes the speed covering most of its
-  length and never breaks at a speed change) and OSM class reach the road-sign
-  rules in memory only; the layer stores neither.
+  Bus stops, stations, subway entrances, traffic signals, stop/give-way nodes and
+  `natural=tree` nodes are kept by position in `osm_street_points` for generated
+  street furniture, road signs and street trees; a tree carries a species hint
+  from its genus, species, taxon or name (ginkgo, zelkova, plane, cherry, pine;
+  `leaf_type=needleleaved` → pine; else `tree`). Places outside the final map
+  rectangle are dropped. A road's `maxspeed` (km/h or `KR:urban`; a chain takes
+  the speed covering most of its length and never breaks at a speed change), OSM
+  class and name reach the road-sign and street-tree rules in memory only; the
+  layer stores none of them.
 - Road convention: the OSM panel's driving side (right/left) and signal style
   (horizontal/vertical) become `MapDocument.traffic` on a map without one. Marked
   roads above residential get `stop_lines` (stop lines and lane arrows at junction
@@ -334,9 +338,10 @@ remainder so lattice points are whole map centimetres.
   get benches and shrubs on seeded jittered grids (their trees are zones above). Every piece keeps clear of
   road corridors with sidewalks (+30 map cm), junction mouths, buildings, water and
   other pieces (+10 cm); a candidate without a free spot is skipped and counted
-  (at most 8,000). Places and furniture follow the mapped records in the layer.
-- Road signs (`Furniture.road_signs`, after every other piece so earlier placement
-  IDs never move; a solid post or pole, the plate facing the arriving traffic on
+  (at most 24,000 placements per layer, `over_limit` beyond). Places and furniture
+  follow the mapped records in the layer.
+- Road signs (`Furniture.road_signs`, after the street furniture and before the
+  street planting, so earlier placement IDs never move; a solid post or pole, the plate facing the arriving traffic on
   the driver's side, never beside bridges, tunnels or elevated roads; set back
   along the road's centreline, not its first segment, and facing its tangent
   there), in order: OSM stop/give-way nodes on the arm they stand on (at most 40
@@ -361,6 +366,53 @@ remainder so lattice points are whole map centimetres.
   `skipped_road_signs_limit`. The summary reports road-sign skips (no free spot,
   limits, stop/give-way nodes without a junction road in reach) on its road-sign
   line, apart from the street furniture.
+- Street trees and flower beds (after the road signs, in this order, so earlier
+  placement IDs never move; generated, not surveyed):
+  - Street trees (`Furniture.street_trees`, MapKit `builtin:street_tree_*`): on
+    vehicle ground roads with a sidewalk of at least 60 map cm whose OSM class is
+    trunk, primary, secondary or tertiary (painted lanes ≥ 2 when the class is
+    unknown; links excluded) and at least 5.4 map m long. Pits stand on both sides
+    every 270 map cm from the record's start (facing pairs), centred 28 map cm
+    beyond the carriageway edge of the segment at the station (MapKit sidewalks
+    follow each segment's width) and turned with the road (the 40 cm pit square
+    MapKit reserves turns with the placement). The first and last stations keep
+    the junction mouth + 60 map cm (+2.5 m before a painted crosswalk) or 135 map
+    cm at a free or two-arm end. A pit must be clear of every carriageway (not
+    sidewalks), buildings + 10 cm, water, barriers, junction mouths and other
+    pieces. Skipped and counted (`skipped_street_trees_<reason>`): the median side
+    of a one-way road facing an opposite one-way carriageway within 6 map m
+    (`median`), within 3 map m of a bus shelter, subway entrance or station sign
+    (`stop`), within 1.5 map m of a road-sign post (`post`), within the crown +
+    1.5 map m of a signal or guide-sign pole (`pole`), a crown disc touching a
+    building, a bridge/tunnel/elevated corridor (+50 cm) or tall furniture, or an
+    earlier street tree or median pine closer than the larger of the two crown
+    reaches, as on the inside of bends and across joins (`crown`), a pit not
+    clear (`blocked`). One species per street (the OSM name,
+    else the record): ginkgo 30, zelkova 22, cherry 20, plane 18, pine 10 by fixed
+    seed, pine only on sidewalks of 1 map m or more (else ginkgo); a record whose
+    free pits fit the preferred crown less than 75% of the time takes the narrow
+    ginkgo. OSM trees within the sidewalk + 3 map m of such a road are placed
+    first at their own position along it (`street_trees_osm`, the species hint
+    kept, else the street's; `skipped_street_trees_osm_reach` beyond) and drop
+    stations within 0.6 × 270 map cm.
+  - Median beds (`Furniture.median_beds`, `builtin:median_bed`, and
+    `builtin:median_bed_pine` on alternate pieces where a pine crown fits): one-way
+    painted ground roads with 2+ lanes that face an opposite one-way carriageway
+    within 6 map m on the median side (left of travel, right in left-hand
+    traffic) get 300 × 80 map cm beds every 330 map cm, 18 map cm beyond their
+    sidewalk (at the segment's width), 15 map cm clear of every carriageway and
+    off every sidewalk, the partner's median-side sidewalk included
+    (`skipped_median_beds`); a pair fills its median once (pieces over the
+    partner's bed are left out).
+  - Planters (`Furniture.planters`, `builtin:planter`): on the street-tree roads,
+    midway between tree stations every fourth gap, on each side by fixed seed (one
+    in two), where a building lies within 3 map m behind: inside the outer band of
+    sidewalks of 1 map m or more (5 map cm from the edge), else just beyond the
+    sidewalk (at the segment's width), off other roads' sidewalks. Closed pedestrian areas (plazas) reach the importer only as ground
+    paint, so they get no planters (`builtin:planter_square` stays unused by the
+    importer).
+  - Caps: street trees 14,000, median beds 1,500, planters 1,500 per layer
+    (`skipped_<kind>_limit`). The summary reports them on a line of their own.
   DEM adoption with building grounding also stands imported furniture on the terrain.
 - Play area: with selected administrative areas, the crop window (rectangle ∩
   areas; its 16 largest outer rings, holes dropped) is simplified to at most 512

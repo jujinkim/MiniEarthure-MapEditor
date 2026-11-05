@@ -48,7 +48,7 @@ class Furniture(unittest.TestCase):
         east = min(signals, key=lambda r: Point(r["position"][0], r["position"][2]).distance(Point(3000, 0)))
         self.assertGreater(east["position"][2], 0)
         left, _ = osm_furniture.generate("l" * 32, patches, {}, SCALE, dict(driving_side="left", signal_style="vertical"))
-        mirrored = min(left, key=lambda r: Point(r["position"][0], r["position"][2]).distance(Point(3000, 0)))
+        mirrored = min((r for r in left if r["asset_id"].startswith("builtin:signal_")), key=lambda r: Point(r["position"][0], r["position"][2]).distance(Point(3000, 0)))
         self.assertEqual(mirrored["asset_id"], "builtin:signal_v")
         self.assertLess(mirrored["position"][2], 0, "left-hand traffic mirrors the corner")
         again, _ = osm_furniture.generate("l" * 32, patches, {}, SCALE, dict(driving_side="right", signal_style="horizontal"))
@@ -315,9 +315,10 @@ class RoadSigns(unittest.TestCase):
         park = dict(source_id="way/7", landuse="park", polygon=[[20000, 20000], [40000, 20000], [40000, 40000], [20000, 40000]], holes=[])
         patches = junction(arms)
         records, counts = osm_furniture.generate("l" * 32, patches, {"generation_regions": [park]}, SCALE, RIGHT)
-        kinds = [r["asset_id"] in osm_furniture.SIGN_POLE or r["asset_id"] == osm_furniture.GUIDE for r in records]
-        self.assertIn(True, kinds)
-        self.assertEqual(kinds, sorted(kinds), "every sign record follows every other record")
+        kinds = [2 if r["asset_id"] in osm_furniture.PLANTING else 1 if r["asset_id"] in osm_furniture.SIGN_POLE or r["asset_id"] == osm_furniture.GUIDE else 0
+                 for r in records]
+        self.assertTrue({0, 1, 2} <= set(kinds), kinds)
+        self.assertEqual(kinds, sorted(kinds), "signs follow the other furniture; street planting follows the signs")
         self.assertEqual(osm_furniture.generate("l" * 32, patches, {"generation_regions": [park]}, SCALE, RIGHT), (records, counts), "fixed seeds")
         with patch.dict(osm_furniture.SIGN_CAPS, {"guide_signs": 1}):
             capped, capped_counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT)
@@ -328,6 +329,290 @@ class RoadSigns(unittest.TestCase):
         self.assertEqual(len(signs(limited)) + len(signs(limited, "builtin:guide_sign")), 2)
         self.assertGreater(limited_counts["skipped_road_signs_limit"], 0)
 
+
+AVENUE = dict(width=540 * SCALE, sidewalk=67 * SCALE)
+PRIMARY = {"r": dict(highway="primary", name="Avenue", maxspeed=None)}
+
+
+def trees(records):
+    return [r for r in records if r["asset_id"] in osm_furniture.STREET_TREE_CROWN_CM]
+
+
+def at(record):
+    return Point(record["position"][0], record["position"][2])
+
+
+def theta_deg(record):
+    return record["quarter_turns"] * 90 + record.get("yaw_offset_mdeg", 0) / 1000
+
+
+def named_species(species, prefix="Street"):
+    """A street name whose seeded species is `species` on a wide sidewalk."""
+    shape = osm_furniture.Furniture([], {}, SCALE, {})
+    shape.road_info = {}
+    for i in range(500):
+        shape.road_info = {"r": dict(name=f"{prefix} {i}")}
+        if shape._species(dict(id="r", sidewalk_cm=200 * SCALE)) == osm_furniture.SPECIES[species]: return f"{prefix} {i}"
+    raise AssertionError(species)
+
+
+class StreetPlanting(unittest.TestCase):
+    def avenue(self, length=60000, angle=0.0, **options):
+        """A straight avenue through the origin (source cm) at `angle` degrees."""
+        c, s = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+        a, b = ("w", round(-length * c), round(-length * s)), ("e", round(length * c), round(length * s))
+        return [node(*a), node(*b), street("r", a, b, **dict(AVENUE, **options))]
+
+    def test_constants_mirror_the_mapkit_contract(self):
+        # map-kit/spec/CURRENT_V1.md street planting builtins.
+        self.assertEqual((osm_furniture.STREET_TREE_PIT_CM, osm_furniture.STREET_CANOPY_MIN_CM), (40, 120))
+        self.assertEqual(osm_furniture.STREET_TREE_CROWN_CM, {"builtin:street_tree_ginkgo": 60, "builtin:street_tree_zelkova": 125,
+                         "builtin:street_tree_plane": 115, "builtin:street_tree_cherry": 120, "builtin:street_tree_pine": 85})
+        self.assertEqual({a: osm_furniture.SIZES[a] for a in osm_furniture.PLANTING if not a.startswith("builtin:street_tree_")},
+                         {"builtin:planter": (40, 15), "builtin:planter_square": (30, 30), "builtin:median_bed": (150, 40), "builtin:median_bed_pine": (150, 40)})
+        self.assertTrue(all(osm_furniture.SIZES[a] == (20, 20) for a in osm_furniture.STREET_TREE_CROWN_CM))
+        self.assertEqual(osm_furniture.MAX_PLACEMENTS, 24000)
+
+    def test_pits_line_both_curbs_turned_with_the_road(self):
+        for angle in (0.0, 30.0, 45.0):
+            with self.subTest(angle=angle):
+                patches = self.avenue(angle=angle)
+                records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, PRIMARY)
+                found = trees(records)
+                self.assertGreater(len(found), 250, counts)
+                line = LineString([(q[0], q[2]) for q in patches[-1]["after"]["points"]])
+                carriageway = line.buffer(AVENUE["width"] / 2)
+                for r in found:
+                    self.assertAlmostEqual(line.distance(at(r)), AVENUE["width"] / 2 + 28 * SCALE, delta=2)
+                    self.assertAlmostEqual((theta_deg(r) - angle) % 180, 0, delta=0.01, msg="pit edges follow the curb")
+                    pit = osm_furniture.Furniture([], {}, SCALE, {}).footprint(r["asset_id"], r["position"][0], r["position"][2], theta_deg(r))
+                    self.assertFalse(pit.intersects(carriageway))
+                    self.assertTrue(pit.within(line.buffer(AVENUE["width"] / 2 + AVENUE["sidewalk"])), "the pit stands on the sidewalk")
+                left = sorted(line.project(at(r)) for r in found if (at(r).y * math.cos(math.radians(angle)) - at(r).x * math.sin(math.radians(angle))) > 0)
+                pitch = 270 * SCALE
+                gaps = [b - a for a, b in zip(left, left[1:])]
+                self.assertTrue(all(abs(g - pitch * round(g / pitch)) <= 2 for g in gaps), "stations every 270 map cm (sign posts skip some)")
+                self.assertGreater(sum(abs(g - pitch) <= 2 for g in gaps), len(gaps) * 0.9)
+                self.assertEqual(len(left) * 2, len(found))
+                self.assertAlmostEqual(left[0], osm_furniture.FREE_END_CM * SCALE, delta=1, msg="free ends keep 135 map cm")
+                self.assertEqual(len({r["asset_id"] for r in found}), 1, "one species per street")
+
+    def test_no_trees_without_sidewalk_on_bridges_minor_classes_links_or_short_records(self):
+        for options, info in ((dict(sidewalk=0), PRIMARY), (dict(sidewalk=50 * SCALE), PRIMARY), (dict(kind="bridge"), PRIMARY),
+                              ({}, {"r": dict(highway="residential")}), ({}, {"r": dict(highway="primary_link")}),
+                              (dict(lanes=None), None), (dict(lanes=1), None)):
+            with self.subTest(options=options, info=info):
+                self.assertEqual(trees(osm_furniture.generate("l" * 32, self.avenue(**options), {}, SCALE, RIGHT, info)[0]), [])
+        self.assertTrue(trees(osm_furniture.generate("l" * 32, self.avenue(), {}, SCALE, RIGHT, None)[0]), "painted lanes ≥ 2 without a class")
+        self.assertEqual(trees(osm_furniture.generate("l" * 32, self.avenue(length=260 * SCALE), {}, SCALE, RIGHT, PRIMARY)[0]), [], "under two spacings")
+
+    def test_junction_mouths_crosswalks_signals_signs_and_stops_keep_trees_away(self):
+        arms = (("e", 30000, 0), ("w", -30000, 0), ("n", 0, 30000), ("s", 0, -30000))
+        info = {f"road-{n}": dict(highway="primary", name="Cross") for n, *_ in arms}
+        stops = {"osm_street_points": [dict(kind="bus_stop", category="bus_stop", source_id="node/1", position=[-15000, 1100])]}
+        for crosswalk in (False, True):
+            with self.subTest(crosswalk=crosswalk):
+                patches = junction(arms, crosswalk_start=crosswalk, **AVENUE)
+                records, counts = osm_furniture.generate("l" * 32, patches, stops, SCALE, RIGHT, info)
+                found = trees(records)
+                self.assertTrue(found, counts)
+                mouth = math.sqrt(2) * (AVENUE["width"] / 2 + AVENUE["sidewalk"]) + (osm_furniture.CLEARANCE_CM + 60 + (250 if crosswalk else 0)) * SCALE
+                nearest = min(max(abs(r["position"][0]), abs(r["position"][2])) for r in found)
+                self.assertAlmostEqual(nearest, mouth, delta=2, msg="the first station keeps mouth + 60 (+ 250 before a crosswalk)")
+                for r in records:
+                    if r["asset_id"] in osm_furniture.TALL[:3]:
+                        crown = max(osm_furniture.STREET_TREE_CROWN_CM[t["asset_id"]] for t in found)
+                        self.assertTrue(all(at(t).distance(at(r)) >= (crown + 150) * SCALE for t in found), r["asset_id"])
+                    if r["asset_id"] in osm_furniture.SIGN_POLE:
+                        self.assertTrue(all(at(t).distance(at(r)) >= 150 * SCALE for t in found), r["asset_id"])
+                shelters = [r for r in records if r["asset_id"] == "builtin:bus_shelter"]
+                self.assertEqual(len(shelters), 1)
+                self.assertTrue(all(at(t).distance(at(shelters[0])) >= 300 * SCALE for t in found))
+                for reason in ("pole", "stop"):
+                    self.assertGreater(counts.get(f"skipped_street_trees_{reason}", 0), 0, counts)
+
+    def test_species_follow_the_street_name_with_a_ginkgo_fallback_beside_close_buildings(self):
+        name = named_species("zelkova")
+        half, side = AVENUE["width"] / 2, AVENUE["sidewalk"]
+        two = [node("w", -60000, 0), node("m", 0, 0), node("e", 60000, 0),
+               street("a", ("w", -60000, 0), ("m", 0, 0), **AVENUE), street("b", ("m", 0, 0), ("e", 60000, 0), **AVENUE)]
+        info = {r: dict(highway="secondary", name=name) for r in "ab"}
+        found = trees(osm_furniture.generate("l" * 32, two, {}, SCALE, RIGHT, info)[0])
+        self.assertEqual({r["asset_id"] for r in found}, {"builtin:street_tree_zelkova"}, "one species along both records")
+        xs = sorted(r["position"][0] for r in found if r["position"][2] > 0)
+        across = min(x for x in xs if x > 0) - max(x for x in xs if x < 0)
+        self.assertTrue(270 * SCALE <= across < 2 * 270 * SCALE, "stations continue across the two-arm join (free ends keep 135)")
+        # A shop row 30 map cm beyond the sidewalk: only the ginkgo crown fits.
+        def row(gap):
+            y = half + side + gap * SCALE
+            return [dict(field="buildings", id="shops", after=dict(id="shops", footprint=[[-50000, y], [50000, y], [50000, y + 3000], [-50000, y + 3000]]))]
+        records, counts = osm_furniture.generate("l" * 32, self.avenue() + row(30), {}, SCALE, RIGHT, {"r": dict(highway="primary", name=name)})
+        self.assertEqual({r["asset_id"] for r in trees(records)}, {"builtin:street_tree_ginkgo"}, counts)
+        records, counts = osm_furniture.generate("l" * 32, self.avenue() + row(10), {}, SCALE, RIGHT, {"r": dict(highway="primary", name=name)})
+        north = [r for r in trees(records) if r["position"][2] > 0 and abs(r["position"][0]) < 49000]
+        self.assertEqual(north, [], "even the ginkgo crown misses the row")
+        self.assertGreater(counts["skipped_street_trees_crown"], 0)
+        self.assertTrue(any(r["position"][2] < 0 for r in trees(records)), "the open side keeps its trees")
+        pine = named_species("pine")
+        narrow = trees(osm_furniture.generate("l" * 32, self.avenue(), {}, SCALE, RIGHT, {"r": dict(highway="primary", name=pine)})[0])
+        self.assertEqual({r["asset_id"] for r in narrow}, {"builtin:street_tree_ginkgo"}, "pines need a 1 map m sidewalk")
+        wide = trees(osm_furniture.generate("l" * 32, self.avenue(sidewalk=120 * SCALE), {}, SCALE, RIGHT, {"r": dict(highway="primary", name=pine)})[0])
+        self.assertEqual({r["asset_id"] for r in wide}, {"builtin:street_tree_pine"})
+
+    def test_osm_trees_anchor_pits_and_suppress_their_neighbours(self):
+        name = named_species("cherry")
+        points = {"osm_street_points": [dict(kind="tree", category="ginkgo", source_id="node/3", position=[1000, 1200]),
+                                        dict(kind="tree", category="tree", source_id="node/4", position=[-20000, -1100]),
+                                        dict(kind="tree", category="pine", source_id="node/5", position=[0, 9000])]}
+        records, counts = osm_furniture.generate("l" * 32, self.avenue(), points, SCALE, RIGHT, {"r": dict(highway="primary", name=name)})
+        found = trees(records)
+        self.assertEqual(counts["street_trees_osm"], 2, counts)
+        self.assertEqual(counts["skipped_street_trees_osm_reach"], 1, "beyond the sidewalk + 3 map m")
+        offset = AVENUE["width"] / 2 + 28 * SCALE
+        anchored = [r for r in found if abs(r["position"][0] - 1000) < 2 and r["position"][2] == round(offset)]
+        self.assertEqual([r["asset_id"] for r in anchored], ["builtin:street_tree_ginkgo"], "the species hint is kept")
+        other = [r for r in found if abs(r["position"][0] + 20000) < 2 and r["position"][2] == -round(offset)]
+        self.assertEqual([r["asset_id"] for r in other], ["builtin:street_tree_cherry"], "an unknown species takes the street's")
+        for anchor in (anchored[0], other[0]):
+            near = [r for r in found if r is not anchor and at(r).distance(at(anchor)) < 0.6 * 270 * SCALE]
+            self.assertEqual(near, [], "procedural stations near an OSM tree are dropped")
+
+    def test_median_side_of_one_way_pairs_gets_beds_not_trees(self):
+        gap = 300 * SCALE  # Map cm between the carriageway edges of the pair.
+        y = AVENUE["width"] + gap
+        patches = [node("a", -60000, 0), node("b", 60000, 0), node("c", 60000, y), node("d", -60000, y),
+                   street("east", ("a", -60000, 0), ("b", 60000, 0), one_way=1, **AVENUE),
+                   street("west", ("c", 60000, y), ("d", -60000, y), one_way=1, **AVENUE)]
+        info = {r: dict(highway="primary", name="Pair") for r in ("east", "west")}
+        records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)
+        found = trees(records)
+        self.assertTrue(found and all(r["position"][2] < 0 or r["position"][2] > y for r in found), "only the outer curbs")
+        self.assertGreater(counts["skipped_street_trees_median"], 0)
+        beds = [r for r in records if r["asset_id"] in (osm_furniture.MEDIAN_BED, osm_furniture.MEDIAN_PINE)]
+        self.assertTrue(beds, counts)
+        self.assertTrue(all(0 < r["position"][2] < y for r in beds), "in the median")
+        self.assertEqual(counts["median_beds"] + counts["median_beds_pine"], len(beds))
+        xs = sorted(r["position"][0] for r in beds)
+        self.assertTrue(all(b - a >= 300 * SCALE for a, b in zip(xs, xs[1:])), "a pair fills its median once")
+        shapes = osm_furniture.Furniture([], {}, SCALE, {})
+        lines = [LineString([(-60000, 0), (60000, 0)]), LineString([(-60000, y), (60000, y)])]
+        for r in beds:
+            box = shapes.footprint(r["asset_id"], r["position"][0], r["position"][2], theta_deg(r))
+            self.assertTrue(all(line.distance(box) >= AVENUE["width"] / 2 + 15 * SCALE for line in lines), r)
+        ordered = [r["asset_id"] for r in sorted(beds, key=lambda r: r["position"][0])]
+        self.assertGreater(counts["median_beds_pine"], 0)
+        self.assertTrue(all(a != b or a == osm_furniture.MEDIAN_BED for a, b in zip(ordered, ordered[1:])), "pines alternate")
+        # Two-way roads and lone one-way roads have no median.
+        single = [node("a", -60000, 0), node("b", 60000, 0), street("east", ("a", -60000, 0), ("b", 60000, 0), one_way=1, **AVENUE)]
+        self.assertFalse([r for r in osm_furniture.generate("l" * 32, single, {}, SCALE, RIGHT)[0] if r["asset_id"] in (osm_furniture.MEDIAN_BED, osm_furniture.MEDIAN_PINE)])
+        # A bed needs sidewalk + 18 + 80 + 15 map cm between the carriageways.
+        close = AVENUE["width"] + 160 * SCALE
+        narrow = patches[:2] + [node("c", 60000, close), node("d", -60000, close), patches[4],
+                                street("west", ("c", 60000, close), ("d", -60000, close), one_way=1, **AVENUE)]
+        records, counts = osm_furniture.generate("l" * 32, narrow, {}, SCALE, RIGHT, info)
+        self.assertEqual(len([r for r in records if r["asset_id"] in (osm_furniture.MEDIAN_BED, osm_furniture.MEDIAN_PINE)]), 0, "too narrow a median")
+        self.assertGreater(counts["skipped_median_beds"], 0)
+
+    def test_median_beds_keep_off_the_partners_median_side_sidewalk(self):
+        info = {r: dict(highway="primary", name="Pair") for r in ("east", "west")}
+        beds_of = lambda records: [r for r in records if r["asset_id"] in (osm_furniture.MEDIAN_BED, osm_furniture.MEDIAN_PINE)]
+        shapes = osm_furniture.Furniture([], {}, SCALE, {})
+        for gap, expected in ((250 * SCALE, False), (400 * SCALE, True)):
+            with self.subTest(gap=gap):
+                y = AVENUE["width"] + gap
+                patches = [node("a", -60000, 0), node("b", 60000, 0), node("c", 60000, y), node("d", -60000, y),
+                           street("east", ("a", -60000, 0), ("b", 60000, 0), one_way=1, width=AVENUE["width"], sidewalk=0),
+                           street("west", ("c", 60000, y), ("d", -60000, y), one_way=1, width=AVENUE["width"], sidewalk=175 * SCALE)]
+                records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)
+                beds = beds_of(records)
+                self.assertEqual(bool(beds), expected, counts)
+                paving = LineString([(-60000, y), (60000, y)]).buffer(AVENUE["width"] / 2 + 175 * SCALE)
+                for r in beds:
+                    self.assertFalse(shapes.footprint(r["asset_id"], r["position"][0], r["position"][2], theta_deg(r)).intersects(paving), r)
+                if not expected: self.assertGreater(counts["skipped_median_beds"], 0)
+
+    def test_planting_follows_the_width_of_each_segment(self):
+        wide, narrow, sidewalk = 540 * SCALE, 360 * SCALE, 67 * SCALE
+        y = wide / 2 + sidewalk + 150 * SCALE
+        record = street("r", ("w", -60000, 0), ("e", 60000, 0), width=wide, sidewalk=sidewalk)
+        record["after"].update(points=[[-60000, 0, 0], [0, 0, 0], [60000, 0, 0]], widths_cm=[wide, narrow], surfaces=["asphalt"] * 2)
+        shops = dict(field="buildings", id="shops", after=dict(id="shops", footprint=[[-55000, y], [55000, y], [55000, y + 3000], [-55000, y + 3000]]))
+        records, counts = osm_furniture.generate("l" * 32, [node("w", -60000, 0), node("e", 60000, 0), record, shops], {}, SCALE, RIGHT, PRIMARY)
+        shapes = osm_furniture.Furniture([], {}, SCALE, {})
+        segments = {-1: (LineString([(-60000, 0), (0, 0)]), wide), 1: (LineString([(0, 0), (60000, 0)]), narrow)}
+        found = [r for r in trees(records) if abs(r["position"][0]) > 1500]
+        self.assertTrue(found and {math.copysign(1, r["position"][0]) for r in found} == {-1, 1}, counts)
+        for r in found:
+            line, width = segments[math.copysign(1, r["position"][0])]
+            self.assertAlmostEqual(abs(r["position"][2]), width / 2 + 28 * SCALE, delta=2)
+            pit = shapes.footprint(r["asset_id"], r["position"][0], r["position"][2], theta_deg(r))
+            self.assertTrue(pit.within(line.buffer(width / 2 + sidewalk)), "the pit stands on its segment's sidewalk")
+        planters = [r for r in records if r["asset_id"] == osm_furniture.PLANTER and abs(r["position"][0]) > 1500]
+        self.assertTrue({math.copysign(1, r["position"][0]) for r in planters} == {-1, 1}, counts)
+        for r in planters:
+            width = segments[math.copysign(1, r["position"][0])][1]
+            self.assertAlmostEqual(r["position"][2], width / 2 + sidewalk + (10 + 15) * SCALE, delta=1)
+
+    def test_street_trees_keep_their_crowns_apart_in_bends(self):
+        name = named_species("zelkova")
+        # Stations 135 map cm either side of the bend (free end 135, pitch 270):
+        # 75-98 map cm apart on the inside of a 40-45° turn without the spacing rule.
+        start = -270 * SCALE
+        for turn in (40.0, 45.0):
+            with self.subTest(turn=turn):
+                bend = (round(60000 * math.cos(math.radians(turn))), round(60000 * math.sin(math.radians(turn))))
+                record = street("r", ("w", start, 0), ("e", *bend), width=400 * SCALE, sidewalk=100 * SCALE)
+                record["after"].update(points=[[start, 0, 0], [0, 0, 0], [bend[0], 0, bend[1]]], widths_cm=[400 * SCALE] * 2, surfaces=["asphalt"] * 2)
+                patches = [node("w", start, 0), node("e", *bend), record]
+                info = {"r": dict(highway="primary", name=name)}
+                found = trees(osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)[0])
+                self.assertGreater(len(found), 50)
+                reach = max(osm_furniture.STREET_TREE_CROWN_CM[r["asset_id"]] for r in found) * SCALE
+                closest = min(at(a).distance(at(b)) for i, a in enumerate(found) for b in found[i + 1:])
+                self.assertGreaterEqual(closest, reach - 1, "no trunk under a neighbour's crown")
+                with patch.object(osm_furniture.Furniture, "_crowded", lambda *_: False):
+                    loose = trees(osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)[0])
+                self.assertLess(min(at(a).distance(at(b)) for i, a in enumerate(loose) for b in loose[i + 1:]), reach, "the bend inside converges")
+
+    def test_planters_stand_along_building_fronts(self):
+        half = AVENUE["width"] / 2
+        def shops(sidewalk):
+            y = half + sidewalk + 150 * SCALE
+            return [dict(field="buildings", id="shops", after=dict(id="shops", footprint=[[-55000, y], [55000, y], [55000, y + 3000], [-55000, y + 3000]]))]
+        for sidewalk, inside in ((67 * SCALE, False), (120 * SCALE, True)):
+            with self.subTest(sidewalk=sidewalk):
+                records, counts = osm_furniture.generate("l" * 32, self.avenue(sidewalk=sidewalk) + shops(sidewalk), {}, SCALE, RIGHT, PRIMARY)
+                planters = [r for r in records if r["asset_id"] == osm_furniture.PLANTER]
+                self.assertTrue(planters, counts)
+                self.assertTrue(all(r["position"][2] > 0 for r in planters), "only in front of the buildings")
+                expected = half + sidewalk + ((-5 - 15) if inside else (10 + 15)) * SCALE
+                self.assertTrue(all(abs(r["position"][2] - expected) <= 1 for r in planters), (expected, planters[:2]))
+                self.assertTrue(all(abs(theta_deg(r)) % 180 < 0.01 for r in planters), "the long side along the road")
+                xs = sorted(r["position"][0] for r in planters)
+                self.assertTrue(all((b - a) % (4 * 270 * SCALE) == 0 for a, b in zip(xs, xs[1:])), "every fourth tree gap")
+                self.assertTrue(all(min(abs(r["position"][0] - t["position"][0]) for t in trees(records)) >= 135 * SCALE - 1 for r in planters))
+        self.assertFalse([r for r in osm_furniture.generate("l" * 32, self.avenue(), {}, SCALE, RIGHT, PRIMARY)[0] if r["asset_id"] == osm_furniture.PLANTER], "no front, no planter")
+
+    def test_earlier_ids_stay_counts_sum_and_caps_apply(self):
+        arms = (("e", 30000, 0), ("w", -30000, 0), ("n", 0, 30000), ("s", 0, -30000))
+        park = dict(source_id="way/7", landuse="park", polygon=[[20000, 20000], [40000, 20000], [40000, 40000], [20000, 40000]], holes=[])
+        patches = junction(arms, **AVENUE)
+        inputs = {"generation_regions": [park]}
+        records, counts = osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT)
+        self.assertEqual(sum(v for k, v in counts.items() if not k.startswith("skipped_") and k != "over_limit"), len(records))
+        with patch.multiple(osm_furniture, STREET_TREE_LIMIT=0, MEDIAN_BED_LIMIT=0, PLANTER_LIMIT=0):
+            earlier, earlier_counts = osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT)
+        self.assertFalse(trees(earlier))
+        self.assertGreater(earlier_counts["skipped_street_trees_limit"], 0)
+        self.assertEqual(records[:len(earlier)], earlier, "planting appends after every earlier placement id")
+        with patch.object(osm_furniture, "STREET_TREE_LIMIT", 3):
+            capped, capped_counts = osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT)
+        self.assertEqual(len(trees(capped)), 3)
+        with patch.object(osm_furniture, "MAX_PLACEMENTS", len(earlier) + 5):
+            limited, limited_counts = osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT)
+        self.assertEqual(len(limited), len(earlier) + 5)
+        self.assertGreater(limited_counts["over_limit"], 0)
+        self.assertEqual(osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT), (records, counts), "fixed seeds")
 
 if __name__ == "__main__":
     unittest.main()

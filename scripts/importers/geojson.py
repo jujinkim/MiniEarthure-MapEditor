@@ -152,8 +152,8 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     transform = Coordinates(coordinates)
     topology_budget = Budget()
     layer = ImportLayer(layer_id or uuid.uuid4().hex, captured_source or Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v1")
-    # Transient city sign inputs (osm_furniture.road_signs), never serialized:
-    # road class and posted speed per vehicle road, and school site outlines.
+    # Transient city sign and street-tree inputs (osm_furniture), never serialized:
+    # road class, name and posted speed per vehicle road, and school site outlines.
     layer.road_info, layer.school_areas = {}, []
     features = value.get("features")
     from import_layer import CITY_FEATURES
@@ -281,7 +281,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     layer.coordinates.setdefault("osm_pedestrian_roads", []).append(road_id)
                 elif city and osm_graph:
                     road_tags = properties.get("_city_road_tags", {})
-                    layer.road_info[road_id] = dict(highway=road_tags.get("highway"),
+                    layer.road_info[road_id] = dict(highway=road_tags.get("highway"), name=road_tags.get("name"),
                         maxspeed=properties["_city_maxspeed"] if "_city_maxspeed" in properties else speed_kmh(road_tags.get("maxspeed")))
                 if not connected and not ground_refs and not walking:
                     label = str(index) if kind == "LineString" else f"{index} part {part}"

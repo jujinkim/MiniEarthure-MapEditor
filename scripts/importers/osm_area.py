@@ -214,7 +214,8 @@ def city_points(points, selected, region, options):
     the named places (source-cm position, ranked by weight then name, at most
     POI_LIMIT) and `street` the positions of bus stops, stations, subway
     entrances, traffic signals and stop/give-way signs for generated street
-    furniture."""
+    furniture, and of OSM trees (species hint in `category`) for generated
+    street trees."""
     import shapely
     from projection import Coordinates
     window = shapely.box(*bounds(selected))

@@ -58,7 +58,8 @@ def off_ground(tags):
 
 # City point inputs from standalone OSM nodes: (kind, category, weight). `poi`
 # kinds with a name become map POIs (minimap places, ranked by weight); street
-# kinds place generated street furniture and stop/give-way signs by position only.
+# kinds place generated street furniture and stop/give-way signs by position only;
+# `tree` nodes anchor generated street trees (category: a species hint).
 CITY_POINTS = (
     ("railway", ("station", "halt"), "station", "station", 10),
     ("station", ("subway", "train", "light_rail"), "station", "station", 10),
@@ -83,7 +84,19 @@ CITY_POINTS = (
     ("amenity", ("fuel",), "poi", "fuel", 2),
     ("amenity", ("restaurant", "cafe", "fast_food"), "poi", "food", 1),
     ("shop", None, "poi", "shop", 1),
+    ("natural", ("tree",), "tree", "tree", 0),
 )
+# Street-tree species hints of an OSM tree (genus, species, taxon or name text).
+TREE_HINTS = (("ginkgo", ("ginkgo", "은행")), ("zelkova", ("zelkova", "느티")), ("plane", ("platanus", "플라타너스", "버즘")),
+              ("cherry", ("prunus", "cherry", "벚")), ("pine", ("pinus", "소나무", "pine")))
+
+
+def tree_hint(tags):
+    """Street-tree species hint of an OSM tree node, else `tree`."""
+    text = " ".join(str(tags.get(key, "")) for key in ("genus", "species", "species:ko", "species:en", "taxon", "name", "name:ko")).lower()
+    for hint, words in TREE_HINTS:
+        if any(word in text for word in words): return hint
+    return "pine" if tags.get("leaf_type") == "needleleaved" else "tree"
 
 
 def city_point(tags):
@@ -93,6 +106,7 @@ def city_point(tags):
         if value and (values is None or value in values):
             name = (tags.get("name:ko") or tags.get("name") or "").strip()[:256]
             if kind == "poi" and not name: return None
+            if kind == "tree": category = tree_hint(tags)
             return kind, category, weight, name
     return None
 
