@@ -2443,6 +2443,7 @@
     "Water records require OSM city optimization.": "水域レコードには OSM 都市最適化が必要です。",
     "OSM map: buildings and trees narrower than 150 source m are removed and the relief is smoothed over 60 source m (bare-earth estimate).\n": "OSM 地図: 元の 150 m より狭い建物と樹木を除き、元の 60 m の範囲で起伏を平滑化します(地表推定)。\n",
     "\nImported water fitted to this terrain: %d pieces at %d levels (8 cm under the lowest shore height), %d pieces outside this DEM unchanged; generated ground sinks an earth basin under the water. Disclosed estimate; terrain and water share one Undo.\n": "\n取り込んだ水域をこの地形に合わせました: %d 片、水位 %d 種類(岸の最低の高さより 8 cm 下)、この DEM 外の %d 片は変更なし。生成される地面は水の下に土の窪地を作ります。公開された推定値で、地形と水域は 1 回の Undo で戻ります。\n",
+    "\nSloped streams: %d pieces cut into %d stretches with their own levels (%d water bodies added); where levels meet, the ground forms a lip at the upper water's surface.\n": "\n傾斜した水路: %d 片を独自の水位を持つ %d 区間に分割しました(水域 %d 個を追加)。水位が接する所では、地面が上側の水面の高さで縁を作ります。\n",
     "Water fitting would change terrain outside this DEM.": "水域の調整がこの DEM 外の地形を変更してしまいます。",
     "Water fitting could not sample the DEM terrain.": "水域の調整で DEM 地形の高さを読み取れませんでした。",
     "Invalid city play area.": "都市の走行範囲が無効です。",

@@ -305,8 +305,10 @@ remainder so lattice points are whole map centimetres.
   and each piece maps to the sources it covers. Surfaces are 8 map cm below the
   ground and 60 cm deep (estimates), so water never floats above its bank; MapKit
   sinks an earth basin under OSM-city water when it generates ground
-  ([MapKit water](../addons/mapkit/docs/WATER.md#real-city-earth-basins)). A
-  waterway wholly under roads is disclosed as dropped.
+  ([MapKit water](../addons/mapkit/docs/WATER.md#real-city-earth-basins)). A DEM
+  then sets the levels and cuts sloped narrow streams into stretches that step
+  down their course over earth lips ([IMPORTS](IMPORTS.md)). A waterway wholly under roads is
+  disclosed as dropped.
 - Places: tagged standalone OSM nodes inside the crop rectangle are collected
   while streaming. Named ones (stations, attractions, historic sites, hospitals,
   universities, public offices, schools, shopping, parks and sports, worship,

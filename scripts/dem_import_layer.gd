@@ -35,6 +35,8 @@ func summary() -> String:
 	if value.dem.has("water_fit"):
 		var water: Dictionary=value.dem.water_fit
 		text+=I18N.t("\nImported water fitted to this terrain: %d pieces at %d levels (8 cm under the lowest shore height), %d pieces outside this DEM unchanged; generated ground sinks an earth basin under the water. Disclosed estimate; terrain and water share one Undo.\n") % [water.pieces,water.levels,water.outside]
+		if int(water.get("cut_pieces",0)) > 0:
+			text+=I18N.t("\nSloped streams: %d pieces cut into %d stretches with their own levels (%d water bodies added); where levels meet, the ground forms a lip at the upper water's surface.\n") % [water.cut_pieces,water.stretches,water.added_bodies]
 	if value.dem.has("grounding"):
 		text+=I18N.t("\nEstimated building bases: %d changed; %d partly outside this DEM left unchanged. Minimum sampled perimeter height; DSM includes roofs and trees. Building heights stay unchanged. Terrain and bases share one Undo.\n") % [value.dem.grounding.changes.size(),value.dem.grounding.skipped_partial]
 	for index in range(value.heightmaps.size()):

@@ -89,23 +89,47 @@ Shapes, heights and other bases are unchanged. The receipt
 lists every changed base and uncovered count; terrain and buildings adopt as one Undo.
 
 Imported city water (`import-` water bodies) is fitted after the structures, in
-the same candidate: touching pieces whose shore heights stay within 100 cm share
-one level (a lake), others keep their own (a sloping stream steps). The level is the
-lowest shore terrain, sampled at every vertex and along every edge at the DEM
-spacing, and the surface lies 8 cm below it, so the water never floats above a
-sampled bank (a median level did on sloped shores). A dipped sample at a culvert or
-road edge only makes that water shallower; a steep stream piece gets a low level
-and a wide dry margin instead. The bottom lies 60 cm below the surface. DEM samples
-are not carved: MapKit sinks an earth basin under OSM-city water when it generates
-ground (banks fall 68 cm per 180 cm for the 60 cm import depth, about 21° as on
-flat maps, down to the bottom up to 12 m from the shore, so terrain inside a
-wide polygon above the low surface falls under the water rather than staying a
-flat dry bed; terrain kept under roads), so narrow streams between 400 cm
-samples get depth too. A narrow stream keeps its bank within its width, so where
-its terrain lies well above the one lowest-shore level it stays a dirt trough
-with little water showing. Pieces partly outside the DEM
-keep their flat heights. The notice adds `water_fit` (`osm-water-dem-fit-v1`,
-counts, `level: lowest-shore-sample`; its carve counts stay zero).
+the same candidate. A narrow piece (mean width `2 · area / perimeter` under 600 cm,
+without islands and not already cut) whose shore heights span more than 30 cm is
+a sloped stream: it is cut into stretches on a square grid whose lines lie off
+the DEM sample lines (half a grid, or half a spacing for whole spacings), a
+quarter of a spacing to four spacings wide so a stretch falls about 30 cm on the
+piece's mean slope; every grid crossing becomes a shared seam vertex first, so
+neighbouring stretches meet exactly. Parts of one piece sharing a seam longer than
+twice the piece's mean width (a stream running along a grid line, split
+lengthwise) keep one level, and parts under one map square metre join a
+neighbour, preferring one that is no sliver. Touching pieces and stretches then
+share levels, wide pieces first, each most similar first, while the median shore
+height of every wide member stays within 100 cm of the joined level (a lake keeps
+one level even where its DSM shore rises over trees and embankments, which split
+lake pieces whose own shore spanned more than 100 cm before) and every shore
+height of a tight member (a stretch, or a piece narrower than 360 cm, two MapKit
+banks, which cannot sink its bed far under its banks) within 30 cm. A 400 cm inlet
+therefore joins its lake; a 250 cm creek whose shore lies 65 cm above the lake
+keeps its own level and steps down at the mouth. A level is the lowest
+shore terrain of its members, sampled at every vertex and along every edge at the
+DEM spacing, and the surface lies 8 cm below it, so the water never floats above
+a sampled bank of its stretch (a median level did on sloped shores). The stretches
+of one piece at one level join again; a piece left in several parts keeps its ID
+for the first and gains `<id>-s<k>` bodies (the next free `k`) for the others (the
+native-job guard accepts only level changes and stretches inside the original
+outline with its other fields). A body already cut (a stretch, or a piece with
+stretches) is refitted whole, so adopting a DEM again only changes levels; levels
+already in place produce no patch. Should the stretches pass MapKit's 1,024
+bodies, the drop per stretch doubles (to at most 240 cm, then no cut). The bottom
+lies 60 cm below the surface. DEM samples are not carved: MapKit sinks an earth
+basin under OSM-city water when it generates ground (banks fall 68 cm per 180 cm
+for the 60 cm import depth, about 21° as on flat maps, down to the bottom up to
+12 m from the shore; a body narrower than two banks falls to its bed at 2/5 of its
+shore width, no steeper than 68 cm per 60 cm; where water of different levels
+meets, the ground rises to the upper surface in a lip instead of a terrain bank,
+so the upper stretch neither floats nor is dammed; terrain kept under roads). A
+dipped sample at a culvert or road edge only makes that water shallower. Pieces
+partly outside the DEM keep their flat heights. The notice adds `water_fit`
+(`osm-water-dem-fit-v1`, counts, `level: lowest-shore-sample`, `cut_pieces`,
+`stretches` (parts of cut pieces), `added_bodies`, `stretch_range_cm`,
+`stretch_drop_cm` used; its carve counts stay zero), and the summary lists the cut
+streams.
 
 Estimated city bridges and tunnels (`osm_estimated_structures`) assume flat ground,
 so adopting a DEM fits them to the DSM in the same candidate, before grounding:
