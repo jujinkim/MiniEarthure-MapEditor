@@ -337,7 +337,10 @@ remainder so lattice points are whole map centimetres.
   nearest road; parks (park, garden, playground, recreation ground, village green)
   get benches and shrubs on seeded jittered grids (their trees are zones above). Every piece keeps clear of
   road corridors with sidewalks (+30 map cm), junction mouths, buildings, water and
-  other pieces (+10 cm); a candidate without a free spot is skipped and counted
+  other pieces (+10 cm). Roads other than walking roads count at least 150 map cm
+  wide: adoption widens narrower segments towards that floor, and MapKit
+  validation keeps placements off every corridor, tunnels included. A candidate without
+  a free spot is skipped and counted
   (at most 24,000 placements per layer, `over_limit` beyond). Places and furniture
   follow the mapped records in the layer.
 - Road signs (`Furniture.road_signs`, after the street furniture and before the
@@ -378,7 +381,12 @@ remainder so lattice points are whole map centimetres.
     MapKit reserves turns with the placement). The first and last stations keep
     the junction mouth + 60 map cm (+2.5 m before a painted crosswalk) or 135 map
     cm at a free or two-arm end. A pit must be clear of every carriageway (not
-    sidewalks), buildings + 10 cm, water, barriers, junction mouths and other
+    sidewalks; per segment, and over MapKit's joint faces where two segments
+    meet: the mouths either side of the vertex, set back the larger half width (at
+    most 40% of the segment) and as wide as their segments, joined on each side where the two curb lines
+    meet, with MapKit's fillet on the inside of a bend, or by a straight edge
+    where they would meet behind a mouth, as at a width step) + 2 map cm,
+    buildings + 10 cm, water, barriers, junction mouths and other
     pieces. Skipped and counted (`skipped_street_trees_<reason>`): the median side
     of a one-way road facing an opposite one-way carriageway within 6 map m
     (`median`), within 3 map m of a bus shelter, subway entrance or station sign
@@ -447,7 +455,7 @@ remainder so lattice points are whole map centimetres.
     street trees and median beds within 1.35 map m, nearest first, so arms pass
     between crowns.
   - The pole keeps clear of every road corridor with its sidewalk + 30 map cm
-    (per segment, with MapKit's tapered joints where widths change), junction
+    (per segment, with MapKit's joint faces where segments meet), junction
     mouths, buildings + 10 cm, water, narrow painted walking ribbons (non-grass
     surface areas whose mean width, 2 × area / perimeter, is under 120 map cm:
     a solid pole would stand in a drivable footway) and placed pieces (+4 cm,

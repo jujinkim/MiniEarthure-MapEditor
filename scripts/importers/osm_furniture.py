@@ -29,6 +29,7 @@ SIZES = {"builtin:signal_h": (4, 4), "builtin:signal_v": (4, 4), "builtin:bus_sh
          "builtin:shrub": (35, 35), "builtin:tree": (200, 200)}
 CLEARANCE_CM = 30  # Beyond the road edge and sidewalk.
 GAP_CM = 10  # Between placements.
+ROAD_FLOOR_CM = 150  # The adoption road width floor (import_units.gd ROAD_WIDTH_FLOOR_CM).
 PARK_KINDS = ("park", "garden", "playground", "recreation_ground", "village_green")
 # Park trees are MapKit vegetation zones of city trees (osm_generalize.CITY_ZONES).
 PARK_GRID_CM = {"builtin:bench": 1500, "builtin:shrub": 600}
@@ -151,7 +152,12 @@ class Furniture:
         self.counts = Counter()
         self.items = []
         walking = set(coordinates.get("osm_pedestrian_roads", []))
-        roads = [p["after"] for p in patches if p["field"] == "roads"]
+        # Adoption widens other segments narrower than the floor towards it
+        # (import_units.gd widen_roads, up to the nearest building): keep clear
+        # of the floor width.
+        floor = ROAD_FLOOR_CM * scale
+        roads = [dict(r, widths_cm=[max(w, floor) for w in r["widths_cm"]]) if r["id"] not in walking and min(r["widths_cm"], default=floor) < floor else r
+                 for r in (p["after"] for p in patches if p["field"] == "roads")]
         self.roads = roads
         self.vehicle = [r for r in roads if r["id"] not in walking]
         self.nodes = {p["id"]: p["after"] for p in patches if p["field"] == "nodes"}
@@ -164,6 +170,8 @@ class Furniture:
             # round join): buffer the whole line at its widest with mitred joins.
             if len(set(points)) >= 2:
                 blocks.append(LineString(points).buffer(max(r["widths_cm"]) / 2 + sidewalk + margin, quad_segs=2, join_style="mitre", mitre_limit=10.0))
+        # MapKit's joint faces between two segments (street planting and lamps).
+        self.joints = self._joints(roads)
         self.buildings, self.water, self.barriers = [], [], []
         for p in patches:
             if p["field"] == "buildings":
@@ -668,9 +676,10 @@ class Furniture:
 
     def _planting(self):
         """Blocking geometry of street planting, built once: exact carriageways
-        (no sidewalk, per-segment widths) of every road and across two-arm joins,
-        sidewalk corridors, structure corridors, buildings, water, barriers and
-        junction mouths; placed street trees for their spacing."""
+        (no sidewalk, per-segment widths) of every road, across two-arm joins and
+        over MapKit's joint faces, sidewalk corridors, structure corridors,
+        buildings, water, barriers and junction mouths; placed street trees for
+        their spacing."""
         if hasattr(self, "carriageways"): return
         s = self.scale
         carriage, corridors, structures, self.carriage_roads = [], [], [], []
@@ -698,6 +707,9 @@ class Furniture:
                 half = max(a["widths_cm"][-1 if ea == "to" else 0], b["widths_cm"][0 if eb == "from" else -1]) / 2
                 carriage.append(LineString(corner).buffer(half + CARRIAGEWAY_CM * s, quad_segs=2, join_style="mitre", mitre_limit=10.0))
                 self.carriage_roads.append(None)
+        for face, _ in self.joints:
+            carriage.append(face.buffer(CARRIAGEWAY_CM * s, quad_segs=2, join_style="mitre", mitre_limit=10.0))
+            self.carriage_roads.append(None)
         self.carriageways = (carriage, STRtree(carriage))
         self.corridor_ids = [i for i, _ in corridors]
         self.corridors = self._index([g for _, g in corridors])
@@ -995,21 +1007,16 @@ class Furniture:
 
     def _lamp_setup(self):
         """Blocking geometry of streetlights, built once: per-segment road
-        corridors with sidewalks + CLEARANCE_CM (and across two-arm joins),
-        junction mouths, buildings + GAP, water and narrow painted walking
-        ribbons (the pole); buildings, decks, barriers, crowns and tall
+        corridors with sidewalks + CLEARANCE_CM (across two-arm joins and over
+        joint faces), junction mouths, buildings + GAP, water and narrow painted
+        walking ribbons (the pole); buildings, decks, barriers, crowns and tall
         furniture (the display envelope)."""
         self._planting()
         s = self.scale
         poles = []
         for r in self.roads:
-            points = [(q[0], q[2]) for q in r["points"]]
-            if len(set(points)) < 2: continue
-            extra = (r.get("sidewalk_cm") or 0) + CLEARANCE_CM * s
-            poles.append(self._band(r, extra, 16))  # Round ends at width changes stay round.
-            for i in range(1, len(points) - 1):  # Interior joints taper to the wider segment.
-                joint = self._joint(points[i], points[i - 1], points[i + 1], r["widths_cm"][i - 1] / 2, r["widths_cm"][i] / 2)
-                if joint is not None and not joint.is_empty: poles.append(joint.buffer(extra, quad_segs=2, join_style="mitre", mitre_limit=10.0))
+            if len(set((q[0], q[2]) for q in r["points"])) < 2: continue
+            poles.append(self._band(r, (r.get("sidewalk_cm") or 0) + CLEARANCE_CM * s, 16))  # Round ends at width changes stay round.
         ends = {}
         for r in self.roads:
             if len(r["points"]) < 2: continue
@@ -1022,11 +1029,11 @@ class Furniture:
             after = b["points"][1] if eb == "from" else b["points"][-2]
             corner = [(before[0], before[2]), (at[0], at[2]), (after[0], after[2])]
             if len(set(corner)) == 3:
-                ha, hb = a["widths_cm"][-1 if ea == "to" else 0] / 2, b["widths_cm"][0 if eb == "from" else -1] / 2
+                half = max(a["widths_cm"][-1 if ea == "to" else 0], b["widths_cm"][0 if eb == "from" else -1]) / 2
                 extra = max(a.get("sidewalk_cm") or 0, b.get("sidewalk_cm") or 0) + CLEARANCE_CM * s
-                poles.append(LineString(corner).buffer(max(ha, hb) + extra, quad_segs=2, join_style="mitre", mitre_limit=10.0))
-                joint = self._joint(corner[1], corner[0], corner[2], ha, hb)
-                if joint is not None and not joint.is_empty: poles.append(joint.buffer(extra, quad_segs=2, join_style="mitre", mitre_limit=10.0))
+                poles.append(LineString(corner).buffer(half + extra, quad_segs=2, join_style="mitre", mitre_limit=10.0))
+        # Joint faces (interior vertices and two-arm joins) taper to the wider segment.
+        poles += [face.buffer(sidewalk + CLEARANCE_CM * s, quad_segs=2, join_style="mitre", mitre_limit=10.0) for face, sidewalk in self.joints]
         near = [g.buffer(GAP_CM * s) for g in self.buildings]
         self.lamp_blocks = self._index(poles + self.mouths + near + self.water + self.ribbons)
         self.lamp_solid = self._index(near)
@@ -1047,22 +1054,93 @@ class Furniture:
         self.lamp_signals, self.lamp_stops, self.lamp_posts = (self._index(g) if g else None for g in (signals, stops, posts))
         self.lamp_grid, self.lamp_heads = {}, {}
 
-    @staticmethod
-    def _joint(vertex, before, after, half_before, half_after):
-        """MapKit's face where two segments meet (road_plan plan_junction): the
-        hull of each arm's mouth, set back min(larger half width, 40% of the
-        segment) along it and as wide as its own segment."""
+    def _joints(self, roads):
+        """(face, sidewalk) of MapKit's joint faces: at every interior vertex of
+        a record (its sidewalk) and at every two-arm node (the wider sidewalk)."""
+        faces = []
+        for r in roads:
+            points = [(q[0], q[2]) for q in r["points"]]
+            if len(set(points)) < 2: continue
+            for i in range(1, len(points) - 1):
+                faces.append((self._joint(points[i], points[i - 1], points[i + 1], r["widths_cm"][i - 1] / 2, r["widths_cm"][i] / 2), r.get("sidewalk_cm") or 0))
+        ends = {}
+        for r in roads:
+            if len(r["points"]) < 2: continue
+            for end in ("from", "to"): ends.setdefault(r[end], []).append((r, end))
+        for node, arms in sorted(ends.items()):
+            if len(arms) != 2: continue
+            (a, ea), (b, eb) = arms
+            before = a["points"][-2] if ea == "to" else a["points"][1]
+            at = a["points"][-1] if ea == "to" else a["points"][0]
+            after = b["points"][1] if eb == "from" else b["points"][-2]
+            corner = [(before[0], before[2]), (at[0], at[2]), (after[0], after[2])]
+            if len(set(corner)) == 3:
+                faces.append((self._joint(corner[1], corner[0], corner[2], a["widths_cm"][-1 if ea == "to" else 0] / 2, b["widths_cm"][0 if eb == "from" else -1] / 2),
+                              max(a.get("sidewalk_cm") or 0, b.get("sidewalk_cm") or 0)))
+        return [(face, sidewalk) for face, sidewalk in faces if face is not None and not face.is_empty]
+
+    def _joint(self, vertex, before, after, half_before, half_after):
+        """MapKit's face where two segments meet (road_plan plan_junction): each
+        arm's mouth, set back min(larger half width, 40% of the segment) along
+        it and as wide as its own segment; on each side the two edges continue
+        from the mouths to where they meet (a concave meeting rounded by
+        MapKit's fillet of the wider segment), else a straight edge joins the
+        mouths (towards the wider segment, or where the edges meet behind a
+        mouth). A superset: convex corners stay unrounded."""
         radius = max(half_before, half_after)
-        corners = []
+        arms = []
         for other, half in ((before, half_before), (after, half_after)):
             dx, dy = other[0] - vertex[0], other[1] - vertex[1]
             length = math.hypot(dx, dy)
             if length == 0: return None
-            t = min(radius, 0.4 * length) / length
-            cx, cy = vertex[0] + dx * t, vertex[1] + dy * t
-            ox, oy = -dy / length * half, dx / length * half
-            corners += [(cx + ox, cy + oy), (cx - ox, cy - oy)]
-        return MultiPoint(corners).convex_hull
+            ux, uy = dx / length, dy / length
+            back = min(radius, 0.4 * length)
+            cx, cy = vertex[0] + ux * back, vertex[1] + uy * back
+            arms.append(((cx - uy * half, cy + ux * half), (cx + uy * half, cy - ux * half), (-ux, -uy)))
+        (a_left, a_right, (ax, ay)), (b_left, b_right, (bx, by)) = arms
+        det = bx * ay - ax * by  # p + t·(ax, ay) = q + u·(bx, by): the edges towards the vertex.
+
+        def side(p, q):  # p on the first arm, q on the second.
+            if abs(det) <= 1e-9: return None
+            wx, wy = q[0] - p[0], q[1] - p[1]
+            t, u = (bx * wy - by * wx) / det, (ax * wy - ay * wx) / det
+            if t < 0 or u < 0: return None
+            m = (p[0] + ax * t, p[1] + ay * t)
+            return m if math.hypot(m[0] - vertex[0], m[1] - vertex[1]) <= 10 * radius else None
+
+        # The arms point away from the vertex in opposite senses: one arm's left
+        # edge continues the other's right edge.
+        right, left = side(a_left, b_right), side(a_right, b_left)
+        ring = [a_left, *([right] if right else []), b_right, b_left, *([left] if left else []), a_right]
+        face = Polygon(ring)
+        if not face.is_valid: return MultiPoint(ring).convex_hull  # Folded sharp bends: the hull covers them.
+        caps = []
+        for m, p, q in ((right, a_left, b_right), (left, b_left, a_right)):
+            # A concave meeting turns against the ring's winding.
+            if m is None or ((m[0] - p[0]) * (q[1] - m[1]) - (m[1] - p[1]) * (q[0] - m[0])) * (1 if face.exterior.is_ccw else -1) >= 0: continue
+            arc = self._fillet(p, m, q, min(max(0.3 * radius, 20 * self.scale), 100 * self.scale))
+            if len(arc) >= 2: caps.append(Polygon([m, *arc]))
+        caps = [c for c in caps if c.is_valid and not c.is_empty]
+        return unary_union([face, *caps]) if caps else face
+
+    def _fillet(self, a, p, b, radius):
+        """Points of MapKit's fillet at p between edges a-p and p-b (road_plan
+        fillet: tangent at most 45% along either edge), else []."""
+        la, lb = math.hypot(p[0] - a[0], p[1] - a[1]), math.hypot(b[0] - p[0], b[1] - p[1])
+        if la < 2 * self.scale or lb < 2 * self.scale: return []
+        u = ((p[0] - a[0]) / la, (p[1] - a[1]) / la)
+        v = ((b[0] - p[0]) / lb, (b[1] - p[1]) / lb)
+        turn = math.atan2(u[0] * v[1] - u[1] * v[0], u[0] * v[0] + u[1] * v[1])
+        if abs(turn) < 0.001: return []
+        tangent = math.tan(abs(turn) / 2)
+        distance = min(radius * tangent, 0.45 * la, 0.45 * lb)
+        r = distance / tangent
+        start = (p[0] - u[0] * distance, p[1] - u[1] * distance)
+        sign = math.copysign(1, turn)
+        centre = (start[0] - u[1] * sign * r, start[1] + u[0] * sign * r)
+        theta = math.atan2(start[1] - centre[1], start[0] - centre[0])
+        n = max(2, math.ceil(abs(turn) / (math.pi / 36)))
+        return [(centre[0] + r * math.cos(theta + turn * i / n), centre[1] + r * math.sin(theta + turn * i / n)) for i in range(n + 1)]
 
     def _envelope(self, x, y, theta, reach, twin, back=None):
         """Display envelope polygon (source cm) of a lamp at (x, y), local +x at theta."""

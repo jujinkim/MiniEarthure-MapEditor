@@ -553,6 +553,57 @@ class StreetPlanting(unittest.TestCase):
             width = segments[math.copysign(1, r["position"][0])][1]
             self.assertAlmostEqual(r["position"][2], width / 2 + sidewalk + (10 + 15) * SCALE, delta=1)
 
+    def test_pits_keep_off_mapkit_joint_faces_where_widths_change(self):
+        # Jongno road -86 (20261106): 8 lanes, 3645 → 3745 source cm at a 0.77° left
+        # bend. MapKit's joint face joins the mouths 1872.5 cm either side of the
+        # vertex (each as wide as its segment) with straight edges, so it reaches
+        # beyond the narrow segment's band by about 14 map cm at the vertex (inner
+        # side). The pit of place-04504, 28 map cm beyond the narrow curb 126 map cm
+        # before the vertex, intersected it (an OSM tree there anchors that pit).
+        points = [[256026, 0, -162549], [262170, 0, -162252], [269055, 0, -161826]]
+        record = street("r", ("w", 256026, -162549), ("e", 269055, -161826), lanes=8, width=3645, sidewalk=300)
+        record["after"].update(points=points, widths_cm=[3645, 3745], surfaces=["asphalt"] * 2)
+        osm = dict(osm_street_points=[dict(kind="tree", source_id="node/1", position=[261700, -160366])])
+        records, counts = osm_furniture.generate("l" * 32, [node("w", 256026, -162549), node("e", 269055, -161826), record], osm, SCALE, RIGHT, PRIMARY)
+        (bx, by), (vx, vy), (ax, ay) = ((q[0], q[2]) for q in points)
+        corners = []
+        for (ox, oy), half in (((bx, by), 3645 / 2), ((ax, ay), 3745 / 2)):
+            length = math.hypot(ox - vx, oy - vy)
+            ux, uy = (ox - vx) / length, (oy - vy) / length
+            cx, cy = vx + ux * 3745 / 2, vy + uy * 3745 / 2
+            corners += [(cx - uy * half, cy + ux * half), (cx + uy * half, cy - ux * half)]
+        face = Polygon(corners).convex_hull
+        shapes = osm_furniture.Furniture([], {}, SCALE, {})
+        found = trees(records)
+        self.assertTrue([r for r in found if r["position"][0] < vx] and [r for r in found if r["position"][0] > vx], counts)
+        for r in found:
+            self.assertFalse(shapes.footprint(r["asset_id"], r["position"][0], r["position"][2], theta_deg(r)).intersects(face), r)
+        self.assertNotIn("street_trees_osm", counts, "the anchored pit is skipped")
+        self.assertNotIn([261700, 0, -160366], [r["position"] for r in found])
+
+    def test_joint_faces_follow_the_inside_of_bends(self):
+        shapes = osm_furniture.Furniture([], {}, SCALE, {})
+        # A width step on a straight record: the trapezoid between the mouths.
+        face = shapes._joint((0, 0), (-6000, 0), (6000, 0), 540, 810)
+        self.assertAlmostEqual(face.symmetric_difference(Polygon([(-810, -540), (810, -810), (810, 810), (-810, 540)])).area, 0, delta=1)
+        # An equal-width 25° bend: the edges meet on both sides (MapKit's inner
+        # meeting gets a fillet), so the face stays on the mitred band, unlike
+        # the hull of the mouths that cut across the inner sidewalk.
+        after = (6000 * math.cos(math.radians(25)), 6000 * math.sin(math.radians(25)))
+        face = shapes._joint((0, 0), (-6000, 0), after, 810, 810)
+        band = LineString([(-6000, 0), (0, 0), after]).buffer(810, join_style="mitre", mitre_limit=10.0)
+        self.assertLess(face.difference(band).area, 0.001 * face.area)
+        self.assertGreater(face.convex_hull.difference(band).area, 0.01 * face.area)
+
+    def test_corridors_keep_the_adoption_width_floor(self):
+        # Adoption widens other roads under 150 map cm (a 53 cm tunnel to 150);
+        # walking roads keep their width.
+        narrow = street("tunnel", ("w", -6000, 0), ("e", 6000, 0), width=160, sidewalk=0, kind="tunnel")
+        path = street("path", ("s", 0, -6000), ("n", 0, 6000), width=160, sidewalk=0)
+        shapes = osm_furniture.Furniture([narrow, path], {"osm_pedestrian_roads": ["path"]}, SCALE, {})
+        self.assertEqual({r["id"]: r["widths_cm"] for r in shapes.roads}, {"tunnel": [150 * SCALE], "path": [160]})
+        self.assertEqual(narrow["after"]["widths_cm"], [160], "the layer record is unchanged")
+
     def test_street_trees_keep_their_crowns_apart_in_bends(self):
         name = named_species("zelkova")
         # Stations 135 map cm either side of the bend (free end 135, pitch 270):
