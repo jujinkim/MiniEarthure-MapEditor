@@ -209,9 +209,12 @@ func _pick_meshes(node: Node, origin: Vector3, ray: Vector3, best: Dictionary, s
 			if record.id == id:
 				if record.motion.kind != "static" or not record.has("track"): return
 				special = true
-	if node is MeshInstance3D and node.mesh != null:
+	# Barrier detail instances (MapKit barrier_detail_meshes.gd) keep their
+	# prism tops for picking, since the prism faces are no longer drawn.
+	var barrier_tops: bool = not special and node is MultiMeshInstance3D and node.has_meta("mapkit_pick_faces")
+	if barrier_tops or (node is MeshInstance3D and node.mesh != null):
 		if special and not bool(node.get_meta("curved_driving_surface",false)): return
-		var faces: PackedVector3Array = node.mesh.get_faces()
+		var faces: PackedVector3Array = node.get_meta("mapkit_pick_faces") if barrier_tops else node.mesh.get_faces()
 		for i in range(0,faces.size(),3):
 			var a: Vector3 = node.global_transform*faces[i]
 			var b: Vector3 = node.global_transform*faces[i+1]

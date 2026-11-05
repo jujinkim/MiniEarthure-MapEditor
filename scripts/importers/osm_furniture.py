@@ -6,16 +6,19 @@ positions with fixed-seed variation, in the layer's source centimetres (÷D at
 adoption), clear of road corridors, junction mouths, buildings, water and each
 other. Road signs follow (`Furniture.road_signs`): OSM stop/give-way nodes,
 then signs derived from the road graph, its markings, the OSM road class and
-posted speed, and school sites. Street planting comes last: street trees in
+posted speed, and school sites. Street planting follows: street trees in
 pits beside the curb of sidewalk roads (`street_trees`, OSM trees first),
 median beds between one-way pairs (`median_beds`) and planters along building
-fronts (`planters`). A candidate that finds no free spot is skipped and counted.
+fronts (`planters`). City streetlights close the list (`streetlights`): poles
+behind the sidewalk of arterials and collectors with the head over the lanes,
+in the gaps between street-tree crowns. A candidate that finds no free spot is
+skipped and counted.
 """
 from collections import Counter
 import hashlib
 import math
 
-from shapely.geometry import LineString, Point, Polygon, box
+from shapely.geometry import LineString, MultiPoint, Point, Polygon, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
@@ -89,6 +92,40 @@ CARRIAGEWAY_CM, STRUCTURE_CLEAR_CM, BARRIER_CLEAR_CM = 2, 50, 10
 MEDIAN_BED_PITCH_CM, MEDIAN_BED_SETBACK_CM, MEDIAN_BED_CLEAR_CM, MEDIAN_FREE_END_CM = 330, 18, 15, 165
 PLANTER_EVERY, PLANTER_CHANCE, PLANTER_FRONT_CM, PLANTER_WIDE_CM, PLANTER_INSET_CM = 4, 0.5, 300, 100, 5
 STREET_TREE_LIMIT, MEDIAN_BED_LIMIT, PLANTER_LIMIT = 14_000, 1_500, 1_500  # MAX_PLACEMENTS still applies.
+# City streetlights (map cm, ×D for source cm), mirrors of the MapKit v1
+# contract (spec/CURRENT_V1.md): one solid 12 cm pole behind the sidewalk, a
+# display-only arm with a fixed reach per id from the pole axis to the head
+# centre over the road (twins ±reach), every display vertex inside the
+# envelope (back 25 beyond the pole axis, tip 20 beyond the head, side 8).
+STREETLIGHT_REACH_CM = {"builtin:city_streetlight_75": 75, "builtin:city_streetlight_135": 135,
+                        "builtin:city_streetlight_195": 195, "builtin:city_streetlight_255": 255,
+                        "builtin:city_streetlight_315": 315, "builtin:city_streetlight_375": 375}
+TWIN_REACH_CM = {"builtin:city_streetlight_twin_75": 75, "builtin:city_streetlight_twin_135": 135}
+LAMPS = (*STREETLIGHT_REACH_CM, *TWIN_REACH_CM)
+LAMP_MAX_REACH_CM = max(STREETLIGHT_REACH_CM.values())
+LAMP_POLE_CM, LAMP_HEIGHT_CM, LAMP_HEAD_CM = 12, 330, 310
+LAMP_BACK_CM, LAMP_TIP_CM, LAMP_SIDE_CM, LAMP_TOP_CM = 25, 20, 8, 345
+SIZES |= {asset: (LAMP_POLE_CM // 2, LAMP_POLE_CM // 2) for asset in LAMPS}
+# Lit roads: arterials and collectors (no motorways, residential streets or
+# alleys); without an OSM class, roads with junction stop lines.
+LAMP_CLASSES = ("trunk", "primary", "secondary", "tertiary", "trunk_link", "primary_link", "secondary_link", "tertiary_link")
+# Arrangements: two-way 6+ lanes opposite pairs, two-way 4-5 lanes and one-way
+# 3+ lanes staggered on both sides, other roads and links one side.
+LAMP_SPACING_CM = {"opposite": 1000, "staggered": 1000, "one_side": 1170}
+LAMP_OVERHANG_CM = 25  # Least head-centre reach over the carriageway edge (reach steps of 60 keep it under 85).
+LAMP_POLE_OFFSET_CM = CLEARANCE_CM + LAMP_POLE_CM // 2 + 2  # Pole axis beyond the sidewalk.
+LAMP_NUDGE_CM, LAMP_NUDGE_STEPS = 27, 5  # Up to half a street-tree spacing either way; gaps between crowns are tried exactly.
+LAMP_FREE_END_CM, LAMP_COVER_SHARE = 135, 0.6
+LAMP_GAP_CM = 4  # Pole to placed pieces: a twin fits the 30 cm gaps between median beds.
+LAMP_SIGNAL_CLEAR_CM, LAMP_STOP_CLEAR_CM, LAMP_POST_CLEAR_CM, LAMP_LAMP_CLEAR_CM = 300, 100, 50, 150
+LAMP_DECK_CLEAR_CM = 100  # The envelope beyond bridge and elevated corridors (+20 cm walls).
+# Painted pedestrian ribbons (drivable ground paint, osm_generalize.paint):
+# non-grass surface areas whose mean width 2·area/perimeter is under this
+# keep solid poles off them.
+LAMP_RIBBON_CM, LAMP_SOFT_SURFACES = 120, ("grass",)
+# Spacing widens in steps (at most LAMP_SPACING_MAX times) until the rows fit
+# STREETLIGHT_LIMIT and what MAX_PLACEMENTS leaves; beyond that, `_limit` skips.
+STREETLIGHT_LIMIT, LAMP_SPACING_STEP, LAMP_SPACING_MAX = 8_000, 0.05, 4.0
 TALL = ("builtin:signal_h", "builtin:signal_v", GUIDE, "builtin:bus_shelter", "builtin:subway_entrance", "builtin:station_sign")
 STOPS = ("builtin:bus_shelter", "builtin:subway_entrance", "builtin:station_sign")
 
@@ -166,6 +203,15 @@ class Furniture:
                 self.incident.setdefault(r[end], []).append((r, end))
         self.signalled = set()  # Junction nodes that qualify for signal poles.
         self.pois = [p["after"] for p in patches if p["field"] == "pois"]
+        # Narrow painted walking ribbons (map scale: the polygon's mean width).
+        self.ribbons = []
+        for p in patches:
+            if p["field"] != "surface_areas" or p["after"].get("surface") in LAMP_SOFT_SURFACES: continue
+            ring = [q[:2] for q in p["after"].get("polygon", [])]
+            if len(ring) < 3: continue
+            area = Polygon(ring)
+            if not area.is_valid: area = area.buffer(0)
+            if not area.is_empty and area.length > 0 and 2 * area.area / area.length < LAMP_RIBBON_CM * scale: self.ribbons.append(area)
 
     def footprint(self, asset, x, y, theta):
         hx, hy = (v * self.scale for v in SIZES[asset])
@@ -177,22 +223,22 @@ class Furniture:
         return [(i, j) for i in range(math.floor(x0 / BUCKET_CM), math.floor(x1 / BUCKET_CM) + 1)
                 for j in range(math.floor(y0 / BUCKET_CM), math.floor(y1 / BUCKET_CM) + 1)]
 
-    def free(self, shape, blocks=None):
+    def free(self, shape, blocks=None, gap=GAP_CM):
         geoms, tree = blocks or (self.blocks, self.tree)
         if any(geoms[int(i)].intersects(shape) for i in tree.query(shape)): return False
-        grown = shape.buffer(GAP_CM * self.scale)
+        grown = shape.buffer(gap * self.scale)
         return not any(other.intersects(grown) for key in self.buckets(grown) for other in self.placed.get(key, ()))
 
-    def place(self, kind, asset, x, y, theta, source, nudge=(0.0, 0.0), steps=4, accept=None, blocks=None, skipped=None):
+    def place(self, kind, asset, x, y, theta, source, nudge=(0.0, 0.0), steps=4, accept=None, blocks=None, skipped=None, gap=GAP_CM):
         """Place at (x, y) or up to `steps` nudges along `nudge` (source cm per
         step); `accept(px, py)` may reject a spot as not free. `blocks` =
         (geometries, STRtree) replaces the corridor blocks; `skipped` names the
-        skip count (default `skipped_<kind>`)."""
+        skip count (default `skipped_<kind>`); `gap` (map cm) to placed pieces."""
         for step in range(steps + 1):
             px, py = x + nudge[0] * step, y + nudge[1] * step
             if accept is not None and not accept(px, py): continue
             shape = self.footprint(asset, px, py, theta)
-            if not self.free(shape, blocks): continue
+            if not self.free(shape, blocks, gap): continue
             if len(self.items) >= MAX_PLACEMENTS:
                 self.counts["over_limit"] += 1
                 return False
@@ -593,18 +639,19 @@ class Furniture:
         return any(geoms[int(i)].intersects(shape) for i in tree.query(shape))
 
     @staticmethod
-    def _band(r, extra):
+    def _band(r, extra, quad_segs=2):
         """The record's carriageway grown by `extra` beyond each segment's own
         half width (MapKit sidewalks follow per-segment widths): one mitred
-        buffer when the widths agree, else a union of mitred runs of equal width."""
+        buffer when the widths agree, else a union of mitred runs of equal width
+        (round ends of `quad_segs` segments per quarter where the width changes)."""
         points, widths = [(q[0], q[2]) for q in r["points"]], r["widths_cm"]
         if len(set(widths)) == 1:
-            return LineString(points).buffer(widths[0] / 2 + extra, quad_segs=2, join_style="mitre", mitre_limit=10.0)
+            return LineString(points).buffer(widths[0] / 2 + extra, quad_segs=quad_segs, join_style="mitre", mitre_limit=10.0)
         runs, start = [], 0
         for i in range(1, len(widths) + 1):
             if i == len(widths) or widths[i] != widths[start]:
                 run = points[start:i + 1]
-                if len(set(run)) >= 2: runs.append(LineString(run).buffer(widths[start] / 2 + extra, quad_segs=2, join_style="mitre", mitre_limit=10.0))
+                if len(set(run)) >= 2: runs.append(LineString(run).buffer(widths[start] / 2 + extra, quad_segs=quad_segs, join_style="mitre", mitre_limit=10.0))
                 start = i
         return unary_union(runs)
 
@@ -930,6 +977,363 @@ class Furniture:
                         continue
                     self.place("planters", PLANTER, x, y, theta, r["id"], steps=0, blocks=self.planter_blocks)
 
+    # Streetlights --------------------------------------------------------------
+
+    def _lamp_class(self, r):
+        """Arrangement of a lit vehicle ground road (LAMP_CLASSES), else None."""
+        if not self._ground(r) or r["id"] in self.walking_ids: return None
+        m = r.get("markings") or {}
+        highway = (getattr(self, "road_info", {}).get(r["id"]) or {}).get("highway")
+        if highway is not None:
+            if highway not in LAMP_CLASSES: return None
+        elif not m.get("stop_lines"):
+            return None
+        lanes = m.get("lanes") or 0
+        if highway is not None and highway.endswith("_link"): return "one_side"
+        if m.get("one_way"): return "staggered" if lanes >= 3 else "one_side"
+        return "opposite" if lanes >= 6 else "staggered" if lanes >= 4 else "one_side"
+
+    def _lamp_setup(self):
+        """Blocking geometry of streetlights, built once: per-segment road
+        corridors with sidewalks + CLEARANCE_CM (and across two-arm joins),
+        junction mouths, buildings + GAP, water and narrow painted walking
+        ribbons (the pole); buildings, decks, barriers, crowns and tall
+        furniture (the display envelope)."""
+        self._planting()
+        s = self.scale
+        poles = []
+        for r in self.roads:
+            points = [(q[0], q[2]) for q in r["points"]]
+            if len(set(points)) < 2: continue
+            extra = (r.get("sidewalk_cm") or 0) + CLEARANCE_CM * s
+            poles.append(self._band(r, extra, 16))  # Round ends at width changes stay round.
+            for i in range(1, len(points) - 1):  # Interior joints taper to the wider segment.
+                joint = self._joint(points[i], points[i - 1], points[i + 1], r["widths_cm"][i - 1] / 2, r["widths_cm"][i] / 2)
+                if joint is not None and not joint.is_empty: poles.append(joint.buffer(extra, quad_segs=2, join_style="mitre", mitre_limit=10.0))
+        ends = {}
+        for r in self.roads:
+            if len(r["points"]) < 2: continue
+            for end in ("from", "to"): ends.setdefault(r[end], []).append((r, end))
+        for node, arms in sorted(ends.items()):
+            if len(arms) != 2: continue
+            (a, ea), (b, eb) = arms
+            before = a["points"][-2] if ea == "to" else a["points"][1]
+            at = a["points"][-1] if ea == "to" else a["points"][0]
+            after = b["points"][1] if eb == "from" else b["points"][-2]
+            corner = [(before[0], before[2]), (at[0], at[2]), (after[0], after[2])]
+            if len(set(corner)) == 3:
+                ha, hb = a["widths_cm"][-1 if ea == "to" else 0] / 2, b["widths_cm"][0 if eb == "from" else -1] / 2
+                extra = max(a.get("sidewalk_cm") or 0, b.get("sidewalk_cm") or 0) + CLEARANCE_CM * s
+                poles.append(LineString(corner).buffer(max(ha, hb) + extra, quad_segs=2, join_style="mitre", mitre_limit=10.0))
+                joint = self._joint(corner[1], corner[0], corner[2], ha, hb)
+                if joint is not None and not joint.is_empty: poles.append(joint.buffer(extra, quad_segs=2, join_style="mitre", mitre_limit=10.0))
+        near = [g.buffer(GAP_CM * s) for g in self.buildings]
+        self.lamp_blocks = self._index(poles + self.mouths + near + self.water + self.ribbons)
+        self.lamp_solid = self._index(near)
+        decks = [LineString([(q[0], q[2]) for q in r["points"]]).buffer(max(r["widths_cm"]) / 2 + (20 + LAMP_DECK_CLEAR_CM) * s, quad_segs=2)
+                 for r in self.roads if r.get("kind") in ("bridge", "elevated") and len(set((q[0], q[2]) for q in r["points"])) >= 2]
+        self.lamp_decks = self._index(decks) if decks else None
+        self.lamp_barriers = self._index(self.barriers) if self.barriers else None
+        signals, stops, posts = [], [], []
+        self.lamp_gaps = {}  # Street trees and median beds: stations try the midpoints between them.
+        cell = STREET_TREE_GRID_CM * s
+        for item in self.items:
+            asset, (x, _, y) = item["asset_id"], item["position"]
+            if asset in STREET_TREE_CROWN_CM or asset in (MEDIAN_BED, MEDIAN_PINE):
+                self.lamp_gaps.setdefault((math.floor(x / cell), math.floor(y / cell)), []).append((x, y, 0))
+            if asset in (self.signal, GUIDE): signals.append(Point(x, y))
+            elif asset in STOPS: stops.append(self.footprint(asset, x, y, item["quarter_turns"] * 90 + item["yaw_offset_mdeg"] / 1000))
+            elif asset in SIGN_POLE: posts.append(Point(x, y))
+        self.lamp_signals, self.lamp_stops, self.lamp_posts = (self._index(g) if g else None for g in (signals, stops, posts))
+        self.lamp_grid, self.lamp_heads = {}, {}
+
+    @staticmethod
+    def _joint(vertex, before, after, half_before, half_after):
+        """MapKit's face where two segments meet (road_plan plan_junction): the
+        hull of each arm's mouth, set back min(larger half width, 40% of the
+        segment) along it and as wide as its own segment."""
+        radius = max(half_before, half_after)
+        corners = []
+        for other, half in ((before, half_before), (after, half_after)):
+            dx, dy = other[0] - vertex[0], other[1] - vertex[1]
+            length = math.hypot(dx, dy)
+            if length == 0: return None
+            t = min(radius, 0.4 * length) / length
+            cx, cy = vertex[0] + dx * t, vertex[1] + dy * t
+            ox, oy = -dy / length * half, dx / length * half
+            corners += [(cx + ox, cy + oy), (cx - ox, cy - oy)]
+        return MultiPoint(corners).convex_hull
+
+    def _envelope(self, x, y, theta, reach, twin, back=None):
+        """Display envelope polygon (source cm) of a lamp at (x, y), local +x at theta."""
+        s = self.scale
+        x0 = -(reach + LAMP_TIP_CM) * s if twin else -LAMP_BACK_CM * s
+        x1 = (reach + LAMP_TIP_CM) * s if back is None else back
+        if back is not None: x0 = -back
+        side = LAMP_SIDE_CM * s
+        c, n = math.cos(math.radians(theta)), math.sin(math.radians(theta))
+        return Polygon([(x + c * px - n * py, y + n * px + c * py) for px, py in ((x0, -side), (x1, -side), (x1, side), (x0, side))])
+
+    def _grid_near(self, grid, x, y, reach, cell):
+        cx, cy = math.floor(x / cell), math.floor(y / cell)
+        k = math.ceil(reach / cell)
+        for gx in range(cx - k, cx + k + 1):
+            for gy in range(cy - k, cy + k + 1):
+                yield from grid.get((gx, gy), ())
+
+    def _lamp_misfit(self, asset, x, y, theta, reach, twin):
+        """Why a lamp cannot stand at (x, y) turned to theta, else None."""
+        s = self.scale
+        if not self.free(self.footprint(asset, x, y, theta), self.lamp_blocks, LAMP_GAP_CM): return "blocked"
+        envelope = self._envelope(x, y, theta, reach, twin)
+        if self._hits(self.lamp_solid, envelope): return "building"
+        if self.lamp_decks is not None and self._hits(self.lamp_decks, envelope): return "deck"
+        if self.lamp_barriers is not None and self._hits(self.lamp_barriers, self._envelope(x, y, theta, reach, twin, LAMP_BACK_CM * s)): return "barrier"
+        pole = Point(x, y)
+        if self.lamp_signals is not None and self._hits(self.lamp_signals, pole.buffer(LAMP_SIGNAL_CLEAR_CM * s, quad_segs=4)): return "signal"
+        if self.lamp_stops is not None and self._hits(self.lamp_stops, pole.buffer(LAMP_STOP_CLEAR_CM * s, quad_segs=4)): return "stop"
+        if self.lamp_posts is not None and self._hits(self.lamp_posts, pole.buffer(LAMP_POST_CLEAR_CM * s, quad_segs=4)): return "sign"
+        span = (reach + LAMP_TIP_CM + LAMP_BACK_CM) * s
+        crown = max(STREET_TREE_CROWN_CM.values()) * s
+        cell = STREET_TREE_GRID_CM * s
+        for ox, oy, other in self._grid_near(self.tree_grid, x, y, span + crown, cell):
+            if abs(ox - x) <= span + other and abs(oy - y) <= span + other and envelope.distance(Point(ox, oy)) < other: return "crown"
+        cell = 1000 * s
+        grown = envelope.buffer(GAP_CM * s, quad_segs=1)
+        for ox, oy, other in self._grid_near(self.lamp_grid, x, y, 2 * (LAMP_MAX_REACH_CM + LAMP_TIP_CM) * s, cell):
+            if math.hypot(ox - x, oy - y) < LAMP_LAMP_CLEAR_CM * s or other.intersects(grown): return "lamp"
+        return None
+
+    def _lamp_placed(self, x, y, theta, reach, twin):
+        s = self.scale
+        cell = 1000 * s
+        self.lamp_grid.setdefault((math.floor(x / cell), math.floor(y / cell)), []).append((x, y, self._envelope(x, y, theta, reach, twin)))
+        c, n = math.cos(math.radians(theta)), math.sin(math.radians(theta))
+        for sign in ((1, -1) if twin else (1,)):
+            hx, hy = x + sign * c * reach * s, y + sign * n * reach * s
+            self.lamp_heads.setdefault((math.floor(hx / cell), math.floor(hy / cell)), []).append((hx, hy, sign * c, sign * n))
+
+    def _covered(self, hx, hy, fx, fy, radius):
+        """An earlier lamp head within `radius` facing the same way (it lights this spot)."""
+        for ox, oy, gx, gy in self._grid_near(self.lamp_heads, hx, hy, radius, 1000 * self.scale):
+            if math.hypot(ox - hx, oy - hy) < radius and gx * fx + gy * fy > 0.5: return True
+        return False
+
+    def _lamp_chains(self):
+        """Chains of lit records through two-arm nodes of the same arrangement
+        (one-way records only in their travel sense): (arrangement, travel,
+        [(road, line, reversed)]), travel = the one-way sense along the chain."""
+        lit = {}
+        for r, line in self.road_lines:
+            kind = self._lamp_class(r)
+            if kind is not None and line.length > 0: lit[r["id"]] = (r, line, kind)
+        link = {}
+        for node, arms in self.incident.items():
+            if len(arms) != 2: continue
+            (a, ea), (b, eb) = arms
+            if a is b or a["id"] not in lit or b["id"] not in lit or lit[a["id"]][2] != lit[b["id"]][2]: continue
+            oa, ob = (a.get("markings") or {}).get("one_way", 0), (b.get("markings") or {}).get("one_way", 0)
+            if bool(oa) != bool(ob): continue
+            if oa and ((oa == 1) == (ea == "to")) == ((ob == 1) == (eb == "to")): continue  # Both arrive or both leave.
+            link[(a["id"], ea)], link[(b["id"], eb)] = (b["id"], eb), (a["id"], ea)
+        other = lambda end: "to" if end == "from" else "from"
+        seen, chains = set(), []
+        for rid in sorted(lit):
+            if rid in seen: continue
+            cur, end, guard = rid, "from", {rid}
+            while (cur, end) in link:
+                o, oe = link[(cur, end)]
+                if o in guard:
+                    cur, end = rid, "from"
+                    break
+                guard.add(o)
+                cur, end = o, other(oe)
+            pieces = []
+            while cur not in seen:
+                seen.add(cur)
+                r, line, kind = lit[cur]
+                pieces.append((r, line, end == "to"))
+                nxt = link.get((cur, other(end)))
+                if nxt is None: break
+                cur, end = nxt
+            first, line, reversed_ = pieces[0]
+            travel = (first.get("markings") or {}).get("one_way", 0) * (-1 if reversed_ else 1)
+            chains.append((lit[rid][2], travel, pieces))
+        return chains
+
+    def _chain_spot(self, pieces, s):
+        """(road, line, t, direction) at chain arc length s."""
+        for i, (r, line, reversed_) in enumerate(pieces):
+            if s <= line.length or i == len(pieces) - 1:
+                s = min(max(s, 0.0), line.length)
+                return r, line, (line.length - s if reversed_ else s), (-1 if reversed_ else 1)
+            s -= line.length
+
+    def _chain_ends(self, pieces):
+        first, _, rev = pieces[0]
+        last, _, rev_last = pieces[-1]
+        start = self._clearances(first, LAMP_FREE_END_CM)[1 if rev else 0]
+        end = self._clearances(last, LAMP_FREE_END_CM)[0 if rev_last else 1]
+        return start, sum(line.length for _, line, _ in pieces) - end
+
+    @staticmethod
+    def _stations(start, stop, spacing, phase):
+        """Stations every `spacing` centred in [start, stop], shifted by phase × spacing."""
+        if stop < start: return []
+        n = math.floor((stop - start) / spacing) + 1
+        first = start + (stop - start - (n - 1) * spacing) / 2 + phase * spacing
+        return [first + k * spacing for k in range(n) if first + k * spacing <= stop]
+
+    def _median_gap(self, r, line, at, normal, heading):
+        """(distance from this edge to the nearest opposite one-way
+        carriageway within MEDIAN_PROBE_CM on the `normal` side, that road),
+        else None."""
+        s = self.scale
+        half = self._half_at(r, line.project(at))
+        a = Point(at.x + normal[0] * (half + 2 * CARRIAGEWAY_CM * s), at.y + normal[1] * (half + 2 * CARRIAGEWAY_CM * s))
+        probe = LineString([(a.x, a.y), (at.x + normal[0] * (half + MEDIAN_PROBE_CM * s), at.y + normal[1] * (half + MEDIAN_PROBE_CM * s))])
+        geoms, tree = self.carriageways
+        best = None
+        for i in tree.query(probe):
+            other = self.carriage_roads[int(i)]
+            if other is None or other is r or other["id"] in self.walking_ids or not self._ground(other): continue
+            one_way = (other.get("markings") or {}).get("one_way", 0)
+            if not one_way or not geoms[int(i)].intersects(probe): continue
+            o = self.lines.get(other["id"])
+            h = None if o is None else self._tangent(o, o.project(at), one_way)
+            if h is None or h[0] * heading[0] + h[1] * heading[1] > -HEADING_COS: continue
+            d = a.distance(geoms[int(i)]) + 3 * CARRIAGEWAY_CM * s  # Bands are grown by CARRIAGEWAY_CM.
+            if best is None or d < best[0]: best = (d, other)
+        return best
+
+    def _lamp_at(self, pieces, s, side, travel, median):
+        """(asset, x, y, theta, reach, twin, road id) of the lamp for chain arc s
+        on `side` (+1 left of the chain direction, -1 right), else (reason,)."""
+        sc = self.scale
+        r, line, t, direction = self._chain_spot(pieces, s)
+        h = self._tangent(line, t, direction)
+        if h is None: return ("blocked",)
+        n = (-h[1] * side, h[0] * side)
+        at = line.interpolate(t)
+        half = self._half_at(r, t)
+        theta = math.degrees(math.atan2(-n[1], -n[0]))
+        if median:
+            found = self._median_gap(r, line, at, n, (h[0] * travel, h[1] * travel))
+            if found is not None:
+                # A pole at the median centre clears both bands (each grown by
+                # its own sidewalk + CLEARANCE_CM) by its half and LAMP_GAP_CM.
+                gap, other = found
+                widest = max(r.get("sidewalk_cm") or 0, other.get("sidewalk_cm") or 0)
+                if gap < 2 * widest + 2 * (CLEARANCE_CM + LAMP_POLE_CM // 2 + LAMP_GAP_CM) * sc: return ("median",)
+                for asset, reach in TWIN_REACH_CM.items():
+                    if gap / 2 + LAMP_OVERHANG_CM * sc <= reach * sc:
+                        x, y = at.x + n[0] * (half + gap / 2), at.y + n[1] * (half + gap / 2)
+                        return asset, x, y, theta, reach, True, r["id"]
+        sidewalk = r.get("sidewalk_cm") or 0
+        need = sidewalk + (LAMP_POLE_OFFSET_CM + LAMP_OVERHANG_CM) * sc
+        for asset, reach in STREETLIGHT_REACH_CM.items():
+            if reach * sc >= need:
+                offset = half + sidewalk + LAMP_POLE_OFFSET_CM * sc
+                return asset, at.x + n[0] * offset, at.y + n[1] * offset, theta, reach, False, r["id"]
+        return ("reach",)
+
+    def _lamp_offsets(self, pieces, s):
+        """Chain arc lengths to try for station s, nearest first: s, nudges of
+        LAMP_NUDGE_CM and the midpoints between the street trees and median
+        beds along the road, within LAMP_NUDGE_STEPS nudges."""
+        sc = self.scale
+        reach = LAMP_NUDGE_STEPS * LAMP_NUDGE_CM * sc
+        offsets = {0.0} | {k * LAMP_NUDGE_CM * sc for k in range(-LAMP_NUDGE_STEPS, LAMP_NUDGE_STEPS + 1)}
+        r, line, t, direction = self._chain_spot(pieces, s)
+        at = line.interpolate(t)
+        span = reach + STREET_TREE_SPACING_CM * sc
+        along = sorted({round((line.project(Point(ox, oy)) - t) * direction, 3)
+                        for ox, oy, _ in self._grid_near(self.lamp_gaps, at.x, at.y, span + 400 * sc, STREET_TREE_GRID_CM * sc)
+                        if math.hypot(ox - at.x, oy - at.y) <= span + 400 * sc})
+        offsets |= {(a + b) / 2 for a, b in zip(along, along[1:]) if abs(a + b) / 2 <= reach}
+        return [s + d for d in sorted(offsets, key=lambda d: (abs(d), d))]
+
+    def _lamp_try(self, pieces, s, side, travel, median, bounds, place, kind):
+        """Try station s and its nudges; place the first fit when `place`.
+        Returns None when it fits (or is placed), else the reason: the first
+        specific one (a building, crown, signal...) over the tried offsets,
+        "blocked" only when nothing more specific stopped them."""
+        first = None
+        for at in self._lamp_offsets(pieces, s):
+            if not (bounds[0] <= at <= bounds[1]): continue
+            spot = self._lamp_at(pieces, at, side, travel, median)
+            if len(spot) == 1:
+                if spot[0] in ("reach", "median"): return spot[0]
+                if first in (None, "blocked"): first = spot[0]
+                continue
+            asset, x, y, theta, reach, twin, road = spot
+            reason = self._lamp_misfit(asset, x, y, theta, reach, twin)
+            if reason is not None:
+                if first in (None, "blocked"): first = reason
+                continue
+            if not place: return None
+            label = "streetlights_twin" if twin else "streetlights_" + kind
+            if self.place(label, asset, x, y, theta, road, steps=0, blocks=self.lamp_blocks, skipped="skipped_streetlights_blocked", gap=LAMP_GAP_CM):
+                self._lamp_placed(x, y, theta, reach, twin)
+            return None
+        return first or "blocked"
+
+    def streetlights(self):
+        """City streetlights along arterials and collectors, after every other
+        placement (earlier IDs never move): solid poles beside the road behind
+        its sidewalk + CLEARANCE_CM (and off narrow painted walking ribbons),
+        the arm id chosen so the head centre stands 25-85 map cm over the
+        carriageway (sidewalks up to 312 map cm); opposite pairs, staggered rows or one
+        side by arrangement; twins in narrow medians of one-way pairs (the head
+        over both carriageways), single lamps at wider median edges. Stations
+        nudge up to half a tree spacing into gaps between street-tree crowns.
+        Spacing widens in steps until the rows fit the remaining budget."""
+        self._lamp_setup()
+        sc = self.scale
+        chains = sorted(((_unit("streetlights", pieces[0][0]["id"]), pieces[0][0]["id"], kind, travel, pieces)
+                         for kind, travel, pieces in self._lamp_chains()), key=lambda c: c[:2])
+        drive = -1 if self.left_hand else 1  # Travel +1 along the chain: driver's right is side -1 (left in left-hand traffic).
+        plans = []
+        for _, _, kind, travel, pieces in chains:
+            start, stop = self._chain_ends(pieces)
+            if kind == "one_side":
+                sides = [(-travel * drive if travel else None, 0.0)]  # One-way: the driver's side.
+            else:
+                sides = [(1, 0.0), (-1, 0.0 if kind == "opposite" else 0.5)]
+            plans.append((kind, travel, pieces, start, stop, sides))
+        budget = max(0, min(STREETLIGHT_LIMIT, MAX_PLACEMENTS - len(self.items)))
+        total = lambda factor: sum(len(self._stations(start, stop, LAMP_SPACING_CM[kind] * sc * factor, phase))
+                                   for kind, _, _, start, stop, sides in plans for _, phase in sides)
+        factor, nominal = 1.0, total(1.0)
+        while total(factor) > budget and factor < LAMP_SPACING_MAX: factor = round(factor + LAMP_SPACING_STEP, 2)
+        if budget == 0: plans = []
+        self.counts["skipped_streetlights_spacing"] += nominal - (total(factor) if plans else 0)
+        for kind, travel, pieces, start, stop, sides in plans:
+            spacing = LAMP_SPACING_CM[kind] * sc * factor
+            for side, phase in sides:
+                stations = self._stations(start, stop, spacing, phase)
+                if side is None:
+                    # Two-way one-side rows: the side with more free stations (a seeded tie-break).
+                    fits = [sum(self._lamp_try(pieces, s, d, travel, False, (start, stop), False, None) is None for s in stations) for d in (1, -1)]
+                    side = 1 if fits[0] > fits[1] or fits[0] == fits[1] and _unit("streetlights", pieces[0][0]["id"], "side") < 0.5 else -1
+                median = bool(travel) and side == travel * drive  # Left of travel (right in left-hand traffic).
+                for s in stations:
+                    spot = self._lamp_at(pieces, s, side, travel, median)
+                    if len(spot) > 1:
+                        asset, x, y, theta, reach, twin, _ = spot
+                        c, n = math.cos(math.radians(theta)), math.sin(math.radians(theta))
+                        if self._covered(x + c * reach * sc, y + n * reach * sc, c, n, LAMP_COVER_SHARE * spacing):
+                            self.counts["skipped_streetlights_covered"] += 1
+                            continue
+                    if len(self.items) >= MAX_PLACEMENTS or self._lamp_total() >= STREETLIGHT_LIMIT:
+                        self.counts["skipped_streetlights_limit"] += 1
+                        continue
+                    reason = self._lamp_try(pieces, s, side, travel, median, (start, stop), True, kind)
+                    if reason is not None: self.counts["skipped_streetlights_" + reason] += 1
+
+    def _lamp_total(self):
+        return sum(v for k, v in self.counts.items() if k.startswith("streetlights_"))
+
     @staticmethod
     def _tangent(line, t, direction):
         """Unit travel heading at distance t along `line` for a direction ±1."""
@@ -952,6 +1356,7 @@ def generate(layer_id, patches, coordinates, scale, traffic, road_info=None, sch
     furniture.street_trees(street)
     furniture.median_beds()
     furniture.planters()
+    furniture.streetlights()
     records = [dict(id=f"import-{layer_id}-place-{index:05d}", asset_id=item["asset_id"], position=item["position"],
                     quarter_turns=item["quarter_turns"], **({"yaw_offset_mdeg": item["yaw_offset_mdeg"]} if item["yaw_offset_mdeg"] else {}))
                for index, item in enumerate(furniture.items)]

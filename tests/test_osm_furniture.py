@@ -315,10 +315,10 @@ class RoadSigns(unittest.TestCase):
         park = dict(source_id="way/7", landuse="park", polygon=[[20000, 20000], [40000, 20000], [40000, 40000], [20000, 40000]], holes=[])
         patches = junction(arms)
         records, counts = osm_furniture.generate("l" * 32, patches, {"generation_regions": [park]}, SCALE, RIGHT)
-        kinds = [2 if r["asset_id"] in osm_furniture.PLANTING else 1 if r["asset_id"] in osm_furniture.SIGN_POLE or r["asset_id"] == osm_furniture.GUIDE else 0
-                 for r in records]
-        self.assertTrue({0, 1, 2} <= set(kinds), kinds)
-        self.assertEqual(kinds, sorted(kinds), "signs follow the other furniture; street planting follows the signs")
+        kinds = [3 if r["asset_id"] in osm_furniture.LAMPS else 2 if r["asset_id"] in osm_furniture.PLANTING
+                 else 1 if r["asset_id"] in osm_furniture.SIGN_POLE or r["asset_id"] == osm_furniture.GUIDE else 0 for r in records]
+        self.assertTrue({0, 1, 2, 3} <= set(kinds), kinds)
+        self.assertEqual(kinds, sorted(kinds), "signs follow the other furniture; street planting follows the signs; streetlights come last")
         self.assertEqual(osm_furniture.generate("l" * 32, patches, {"generation_regions": [park]}, SCALE, RIGHT), (records, counts), "fixed seeds")
         with patch.dict(osm_furniture.SIGN_CAPS, {"guide_signs": 1}):
             capped, capped_counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT)
@@ -600,7 +600,7 @@ class StreetPlanting(unittest.TestCase):
         inputs = {"generation_regions": [park]}
         records, counts = osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT)
         self.assertEqual(sum(v for k, v in counts.items() if not k.startswith("skipped_") and k != "over_limit"), len(records))
-        with patch.multiple(osm_furniture, STREET_TREE_LIMIT=0, MEDIAN_BED_LIMIT=0, PLANTER_LIMIT=0):
+        with patch.multiple(osm_furniture, STREET_TREE_LIMIT=0, MEDIAN_BED_LIMIT=0, PLANTER_LIMIT=0, STREETLIGHT_LIMIT=0):
             earlier, earlier_counts = osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT)
         self.assertFalse(trees(earlier))
         self.assertGreater(earlier_counts["skipped_street_trees_limit"], 0)
@@ -608,11 +608,290 @@ class StreetPlanting(unittest.TestCase):
         with patch.object(osm_furniture, "STREET_TREE_LIMIT", 3):
             capped, capped_counts = osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT)
         self.assertEqual(len(trees(capped)), 3)
-        with patch.object(osm_furniture, "MAX_PLACEMENTS", len(earlier) + 5):
+        with patch.object(osm_furniture, "STREETLIGHT_LIMIT", 0):
+            planted, _ = osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT)
+        self.assertTrue(lamps(records) and not lamps(planted))
+        self.assertEqual(records[:len(planted)], planted, "streetlights append after every earlier placement id")
+        with patch.object(osm_furniture, "STREETLIGHT_LIMIT", 0), patch.object(osm_furniture, "MAX_PLACEMENTS", len(earlier) + 5):
             limited, limited_counts = osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT)
         self.assertEqual(len(limited), len(earlier) + 5)
         self.assertGreater(limited_counts["over_limit"], 0)
         self.assertEqual(osm_furniture.generate("l" * 32, patches, inputs, SCALE, RIGHT), (records, counts), "fixed seeds")
+
+def lamps(records):
+    return [r for r in records if r["asset_id"] in osm_furniture.LAMPS]
+
+
+def lamp_reach(record):
+    return {**osm_furniture.STREETLIGHT_REACH_CM, **osm_furniture.TWIN_REACH_CM}[record["asset_id"]]
+
+
+def lamp_head(record, sign=1):
+    """Map-plane head centre (source cm) of a lamp record."""
+    t = math.radians(theta_deg(record))
+    reach = lamp_reach(record) * SCALE * sign
+    return Point(record["position"][0] + math.cos(t) * reach, record["position"][2] + math.sin(t) * reach)
+
+
+class Streetlights(unittest.TestCase):
+    def road(self, length=60000, angle=0.0, info=PRIMARY, **options):
+        c, s = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+        a, b = ("w", round(-length * c), round(-length * s)), ("e", round(length * c), round(length * s))
+        patches = [node(*a), node(*b), street("r", a, b, **dict(AVENUE, **options))]
+        records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)
+        return patches, records, counts
+
+    def test_constants_mirror_the_mapkit_contract(self):
+        # map-kit/spec/CURRENT_V1.md city streetlights (CITY_STREETLIGHTS, CITY_STREETLIGHT_*).
+        self.assertEqual(osm_furniture.STREETLIGHT_REACH_CM, {"builtin:city_streetlight_75": 75, "builtin:city_streetlight_135": 135,
+                         "builtin:city_streetlight_195": 195, "builtin:city_streetlight_255": 255,
+                         "builtin:city_streetlight_315": 315, "builtin:city_streetlight_375": 375})
+        self.assertEqual(osm_furniture.TWIN_REACH_CM, {"builtin:city_streetlight_twin_75": 75, "builtin:city_streetlight_twin_135": 135})
+        self.assertEqual((osm_furniture.LAMP_POLE_CM, osm_furniture.LAMP_HEIGHT_CM, osm_furniture.LAMP_HEAD_CM), (12, 330, 310))
+        self.assertEqual((osm_furniture.LAMP_BACK_CM, osm_furniture.LAMP_TIP_CM, osm_furniture.LAMP_SIDE_CM, osm_furniture.LAMP_TOP_CM), (25, 20, 8, 345))
+        self.assertTrue(all(osm_furniture.SIZES[a] == (6, 6) for a in osm_furniture.LAMPS))
+
+    def test_poles_stand_behind_the_sidewalk_with_the_head_over_the_lanes(self):
+        for angle in (0.0, 30.0, 45.0):
+            with self.subTest(angle=angle):
+                patches, records, counts = self.road(angle=angle)
+                found = lamps(records)
+                self.assertGreater(len(found), 20, counts)
+                self.assertEqual(records[-len(found):], found, "streetlights come last")
+                line = LineString([(q[0], q[2]) for q in patches[-1]["after"]["points"]])
+                half, sidewalk = AVENUE["width"] / 2, AVENUE["sidewalk"]
+                for r in found:
+                    self.assertEqual(r["asset_id"], "builtin:city_streetlight_135")
+                    self.assertAlmostEqual(line.distance(at(r)), half + sidewalk + 38 * SCALE, delta=2, msg="road + sidewalk + 30 cm + the pole")
+                    over = half - line.distance(lamp_head(r))
+                    self.assertTrue(25 * SCALE - 2 <= over < 85 * SCALE, f"head {over / SCALE:.0f} map cm over the carriageway")
+                    self.assertTrue(r["id"].startswith("import-" + "l" * 32 + "-place-"))
+                # Staggered on both sides of a two-way 4-lane road: every 10 map m per side, half a spacing apart.
+                sides = {1: [], -1: []}
+                for r in found:
+                    sides[1 if line.project(at(r)) and (at(r).y * math.cos(math.radians(angle)) - at(r).x * math.sin(math.radians(angle))) > 0 else -1].append(line.project(at(r)))
+                self.assertTrue(sides[1] and sides[-1])
+                for stations in sides.values():
+                    stations.sort()
+                    self.assertTrue(all(abs(b - a - 1000 * SCALE) <= 2 * 135 * SCALE for a, b in zip(stations, stations[1:])), stations)
+                pairs = sorted(min(abs(a - b) for b in sides[-1]) for a in sides[1])
+                self.assertAlmostEqual(pairs[len(pairs) // 2], 500 * SCALE, delta=135 * SCALE, msg="staggered by half a spacing")
+
+    def test_arms_pass_between_street_tree_crowns(self):
+        _, records, counts = self.road(info={"r": dict(highway="primary", name=named_species("zelkova"))})
+        crowns = [(at(r), osm_furniture.STREET_TREE_CROWN_CM[r["asset_id"]] * SCALE) for r in trees(records)]
+        self.assertTrue(crowns and lamps(records), counts)
+        self.assertEqual({r["asset_id"] for r in trees(records)}, {"builtin:street_tree_zelkova"})
+        shape = osm_furniture.Furniture([], {}, SCALE, {})
+        for r in lamps(records):
+            envelope = shape._envelope(r["position"][0], r["position"][2], theta_deg(r), lamp_reach(r), False)
+            self.assertTrue(all(envelope.distance(p) >= reach for p, reach in crowns), r)
+
+    def test_classes_arrangements_and_reach_by_sidewalk(self):
+        for info in ({"r": dict(highway="residential")}, {"r": dict(highway="motorway")}, {"r": dict(highway="service")}):
+            self.assertEqual(lamps(self.road(info=info)[1]), [], info)
+        self.assertEqual(lamps(self.road(info=None, stop_lines=False)[1]), [], "no class, no stop lines")
+        self.assertTrue(lamps(self.road(info=None)[1]), "no class, junction stop lines")
+        for kind in ("bridge", "tunnel"):
+            self.assertEqual(lamps(self.road(kind=kind, sidewalk=0)[1]), [], kind)
+        # Reach steps follow the sidewalk: the head stays 25-85 map cm over the lanes.
+        for sidewalk, asset in ((0, "builtin:city_streetlight_75"), (67, "builtin:city_streetlight_135"), (100, "builtin:city_streetlight_195"),
+                                (167, "builtin:city_streetlight_255"), (230, "builtin:city_streetlight_315"),
+                                (290, "builtin:city_streetlight_375"), (330, None)):
+            with self.subTest(sidewalk=sidewalk):
+                _, records, counts = self.road(sidewalk=sidewalk * SCALE, info={"r": dict(highway="primary_link")} if sidewalk == 100 else PRIMARY)
+                self.assertEqual({r["asset_id"] for r in lamps(records)}, {asset} if asset else set(), counts)
+                if asset is None: self.assertGreater(counts["skipped_streetlights_reach"], 0)
+        # Opposite pairs on 6+ lanes, one side on 2 lanes and links.
+        _, records, counts = self.road(lanes=6, width=900 * SCALE)
+        xs = sorted(round(r["position"][0]) for r in lamps(records) if r["position"][2] > 0)
+        self.assertEqual(xs, sorted(round(r["position"][0]) for r in lamps(records) if r["position"][2] < 0), "facing pairs")
+        self.assertEqual(counts["streetlights_opposite"], len(lamps(records)))
+        for lanes, info in ((2, PRIMARY), (4, {"r": dict(highway="secondary_link")})):
+            _, records, counts = self.road(lanes=lanes, info=info)
+            self.assertTrue(lamps(records) and len({r["position"][2] > 0 for r in lamps(records)}) == 1, (lanes, info))
+            self.assertEqual(counts["streetlights_one_side"], len(lamps(records)))
+
+    def test_one_way_roads_light_the_drivers_side(self):
+        for driving, one_way, side in (("right", 1, -1), ("right", -1, 1), ("left", 1, 1)):
+            with self.subTest(driving=driving, one_way=one_way):
+                a, b = ("w", -60000, 0), ("e", 60000, 0)
+                patches = [node(*a), node(*b), street("r", a, b, lanes=2, one_way=one_way, **AVENUE)]
+                records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, dict(driving_side=driving, signal_style="horizontal"), PRIMARY)
+                self.assertTrue(lamps(records), counts)
+                self.assertTrue(all(math.copysign(1, r["position"][2]) == side for r in lamps(records)), "right of travel (+x), left in left-hand traffic")
+
+    def pair(self, gap, lanes=3, sidewalk=0):
+        y = 360 * SCALE + gap
+        patches = [node("a", -60000, 0), node("b", 60000, 0), node("c", 60000, y), node("d", -60000, y),
+                   street("east", ("a", -60000, 0), ("b", 60000, 0), lanes=lanes, one_way=1, width=360 * SCALE, sidewalk=sidewalk),
+                   street("west", ("c", 60000, y), ("d", -60000, y), lanes=lanes, one_way=1, width=360 * SCALE, sidewalk=sidewalk)]
+        info = {r: dict(highway="primary", name="Pair") for r in ("east", "west")}
+        records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)
+        return y, lamps(records), counts
+
+    def test_narrow_medians_get_twins_and_wide_medians_lamps_at_both_edges(self):
+        y, found, counts = self.pair(150 * SCALE)
+        twins = [r for r in found if r["asset_id"] in osm_furniture.TWIN_REACH_CM]
+        self.assertTrue(twins, counts)
+        self.assertEqual(counts["streetlights_twin"], len(twins))
+        for r in twins:
+            self.assertEqual(r["asset_id"], "builtin:city_streetlight_twin_135")
+            self.assertAlmostEqual(r["position"][2], y / 2, delta=2, msg="the median centre")
+            for sign, edge in ((1, 180 * SCALE), (-1, y - 180 * SCALE)):
+                over = abs(lamp_head(r, sign).y - y / 2) - (y / 2 - 180 * SCALE)
+                self.assertTrue(25 * SCALE - 2 <= over < 85 * SCALE, "both heads over a carriageway")
+        median = [r for r in found if 0 < r["position"][2] < y]
+        self.assertEqual(median, twins, "no single lamps beside the twins")
+        self.assertGreater(counts["skipped_streetlights_covered"], 0, "the partner's median row is covered")
+        self.assertTrue([r for r in found if r["position"][2] < 0] and [r for r in found if r["position"][2] > y], "outer rows")
+        self.assertEqual(counts["streetlights_twin"] + counts["streetlights_staggered"], len(found))
+        # Too narrow for a pole: nothing in the median.
+        y, found, counts = self.pair(60 * SCALE)
+        self.assertFalse([r for r in found if 0 < r["position"][2] < y])
+        self.assertGreater(counts["skipped_streetlights_median"], 0)
+        # Both sidewalks count: a 130 cm median between 40 cm sidewalks is too
+        # narrow (each band grows by its sidewalk + 30 cm), not "blocked".
+        y, found, counts = self.pair(130 * SCALE, sidewalk=40 * SCALE)
+        self.assertFalse([r for r in found if 0 < r["position"][2] < y])
+        self.assertGreater(counts["skipped_streetlights_median"], 0)
+        self.assertEqual(counts.get("skipped_streetlights_blocked", 0), 0, counts)
+        # Wide medians: single lamps at both median edges, each facing its own road.
+        y, found, counts = self.pair(500 * SCALE)
+        inner = [r for r in found if 0 < r["position"][2] < y]
+        self.assertFalse([r for r in found if r["asset_id"] in osm_furniture.TWIN_REACH_CM])
+        self.assertTrue([r for r in inner if r["position"][2] < y / 2] and [r for r in inner if r["position"][2] > y / 2], counts)
+        for r in inner:
+            near = 180 * SCALE if r["position"][2] < y / 2 else y - 180 * SCALE
+            self.assertLess(abs(lamp_head(r).y - near), abs(r["position"][2] - near), "the arm reaches over its own road")
+        # Two-lane one-way pairs light only their outer sides.
+        y, found, counts = self.pair(150 * SCALE, lanes=2)
+        self.assertTrue(found and not [r for r in found if 0 < r["position"][2] < y], counts)
+
+    def assert_heads_over_the_lanes(self, patches, found):
+        """Each head over a carriageway, each pole beyond every road's
+        sidewalk + 30 cm + the pole half."""
+        roads = [p["after"] for p in patches if p["field"] == "roads"]
+        lines = [(LineString([(q[0], q[2]) for q in r["points"]]), max(r["widths_cm"]) / 2, r["sidewalk_cm"] or 0) for r in roads]
+        for r in found:
+            heads = [lamp_head(r, 1), lamp_head(r, -1)] if r["asset_id"] in osm_furniture.TWIN_REACH_CM else [lamp_head(r)]
+            for head in heads:
+                self.assertTrue(any(line.distance(head) <= half for line, half, _ in lines), f"{r['id']}: head off the carriageway")
+            for line, half, sidewalk in lines:
+                self.assertGreaterEqual(line.distance(at(r)), half + sidewalk + 36 * SCALE - 2, f"{r['id']}: pole inside a road band")
+
+    def polyline(self, identity, a, b, points, **options):
+        record = street(identity, a, b, **dict(AVENUE, **options))
+        record["after"]["points"] = [[x, 0, y] for x, y in points]
+        record["after"]["widths_cm"] = record["after"]["widths_cm"] * (len(points) - 1)
+        record["after"]["surfaces"] = record["after"]["surfaces"] * (len(points) - 1)
+        return record
+
+    def test_heads_point_over_the_carriageway_on_curves_and_corners(self):
+        # Arcs of 120 and 40 map m radius (5° vertices), both sides lit.
+        for radius in (12000 * SCALE, 4000 * SCALE):
+            with self.subTest(radius=radius):
+                points = [(round(radius * math.cos(math.radians(d))), round(radius * math.sin(math.radians(d)))) for d in range(0, 181, 5)]
+                a, b = ("w", *points[0]), ("e", *points[-1])
+                patches = [node(*a), node(*b), self.polyline("r", a, b, points)]
+                records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, PRIMARY)
+                found = lamps(records)
+                self.assertGreater(len(found), 10, counts)
+                self.assertTrue([r for r in found if math.hypot(r["position"][0], r["position"][2]) > radius]
+                                and [r for r in found if math.hypot(r["position"][0], r["position"][2]) < radius], "outer and inner sides")
+                self.assert_heads_over_the_lanes(patches, found)
+        # An L-shaped two-arm chain: two-way, one-way, and a one-way pair with twins round the bend.
+        a, m, b = ("w", -60000, 0), ("m", 0, 0), ("n", 0, 60000)
+        info = {r: dict(highway="primary", name="Corner") for r in ("left", "up", "back", "down")}
+        for one_way in (0, 1):
+            with self.subTest(one_way=one_way):
+                patches = [node(*a), node(*m), node(*b), street("left", a, m, one_way=one_way, **AVENUE), street("up", m, b, one_way=one_way, **AVENUE)]
+                records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)
+                self.assertTrue(lamps(records), counts)
+                self.assert_heads_over_the_lanes(patches, lamps(records))
+        d = 360 * SCALE + 150 * SCALE  # The pair's centreline offset: a 150 cm median.
+        c, k, e = ("c", -d, 60000), ("k", -d, d), ("f", -60000, d)
+        lane = dict(lanes=3, one_way=1, width=360 * SCALE, sidewalk=0)
+        patches = [node(*a), node(*m), node(*b), node(*c), node(*k), node(*e),
+                   street("left", a, m, **lane), street("up", m, b, **lane), street("back", c, k, **lane), street("down", k, e, **lane)]
+        records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)
+        twins = [r for r in lamps(records) if r["asset_id"] in osm_furniture.TWIN_REACH_CM]
+        self.assertTrue(twins, counts)
+        self.assert_heads_over_the_lanes(patches, lamps(records))
+
+    def test_painted_walking_ribbons_keep_poles_off(self):
+        half, sidewalk = AVENUE["width"] / 2, AVENUE["sidewalk"]
+        pole = half + sidewalk + 38 * SCALE
+        ribbon = dict(field="surface_areas", id="walk", after=dict(id="walk", surface="paving",
+                      polygon=[[-60000, pole - 25 * SCALE], [60000, pole - 25 * SCALE], [60000, pole + 25 * SCALE], [-60000, pole + 25 * SCALE]]))
+        lawn = dict(ribbon, id="lawn", after=dict(ribbon["after"], id="lawn", surface="grass",
+                    polygon=[[-60000, -pole - 25 * SCALE], [60000, -pole - 25 * SCALE], [60000, -pole + 25 * SCALE], [-60000, -pole + 25 * SCALE]]))
+        a, b = ("w", -60000, 0), ("e", 60000, 0)
+        records, counts = osm_furniture.generate("l" * 32, [node(*a), node(*b), street("r", a, b, **AVENUE), ribbon, lawn], {}, SCALE, RIGHT, PRIMARY)
+        self.assertFalse([r for r in lamps(records) if r["position"][2] > 0], "the paved ribbon")
+        self.assertTrue([r for r in lamps(records) if r["position"][2] < 0], "a lawn strip is no obstacle")
+        self.assertGreater(counts["skipped_streetlights_blocked"], 0)
+
+    def test_buildings_barriers_decks_signals_and_junction_mouths_keep_lamps_away(self):
+        half, sidewalk = AVENUE["width"] / 2, AVENUE["sidewalk"]
+        pole = half + sidewalk + 38 * SCALE
+        _, plain, _ = self.road()
+        base = len(lamps(plain))
+        # A building front 20 map cm behind the pole axis on the north side (inside the 25 cm back reach).
+        front = dict(field="buildings", id="shops", after=dict(id="shops", footprint=[[-60000, pole + 20 * SCALE], [0, pole + 20 * SCALE], [0, pole + 5000], [-60000, pole + 5000]]))
+        fence = dict(field="barriers", id="fence", after=dict(id="fence", kind="fence", line=[[0, pole + 15 * SCALE], [60000, pole + 15 * SCALE]], thickness_cm=15, height_cm=120))
+        a, b = ("w", -60000, 0), ("e", 60000, 0)
+        patches = [node(*a), node(*b), street("r", a, b, **AVENUE), front, fence]
+        records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, PRIMARY)
+        north = [r for r in lamps(records) if r["position"][2] > 0]
+        self.assertFalse([r for r in north if r["position"][0] < 0], "the building front")
+        self.assertFalse([r for r in north if r["position"][0] > 0], "the fence")
+        self.assertGreater(counts["skipped_streetlights_building"], 0)
+        self.assertGreater(counts["skipped_streetlights_barrier"], 0)
+        self.assertTrue([r for r in lamps(records) if r["position"][2] < 0], "the south side stays lit")
+        # A bridge crossing overhead keeps the envelope 1 map m clear of its deck (+20 cm walls).
+        bridge = street("deck", ("n", 0, 60000), ("s", 0, -60000), width=600 * SCALE, sidewalk=None, kind="bridge", lanes=2)
+        records, counts = osm_furniture.generate("l" * 32, [node(*a), node(*b), node("n", 0, 60000), node("s", 0, -60000), street("r", a, b, **AVENUE), bridge],
+                                                 {}, SCALE, RIGHT, PRIMARY)
+        clear = 300 * SCALE + (20 + osm_furniture.LAMP_DECK_CLEAR_CM) * SCALE
+        shape = osm_furniture.Furniture([], {}, SCALE, {})
+        for r in lamps(records):
+            envelope = shape._envelope(r["position"][0], r["position"][2], theta_deg(r), lamp_reach(r), False)
+            self.assertGreaterEqual(envelope.distance(LineString([(0, 60000), (0, -60000)])), clear - 2)
+        self.assertGreater(counts.get("skipped_streetlights_deck", 0) + counts.get("skipped_streetlights_blocked", 0), 0)
+        self.assertLess(len(lamps(records)), base)
+        # Junctions: poles keep 3 map m from signal poles and stay out of the mouth.
+        arms = (("e", 30000, 0), ("w", -30000, 0), ("n", 0, 30000), ("s", 0, -30000))
+        info = {f"road-{n}": dict(highway="primary", name="Cross") for n, *_ in arms}
+        records, counts = osm_furniture.generate("l" * 32, junction(arms, **AVENUE), {}, SCALE, RIGHT, info)
+        signals = [at(r) for r in records if r["asset_id"] == "builtin:signal_h"]
+        self.assertTrue(signals and lamps(records), counts)
+        mouth = math.sqrt(2) * (half + sidewalk) + osm_furniture.CLEARANCE_CM * SCALE
+        for r in lamps(records):
+            self.assertTrue(all(at(r).distance(p) >= 300 * SCALE for p in signals))
+            self.assertGreater(max(abs(r["position"][0]), abs(r["position"][2])), mouth)
+
+    def test_rows_continue_across_record_joins_and_spacing_widens_to_fit_the_budget(self):
+        a, m, b = ("w", -60000, 0), ("m", 0, 0), ("e", 60000, 0)
+        info = {r: dict(highway="secondary", name="Long") for r in ("left", "right")}
+        patches = [node(*a), node(*m), node(*b), street("left", a, m, lanes=2, **AVENUE), street("right", m, b, lanes=2, **AVENUE)]
+        records, counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)
+        found = sorted(r["position"][0] for r in lamps(records))
+        self.assertTrue(len({r["position"][2] > 0 for r in lamps(records)}) == 1, "one chain, one side")
+        gaps = [b - a for a, b in zip(found, found[1:])]
+        self.assertTrue(all(abs(g - 1170 * SCALE) <= 2 * 135 * SCALE for g in gaps), gaps)
+        self.assertEqual(len(found), math.floor((120000 - 2 * 135 * SCALE) / (1170 * SCALE)) + 1 - counts.get("skipped_streetlights_crown", 0) - counts.get("skipped_streetlights_blocked", 0))
+        # A budget below the rows widens the spacing instead of cutting rows short.
+        with patch.object(osm_furniture, "STREETLIGHT_LIMIT", len(found) // 2):
+            fewer, fewer_counts = osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info)
+        spread = sorted(r["position"][0] for r in lamps(fewer))
+        self.assertLessEqual(len(spread), len(found) // 2)
+        self.assertGreater(fewer_counts["skipped_streetlights_spacing"], 0)
+        self.assertLess(spread[0], -50000)
+        self.assertGreater(spread[-1], 50000, "the whole road stays lit")
+        self.assertEqual(sum(v for k, v in fewer_counts.items() if not k.startswith("skipped_") and k != "over_limit"), len(fewer))
+        self.assertEqual(osm_furniture.generate("l" * 32, patches, {}, SCALE, RIGHT, info), (records, counts), "fixed seeds")
+
 
 if __name__ == "__main__":
     unittest.main()

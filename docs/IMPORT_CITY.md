@@ -413,6 +413,62 @@ remainder so lattice points are whole map centimetres.
     importer).
   - Caps: street trees 14,000, median beds 1,500, planters 1,500 per layer
     (`skipped_<kind>_limit`). The summary reports them on a line of their own.
+- City streetlights (`Furniture.streetlights`, MapKit `builtin:city_streetlight_*`,
+  last of all, so earlier placement IDs never move; generated, not surveyed; OSM
+  `street_lamp` nodes are not read): vehicle ground roads whose OSM class is
+  trunk, primary, secondary or tertiary or one of their links. Roads without a class
+  qualify when they have junction stop lines. Motorways, residential streets,
+  alleys, service roads, bridges and tunnels get none. Rows walk chains of records
+  through two-arm nodes of the same arrangement (one-way records only in their
+  travel sense), so spacing and side continue across record splits. A chain end
+  keeps the junction mouth + 60 map cm clear (+2.5 m before a painted crosswalk),
+  or 135 map cm at a free end. Stations are centred on the chain:
+  - Two-way roads of 6+ lanes get opposite pairs every 10 map m.
+  - Two-way roads of 4–5 lanes and one-way roads of 3+ lanes are staggered on both
+    sides, 10 map m per side and half a spacing apart.
+  - Other roads and links get one side every 11.7 map m. One-way roads use the
+    driver's side; two-way roads use the side with more free stations (a fixed
+    seed breaks ties).
+  - Each pole is a solid 12 cm box. It stands like a signal, 38 map cm beyond the
+    road and its sidewalk at the segment's width (30 cm clearance plus the pole).
+    Its local +x points over the road. The arm id is the shortest reach (75, 135,
+    195, 255, 315 or 375 map cm) that puts the head centre at least 25 map cm
+    over the carriageway, so heads sit 25–85 map cm over the outer lane; the
+    longest arm serves sidewalks up to 312 map cm (both 20261105c cards stay
+    under 300). A wider sidewalk is skipped (`skipped_streetlights_reach`).
+  - On the median side of a one-way road facing an opposite one-way carriageway
+    within 6 map m, a median narrower than twice the wider of the two
+    carriageways' sidewalks + 80 map cm (a centred pole clears both roads'
+    sidewalk + 30 cm by its half and 4 cm) gets nothing (`median`). Where both
+    heads reach their carriageway, a twin
+    (`builtin:city_streetlight_twin_75` or `_twin_135`) stands at the median
+    centre. Wider medians get a single lamp at each edge, facing its own road.
+  - A station tries itself, then nudges of 27 map cm and the midpoints between
+    street trees and median beds within 1.35 map m, nearest first, so arms pass
+    between crowns.
+  - The pole keeps clear of every road corridor with its sidewalk + 30 map cm
+    (per segment, with MapKit's tapered joints where widths change), junction
+    mouths, buildings + 10 cm, water, narrow painted walking ribbons (non-grass
+    surface areas whose mean width, 2 × area / perimeter, is under 120 map cm:
+    a solid pole would stand in a drivable footway) and placed pieces (+4 cm,
+    so twins fit the gaps between median beds).
+  - The display envelope (the arm + 20 map cm, 25 behind the pole, 8 to each
+    side) keeps clear of buildings + 10 cm (`building`), bridge and elevated decks
+    + 1.2 map m (`deck`) and street-tree and median-pine crowns (`crown`). Its
+    part within 25 map cm of the pole keeps clear of barriers + 10 cm (`barrier`).
+  - Poles also keep clear of signal and guide-sign poles by 3 map m (`signal`),
+    bus shelters, subway entrances and station signs by 1 map m (`stop`), sign
+    posts by 50 cm (`sign`), and other lamps by 1.5 map m and their envelopes
+    (`lamp`). Other failures count as `blocked`; a station whose offsets fail
+    for several reasons counts the first specific one.
+  - A station is skipped when an earlier head facing the same way lies within
+    0.6 × the spacing (`covered`; for example, a partner road's twin).
+  - The layer budget is 8,000 streetlights within MAX_PLACEMENTS. When the
+    stations exceed it, the spacing widens in 5% steps rather than cutting rows
+    short (`skipped_streetlights_spacing`). Stations still over MAX_PLACEMENTS or
+    the 8,000 budget count `skipped_streetlights_limit`.
+  - Counts: `streetlights_opposite`, `_staggered`, `_one_side`, `_twin`. The
+    summary reports them and their skips on a line of their own.
   DEM adoption with building grounding also stands imported furniture on the terrain.
 - Play area: with selected administrative areas, the crop window (rectangle ∩
   areas; its 16 largest outer rings, holes dropped) is simplified to at most 512

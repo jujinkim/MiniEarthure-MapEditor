@@ -6,9 +6,16 @@ const FURNITURE := ["builtin:signal_h", "builtin:signal_v", "builtin:bus_shelter
 	"builtin:sign_speed_30", "builtin:sign_speed_40", "builtin:sign_speed_50", "builtin:sign_speed_60", "builtin:sign_speed_80", "builtin:sign_speed_100",
 	"builtin:sign_crossing", "builtin:sign_stop", "builtin:sign_yield", "builtin:sign_children", "builtin:guide_sign",
 	"builtin:street_tree_ginkgo", "builtin:street_tree_zelkova", "builtin:street_tree_plane", "builtin:street_tree_cherry", "builtin:street_tree_pine",
-	"builtin:planter", "builtin:planter_square", "builtin:median_bed", "builtin:median_bed_pine"]
+	"builtin:planter", "builtin:planter_square", "builtin:median_bed", "builtin:median_bed_pine",
+	"builtin:city_streetlight_75", "builtin:city_streetlight_135", "builtin:city_streetlight_195", "builtin:city_streetlight_255",
+	"builtin:city_streetlight_315", "builtin:city_streetlight_375",
+	"builtin:city_streetlight_twin_75", "builtin:city_streetlight_twin_135"]
 ## Furniture count keys of street planting (osm_furniture street_trees, median_beds, planters).
 const PLANTING_KEYS := ["street_trees", "median_beds", "planters"]
+## Furniture count keys of city streetlights (osm_furniture streetlights).
+const LAMP_KEY := "streetlights"
+## Streetlight skips the summary reports apart from "no free spot".
+const LAMP_UNPLACED := ["_covered", "_reach", "_median", "_spacing", "_limit"]
 
 ## A source-metre value of `cm` whole map centimetres at 1:denominator.
 static func _map_cm(value: Variant, cm: int, denominator: int) -> bool:
@@ -278,7 +285,7 @@ static func summary(meta: Dictionary) -> String:
 		var places: Dictionary = meta.get("places", {})
 		result += I18N.t("Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances, traffic signals, stop/give-way nodes and trees place generated street furniture, road signs and street trees.\n") % [int(places.get("points", 0)), int(places.get("street", 0))]
 		var furniture: Dictionary = meta.get("furniture", {})
-		result += I18N.t("Street furniture: %d signal poles at marked junctions, %d bus shelters, %d subway entrances and %d station signs beside the road; parks get %d trees, %d benches and %d shrubs from fixed seeds. Shapes and spots are generated, not surveyed; %d candidates without a free spot are skipped.\n") % [int(furniture.get("signals", 0)), int(furniture.get("bus_stop", 0)), int(furniture.get("subway_entrance", 0)), int(furniture.get("station", 0)), int(furniture.get("park_tree", 0)), int(furniture.get("park_bench", 0)), int(furniture.get("park_shrub", 0)), _skipped(furniture, func(k: String) -> bool: return not k.contains("_signs") and not _planting(k))]
+		result += I18N.t("Street furniture: %d signal poles at marked junctions, %d bus shelters, %d subway entrances and %d station signs beside the road; parks get %d trees, %d benches and %d shrubs from fixed seeds. Shapes and spots are generated, not surveyed; %d candidates without a free spot are skipped.\n") % [int(furniture.get("signals", 0)), int(furniture.get("bus_stop", 0)), int(furniture.get("subway_entrance", 0)), int(furniture.get("station", 0)), int(furniture.get("park_tree", 0)), int(furniture.get("park_bench", 0)), int(furniture.get("park_shrub", 0)), _skipped(furniture, func(k: String) -> bool: return not k.contains("_signs") and not _planting(k) and not k.contains(LAMP_KEY))]
 		result += I18N.t("Road signs: %d speed limits, %d stop and %d yield signs, %d crossing and %d children-protection signs beside the road and %d overhead guide signs on signalled arterial approaches, derived from the road graph, markings, OSM stop/give-way nodes, road classes, posted speeds and school sites; not surveyed. Skipped: %d candidates without a free spot, %d over a per-kind or layer limit, %d stop/give-way nodes without a junction road in reach.\n") % [int(furniture.get("speed_signs", 0)), int(furniture.get("stop_signs", 0)), int(furniture.get("yield_signs", 0)), int(furniture.get("crossing_signs", 0)), int(furniture.get("children_signs", 0)), int(furniture.get("guide_signs", 0)),
 			_skipped(furniture, func(k: String) -> bool: return k.contains("_signs") and not k.ends_with("_limit") and k != "skipped_tagged_signs"),
 			_skipped(furniture, func(k: String) -> bool: return k.contains("_signs") and k.ends_with("_limit")), int(furniture.get("skipped_tagged_signs", 0))]
@@ -286,6 +293,12 @@ static func summary(meta: Dictionary) -> String:
 			int(furniture.get("street_trees", 0)) + int(furniture.get("street_trees_osm", 0)), int(furniture.get("street_trees_osm", 0)),
 			int(furniture.get("median_beds", 0)) + int(furniture.get("median_beds_pine", 0)), int(furniture.get("median_beds_pine", 0)), int(furniture.get("planters", 0)),
 			_skipped(furniture, func(k: String) -> bool: return _planting(k) and not k.ends_with("_limit")), _skipped(furniture, func(k: String) -> bool: return _planting(k) and k.ends_with("_limit"))]
+		result += I18N.t("Streetlights: %d along arterials and collectors (%d in opposite pairs, %d staggered, %d on one side, %d twin lamps in narrow medians), poles behind the sidewalk with the head over the lanes, in the gaps between street trees. Generated, not surveyed. Skipped: %d stations without a free spot, %d covered by another lamp, %d sidewalks too wide or medians too narrow for an arm, %d over the layer budget.\n") % [
+			int(furniture.get("streetlights_opposite", 0)) + int(furniture.get("streetlights_staggered", 0)) + int(furniture.get("streetlights_one_side", 0)) + int(furniture.get("streetlights_twin", 0)),
+			int(furniture.get("streetlights_opposite", 0)), int(furniture.get("streetlights_staggered", 0)), int(furniture.get("streetlights_one_side", 0)), int(furniture.get("streetlights_twin", 0)),
+			_skipped(furniture, func(k: String) -> bool: return k.contains(LAMP_KEY) and not LAMP_UNPLACED.any(func(e: String) -> bool: return k.ends_with(e))),
+			int(furniture.get("skipped_streetlights_covered", 0)), int(furniture.get("skipped_streetlights_reach", 0)) + int(furniture.get("skipped_streetlights_median", 0)),
+			int(furniture.get("skipped_streetlights_spacing", 0)) + int(furniture.get("skipped_streetlights_limit", 0))]
 		var water: Dictionary = meta.get("water", {})
 		result += I18N.t("Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n") % [int(water.get("pieces", 0)), int(water.get("areas", 0)), int(water.get("waterways", 0)), water.get("dropped_sources", []).size()]
 		var skipped: Dictionary = meta.get("skipped", {})
