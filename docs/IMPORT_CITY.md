@@ -315,15 +315,18 @@ remainder so lattice points are whole map centimetres.
   hotels, fuel, food, shops) and named landmark buildings (historic, tourism or
   amenity tags) inside the crop window become map `pois` (category, OSM name;
   ranked by category weight, one per name, at most 400; IDs keep the rank order).
-  Bus stops, stations, subway entrances and traffic signals are kept by position
-  in `osm_street_points` for generated street furniture. Places outside the final
-  map rectangle are dropped.
+  Bus stops, stations, subway entrances, traffic signals and stop/give-way nodes
+  are kept by position in `osm_street_points` for generated street furniture and
+  road signs. Places outside the final map rectangle are dropped. A road's
+  `maxspeed` (km/h or `KR:urban`; a chain takes the speed covering most of its
+  length and never breaks at a speed change) and OSM class reach the road-sign
+  rules in memory only; the layer stores neither.
 - Road convention: the OSM panel's driving side (right/left) and signal style
   (horizontal/vertical) become `MapDocument.traffic` on a map without one. Marked
   roads above residential get `stop_lines` (stop lines and lane arrows at junction
   ends); marked roads keep their `one_way` direction.
 - Street furniture (`osm_furniture.py`, MapKit builtins at game scale, fixed
-  seeds, positions only from OSM): a signal pole per inbound arm at junctions of
+  seeds, positions from OSM): a signal pole per inbound arm at junctions of
   three or more vehicle roads where two roads with stop lines meet or an OSM signal node lies
   within 15 m (the driver's near-side corner, the head over the road); a bus shelter
   facing the road at each bus stop, subway entrances and station signs beside the
@@ -332,6 +335,32 @@ remainder so lattice points are whole map centimetres.
   road corridors with sidewalks (+30 map cm), junction mouths, buildings, water and
   other pieces (+10 cm); a candidate without a free spot is skipped and counted
   (at most 8,000). Places and furniture follow the mapped records in the layer.
+- Road signs (`Furniture.road_signs`, after every other piece so earlier placement
+  IDs never move; a solid post or pole, the plate facing the arriving traffic on
+  the driver's side, never beside bridges, tunnels or elevated roads; set back
+  along the road's centreline, not its first segment, and facing its tangent
+  there), in order: OSM stop/give-way nodes on the arm they stand on (at most 40
+  map m before its junction, else skipped and counted); overhead guide signs 20 map m
+  before signalled junctions of two or more arterials (stop lines and 4+ lanes,
+  2+ one-way lanes or edge lines) on approaches of 30 m or more with sidewalks up
+  to 1 m whose half carriageway the 2.6 m arm spans (right-hand traffic only: the
+  arm reaches along local +x); crossing signs before painted crosswalks of
+  unsignalled junctions; stop signs (yield on oblique or one-way arms) on the minor
+  arms of unsignalled junctions of three or more painted roads with a through pair
+  (Y junctions get none); children-protection signs where painted roads other than
+  motorways and trunks (and their links) enter a school zone (school sites +30 m,
+  school places +40 m), with a 30 sign 4 m inside on roads with stop lines;
+  speed-limit signs on roads with stop lines, 10 m after
+  each record's start and every 250 m per direction: the OSM `maxspeed` rounded
+  down to 30/40/50/60/80/100 (below 30 none), else the class default (motorway 100,
+  trunk 80, primary to tertiary 50, links 40; residential and service roads none),
+  30 in school zones (not on motorways and trunks). Speed, children and guide sign
+  poles keep 5 m from signal poles and skip a same-kind sign facing the same way
+  nearby (120 m speed and guide, 60 m children). Per-kind caps (guide 250, crossing 400, stop 250, yield 150, children
+  250, speed 700) and 1,500 signs per layer count `skipped_<kind>_limit` and
+  `skipped_road_signs_limit`. The summary reports road-sign skips (no free spot,
+  limits, stop/give-way nodes without a junction road in reach) on its road-sign
+  line, apart from the street furniture.
   DEM adoption with building grounding also stands imported furniture on the terrain.
 - Play area: with selected administrative areas, the crop window (rectangle ∩
   areas; its 16 largest outer rings, holes dropped) is simplified to at most 512

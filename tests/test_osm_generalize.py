@@ -142,6 +142,17 @@ class City(unittest.TestCase):
         self.assertIn({"way/3"},groups)
         self.assertIn({"way/5"},groups)
 
+    def test_speed_changes_keep_a_chain_and_vote_its_posted_speed(self):
+        self.setup_city()
+        tags = lambda speed: dict(_city_road_tags=dict(highway="primary", maxspeed=speed))
+        self.add(1,LineString([(0,0),(30,0)]),_city_refs=[1,2],**tags("60"))
+        self.add(2,LineString([(30,0),(40,0)]),_city_refs=[2,3],**tags("40"))
+        self.add(3,LineString([(40,0),(50,0)]),_city_refs=[3,4],**tags("mph"))
+        value,meta=self.worker().candidate(8)
+        self.assertEqual(meta["after"]["roads"],1,"a speed change never breaks a chain")
+        roads=[f["properties"] for f in value["features"] if f["geometry"]["type"]=="LineString"]
+        self.assertEqual([p["_city_maxspeed"] for p in roads],[60],"the longest posted speed wins")
+
     def test_equal_positions_without_source_identity_never_join(self):
         self.setup_city()
         self.add(1,LineString([(0,0),(10,0)]),_city_refs=[1,2])

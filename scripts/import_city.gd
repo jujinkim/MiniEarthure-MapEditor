@@ -2,7 +2,9 @@ extends RefCounted
 const I18N := preload("./locale_text.gd")
 const LIMITS := preload("./limit_warnings.gd")
 const UNITS := preload("./import_units.gd")
-const FURNITURE := ["builtin:signal_h", "builtin:signal_v", "builtin:bus_shelter", "builtin:subway_entrance", "builtin:station_sign", "builtin:bench", "builtin:shrub", "builtin:tree"]
+const FURNITURE := ["builtin:signal_h", "builtin:signal_v", "builtin:bus_shelter", "builtin:subway_entrance", "builtin:station_sign", "builtin:bench", "builtin:shrub", "builtin:tree",
+	"builtin:sign_speed_30", "builtin:sign_speed_40", "builtin:sign_speed_50", "builtin:sign_speed_60", "builtin:sign_speed_80", "builtin:sign_speed_100",
+	"builtin:sign_crossing", "builtin:sign_stop", "builtin:sign_yield", "builtin:sign_children", "builtin:guide_sign"]
 
 ## A source-metre value of `cm` whole map centimetres at 1:denominator.
 static func _map_cm(value: Variant, cm: int, denominator: int) -> bool:
@@ -97,7 +99,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 	var street: Variant = raw.coordinates.get("osm_street_points", [])
 	if street is not Array or street.size() > 100000: return "Invalid city street points."
 	for item: Variant in street:
-		if item is not Dictionary or item.get("kind") not in ["station", "subway_entrance", "bus_stop", "traffic_signals"] or item.get("source_id") is not String or not str(item.source_id).begins_with("node/") or item.get("position") is not Array or item.position.size() != 2 or not boundary._finite(item.position[0], -100000000, 100000000) or not boundary._finite(item.position[1], -100000000, 100000000): return "Invalid city street points."
+		if item is not Dictionary or item.get("kind") not in ["station", "subway_entrance", "bus_stop", "traffic_signals", "stop", "give_way"] or item.get("source_id") is not String or not str(item.source_id).begins_with("node/") or item.get("position") is not Array or item.position.size() != 2 or not boundary._finite(item.position[0], -100000000, 100000000) or not boundary._finite(item.position[1], -100000000, 100000000): return "Invalid city street points."
 	var crop: Variant = raw.coordinates.get("osm_play_area", [])
 	if crop is not Array or crop.size() > 16: return "Invalid city play area."
 	for ring: Variant in crop:
@@ -241,6 +243,11 @@ static func paint_total(patches: Array, denominator: int) -> int:
 		worst = maxi(worst, total)
 	return worst
 
+## Sum of the `skipped_*` furniture counts whose key passes `keep` (road-sign
+## keys all contain "_signs").
+static func _skipped(furniture: Dictionary, keep: Callable) -> int:
+	return furniture.keys().filter(func(k: String) -> bool: return k.begins_with("skipped_") and keep.call(k)).reduce(func(sum: int, k: String) -> int: return sum + int(furniture[k]), 0)
+
 static func summary(meta: Dictionary) -> String:
 	var denominator := float(meta.scale_denominator)
 	var result := I18N.t("Automatic city optimization · 1:%d\nFeatures: %d → %d · positions: %d → %d\nRoads: %d → %d · buildings: %d → %d · areas: %d → %d\nSimplification level: %.2f source m (%.2f map m). Every building keeps its own footprint; landmark/tall buildings, road corridors and courtyards remain protected.\nBuilding heights without source tags are estimates; exact source mappings are retained.\nRoad surfaces are game-material approximations: %s. Roads widened to the 20 cm map minimum: %d.\n") % [int(denominator),meta.before.features,meta.after.features,meta.before.positions,meta.after.positions,meta.before.roads,meta.after.roads,meta.before.buildings,meta.after.buildings,meta.before.areas,meta.after.areas,float(meta.gap_m),float(meta.gap_m)/denominator,JSON.stringify(meta.surface_mappings),meta.widened_roads]
@@ -262,9 +269,12 @@ static func summary(meta: Dictionary) -> String:
 		result += I18N.t("Barriers: %d pieces from %d explicit OSM barrier ways and %d pieces of %d inferred site perimeters, opened at paths, painted driveways and gates; heights are estimates.\n") % [int(barriers.get("explicit_records", 0)), int(barriers.get("explicit_ways", 0)), int(barriers.get("inferred_records", 0)), int(barriers.get("inferred_sites", 0))]
 		result += I18N.t("Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n") % [int(paint.get("pieces", 0)), int(paint.get("pedestrian", 0)), int(paint.get("grass", 0)), int(paint.get("asphalt", 0)), int(paint.get("concrete", 0)), int(paint.get("dirt", 0)), int(paint.get("gravel", 0))]
 		var places: Dictionary = meta.get("places", {})
-		result += I18N.t("Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances and traffic signals place generated street furniture.\n") % [int(places.get("points", 0)), int(places.get("street", 0))]
+		result += I18N.t("Places: %d named OSM places become map points (stations, landmarks, schools, hospitals, shops; highest ranked first); %d bus stops, stations, subway entrances, traffic signals and stop/give-way nodes place generated street furniture and road signs.\n") % [int(places.get("points", 0)), int(places.get("street", 0))]
 		var furniture: Dictionary = meta.get("furniture", {})
-		result += I18N.t("Street furniture: %d signal poles at marked junctions, %d bus shelters, %d subway entrances and %d station signs beside the road; parks get %d trees, %d benches and %d shrubs from fixed seeds. Shapes and spots are generated, not surveyed; %d candidates without a free spot are skipped.\n") % [int(furniture.get("signals", 0)), int(furniture.get("bus_stop", 0)), int(furniture.get("subway_entrance", 0)), int(furniture.get("station", 0)), int(furniture.get("park_tree", 0)), int(furniture.get("park_bench", 0)), int(furniture.get("park_shrub", 0)), furniture.keys().filter(func(k: String) -> bool: return k.begins_with("skipped_")).reduce(func(sum: int, k: String) -> int: return sum + int(furniture[k]), 0)]
+		result += I18N.t("Street furniture: %d signal poles at marked junctions, %d bus shelters, %d subway entrances and %d station signs beside the road; parks get %d trees, %d benches and %d shrubs from fixed seeds. Shapes and spots are generated, not surveyed; %d candidates without a free spot are skipped.\n") % [int(furniture.get("signals", 0)), int(furniture.get("bus_stop", 0)), int(furniture.get("subway_entrance", 0)), int(furniture.get("station", 0)), int(furniture.get("park_tree", 0)), int(furniture.get("park_bench", 0)), int(furniture.get("park_shrub", 0)), _skipped(furniture, func(k: String) -> bool: return not k.contains("_signs"))]
+		result += I18N.t("Road signs: %d speed limits, %d stop and %d yield signs, %d crossing and %d children-protection signs beside the road and %d overhead guide signs on signalled arterial approaches, derived from the road graph, markings, OSM stop/give-way nodes, road classes, posted speeds and school sites; not surveyed. Skipped: %d candidates without a free spot, %d over a per-kind or layer limit, %d stop/give-way nodes without a junction road in reach.\n") % [int(furniture.get("speed_signs", 0)), int(furniture.get("stop_signs", 0)), int(furniture.get("yield_signs", 0)), int(furniture.get("crossing_signs", 0)), int(furniture.get("children_signs", 0)), int(furniture.get("guide_signs", 0)),
+			_skipped(furniture, func(k: String) -> bool: return k.contains("_signs") and not k.ends_with("_limit") and k != "skipped_tagged_signs"),
+			_skipped(furniture, func(k: String) -> bool: return k.contains("_signs") and k.ends_with("_limit")), int(furniture.get("skipped_tagged_signs", 0))]
 		var water: Dictionary = meta.get("water", {})
 		result += I18N.t("Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n") % [int(water.get("pieces", 0)), int(water.get("areas", 0)), int(water.get("waterways", 0)), water.get("dropped_sources", []).size()]
 		var skipped: Dictionary = meta.get("skipped", {})

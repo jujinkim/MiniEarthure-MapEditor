@@ -15,9 +15,9 @@ from osm_review import Review, source_error
 
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 # Road tags the city profile reads (chaining breaks, widths, sidewalks, markings,
-# service paint and dual-carriageway merging); other tags are omitted.
+# service paint, dual-carriageway merging and speed-limit signs); other tags are omitted.
 CITY_ROAD_TAGS = ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction", "service",
-                  "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway")
+                  "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway", "maxspeed")
 MAX_ENTITIES = 250_000
 MAX_REFS = 200_000
 MAX_FEATURES = 20_000
@@ -58,13 +58,15 @@ def off_ground(tags):
 
 # City point inputs from standalone OSM nodes: (kind, category, weight). `poi`
 # kinds with a name become map POIs (minimap places, ranked by weight); street
-# kinds place generated street furniture by position only.
+# kinds place generated street furniture and stop/give-way signs by position only.
 CITY_POINTS = (
     ("railway", ("station", "halt"), "station", "station", 10),
     ("station", ("subway", "train", "light_rail"), "station", "station", 10),
     ("public_transport", ("station",), "station", "station", 9),
     ("railway", ("subway_entrance", "train_station_entrance"), "subway_entrance", "subway_entrance", 2),
     ("highway", ("bus_stop",), "bus_stop", "bus_stop", 1),
+    ("highway", ("stop",), "stop", "stop", 0),
+    ("highway", ("give_way",), "give_way", "give_way", 0),
     ("highway", ("traffic_signals",), "traffic_signals", "traffic_signals", 0),
     ("tourism", ("museum", "attraction", "viewpoint", "gallery", "zoo", "theme_park", "aquarium"), "poi", "attraction", 8),
     ("historic", None, "poi", "historic", 7),
@@ -93,6 +95,15 @@ def city_point(tags):
             if kind == "poi" and not name: return None
             return kind, category, weight, name
     return None
+
+
+def speed_kmh(value):
+    """Posted speed limit in km/h of an OSM `maxspeed` value, or None (mph,
+    `none`, `walk`, `signals` and other forms place no speed sign)."""
+    value = str(value or "").strip()
+    if value == "KR:urban": return 50
+    found = re.fullmatch(r"([1-9][0-9]{1,2})( ?km/h)?", value)
+    return int(found.group(1)) if found else None
 
 
 def city_area(tags):

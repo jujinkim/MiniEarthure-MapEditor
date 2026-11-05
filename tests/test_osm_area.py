@@ -114,6 +114,12 @@ class CropTests(unittest.TestCase):
         self.assertEqual(city_point(dict(highway="bus_stop"))[0], "bus_stop", "street points need no name")
         self.assertIsNone(city_point(dict(amenity="cafe")), "an unnamed place is not a map point")
         self.assertEqual(city_point(dict(shop="bakery", name="빵집", **{"name:ko": "동네빵집"}))[3], "동네빵집")
+        self.assertEqual(city_point(dict(highway="stop"))[:2], ("stop", "stop"), "stop and give-way nodes place road signs")
+        self.assertEqual(city_point(dict(highway="give_way"))[:2], ("give_way", "give_way"))
+        from osm_extract import speed_kmh
+        for value, expected in (("60", 60), ("100 km/h", 100), ("30km/h", 30), ("KR:urban", 50), ("30 mph", None), ("none", None),
+                                ("walk", None), ("signals", None), ("5", None), ("", None), (None, None)):
+            self.assertEqual(speed_kmh(value), expected, value)
         options = dict(mode="wgs84-utm", origin=[9.005, 55.005], local_origin_m=[1000, 1000])
         points = [[1, 9.001, 55.001, "poi", "food", 1, "Cafe"], [2, 9.002, 55.002, "station", "station", 10, "Central"],
                   [3, 9.003, 55.003, "bus_stop", "bus_stop", 1, ""], [4, 9.009, 55.009, "poi", "attraction", 8, "Outside region"],

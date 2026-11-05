@@ -213,7 +213,8 @@ def city_points(points, selected, region, options):
     """Stream city points inside the crop window: (pois, street) where `pois` are
     the named places (source-cm position, ranked by weight then name, at most
     POI_LIMIT) and `street` the positions of bus stops, stations, subway
-    entrances and traffic signals for generated street furniture."""
+    entrances, traffic signals and stop/give-way signs for generated street
+    furniture."""
     import shapely
     from projection import Coordinates
     window = shapely.box(*bounds(selected))

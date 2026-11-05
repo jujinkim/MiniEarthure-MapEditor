@@ -19,7 +19,7 @@ from shapely.strtree import STRtree
 from shapely.errors import GEOSException
 
 from projection import Coordinates
-from osm_extract import PEDESTRIAN
+from osm_extract import PEDESTRIAN, speed_kmh
 import osm_roads
 import osm_sites
 from import_layer import BudgetExceeded, soft_limit, limit_snapshot, limit_restore, limit_delta, limit_replay
@@ -542,10 +542,11 @@ class Generalizer:
             if refs:
                 endpoints[(walks[index], refs[0])].append((index, 0))
                 endpoints[(walks[index], refs[-1])].append((index, 1))
-        # Chains continue across width, lane, name and ref changes (per-segment
-        # widths); class, structure, access, surface, oneway, sidewalk and paint
-        # still break (one sidewalk per road record).
-        ignored = ("name", "ref", "lanes", "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway")
+        # Chains continue across width, lane, speed, name and ref changes
+        # (per-segment widths; lanes and speed voted by length); class, structure,
+        # access, surface, oneway, sidewalk and paint still break (one sidewalk
+        # per road record).
+        ignored = ("name", "ref", "lanes", "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway", "maxspeed")
         def signature(feature):
             p = feature["properties"]
             return json.dumps({k:v for k,v in p.items() if not k.startswith("_city") and k not in ("osm_source_id", "width_m")}
@@ -561,10 +562,11 @@ class Generalizer:
             refs = p.get("_city_refs")
             points = list(geometry.coords)
             widths, prefs = list(extras[index][0]), list(extras[index][1])
-            lanes = Counter()
+            lanes, speeds = Counter(), Counter()
             crossings = list(p.get("_city_crossing_points", []))
             def vote(j, line):
                 lanes[extras[j][2]] += line.length
+                speeds[speed_kmh(ordinary[j][0]["properties"].get("_city_road_tags", {}).get("maxspeed"))] += line.length
             vote(index, geometry)
             sources = set(source_ids(feature))
             uses = self.uses if walks[index] else self.drive_uses
@@ -603,6 +605,8 @@ class Generalizer:
             if crossings: p["_city_crossing_points"] = list(dict.fromkeys(crossings))
             if not walks[index]:
                 p["_city_lanes"] = max(((n, length) for n, length in lanes.items() if n is not None), key=lambda item: (item[1], item[0]), default=(None, 0))[0]
+                # Posted speed of the chain (speed-limit signs only; never saved).
+                p["_city_maxspeed"] = max(((v, length) for v, length in speeds.items() if v), key=lambda item: (item[1], item[0]), default=(None, 0))[0]
             quantized, kept_widths, kept_refs, last = [], [], [], 0
             for n, point in enumerate(points):
                 snapped = self.snap(point)

@@ -3,7 +3,7 @@
 import argparse
 import hashlib
 import json
-from osm_extract import PEDESTRIAN
+from osm_extract import PEDESTRIAN, speed_kmh
 from pathlib import Path
 import sys
 import uuid
@@ -152,6 +152,9 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
     transform = Coordinates(coordinates)
     topology_budget = Budget()
     layer = ImportLayer(layer_id or uuid.uuid4().hex, captured_source or Source(source, hashlib.sha256(raw).hexdigest(), len(raw), license_name, accuracy), transform.metadata, adapter="geojson-v1")
+    # Transient city sign inputs (osm_furniture.road_signs), never serialized:
+    # road class and posted speed per vehicle road, and school site outlines.
+    layer.road_info, layer.school_areas = {}, []
     features = value.get("features")
     from import_layer import CITY_FEATURES
     limit = CITY_FEATURES if city else MAX_FEATURES
@@ -276,6 +279,10 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     layer.coordinates.setdefault("osm_ground_endpoints", []).append(dict(road_id=road_id,refs=ground_refs))
                 if walking:
                     layer.coordinates.setdefault("osm_pedestrian_roads", []).append(road_id)
+                elif city and osm_graph:
+                    road_tags = properties.get("_city_road_tags", {})
+                    layer.road_info[road_id] = dict(highway=road_tags.get("highway"),
+                        maxspeed=properties["_city_maxspeed"] if "_city_maxspeed" in properties else speed_kmh(road_tags.get("maxspeed")))
                 if not connected and not ground_refs and not walking:
                     label = str(index) if kind == "LineString" else f"{index} part {part}"
                     layer.warning(f"{label}: disconnected endpoints; connect explicitly in Editor")
@@ -317,6 +324,8 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             for part, rings in enumerate(projected):
                 part_id = identity if kind == "Polygon" else f"{identity}-part-{part}"
                 polygon = rings[0][:-1]
+                if city and osm_graph and properties.get("osm_region") and properties.get("_city_site") == "school":
+                    layer.school_areas.append(polygon)
                 if osm_graph and properties.get("osm_region") and not properties.get("_city_context"):
                     layer.coordinates.setdefault("generation_regions", []).append(dict(
                         id=part_id, source_id=properties["osm_source_id"], landuse=properties["landuse"],
@@ -602,7 +611,7 @@ def main():
                 metadata["places"] = dict(points=len(pois), street=len(street))
                 from osm_furniture import generate as furniture
                 traffic = dict(driving_side=args.osm_driving_side, signal_style=args.osm_signal_style)
-                places, metadata["furniture"] = furniture(trial.layer_id, trial.patches, trial.coordinates, scale, traffic)
+                places, metadata["furniture"] = furniture(trial.layer_id, trial.patches, trial.coordinates, scale, traffic, trial.road_info, trial.school_areas)
                 for record in places: trial.add("placements", record)
                 trial.coordinates["osm_traffic"] = traffic
                 trial = finish(trial, osm_counts)
