@@ -110,10 +110,17 @@ static func widen_roads(patches: Array, existing_buildings: Array, pedestrian: A
 ## Ordinary source junctions the road planner cannot build (for example a way that
 ## doubles back) become separate road ends at the same position, as before source
 ## junctions were kept. Only ground junction nodes added by this import change;
-## explicit structural junctions still fail review. Returns the separated count.
-static func separate_junctions(patches: Array, store: RefCounted) -> int:
+## explicit structural junctions still fail review. A junction with a bridge or
+## tunnel arm first keeps that arm joined to its straightest partner (another
+## structure first) and separates only the other arms, so a ramp foot or deck
+## joint never becomes a capped dead end; when that pair still fails, every arm
+## is separated and the node id is appended to `structure_ends`. Returns the
+## separated count.
+static func separate_junctions(patches: Array, store: RefCounted, structure_ends: Array = []) -> int:
 	var separated := 0
-	for _round in 3:
+	var arms := {}
+	var reduced := {}
+	for _round in 4:
 		var staged: Dictionary = store._candidate_for_patches(patches)
 		if staged.has("error"): return separated
 		var found: Dictionary = JSON.parse_string(store.bridge.unbuildable_junctions(JSON.stringify(staged.candidate)))
@@ -125,22 +132,59 @@ static func separate_junctions(patches: Array, store: RefCounted) -> int:
 			# Only ordinary source junctions; explicit structural junctions keep their rules.
 			if patch.field == "nodes" and patch.before == null and failing.has(patch.id) and str(patch.id).contains("-osm-ground-node-"): added[patch.id] = patch
 		if added.is_empty(): return separated
-		var arms := {}
+		var incident := {}
 		for patch: Dictionary in patches:
 			if patch.field != "roads" or not patch.after is Dictionary: continue
-			for end in ["from", "to"]:
+			for end: String in ["from", "to"]:
 				var id: String = patch.after[end]
-				if not added.has(id): continue
+				if added.has(id): incident.get_or_add(id, []).append([patch.after, end])
+		for id: String in added:
+			var ends: Array = incident.get(id, [])
+			var kept: Array = [] if reduced.has(id) else _structure_pair(ends)
+			if kept.is_empty() and ends.any(func(e: Array) -> bool: return str(e[0].get("kind", "ground")) != "ground"):
+				structure_ends.append(id)
+			for e: Array in ends:
+				if kept.has(e): continue
 				var k: int = arms.get(id, 0)
 				arms[id] = k + 1
 				var node: Dictionary = added[id].after.duplicate(true)
 				node.id = "%s-arm-%d" % [id, k]
-				patch.after[end] = node.id
+				e[0][e[1]] = node.id
 				patches.append({"field":"nodes", "id":node.id, "before":null, "after":node})
-		for id: String in added:
-			patches.erase(added[id])
-			separated += 1
+			if not reduced.has(id): separated += 1
+			if kept.is_empty(): patches.erase(added[id])
+			else: reduced[id] = true
 	return separated
+
+## The structure arm and its straightest partner at a junction of three or more
+## road ends ([road, end] pairs), preferring another structure; empty otherwise.
+static func _structure_pair(ends: Array) -> Array:
+	if ends.size() < 3: return []
+	var best: Array = []
+	var best_score := -INF
+	for s: Array in ends:
+		if str(s[0].get("kind", "ground")) == "ground": continue
+		var a := _end_direction(s)
+		for o: Array in ends:
+			if o == s: continue
+			var score := -a.dot(_end_direction(o)) + (2.0 if str(o[0].get("kind", "ground")) != "ground" else 0.0)
+			if score > best_score:
+				best_score = score
+				best = [s, o]
+	return best
+
+## Plan direction leaving the junction along a [road, end] pair.
+static func _end_direction(e: Array) -> Vector2:
+	var points: Array = e[0].points
+	var at := 0 if e[1] == "from" else points.size() - 1
+	var step := 1 if e[1] == "from" else -1
+	var origin := Vector2(points[at][0], points[at][2])
+	var i := at + step
+	while i >= 0 and i < points.size():
+		var d := Vector2(points[i][0], points[i][2]) - origin
+		if d.length_squared() > 0.0: return d.normalized()
+		i += step
+	return Vector2.ZERO
 
 static func _segment_gap(a: Vector2, b: Vector2, c: Vector2, d: Vector2) -> float:
 	if Geometry2D.segment_intersects_segment(a,b,c,d) != null: return 0.0

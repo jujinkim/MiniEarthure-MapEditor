@@ -171,7 +171,9 @@ remainder so lattice points are whole map centimetres.
   of its level lead to a ground road (split at a synthetic node ref 8·10¹⁸ + the
   end ref), so no deck cap rail crosses a ramp foot; the deck keeps half its own
   end width + 1 m of level lead for its junction mouth, and a shorter lead stays
-  whole.
+  whole. A structure end at a source junction MapKit cannot build stays joined to
+  its straightest arm ([imports](IMPORTS.md)), so a ramp foot beside a diverging
+  frontage or service road keeps no deck cap.
   Estimated structures join ordinary ground roads, stay whole at crop edges with
   every way of their chain, keep
   building clearance plus 20 map cm (0.2·D m) of safety furniture each side (also when widened) and are

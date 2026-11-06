@@ -11,7 +11,11 @@ instead ([IMPORT_CITY](IMPORT_CITY.md)). Surviving source endpoints retain ident
 through crop/quantization; new cuts remain independent. Adoption asks MapKit for
 ordinary source junctions it cannot build (for example a way doubling back) and turns
 only those into separate road ends at the same position (`separated_junctions` in the
-attribution); explicit structural junctions still fail review. Selection never rewrites geometry or infers height. See
+attribution). A junction with a bridge or tunnel arm keeps that arm joined to its
+straightest partner (another structure first) and separates only the other arms, so a
+ramp foot or deck joint gets no deck cap; when that pair still fails, every arm
+separates and the `structure_end_separated` warning reports it. Explicit structural
+junctions still fail review. Selection never rewrites geometry or infers height. See
 [3D road editing](WORKBENCH.md).
 
 Editor owns the MIT import adapters and document adoption; public MapKit owns native

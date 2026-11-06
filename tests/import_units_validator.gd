@@ -114,5 +114,39 @@ func run() -> void:
 	city_layer.limit_warnings = []
 	check(city_layer.patches(store).filter(func(p): return p.field == "ground_surface").is_empty() and city_layer.limit_warnings.any(func(e): return e.code == "city_ground_surface"),"another ground surface is kept with a warning")
 	store.document.erase("ground_surface")
+	_check_structure_junctions()
 	print("import_units_validator: PASS (",checks,")")
+
+# A bridge foot at an unbuildable fork keeps the bridge joined to its straightest
+# partner; a bridge doubling back on a ground way separates fully and is reported.
+func _check_structure_junctions() -> void:
+	var units := preload("res://scripts/import_units.gd")
+	var store := STORE.new()
+	store.new_document()
+	var node := func(id: String, p: Array) -> Dictionary: return {"field":"nodes","id":id,"before":null,"after":{"id":id,"position":p,"level":0}}
+	var road := func(id: String, kind: String, from: String, to: String, points: Array, width: int) -> Dictionary:
+		return {"field":"roads","id":id,"before":null,"after":{"id":id,"kind":kind,"from":from,"to":to,"points":points,"widths_cm":Array(range(points.size()-1)).map(func(_i): return width),"surfaces":Array(range(points.size()-1)).map(func(_i): return "asphalt")}}
+	var foot := "import-x-osm-ground-node-1"
+	var fork := [node.call(foot,[0,0,0]), node.call("import-x-b-end",[6000,600,0]), node.call("import-x-g1-end",[-3000,0,0]), node.call("import-x-g2-end",[-2945,0,-573]),
+		road.call("import-x-b","bridge",foot,"import-x-b-end",[[0,0,0],[800,0,0],[6000,600,0]],520),
+		road.call("import-x-g1","ground","import-x-g1-end",foot,[[-3000,0,0],[0,0,0]],280),
+		road.call("import-x-g2","ground",foot,"import-x-g2-end",[[0,0,0],[-2945,0,-573]],280)]
+	var staged: Dictionary = store._candidate_for_patches(fork.duplicate(true))
+	var before: Dictionary = JSON.parse_string(store.bridge.unbuildable_junctions(JSON.stringify(staged.candidate)))
+	check(before.ok and before.data.nodes == [foot], "the synthetic bridge fork is unbuildable as one junction")
+	var reported: Array = []
+	check(units.separate_junctions(fork, store, reported) == 1 and reported.is_empty(), "the fork is separated once without a structure report")
+	var ends := {}
+	for patch: Dictionary in fork:
+		if patch.field == "roads": ends[patch.id] = [patch.after.from, patch.after.to]
+	check(ends["import-x-b"][0] == foot and ends["import-x-g1"][1] == foot and ends["import-x-g2"][0] == foot + "-arm-0", "the bridge keeps its straightest ground partner; only the diverging arm separates")
+	check(fork.any(func(p: Dictionary) -> bool: return p.field == "nodes" and p.id == foot), "the kept junction node stays")
+	var hairpin := [node.call(foot,[0,0,0]), node.call("import-x-b-end",[6000,600,0]), node.call("import-x-g-end",[2986,0,314]),
+		road.call("import-x-b","bridge",foot,"import-x-b-end",[[0,0,0],[800,0,0],[6000,600,0]],520),
+		road.call("import-x-g","ground",foot,"import-x-g-end",[[0,0,0],[2986,0,314]],180)]
+	staged = store._candidate_for_patches(hairpin.duplicate(true))
+	before = JSON.parse_string(store.bridge.unbuildable_junctions(JSON.stringify(staged.candidate)))
+	check(before.ok and before.data.nodes == [foot], "a bridge doubling back on a ground way is unbuildable")
+	check(units.separate_junctions(hairpin, store, reported) == 1 and reported == [foot], "a structure end that cannot stay joined is reported")
+	check(not hairpin.any(func(p: Dictionary) -> bool: return p.field == "nodes" and p.id == foot), "the doubled-back node is fully separated")
 	quit(0)

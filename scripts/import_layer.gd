@@ -536,7 +536,10 @@ func patches(store: RefCounted) -> Array:
 		var denominator := osm_denominator()
 		result = preload("./import_units.gd").osm_patches(value.patches,value.coordinates.has("osm_city"),int(store.document.get("terrain_base_cm",0)),denominator)
 		preload("./import_units.gd").widen_roads(result,store.document.get("buildings",[]),value.coordinates.get("osm_pedestrian_roads",[]))
-		var separated: int = preload("./import_units.gd").separate_junctions(result, store)
+		var structure_ends: Array = []
+		var separated: int = preload("./import_units.gd").separate_junctions(result, store, structure_ends)
+		if not structure_ends.is_empty():
+			LIMITS.note(limit_warnings, "structure_end_separated", structure_ends.size(), 0, "Bridge or tunnel ends left unjoined at a junction the road planner cannot build (bridge ends keep a deck cap)")
 		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": denominator, "profile": preload("./import_units.gd").profile(denominator), "road_width_floor_cm": preload("./import_units.gd").ROAD_WIDTH_FLOOR_CM}
 		if separated > 0: metadata.authored_units.separated_junctions = separated
 		if value.coordinates.has("osm_city"): metadata.authored_units.quantization_cleanup = "adjacent-equal-vertices-v1"
