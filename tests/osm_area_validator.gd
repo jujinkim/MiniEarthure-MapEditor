@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const UI := preload("res://scripts/editor_main.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 func check(ok: bool, message: String) -> void:
@@ -20,7 +24,7 @@ func run() -> void:
 	root.size = Vector2i(1024,720)
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	var before: Dictionary = ui.store.document.duplicate(true)
-	var source := ProjectSettings.globalize_path("user://local-crop.pbf")
+	var source := scratch.path_join("local-crop.pbf")
 	var output: Array = []
 	check(OS.execute(ui.import_python.text, PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),source]),output,true)==0,"local synthetic PBF")
 	ui.import_source_format.select(1)
@@ -83,7 +87,7 @@ func run() -> void:
 	check(ui.pending_import==null and ui.store.document==adopted,"cancel crop retains existing layer")
 	check(FileAccess.get_sha256(source)==original,"original source unchanged")
 	# Multipart/hole source passes crop and the actual native geometry validator.
-	var multi := ProjectSettings.globalize_path("user://multipolygon.pbf")
+	var multi := scratch.path_join("multipolygon.pbf")
 	var fixture_output: Array = []
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),multi,"12","multipolygon"]),fixture_output,true)==0,"multipart fixture")
 	b=[9.0031,55.0011,9.0049,55.0029]

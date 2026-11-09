@@ -1,10 +1,14 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 ## Deterministic input/worker ownership checks; no manual or OS acceptance claim.
 const EDITOR := preload("res://scripts/editor_main.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const PREVIEW := preload("res://addons/mapkit/godot/track_authoring_preview.gd")
 const FIXTURE := preload("res://tests/track_edit_benchmark.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var checks := 0
 
@@ -177,7 +181,7 @@ func run() -> void:
 			"view": ui._set_view_mode("split")
 			"popup": ui.commands.open(); ui.commands.hide()
 		check(p.moving_index == -1 and not p.commit_move() and state() == before, scenario + " cancels uncommitted drag")
-	var path := ProjectSettings.globalize_path("user://async-track-project")
+	var path := scratch.path_join("async-track-project")
 	check(ui.store.save_project(path) == "" and RECOVERY_FIXTURE.write(ui.store) == "", "worker-edited document saves and creates recovery")
 	var reopened := STORE.new()
 	var recovered := STORE.new()

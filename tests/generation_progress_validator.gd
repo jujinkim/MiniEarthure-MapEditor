@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const JOB:=preload("res://addons/mapkit/godot/track_job.gd")
 const PANEL:=preload("res://scripts/track_settings_panel.gd")
 const STORE:=preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures:Array[String]=[]
 func check(ok:bool,label:String)->void:
 	if not ok:failures.append(label);push_error(label)
@@ -15,7 +19,7 @@ func run()->void:
 	job.progressed.connect(func(request:int,value:Dictionary):states.append([request,value]);panel.update_progress(value))
 	job.completed.connect(func(request:int,value:Dictionary):results.append([request,value]))
 	var settings:Dictionary=panel.settings();settings.circuit=false;settings.length="short";settings.seed=42;settings.categories=["driving"]
-	var request:int=job.begin(settings,ProjectSettings.globalize_path("user://preview-progress.memap"),true)
+	var request:int=job.begin(settings,scratch.path_join("preview-progress.memap"),true)
 	var deadline:=Time.get_ticks_msec()+90000
 	while results.is_empty() and Time.get_ticks_msec()<deadline:await process_frame
 	check(not results.is_empty(),"generation worker completes")

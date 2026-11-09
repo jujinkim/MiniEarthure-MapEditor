@@ -1,9 +1,13 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/heightmap_import_layer.gd")
 const PNG := preload("res://scripts/terrain_png.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
@@ -27,14 +31,14 @@ func run() -> void:
 	ui.store.new_document()
 	ui.set_tool_workspace("landscape")
 	var terrain: RefCounted = ui.canvas.author.terrain
-	var project := ProjectSettings.globalize_path("user://raster-project")
+	var project := scratch.path_join("raster-project")
 	check(ui.store.save_project(project) == "", "save isolated project")
 	var heights := PackedInt64Array()
 	heights.resize(17 * 17)
 	heights.fill(0)
 	heights[8 * 17 + 8] = 100
 	var encoded := PNG.encode(heights,17)
-	var source := ProjectSettings.globalize_path("user://synthetic.png")
+	var source := scratch.path_join("synthetic.png")
 	write(source,encoded.bytes)
 	var attribution := {"source":"Synthetic terrain","license":"MIT","notice":"original fixture"}
 	var layer := LAYER.new()
@@ -61,7 +65,7 @@ func run() -> void:
 	check(ui.store.undo() == "" and not ui.store.document.free_roam and ui.store.document.heightmaps.is_empty(), "atomic undo raster and attribution")
 	check(ui.store.redo() == "" and ui.store.document.free_roam and ui.store.document.heightmaps.size() == 1, "redo restores captured bytes")
 	check(ui.store.save_project(project) == "", "save first import")
-	var output := ProjectSettings.globalize_path("user://original.memap")
+	var output := scratch.path_join("original.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,output)).ok, "package imported raster")
 	var package_hash := FileAccess.get_sha256(output)
 	heights[8 * 17 + 8] = 200

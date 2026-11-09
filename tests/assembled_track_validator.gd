@@ -1,4 +1,5 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const PANEL := preload("res://scripts/track_settings_panel.gd")
@@ -8,6 +9,9 @@ class MissingGroupsPanel extends "res://scripts/track_settings_panel.gd":
 		catalogue.erase("selection_ids")
 		return catalogue
 
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 func _initialize() -> void: run.call_deferred()
 func check(value: bool,label: String) -> void:
@@ -22,7 +26,7 @@ func run() -> void:
 	mismatched.free()
 	var store := STORE.new()
 	store.new_document()
-	var old_path := ProjectSettings.globalize_path("user://original")
+	var old_path := scratch.path_join("original")
 	check(store.save_project(old_path)=="","original save")
 	var original_bytes := FileAccess.get_file_as_bytes(old_path.path_join("document.json"))
 	check(store.apply_command("Seed",[{"field":"seed","id":"","before":store.document.seed,"after":113}])=="","unsaved source")
@@ -31,7 +35,7 @@ func run() -> void:
 	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
 	var settings: Dictionary = JSON.parse_string(bridge.track_catalogue()).data.defaults
 	settings.seed=42
-	var generated: Dictionary = JSON.parse_string(bridge.generate_track(JSON.stringify(settings),ProjectSettings.globalize_path("user://generated.memap")))
+	var generated: Dictionary = JSON.parse_string(bridge.generate_track(JSON.stringify(settings),scratch.path_join("generated.memap")))
 	check(generated.ok,"generation")
 	for g: Dictionary in generated.data.document.gimmicks:
 		if not g.has("track"): continue
@@ -53,7 +57,7 @@ func run() -> void:
 	var recovered_policy := STORE.new()
 	var recovery_error := recovered_policy.recover(RECOVERY_FIXTURE.path(store))
 	check(recovery_error=="" and recovered_policy.document.free_roam,"recovery includes policy: "+recovery_error)
-	var current := ProjectSettings.globalize_path("user://track-project")
+	var current := scratch.path_join("track-project")
 	check(store.save_project(current)=="","generated project saved")
 	var reopened := STORE.new()
 	check(reopened.open_project(current)=="" and reopened.document.assembled_track==store.document.assembled_track,"seed settings placements round trip")
@@ -61,8 +65,16 @@ func run() -> void:
 	var panel := PANEL.new()
 	root.add_child(panel)
 	check(panel.catalogue_ready and panel.selections.size()==3 and panel.selections.has_all(["driving","gimmick","action"]), "three public categories")
-	panel.restore(reopened.document.assembled_track.settings)
-	check(JSON.parse_string(JSON.stringify(panel.settings()))==JSON.parse_string(JSON.stringify(settings)),"generator controls restore settings")
+	# The generator stores the seed-derived time of day, so compare with the saved settings.
+	var saved: Dictionary = reopened.document.assembled_track.settings
+	panel.restore(saved)
+	var restored := panel.settings()
+	check(saved.seed==42 and restored.keys().all(func(key): return key=="categories" or restored[key]==saved[key]) and restored.size()==saved.size(),"generator controls restore settings: "+str(restored)+" vs "+str(saved))
+	var categories: Array = restored.categories.duplicate()
+	categories.sort()
+	var saved_categories: Array = saved.categories.duplicate()
+	saved_categories.sort()
+	check(categories==saved_categories,"generator controls restore categories")
 	for item: CheckBox in panel.selections.values(): item.button_pressed=false
 	check(panel.generate.disabled,"empty categories disable generation")
 	panel.restore(settings)
@@ -90,7 +102,7 @@ func run() -> void:
 	check(reopened.document.assembled_track.seed_source==null,"manual source owns edited geometry")
 	check(reopened.undo()=="" and reopened.document.assembled_track==seed_geometry,"undo restores seed verification source")
 	check(reopened.redo()=="" and reopened.document.assembled_track.authoring is Dictionary,"redo restores manual source")
-	var manual_path:=ProjectSettings.globalize_path("user://grounded-manual")
+	var manual_path:=scratch.path_join("grounded-manual")
 	check(reopened.save_project(manual_path)=="","manual grounded project saved")
 	var manual:=STORE.new()
 	check(manual.open_project(manual_path)=="" and manual.document.assembled_track==reopened.document.assembled_track,"manual floor and support geometry round trip")

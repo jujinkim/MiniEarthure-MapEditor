@@ -1,9 +1,13 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const EDITOR := preload("res://scripts/editor_main.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const STYLE := preload("res://scripts/workbench_style.gd")
 const I18N := preload("res://scripts/locale_text.gd")
 const PRESETS := ["straight_extra_wide", "gentle90_extra_wide", "gentle90_extra_wide_left", "right90_extra_wide", "right90_extra_wide_left", "straight_ultra_wide", "gentle90_ultra_wide", "gentle90_ultra_wide_left", "right90_ultra_wide", "right90_ultra_wide_left"]
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 func _initialize() -> void: run.call_deferred()
 func check(value: bool, label: String) -> void:
@@ -58,8 +62,8 @@ func run() -> void:
 				if other.id == link.from: entry_width = float(other.exit_width_cm)
 		check(bench.port_widths.all(func(s): return s.min_value == 4 and s.max_value == 18) and bench.port_widths[0].value == entry_width/100.0 and bench.port_widths[1].value == body_width/100.0, "ports follow the chained exit within the 4–18m range " + preset + " " + str(bench.port_widths.map(func(s): return s.value)))
 		var after: Dictionary = ui.store.document.duplicate(true)
-		ui._history(false); await settle(ui); check(ui.store.document == before, "Undo " + preset)
-		ui._history(true); await settle(ui); check(ui.store.document == after, "Redo " + preset)
+		ui._history(false); await settle(ui); check(ui.store._signature(ui.store.document) == ui.store._signature(before), "Undo " + preset)
+		ui._history(true); await settle(ui); check(ui.store._signature(ui.store.document) == ui.store._signature(after), "Redo " + preset)
 		# Ordinary continuation snaps to the wide exit and tapers back to 4m.
 		var end: Vector3 = bench.PREVIEW.point(ui.store.document.assembled_track.pieces.back().path.back().position_cm)
 		bench.add_piece("straight")
@@ -68,7 +72,7 @@ func run() -> void:
 		await settle(ui); bench.placement.cancel()
 		var connected: Dictionary = bench.source.instances.back()
 		check(connected.entry_width_cm == body_width and connected.exit_width_cm == 400, "connected width transition " + preset)
-	var path := ProjectSettings.globalize_path("user://extra-wide-project")
+	var path := scratch.path_join("extra-wide-project")
 	check(ui.store.save_project(path) == "", "save both wide preset families")
 	var reopened := STORE.new()
 	check(reopened.open_project(path) == "", "reopen both wide preset families")

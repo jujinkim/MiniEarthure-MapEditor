@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const UI := preload("res://scripts/editor_main.gd")
 const JOB := preload("res://scripts/pbf_places_job.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failed := false
 func check(ok: bool, message: String) -> void:
 	if not ok: failed=true; push_error(message)
@@ -14,7 +18,7 @@ func run() -> void:
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.import_python.text=OS.get_environment("MINIEARTHURE_PYTHON")
-	var source := ProjectSettings.globalize_path("user://places.pbf")
+	var source := scratch.path_join("places.pbf")
 	var output: Array=[]
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/pbf_places_fixture.py"),source]),output,true)==0,"synthetic PBF fixture: "+str(output))
 	var before: Dictionary=ui.store.document.duplicate(true)

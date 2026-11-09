@@ -1,12 +1,16 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
 func raster_source(name: String, height: int) -> String:
 	var side := 2
 	var samples := PackedInt64Array();samples.resize(side*side);samples.fill(height)
-	var path := ProjectSettings.globalize_path("user://%s.png" % name)
+	var path := scratch.path_join("%s.png" % name)
 	var file := FileAccess.open(path,FileAccess.WRITE);file.store_buffer(preload("res://scripts/terrain_png.gd").encode(samples,side).bytes);file.close()
 	return path
 
@@ -26,7 +30,7 @@ func run() -> void:
 	ui.set_tool_workspace("landscape")
 	await process_frame
 	var author: RefCounted = ui.canvas.author
-	check(ui.store.save_project(ProjectSettings.globalize_path("user://safety")) == "", "save safety fixture")
+	check(ui.store.save_project(scratch.path_join("safety")) == "", "save safety fixture")
 	check(author.set_theme("default") == "", "explicit recipe")
 	var cell_size := int(ui.store.document.cell_size_cm)
 	var cell := Vector2i(25600/cell_size, 25600/cell_size)
@@ -66,7 +70,7 @@ func run() -> void:
 	var filler := PackedByteArray(); filler.resize(ui.store.HISTORY_BYTES + 1024); filler.fill(97)
 	var large: PackedByteArray = small.slice(0,33) + preload("res://scripts/terrain_png.gd").chunk("tEXt", "Comment".to_ascii_buffer() + PackedByteArray([0]) + filler) + small.slice(33)
 	filler.clear()
-	var large_source := ProjectSettings.globalize_path("user://safety-large-asset.png")
+	var large_source := scratch.path_join("safety-large-asset.png")
 	file = FileAccess.open(large_source,FileAccess.WRITE);file.store_buffer(large);file.close()
 	check(ui.store.apply_command("undo fixture",[{"field":"seed","before":ui.store.document.seed,"after":ui.store.document.seed+1}])=="" and not ui.store.undo_stack.is_empty(),"earlier Undo exists before the large change")
 	var asset_record := {"id":"large-safety-asset","path":"","attribution":{"source":"Synthetic asset","license":"MIT","notice":"fixture"},"collision":[{"center":[0,100,0],"size_cm":[200,200,200]}]}
@@ -113,7 +117,7 @@ func run() -> void:
 	ui.canvas.draft.assign([Vector2(30000,20000),Vector2(50000,20000)])
 	ui.canvas.finish_shape()
 	check(ui.store.document.roads.size() == 2, "terrain-level portal accepted")
-	check(ui.store.save_project(ProjectSettings.globalize_path("user://portal-safety")) == "", "save portal source")
+	check(ui.store.save_project(scratch.path_join("portal-safety")) == "", "save portal source")
 	ui.canvas.set_layer_state("nodes",{})
 	ui.canvas.cancel_interaction()
 	ui.store.dirty = false

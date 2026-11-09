@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var checks := 0
 var failures: Array[String] = []
 func check(ok: bool, message: String) -> void:
@@ -48,7 +52,7 @@ func run_scale(denominator: int) -> void:
 	for i in range(4): ui.osm_panel.fields[i].value=bbox[i]
 	ui.osm_panel.scale.value = denominator
 	check(ui.osm_panel.denominator() == denominator and ui.osm_panel.status.text.contains("1:%d approximate map size" % denominator),"preview uses the chosen scale: "+ui.osm_panel.status.text)
-	var source := ProjectSettings.globalize_path("user://city-synthetic-%d.pbf" % denominator)
+	var source := scratch.path_join("city-synthetic-%d.pbf" % denominator)
 	var out: Array=[]
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_city_fixture.py"),source]),out,true)==0,"synthetic city fixture: "+str(out))
 	var hash := FileAccess.get_sha256(source)
@@ -118,7 +122,7 @@ func run_scale(denominator: int) -> void:
 	var adopted: Dictionary=ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.buildings.is_empty() and not ui.store.document.has("ground_surface"),"atomic city Undo restores the ground surface")
 	check(ui.store.redo()=="" and ui.store._signature(ui.store.document)==ui.store._signature(adopted),"exact city Redo")
-	var project := ProjectSettings.globalize_path("user://city-roundtrip-%d" % denominator)
+	var project := scratch.path_join("city-roundtrip-%d" % denominator)
 	check(ui.store.save_project(project)=="" and ui.store.open_project(project)=="","save and reopen city project")
 	check(ui.store.document.buildings==adopted.buildings and ui.store.document.attributions==adopted.attributions,"geometry and source mappings survive reopen")
 	var package := project+".memap"
@@ -168,7 +172,7 @@ func run_rules() -> void:
 		var bbox := [8.9995,54.9995,9.0135,55.004]
 		for i in range(4): ui.osm_panel.fields[i].value=bbox[i]
 		ui.osm_panel.scale.value = 3
-		var source := ProjectSettings.globalize_path("user://city-rules-%s.pbf" % keep)
+		var source := scratch.path_join("city-rules-%s.pbf" % keep)
 		var out: Array=[]
 		check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_city_rules_fixture.py"),source]),out,true)==0,"synthetic city rules fixture: "+str(out))
 		var before: Dictionary=ui.store.document.duplicate(true)
@@ -230,7 +234,7 @@ func run_rules() -> void:
 				for q: Array in (turned.parts[0].footprint if turned.get("parts",[]).size() == 1 else []): got.append([roundi(q[0]), roundi(q[1])])
 				check(got == expected,"rotating a record turns its parts with it: " + ui.status_label.text + " " + JSON.stringify(turned.get("parts",[])) + " expected " + JSON.stringify(expected))
 				check(ui.store.undo()=="" ,"rotation Undo")
-		var project := ProjectSettings.globalize_path("user://city-rules-%s" % keep)
+		var project := scratch.path_join("city-rules-%s" % keep)
 		check(ui.store.save_project(project)=="" and ui.store.open_project(project)=="" and ui.store.document.barriers.size()==int(meta.after.barriers),"barriers and parts survive save and reopen")
 		check(JSON.parse_string(ui.store.bridge.export_project(project,project+".memap")).ok and JSON.parse_string(ui.store.bridge.open_package(project+".memap")).ok,"city rules package export and reopen")
 		var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(0,0))

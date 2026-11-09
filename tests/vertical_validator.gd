@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const VERTICAL := preload("res://scripts/import_vertical.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
@@ -20,10 +24,11 @@ func run() -> void:
 	root.size = Vector2i(1024,720)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_track(true) # Imports author free roam; Seed Track documents own their geometry.
 	await process_frame
 	check(ui.store.apply_command("Choose connected road recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current generation setup")
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
-	var directory := ProjectSettings.globalize_path("user://")
+	var directory := scratch
 	var output: Array = []
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/vertical_fixture.py"),directory]),output,true)==0,"synthetic local height/DEM fixtures: "+str(output))
 	var grid_path := directory.path_join("correction.json")
@@ -109,23 +114,32 @@ func run() -> void:
 	await wait_job()
 	check(ui.store.document.roads.size()==6,"atomic converted graph adoption")
 	if ui.store.document.roads.size()!=6: await finish(); return
-	check(ui.store.document.roads[1].points[2][1]==600 and ui.store.document.roads[4].points[2][1]==-600 and ui.store.document.roads[4].clearance_cm==450,"H96+delta-zero and unchanged physical clearance")
+	# OSM imports use the 1:8 profile (§44.323): the 6 m deck, -6 m floor and 4.5 m
+	# clearance arrive divided by eight.
+	var deck: Array = ui.store.document.roads[1].points[2]
+	var tunnel: Dictionary = ui.store.document.roads[4]
+	check(deck[1]==600/8 and tunnel.points[2][1]==-600/8 and tunnel.clearance_cm==roundi(450/8.0),"H96+delta-zero and unchanged physical clearance: " + str(ui.store.document.roads.map(func(r): return [r.kind, r.points.map(func(p): return p[1]), r.clearance_cm])))
 	check(ui.store.document.attributions.back().notice.contains(hashes["correction.json"]),"correction provenance retained")
 	var adopted: Dictionary=ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.roads.is_empty() and ui.store.document.heightmaps.size()==1,"one Undo keeps terrain and removes vector layer")
-	check(ui.store.redo()=="" and ui.store.document==adopted,"Redo restores exact graph/provenance")
+	check(ui.store.redo()=="" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"Redo restores exact graph/provenance")
 	check(ui.store.save_project(project)=="","save aligned project")
 	var package := directory.path_join("aligned.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,package)).ok,"build aligned DEM/structure package")
 	var package_hash := FileAccess.get_sha256(package)
 	check(JSON.parse_string(ui.store.bridge.open_package(package)).ok,"reopen aligned package")
-	var generated: Dictionary=JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
-	check(generated.ok,"native terrain/apron/deck/tunnel generation: "+str(generated.get("error")))
-	if generated.ok:
-		var heights := {}
+	# Generate the cells holding the deck and the tunnel floor.
+	var bounds: Dictionary = ui.store.document.bounds
+	var size := int(ui.store.document.cell_size_cm)
+	var heights := {}
+	for point: Array in [deck, tunnel.points[2]]:
+		var generated: Dictionary=JSON.parse_string(ui.store.bridge.generate_chunk(int(point[0]-bounds.min[0])/size,int(point[2]-bounds.min[1])/size))
+		check(generated.ok,"native terrain/apron/deck/tunnel generation: "+str(generated.get("error")))
+		if not generated.ok: continue
 		for triangle: Dictionary in generated.data.chunk.triangles:
-			for point: Array in triangle.vertices: heights[int(point[1])]=true
-		check(heights.has(600) and heights.has(-600) and heights.has(-150),"actual converted deck, floor and ceiling")
+			for vertex: Array in triangle.vertices: heights[int(vertex[1])]=true
+	var floor_cm: int = tunnel.points[2][1]
+	check(heights.has(int(deck[1])) and heights.has(floor_cm) and heights.has(floor_cm+int(tunnel.clearance_cm)),"actual converted deck, floor and ceiling: " + str(heights.keys()))
 	var reopened := STORE.new()
 	check(reopened.open_project(project)=="" and reopened.document.attributions==adopted.attributions,"project reopen preserves exact correction bytes")
 	# Conflicting frame rejected in either import direction and after loading legacy OSM notices.

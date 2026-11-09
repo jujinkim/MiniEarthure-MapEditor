@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var checks := 0
 func _initialize() -> void: run.call_deferred()
@@ -17,6 +21,7 @@ func wait_work() -> void:
 func run() -> void:
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_track(true) # Imports author free roam; Seed Track documents own their geometry.
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	ui.import_source_format.select(3)
@@ -25,7 +30,7 @@ func run() -> void:
 	ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512
 	ui.import_origin_y.value = 512
-	var path := ProjectSettings.globalize_path("user://vertical.overture.json")
+	var path := scratch.path_join("vertical.overture.json")
 	var output: Array = []
 	check(OS.execute(ui.import_python.text, PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/overture_fixture.py"),"--vertical",path]),output,true) == 0, "synthetic vertical source")
 	var source_hash := FileAccess.get_sha256(path)
@@ -55,8 +60,8 @@ func run() -> void:
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(adopted.buildings[0].base_cm == 200 and adopted.buildings[0].height_cm == 400 and adopted.buildings[1].base_cm == 1000 and adopted.buildings[1].height_cm == 300, "exact bottom/thickness and vertical gap")
 	check(ui.store.undo() == "" and ui.store.document.buildings.is_empty(), "whole-family undo")
-	check(ui.store.redo() == "" and ui.store.document == adopted, "whole-family redo")
-	var project := ProjectSettings.globalize_path("user://vertical-project")
+	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted), "whole-family redo")
+	var project := scratch.path_join("vertical-project")
 	check(ui.store.save_project(project) == "", "save source project")
 	var reopened := STORE.new()
 	check(reopened.open_project(project) == "" and reopened.document == adopted, "source and solids roundtrip")
@@ -82,7 +87,7 @@ func run() -> void:
 	check(solid_ids.size() == 2 and lower_seen and upper_seen, "collision prisms preserve empty vertical gap: " + str(solid_ids))
 	var bad_source: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
 	bad_source.features[2].properties.min_height = 1
-	var bad_path := ProjectSettings.globalize_path("user://overlap.overture.json")
+	var bad_path := scratch.path_join("overlap.overture.json")
 	var file := FileAccess.open(bad_path,FileAccess.WRITE)
 	file.store_string(JSON.stringify(bad_source))
 	file.close()

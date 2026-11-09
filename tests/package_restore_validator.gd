@@ -12,7 +12,7 @@ func run() -> void:
 	# unconnected track draft whose execution export is correctly refused.
 	ui.store.new_document()
 	ui.store.document.free_roam = true
-	var source := ProjectSettings.globalize_path("user://package-original")
+	var source := scratch.path_join("package-original")
 	ok(ui.store.save_project(source),"save original source")
 	var image := Image.create(4,4,false,Image.FORMAT_RGBA8)
 	image.fill(Color.CORNFLOWER_BLUE)
@@ -22,7 +22,7 @@ func run() -> void:
 	ok(FILES.apply(ui.store,"asset",[{"field":"assets","id":asset.id,"before":null,"after":asset}],{asset_path:bytes}),"source payload")
 	ok(ui.store.save_project(source),"save source payload")
 	var canonical: String = SNAPSHOT.capture(ui.store.document,source).data.canonical
-	var destination := ProjectSettings.globalize_path("user://editor-package.memap")
+	var destination := scratch.path_join("editor-package.memap")
 	ui.regional_grouping.value = 1
 	ui._start_package("export",destination)
 	ui._cancel_operation()
@@ -49,7 +49,7 @@ func run() -> void:
 	ui.dialog_action = "reopen_package"
 	ui._path_selected(destination)
 	check(not ui.busy and ui.store.project_path == destination+".source","existing restored project never overwritten")
-	var corrupt := ProjectSettings.globalize_path("user://corrupt.memap")
+	var corrupt := scratch.path_join("corrupt.memap")
 	var damaged := FileAccess.get_file_as_bytes(destination)
 	damaged[-1] = damaged[-1] ^ 1
 	ok(FILES.write_new(corrupt,damaged),"damaged fixture")
@@ -62,7 +62,7 @@ func run() -> void:
 	var cancel_path := destination + ".cancelled"
 	check(not cancelled.reopen_package(destination, cancel_path).ok and not DirAccess.dir_exists_absolute(cancel_path), "pre-cancel never restores files")
 	# Complete a restore after the requesting document generation was superseded.
-	var late_path := ProjectSettings.globalize_path("user://late-package.memap")
+	var late_path := scratch.path_join("late-package.memap")
 	ok(FILES.write_new(late_path, FileAccess.get_file_as_bytes(destination)), "late-result fixture")
 	ui.set_process(false)
 	ui.dialog_action = "reopen_package"
@@ -97,7 +97,7 @@ func runtime_warned(entries: Variant) -> bool:
 func over_runtime_budget() -> void:
 	var I18N := preload("res://scripts/locale_text.gd")
 	var LIMITS := preload("res://scripts/limit_warnings.gd")
-	var over := ProjectSettings.globalize_path("user://over-runtime-budget")
+	var over := scratch.path_join("over-runtime-budget")
 	ui.store.new_document()
 	ui.store.document.free_roam = true
 	ok(ui.store.save_project(over), "save over-budget fixture base")

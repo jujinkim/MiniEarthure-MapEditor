@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const EDITOR := preload("res://scripts/editor_main.gd")
 const PANEL := preload("res://scripts/grind_line_panel.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String]=[]
 func _initialize() -> void: run.call_deferred()
 func check(ok: bool,label: String) -> void:
@@ -36,7 +40,7 @@ func run() -> void:
 	check(screen.store.undo()=="","undo accepted immediately")
 	await settle(screen)
 	check(screen.store._signature(screen.store.document)==screen.store._signature(before_delete),"undo restores line and links")
-	var path:=ProjectSettings.globalize_path("user://grind-source")
+	var path:=scratch.path_join("grind-source")
 	check(screen.store.save_project(path)=="","save line source")
 	var reopened:=STORE.new()
 	check(reopened.open_project(path)=="" and reopened.document.grind_lines==before_delete.grind_lines,"reopen retains curves and connections")

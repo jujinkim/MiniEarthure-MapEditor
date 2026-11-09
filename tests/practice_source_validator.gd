@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE:=preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String]=[]
 func _initialize() -> void: run.call_deferred()
 func check(value: bool,label: String) -> void:
@@ -8,7 +12,7 @@ func run() -> void:
 	var bridge: RefCounted=ClassDB.instantiate("MapKitBridge")
 	var result: Dictionary=JSON.parse_string(bridge.open_package(OS.get_environment("MINIEARTHURE_TEST_MEMAP")))
 	check(result.ok,"public practice package opens")
-	var path:=ProjectSettings.globalize_path("user://practice-source")
+	var path:=scratch.path_join("practice-source")
 	result=JSON.parse_string(bridge.unpack_source(path))
 	check(result.ok,"restore authored project")
 	var store:=STORE.new()
@@ -17,7 +21,7 @@ func run() -> void:
 	check(source.checkpoints.size()==11 and source.structures.size()==5 and source.grind_lines.size()==1,"source retains checkpoints, real shapes and independent line")
 	check(source.actions.all(func(a):return a.kind=="manual_flight"),"manual flight declarations preserved")
 	check(store.edit_track(source)=="","unmodified source recompiles through editor")
-	var saved:=ProjectSettings.globalize_path("user://practice-saved")
+	var saved:=scratch.path_join("practice-saved")
 	check(store.save_project(saved)=="","save authored practice")
 	var reopen:=STORE.new()
 	check(reopen.open_project(saved)=="" and reopen.track_source()==source,"save and reopen preserve editable source")

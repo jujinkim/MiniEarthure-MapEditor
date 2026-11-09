@@ -1,4 +1,5 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const JOB := preload("res://scripts/import_job.gd")
 const PRESENCE := preload("res://scripts/import_presence.gd")
 const SCAN := preload("res://scripts/import_recovery.gd")
@@ -14,6 +15,9 @@ class ReplayedPresence extends PRESENCE:
 		connections.clear()
 		super.close()
 
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 var base := ""
@@ -49,9 +53,9 @@ func collect(owner: RefCounted = null) -> RefCounted:
 func run() -> void:
 	root.gui_embed_subwindows = true
 	base = ProjectSettings.globalize_path("user://import-jobs")
-	source = ProjectSettings.globalize_path("user://recovery-source.geojson")
+	source = scratch.path_join("recovery-source.geojson")
 	write(source, '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[10,10],[20,10],[20,20],[10,20],[10,10]]]}}]}')
-	write(ProjectSettings.globalize_path("user://keep.memap"), "prior package")
+	write(scratch.path_join("keep.memap"), "prior package")
 	var scan: RefCounted = await collect()
 	check(scan.rows.is_empty() and not DirAccess.dir_exists_absolute(base), "empty discovery does not create scratch root")
 	# Real simultaneous Editor processes, readiness-bound kill, then restart discovery.
@@ -105,12 +109,18 @@ func run() -> void:
 		for socket in clients: socket.poll()
 		await process_frame
 	check(live.presence.peers.size() <= PRESENCE.MAX_PEERS, "presence peer admission is bounded")
-	for socket in clients:
-		if socket.get_status() == StreamPeerTCP.STATUS_CONNECTED: socket.put_data("x".repeat(34).to_ascii_buffer())
+	# Every probe must finish connecting before it floods, or an idle one stays admitted.
+	var connect_end := Time.get_ticks_msec() + 5000
+	while clients.any(func(socket): return socket.get_status() == StreamPeerTCP.STATUS_CONNECTING) and Time.get_ticks_msec() < connect_end:
+		live.poll()
+		for socket in clients: socket.poll()
+		await process_frame
+	check(clients.all(func(socket): return socket.get_status() == StreamPeerTCP.STATUS_CONNECTED), "every synthetic probe connected")
+	for socket in clients: socket.put_data("x".repeat(34).to_ascii_buffer())
 	for _frame in 12:
 		live.poll()
 		await process_frame
-	check(live.presence.peers.is_empty(), "oversized requests release admitted peers without response")
+	check(live.presence.peers.is_empty(), "oversized requests release admitted peers without response: %d left" % live.presence.peers.size())
 	for socket in clients: socket.disconnect_from_host()
 	# No response is uncertainty even while the listener is still alive.
 	var silent := SCAN.new()
@@ -141,7 +151,7 @@ func run() -> void:
 	while not ui.import_recovery.reported and Time.get_ticks_msec() < end: await process_frame
 	check(ui.import_recovery.visible and ui.import_recovery.reported, "report opens and finishes")
 	check(ui.import_recovery.report.text.contains("possibly interrupted") and ui.import_recovery.report.text.contains("Unknown entries"), "report explains uncertainty and preservation")
-	check(ui.import_recovery.banner.text.contains("to review"), "startup work indicator exposes retained entries")
+	check(ui.import_recovery.banner.tooltip_text.contains("to review"), "startup work indicator exposes retained entries")
 	check(ui.import_recovery.banner.get_global_rect().end.x <= root.size.x, "work indicator fits minimum window with retained entries")
 	ui.import_recovery.restart()
 	while not ui.import_recovery.reported and Time.get_ticks_msec() < end: await process_frame
@@ -173,7 +183,7 @@ func run() -> void:
 
 func crash_case(phase: String) -> void:
 	var name := token()
-	var ready := ProjectSettings.globalize_path("user://ready-" + name + ".json")
+	var ready := scratch.path_join("ready-" + name + ".json")
 	var project := OS.get_environment("MAPEDITOR_TEST_PROJECT")
 	var args := PackedStringArray(["--headless", "--path", project])
 	var pack := OS.get_environment("MAPEDITOR_TEST_RESOURCE_PACK")

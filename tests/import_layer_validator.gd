@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 func check(condition: bool, message: String) -> void:
 	if not condition:
@@ -27,7 +31,7 @@ func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui)
 	await process_frame
-	var base := ProjectSettings.globalize_path("user://import-boundary")
+	var base := scratch.path_join("import-boundary")
 	DirAccess.make_dir_recursive_absolute(base)
 	var path := base.path_join("source with spaces.geojson")
 	var content := JSON.stringify({"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[10,10],[30,10],[30,30],[10,30],[10,10]]]}}]})
@@ -74,9 +78,14 @@ func run() -> void:
 	check(ui.store.save_project(base.path_join("project")) == "", "save adopted import")
 	check(RECOVERY_FIXTURE.write(ui.store) == "", "recoverable import attribution")
 	var saved := FileAccess.get_sha256(base.path_join("project/document.json"))
-	ui._start_worker("import", path, "MIT")
+	# Native validation rejects overlapping buildings, so the repeat source sits beside the first.
+	var beside := base.path_join("beside.geojson")
+	file = FileAccess.open(beside, FileAccess.WRITE)
+	file.store_string(content.replace("[[[10,10],[30,10],[30,30],[10,30],[10,10]]]", "[[[10,-30],[30,-30],[30,-10],[10,-10],[10,-30]]]"))
+	file.close()
+	ui._start_worker("import", beside, "MIT")
 	await wait_import(ui)
-	check(ui.pending_import != null and ui.pending_import.value.layer_id != id, "repeat imports receive fresh identity")
+	check(ui.pending_import != null and ui.pending_import.value.layer_id != id, "repeat imports receive fresh identity: " + ui.status_label.text)
 	ui._adopt_import()
 	await wait_import(ui)
 	check(ui.store.document.buildings.size() == 2 and ui.store.document.attributions.size() == 2, "repeat creates second layer")

@@ -1,6 +1,10 @@
 extends SceneTree
 ## Native export, actual audit limits, source samples and exact storage parity.
 ## Refusal is evidence of unsupported input, never a successful driving result.
+const SCRATCH := preload("res://tests/validator_scratch.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var checks := 0
 var report := []
 func _initialize() -> void: run.call_deferred()
@@ -31,7 +35,7 @@ func run() -> void:
 				check(audit.data.verification == "complete-audit" and audit.data.validation_peak_bytes <= limit, "full audited identity within limit")
 				check(audit.data.package_sha256 == FileAccess.get_sha256(entry.path), "same file identity")
 		if entry.get("export",false):
-			var destination := ProjectSettings.globalize_path("user://native-scale-%d.mkregions" % report.size())
+			var destination := scratch.path_join("native-scale-%d.mkregions" % report.size())
 			var exported: Dictionary = JSON.parse_string(reader.export_project(entry.source,destination,int(opened.data.side_cells)))
 			check(exported.ok and FileAccess.get_sha256(destination) == FileAccess.get_sha256(entry.path), "native/CLI export byte parity")
 		if admitted:

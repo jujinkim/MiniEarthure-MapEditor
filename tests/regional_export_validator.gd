@@ -6,9 +6,10 @@ func run() -> void:
 	root.add_child(ui)
 	await process_frame
 	await process_frame
+	ui.store.new_track(true) # Free roam exports without a race course.
 	ui.preview_enabled = false
 	ui.preview_due = 0
-	var source := ProjectSettings.globalize_path("user://regional-original")
+	var source := scratch.path_join("regional-original")
 	ok(ui.store.save_project(source),"save original source")
 	var image := Image.create(4,4,false,Image.FORMAT_RGBA8)
 	image.fill(Color.CORNFLOWER_BLUE)
@@ -18,7 +19,7 @@ func run() -> void:
 	ok(FILES.apply(ui.store,"asset",[{"field":"assets","id":asset.id,"before":null,"after":asset}],{asset_path:bytes}),"source payload")
 	ok(ui.store.save_project(source),"save source payload")
 	var canonical: String = SNAPSHOT.capture(ui.store.document,source).data.canonical
-	var destination := ProjectSettings.globalize_path("user://editor-regional.mkregions")
+	var destination := scratch.path_join("editor-regional.mkregions")
 	ui.regional_grouping.value = 1
 	ui._start_package("export",destination)
 	ui._cancel_operation()
@@ -33,7 +34,9 @@ func run() -> void:
 	ui.export_report.hide()
 	var digest := FileAccess.get_sha256(destination)
 	ui._start_package("export",destination)
-	check(not ui.busy and FileAccess.get_sha256(destination) == digest,"existing regional artifact preserved")
+	# Export runs as a store file operation; the existing file refuses it at publication.
+	await wait_work()
+	check(not ui.busy and FileAccess.get_sha256(destination) == digest and ui.status_label.text.contains("E_EXPORT_EXISTS"),"existing regional artifact preserved")
 	ui.dialog_action = "reopen_package"
 	ui._path_selected(destination)
 	await wait_work()
@@ -43,7 +46,7 @@ func run() -> void:
 	ui.dialog_action = "reopen_package"
 	ui._path_selected(destination)
 	check(not ui.busy and ui.store.project_path == destination+".source","existing restored project never overwritten")
-	var corrupt := ProjectSettings.globalize_path("user://corrupt.mkregions")
+	var corrupt := scratch.path_join("corrupt.mkregions")
 	var damaged := FileAccess.get_file_as_bytes(destination)
 	damaged[-1] = damaged[-1] ^ 1
 	ok(FILES.write_new(corrupt,damaged),"damaged fixture")

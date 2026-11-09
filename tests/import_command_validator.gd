@@ -1,4 +1,5 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const JOB := preload("res://scripts/import_native_job.gd")
 const STORE := preload("res://tests/command_guard_store.gd")
 const COMMAND := preload("res://scripts/import_command.gd")
@@ -19,6 +20,9 @@ class CorruptJob extends JOB:
 			file.store_8(0); file.close()
 		super._finish_result()
 
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var store := STORE.new()
 var layer := LAYER.new()
 var source := ""
@@ -52,7 +56,7 @@ func wait_job(job: RefCounted, prepare: bool = false) -> void:
 
 func run() -> void:
 	store.new_document()
-	var project := ProjectSettings.globalize_path("user://command-project")
+	var project := scratch.path_join("command-project")
 	check(store.save_project(project) == "", "saved baseline")
 	source = project.path_join("source.geojson")
 	var original := JSON.stringify({"type":"FeatureCollection", "features":[{"type":"Feature", "properties":{"height_m":12}, "geometry":{"type":"Polygon", "coordinates":[[[10,10],[30,10],[30,30],[10,30],[10,10]]]}}]}).to_utf8_buffer()

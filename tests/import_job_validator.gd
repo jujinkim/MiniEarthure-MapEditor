@@ -1,9 +1,13 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const JOB := preload("res://scripts/import_job.gd")
 class FaultJob extends JOB:
 	var mode := "wait"
 	func _spawn(python: String, _arguments: PackedStringArray) -> Dictionary:
 		return OS.execute_with_pipe(python, PackedStringArray(["-B", "-u", ProjectSettings.globalize_path("res://tests/import_child_fixture.py"), mode, identity]), false)
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var pids: Array[int] = []
 func check(condition: bool, message: String) -> void:
@@ -19,7 +23,7 @@ func finish(job: RefCounted) -> void:
 	check(job.done, "job terminates: " + str(job.progress) + " / " + job.errors)
 	if not job.done: job.shutdown()
 func run() -> void:
-	var source := ProjectSettings.globalize_path("user://source.geojson")
+	var source := scratch.path_join("source.geojson")
 	var file := FileAccess.open(source, FileAccess.WRITE)
 	file.store_string('{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[10,10],[20,10],[20,20],[10,20],[10,10]]]}}]}')
 	file.close()

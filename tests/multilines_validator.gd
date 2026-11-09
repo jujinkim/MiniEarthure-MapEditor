@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 func check(condition: bool, message: String) -> void:
@@ -37,10 +41,11 @@ func pointer(button: Button) -> void:
 func run() -> void:
 	var ui: Control = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_track(true) # Imports author free roam; Seed Track documents own their geometry.
 	root.size = Vector2i(1024,720)
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
-	var base := ProjectSettings.globalize_path("user://multilines")
+	var base := scratch.path_join("multilines")
 	DirAccess.make_dir_recursive_absolute(base)
 	var path := base.path_join("multipart roads.geojson")
 	var geo := {"type":"FeatureCollection", "features":[{"type":"Feature", "properties":{"width_m":6,"surface":"gravel"},
@@ -49,7 +54,8 @@ func run() -> void:
 	var source_hash := FileAccess.get_sha256(path)
 	check(ui.store.save_project(base.path_join("original")) == "", "save baseline")
 	var package := base.path_join("original.memap")
-	check(JSON.parse_string(ui.store.bridge.export_project(ui.store.project_path, package)).ok, "export baseline")
+	var baseline: String = ui.store.bridge.export_project(ui.store.project_path, package)
+	check(JSON.parse_string(baseline).ok, "export baseline: " + baseline)
 	check(JSON.parse_string(ui.store.bridge.open_package(package)).ok, "load baseline bridge")
 	var baseline_chunk: String = ui.store.bridge.generate_chunk(0,0)
 	var package_hash := FileAccess.get_sha256(package)
@@ -113,14 +119,15 @@ func run() -> void:
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	var reopened := STORE.new()
 	check(reopened.open_project(ui.store.project_path) == "" and reopened.document == adopted, "saved geometry and exact provenance reopen")
-	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "" and reopened.document == adopted, "recovery retains parts and source mapping")
+	var recovered := reopened.recover(RECOVERY_FIXTURE.path(ui.store))
+	check(recovered == "" and reopened._signature(reopened.document) == reopened._signature(adopted), "recovery retains parts and source mapping: " + recovered)
 	var derived := base.path_join("adopted.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(ui.store.project_path, derived)).ok, "export multipart package")
 	check(JSON.parse_string(reopened.bridge.open_package(derived)).ok, "open multipart package")
 	var generated: Dictionary = JSON.parse_string(reopened.bridge.generate_chunk(0,0))
 	check(generated.ok, "actual native generation of multipart roads")
 	check(ui.store.undo() == "" and ui.store.document.roads.is_empty() and ui.store.document.attributions == before.attributions, "one Undo removes entire imported layer")
-	check(ui.store.redo() == "" and ui.store.document == adopted, "one Redo restores exact layer")
+	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted), "one Redo restores exact layer")
 	var saved_hash := FileAccess.get_sha256(ui.store.project_path.path_join("document.json"))
 	var undo_count: int = ui.store.undo_stack.size()
 	ui._start_import(path,"MIT")
@@ -184,7 +191,7 @@ func run() -> void:
 
 func collections(ui: Control) -> void:
 	ui.import_coordinate_mode.select(0)
-	var path := ProjectSettings.globalize_path("user://collection.geojson")
+	var path := scratch.path_join("collection.geojson")
 	var geo := {"type":"FeatureCollection", "features":[{"type":"Feature", "properties":{"width_m":6,"height_m":8}, "geometry":{"type":"GeometryCollection", "geometries":[
 		{"type":"LineString","coordinates":[[300,300],[340,300]]},
 		{"type":"GeometryCollection","geometries":[
@@ -230,7 +237,7 @@ func collections(ui: Control) -> void:
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(before),"collection Undo preserves earlier layers")
 	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"collection Redo restores geometry and exact tree")
-	var base := ProjectSettings.globalize_path("user://collection-project")
+	var base := scratch.path_join("collection-project")
 	check(ui.store.save_project(base) == "","save collection project")
 	var reopened := STORE.new()
 	check(reopened.open_project(base) == "" and reopened.document == ui.store.document,"reopen exact collection metadata")
@@ -249,9 +256,13 @@ func collections(ui: Control) -> void:
 	ui._cancel_operation()
 	await wait_import(ui)
 	check(ui.pending_import == null and ui.store.document == adopted,"cancel collection without adopting")
+	# Native validation rejects a second copy of the same buildings, so review the
+	# source again on the map without the adopted collection.
+	check(ui.store.undo() == "", "remove adopted collection before reimport")
+	adopted = ui.store.document.duplicate(true)
 	ui._start_import(path,"MIT")
 	await wait_import(ui)
-	check(ui.pending_import != null,"fresh collection review")
+	check(ui.pending_import != null,"fresh collection review: " + ui.status_label.text)
 	var file := FileAccess.open(path,FileAccess.READ_WRITE)
 	file.seek_end(); file.store_8(32); file.close()
 	ui._adopt_import()

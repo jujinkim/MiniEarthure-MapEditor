@@ -22,6 +22,7 @@ func run() -> void:
 	scratch = SCRATCH.fresh("overture_transportation_validator")
 	var ui := UI.new()
 	root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_track(true) # Imports author free roam; Seed Track documents own their geometry.
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	check(ui.store.apply_command("Choose road recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}])=="","current generation setup for native junction generation")
@@ -94,7 +95,7 @@ func run() -> void:
 	check(roads[0].points.size()==3 and ui.store.document.nodes.size()==4,"property boundaries add vertices without false connectors")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.roads.is_empty() and ui.store.document.nodes.is_empty(),"one-command undo removes complete graph")
-	check(ui.store.redo()=="" and ui.store.document==adopted,"redo restores complete graph/provenance")
+	check(ui.store.redo()=="" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"redo restores complete graph/provenance")
 	var project:=scratch.path_join("overture-transportation-project")
 	check(ui.store.save_project(project)=="","save provenance")
 	check(RECOVERY_FIXTURE.write(ui.store)=="","recovery snapshot")

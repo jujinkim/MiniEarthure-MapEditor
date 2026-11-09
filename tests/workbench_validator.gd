@@ -1,6 +1,10 @@
 extends SceneTree
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const EDIT := preload("res://scripts/workbench_edit.gd")
+const SCRATCH := preload("res://tests/validator_scratch.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 var ui: Control

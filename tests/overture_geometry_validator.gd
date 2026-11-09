@@ -1,8 +1,12 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const EDIT := preload("res://scripts/workbench_edit.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var checks := 0
 func _initialize() -> void: run.call_deferred()
@@ -20,6 +24,7 @@ func run() -> void:
 	root.size = Vector2i(1024,720)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_track(true) # Imports author free roam; Seed Track documents own their geometry.
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	ui.import_source_format.select(3)
@@ -28,7 +33,7 @@ func run() -> void:
 	ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512
 	ui.import_origin_y.value = 512
-	var path := ProjectSettings.globalize_path("user://multipart.overture.json")
+	var path := scratch.path_join("multipart.overture.json")
 	var stdout: Array = []
 	check(OS.execute(ui.import_python.text, PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/overture_fixture.py"),"--multipart",path]), stdout, true) == 0, "synthetic Overture multipart snapshot")
 	var original := FileAccess.get_sha256(path)
@@ -72,11 +77,12 @@ func run() -> void:
 	var layer := LAYER.new()
 	check(layer.load_value(forged,forged.layer_id) == "", "malformed geometry reaches native validation")
 	var empty := STORE.new()
+	empty.new_document()
 	empty.document.recipe_version = 1
 	check(layer.validate_for(empty) != "", "invalid candidate never adopts")
 	var bad_source: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
 	bad_source.features[0].geometry.coordinates[2][0][1].append(4)
-	var bad_path := ProjectSettings.globalize_path("user://invalid-part.overture.json")
+	var bad_path := scratch.path_join("invalid-part.overture.json")
 	var bad_file := FileAccess.open(bad_path,FileAccess.WRITE)
 	bad_file.store_string(JSON.stringify(bad_source))
 	bad_file.close()
@@ -84,12 +90,12 @@ func run() -> void:
 	ui._start_import(bad_path,LAYER.OVERTURE_LICENSE)
 	await wait_work()
 	check(ui.pending_import == null and ui.store.document == retained, "invalid final part rejects whole source")
-	var project := ProjectSettings.globalize_path("user://overture-geometry-project")
+	var project := scratch.path_join("overture-geometry-project")
 	check(ui.store.save_project(project) == "" and RECOVERY_FIXTURE.write(ui.store) == "", "save and recoverable history")
 	var reopened := STORE.new()
 	check(reopened.open_project(project) == "" and reopened.document.buildings == ui.store.document.buildings and reopened.document.attributions == ui.store.document.attributions, "project roundtrip")
 	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "" and reopened.document.buildings == ui.store.document.buildings, "recovery roundtrip")
-	var package := ProjectSettings.globalize_path("user://overture-geometry.memap")
+	var package := scratch.path_join("overture-geometry.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,package)).ok, "package export")
 	var package_hash := FileAccess.get_sha256(package)
 	check(JSON.parse_string(ui.store.bridge.open_package(package)).ok, "native package reopen")

@@ -1,4 +1,5 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const EDITOR := preload("res://scripts/editor_main.gd")
 const STORE := preload("res://scripts/document_store.gd")
@@ -6,6 +7,9 @@ const JOB := preload("res://scripts/track_edit_job.gd")
 const FILES := preload("res://scripts/document_files.gd")
 const FIXTURE := preload("res://tests/track_edit_benchmark.gd")
 const PREVIEW := preload("res://addons/mapkit/godot/track_authoring_preview.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var checks := 0
 var ui: Control
 
@@ -41,6 +45,8 @@ func check(value: bool, message: String) -> void:
 		push_error(message)
 		quit(1)
 		assert(value, message)
+func same(a: Variant, b: Variant) -> bool:
+	return JSON.parse_string(JSON.stringify(a)) == JSON.parse_string(JSON.stringify(b))
 
 func _initialize() -> void: run.call_deferred()
 func release(store: RefCounted) -> void:
@@ -138,7 +144,7 @@ func run() -> void:
 	release(store)
 	check(not store.draft_error.is_empty() and store.document == valid and store.track_source() == next, "validation failure retains draft, history and last valid output")
 	var failed_revision: int = store.draft_revision
-	var bad_save := ProjectSettings.globalize_path("user://invalid-source-save")
+	var bad_save := scratch.path_join("invalid-source-save")
 	ui._start_save(bad_save)
 	await settle_file(store)
 	check(not results.back().ok and store.draft_error.revision == failed_revision and store.draft_error.target == bad_save and store.track_source() == next and not FileAccess.file_exists(bad_save.path_join("document.json")), "invalid project save reports revision/target and retains draft without publication")
@@ -148,10 +154,12 @@ func run() -> void:
 	check(not store.editing_locked() and not ui.operation_dim.visible, "cancelled calculation leaves editing available")
 	check(RECOVERY_FIXTURE.write(store) == "", "pending draft recovery retained without dim")
 	var snapshot: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(RECOVERY_FIXTURE.path(store)))
-	check(snapshot.draft == good and snapshot.draft_revision != snapshot.validated_revision and snapshot.document == store.document, "v1 envelope separates pending draft and validated document")
+	# Recovery files are JSON, so integers come back as floats; compare JSON values.
+	check(same(snapshot.draft, good) and snapshot.draft_revision != snapshot.validated_revision and snapshot.document == store.document, "v1 envelope separates pending draft and validated document")
 	var restored := STORE.new()
 	restored.track_job_factory = func(): return HeldJob.new()
-	check(restored.recover(RECOVERY_FIXTURE.path(store)) == "" and restored.track_source() == good and restored.draft_pending() and restored.undo_stack.is_empty(), "recovery restores draft in a fresh session and schedules validation")
+	var recover_error := restored.recover(RECOVERY_FIXTURE.path(store))
+	check(recover_error == "" and same(restored.track_source(), good) and restored.draft_pending() and restored.undo_stack.is_empty(), "recovery restores draft in a fresh session and schedules validation: " + recover_error)
 	release(restored); restored.shutdown_track_edit()
 	ui.dialog.use_native_dialog = false
 	ui._choose("save")
@@ -159,7 +167,7 @@ func run() -> void:
 	ui.dialog.hide(); ui.dialog.canceled.emit()
 	check(not store.editing_locked() and store.track_source() == good, "cancelling destination picker unlocks without losing draft")
 	p.begin_move(0, Vector3.ZERO); p.preview_at(Vector3(2,0,0))
-	ui._start_save(ProjectSettings.globalize_path("user://continuous-project"))
+	ui._start_save(scratch.path_join("continuous-project"))
 	check(store.editing_locked() and ui.operation_dim.visible and p.tool == "", "Save locks submitted revision")
 	check(store.file_request.revision == store.draft_revision, "save freezes last submitted revision")
 	store.cancel_track_edit()
@@ -176,7 +184,7 @@ func run() -> void:
 	var open_failure: String = opened.open_project(store.project_path)
 	var expected_source := good.duplicate(true)
 	if expected_source.get("road_connections",[]).is_empty(): expected_source.erase("road_connections")
-	check(open_failure == "" and opened.track_source() == expected_source, "saved file contains frozen latest draft with canonical optional defaults")
+	check(open_failure == "" and same(opened.track_source(), expected_source), "saved file contains frozen latest draft with canonical optional defaults: " + open_failure)
 	next = good.duplicate(true); next.instances[0].position_cm[0] += 22
 	store.start_track_edit(next)
 	ui._start_save(store.project_path)
@@ -210,9 +218,9 @@ func run() -> void:
 	# Structural failure is distinct from executable connection/course diagnostics.
 	next = good.duplicate(true); next.connections = []; next.checkpoints = []
 	store.start_track_edit(next)
-	check(store.start_file_operation("export", ProjectSettings.globalize_path("user://invalid.memap")) == "" and ui.operation_dim.visible, "export freezes and locks pending revision")
+	check(store.start_file_operation("export", scratch.path_join("invalid.memap")) == "" and ui.operation_dim.visible, "export freezes and locks pending revision")
 	await settle_file(store)
-	check(not results.back().ok and str(results.back().error).contains("selected race course") and not FileAccess.file_exists("user://invalid.memap"), "execution export rejects its snapshot course issues without publishing")
+	check(not results.back().ok and str(results.back().error).contains("selected race course") and not FileAccess.file_exists(scratch.path_join("invalid.memap")), "execution export rejects its snapshot course issues without publishing")
 	# Session replacement invalidates an old completed result.
 	next = store.track_source(); next.instances[0].position_cm[0] += 1
 	store.start_track_edit(next)

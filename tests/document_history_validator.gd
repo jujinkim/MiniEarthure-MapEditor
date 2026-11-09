@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const CANVAS := preload("res://scripts/map_canvas.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 
@@ -42,7 +46,7 @@ func run() -> void:
 	check(store.history_bytes == bytes and store.redo_stack.size() == 1, "redo mementos remain charged")
 	check(store.redo() == "" and store.document.buildings.size() == 2, "whole command redo")
 	check(store.history_bytes == bytes, "history transfer does not double-charge")
-	var base := ProjectSettings.globalize_path("user://history-project")
+	var base := scratch.path_join("history-project")
 	check(store.save_project(base) == "" and not store.dirty, "savepoint recorded")
 	var a: Dictionary = store.document.buildings[0].duplicate(true)
 	var edited := a.duplicate(true)

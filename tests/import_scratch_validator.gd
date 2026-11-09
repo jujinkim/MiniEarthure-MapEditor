@@ -1,4 +1,5 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const JOB := preload("res://scripts/import_job.gd")
 const DEM_JOB := preload("res://scripts/dem_job.gd")
 
@@ -32,6 +33,9 @@ class MissingPipeDem extends DEM_JOB:
 		child.erase("stderr")
 		return child
 
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var assertions := 0
 var source := ""
@@ -58,12 +62,12 @@ func start_job(job: RefCounted, token: String, dem: bool = false) -> String:
 func _initialize() -> void: run.call_deferred()
 
 func run() -> void:
-	source = ProjectSettings.globalize_path("user://scratch-source.geojson")
+	source = scratch.path_join("scratch-source.geojson")
 	write(source, '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[10,10],[20,10],[20,20],[10,20],[10,10]]]}}]}')
 	var original := digest(source)
 	var root := ProjectSettings.globalize_path("user://import-jobs")
 	# Every path here is synthetic and under the runner's isolated user directory.
-	var linked_root := ProjectSettings.globalize_path("user://linked-scratch")
+	var linked_root := scratch.path_join("linked-scratch")
 	write(linked_root.path_join("keep.memap"), "outside scratch")
 	var output: Array = []
 	check(OS.execute("python3", PackedStringArray(["-c", "import os,sys; os.symlink(sys.argv[1],sys.argv[2],target_is_directory=True)", linked_root, root]), output, true) == 0, "create synthetic root link")

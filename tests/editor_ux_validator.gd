@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var checks := 0
 var failures: Array[String] = []
@@ -103,7 +107,7 @@ func run() -> void:
 	check(ui.dialog.visible and ui.dialog_action == "save_transition", "save before transition asks for project directory")
 	ui.dialog.hide()
 	ui.dialog.canceled.emit()
-	var abandoned := ProjectSettings.globalize_path("user://abandoned-save")
+	var abandoned := scratch.path_join("abandoned-save")
 	ui._path_selected(abandoned)
 	check(state() == before and not DirAccess.dir_exists_absolute(abandoned), "cancel picker rejects late save/transition")
 	# Exporting a new map chooses only its explicit output, preserving dirty state.
@@ -111,8 +115,8 @@ func run() -> void:
 	check(ui.store.set_free_roam(true) == "", "free-roam export fixture")
 	await menu_command("Export map")
 	check(ui.dialog_action == "export", "first export chooses package directly")
-	var project := ProjectSettings.globalize_path("user://ux-project")
-	var package := ProjectSettings.globalize_path("user://ux-export.memap")
+	var project := scratch.path_join("ux-project")
+	var package := scratch.path_join("ux-export.memap")
 	ui.dialog.hide()
 	ui._path_selected(package)
 	await finish()
@@ -133,7 +137,7 @@ func run() -> void:
 	await finish()
 	check(state() == before and ui.pending_document_action.is_empty() and ui.status_label.text.contains("Save As"), "save conflict blocks replacement and explains recovery")
 	check(FileAccess.get_file_as_string(project.path_join("document.json")) == "external writer", "conflicting original remains untouched")
-	var safe_project := ProjectSettings.globalize_path("user://safe-project")
+	var safe_project := scratch.path_join("safe-project")
 	check(ui.store.save_project(safe_project) == "", "Save As recovers conflict")
 	ui._document_changed()
 	check(ui.store.apply_command("Another seed", [{"field":"seed", "before":17,"after":18}]) == "", "second dirty fixture")
@@ -160,7 +164,7 @@ func run() -> void:
 	await click(ui.recovery_continue_button)
 	check(state() == before and ui.status_label.text.contains("Current document retained"), "invalid target preserves document")
 	# Import failure -> visible retry with retained settings -> review/discard/adopt.
-	var source := ProjectSettings.globalize_path("user://source.geojson")
+	var source := scratch.path_join("source.geojson")
 	write(source, "invalid JSON")
 	ui.import_license.text = "MIT"
 	ui.import_accuracy.text = "synthetic"

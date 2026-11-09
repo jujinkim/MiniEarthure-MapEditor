@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const UI := preload("res://scripts/editor_main.gd")
 const PREVIEW := preload("res://addons/mapkit/godot/track_authoring_preview.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 func _initialize() -> void: run.call_deferred()
 func wait_import() -> void:
@@ -12,11 +16,15 @@ func preview_ready() -> void:
 	var end := Time.get_ticks_msec()+15000
 	while (road.environment_job != null or not road.render_pending.is_empty()) and Time.get_ticks_msec()<end: await process_frame
 	assert(road.environment_job == null and road.render_pending.is_empty(),"bounded surface preview")
+func tree() -> Dictionary:
+	for placement: Dictionary in ui.store.document.placements:
+		if placement.id == "osm-tree": return placement
+	return {}
 func run() -> void:
 	ui = UI.new(); root.add_child(ui); ui._ensure_import_ui()
 	await process_frame; await process_frame
 	ui.start_panel.hide()
-	var path := ProjectSettings.globalize_path("user://driving-roads.pbf")
+	var path := scratch.path_join("driving-roads.pbf")
 	var python := OS.get_environment("MINIEARTHURE_PYTHON")
 	var output: Array = []
 	assert(OS.execute(python,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/driving_osm_fixture.py"),path]),output,true) == 0,str(output))
@@ -88,6 +96,8 @@ func run() -> void:
 	assert(roundi(ui.drive_x.value*100) == int(ui.course_tools.gates[0].position_cm[0]),"manual course start forwarded")
 	ui.drive_dialog.hide()
 	ui.show_tool_group("scenery")
+	# The city import already places street furniture; follow the test tree by ID.
+	var imported: int = ui.store.document.placements.size()
 	ui.scenery.activate("builtin:tree")
 	ui.scenery.candidate = {"id":"osm-tree","asset_id":"builtin:tree","position":[0,0,-1000],"quarter_turns":0,"yaw_offset_mdeg":0}
 	assert(ui.scenery.commit())
@@ -99,21 +109,21 @@ func run() -> void:
 	assert(ui.scenery.input(click) and ui.scenery.selected.get("record",{}).get("id") == "osm-tree","actual rendered scenery can be selected in 3D")
 	ui.scenery.adjust_height(1)
 	assert(ui.scenery.commit(),"selected scenery height move commits")
-	assert(ui.store.document.placements[0].position[1] == 100)
-	assert(ui.store.undo() == "" and ui.store.document.placements[0].position[1] == 0,"scenery move Undo")
+	assert(tree().position[1] == 100,"selected scenery rises one step")
+	assert(ui.store.undo() == "" and tree().position[1] == 0,"scenery move Undo")
 	await preview_ready()
 	assert(ui.scenery.input(click))
 	ui.scenery.cancel()
 	ui.scenery.rotate_selected()
-	assert(ui.store.document.placements[0].quarter_turns == 1,"scenery rotation is a document edit")
+	assert(tree().quarter_turns == 1,"scenery rotation is a document edit")
 	ui.canvas.delete_selection()
-	assert(ui.store.document.placements.is_empty(),"scenery Delete uses selected source ID")
-	assert(ui.store.undo() == "" and ui.store.document.placements.size() == 1,"scenery deletion Undo")
-	var project := ProjectSettings.globalize_path("user://osm-driving")
+	assert(tree().is_empty() and ui.store.document.placements.size() == imported,"scenery Delete uses selected source ID")
+	assert(ui.store.undo() == "" and ui.store.document.placements.size() == imported + 1 and not tree().is_empty(),"scenery deletion Undo")
+	var project := scratch.path_join("osm-driving")
 	assert(ui.store.save_project(project) == "")
 	var reopened := preload("res://scripts/document_store.gd").new()
 	assert(reopened.open_project(project) == "" and reopened.document == ui.store.document,"roads, course, gimmicks and scenery reopen")
-	var exported: Dictionary = JSON.parse_string(ui.store.bridge.export_project(project,ProjectSettings.globalize_path("user://osm-driving.memap")))
+	var exported: Dictionary = JSON.parse_string(ui.store.bridge.export_project(project,scratch.path_join("osm-driving.memap")))
 	assert(exported.ok,str(exported))
 	ui.queue_free(); await process_frame; await process_frame
 	print("driving_osm_validator: PASS")

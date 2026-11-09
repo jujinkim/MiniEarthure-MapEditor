@@ -1,4 +1,5 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
 const SNAPSHOT := preload("res://scripts/project_snapshot.gd")
@@ -7,6 +8,9 @@ const FAR := preload("res://addons/mapkit/godot/distant_renderer.gd")
 class Lease extends RefCounted:
 	var owned: Array = []
 	func track(value: Variant) -> void: owned.append(value)
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failed := false
 func check(ok: bool, message: String) -> void:
 	if not ok: failed = true; push_error(message)
@@ -33,7 +37,7 @@ func small_fixture(source: PackedByteArray) -> PackedByteArray:
 	return bytes
 func run() -> void:
 	var store := STORE.new(); store.new_document()
-	var project := ProjectSettings.globalize_path("user://lod-source")
+	var project := scratch.path_join("lod-source")
 	check(store.save_project(project) == "", "new isolated project")
 	var fixture: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://addons/mapkit/examples/assets/document.json"))
 	var record: Dictionary = fixture.assets[0].duplicate(true)
@@ -42,6 +46,10 @@ func run() -> void:
 	# Different immutable paths are legitimate even if these synthetic bytes match.
 	check(FILES.write_new(project.path_join("far.glb"), bytes) == "", "stage distant source")
 	record.path = near; record.distant_path = "far.glb"
+	# Only props without visible collision are far decorations: keep a footprint
+	# proxy just below the ground instead of the solid hull.
+	record.convex_collision = []
+	record.collision = [{"center":[0,-1,0],"size_cm":[90,1,70]}]
 	var patches := [{"field":"assets","id":record.id,"before":null,"after":record}]
 	var applied: String=FILES.apply(store, "LOD pair", patches, {near:bytes})
 	check(applied == "", "candidate includes both files: "+applied)
@@ -53,12 +61,13 @@ func run() -> void:
 	var signature := INDEX.signature(store.document,snapshot.data.hashes,{"cells":{}},Vector2i.ZERO)
 	var changed: Dictionary = snapshot.data.hashes.duplicate();changed["far.glb"] = "different"
 	check(signature != INDEX.signature(store.document,changed,{"cells":{}},Vector2i.ZERO), "far content invalidates preview")
-	var copy := ProjectSettings.globalize_path("user://lod-copy")
+	var copy := scratch.path_join("lod-copy")
 	check(store.save_project(copy) == "", "Save As copies distant and history payloads")
 	check(FileAccess.get_sha256(copy.path_join("far.glb")) == FILES.digest(bytes), "Save As exact bytes")
 	var reopened := STORE.new();check(reopened.open_project(copy) == "", "reopen LOD pair")
 	var placement := {"id":"placed-tetra","asset_id":record.id,"position":[3000,0,3000],"quarter_turns":1,"yaw_offset_mdeg":17000}
-	check(reopened.apply_command("Place",[{"field":"placements","id":"placed-tetra","before":null,"after":placement}]) == "", "placement")
+	var placed: String = reopened.apply_command("Place",[{"field":"placements","id":"placed-tetra","before":null,"after":placement}])
+	check(placed == "", "placement: " + placed)
 	check(reopened.save_project(copy) == "", "save placement")
 	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
 	check(JSON.parse_string(bridge.open_project(copy)).ok, "load display fixture")

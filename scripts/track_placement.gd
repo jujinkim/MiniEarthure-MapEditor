@@ -521,7 +521,10 @@ func _surface_at(screen: Vector2, all_modes := false) -> Dictionary:
 			var a := node.global_transform * vertices[n]
 			var b := node.global_transform * vertices[n+1]
 			var c := node.global_transform * vertices[n+2]
-			if ray.dot((c-a).cross(b-a)) >= 0: continue
+			# Drive surfaces are hit from their driven side whatever the mesh winding.
+			var up := (c-a).cross(b-a)
+			if up.y < 0.0: up = -up
+			if ray.dot(up) >= 0: continue
 			var hit: Variant = _surface_triangle(origin, ray, a, b, c)
 			if not hit is Vector3 or origin.distance_to(hit) >= best.distance: continue
 			var nearest := -1

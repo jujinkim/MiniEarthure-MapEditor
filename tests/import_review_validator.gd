@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const BROWSER := preload("res://scripts/import_review_browser.gd")
 const TEXT := preload("res://scripts/import_review_text.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
@@ -41,7 +45,7 @@ func run() -> void:
 	ui = load("res://main.tscn").instantiate(); root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.store.new_track(true)
-	var source := ProjectSettings.globalize_path("user://source.geojson")
+	var source := scratch.path_join("source.geojson")
 	var raw := '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[10,10],[30,10],[30,30],[10,30],[10,10]]]}}]}'
 	var file := FileAccess.open(source, FileAccess.WRITE); file.store_string(raw); file.close()
 	ui._start_worker("import", source, "CC0 synthetic fixture"); await wait_job()
@@ -138,10 +142,10 @@ func run() -> void:
 	check(ui.store.document.attributions[0].notice.contains(actual.value.source.sha256), "complete attribution remains in atomic command")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo() == "" and ui.store.document.buildings.is_empty(), "Undo preserves prior map")
-	check(ui.store.redo() == "" and ui.store.document == adopted, "Redo restores exact imported provenance")
-	var project := ProjectSettings.globalize_path("user://review-project")
+	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted), "Redo restores exact imported provenance")
+	var project := scratch.path_join("review-project")
 	check(ui.store.save_project(project) == "", "save reviewed layer")
-	var pack := ProjectSettings.globalize_path("user://review.memap")
+	var pack := scratch.path_join("review.memap")
 	var exported: Dictionary = JSON.parse_string(ui.store.bridge.export_project(project, pack))
 	check(exported.ok, "reviewed provenance exports in native package: " + JSON.stringify(exported))
 	var pack_hash := FileAccess.get_sha256(pack)

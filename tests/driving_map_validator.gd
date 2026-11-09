@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var checks := 0
 func _initialize() -> void: run.call_deferred()
 func check(value: bool, message: String) -> void:
@@ -16,7 +20,7 @@ func run() -> void:
     var lock: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/driving_map.lock.json"))
     var before := FileAccess.get_sha256(source.path_join("document.json"))
     check(before == lock.source_sha256, "frozen original source")
-    var saved := ProjectSettings.globalize_path("user://saved")
+    var saved := scratch.path_join("saved")
     check(store.save_project(saved) == "", "Editor Save As")
     check(store.open_project(saved) == "", "Editor saved project reopen")
     var output := source + ".memap"

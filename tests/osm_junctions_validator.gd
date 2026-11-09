@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 
@@ -30,7 +34,7 @@ func run() -> void:
 	ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512
 	ui.import_origin_y.value = 512
-	var path := ProjectSettings.globalize_path("user://junction-original.pbf")
+	var path := scratch.path_join("junction-original.pbf")
 	var output: Array = []
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),path,"12","junctions"]),output,true) == 0,"synthetic junction PBF: " + str(output))
 	var source_hash := FileAccess.get_sha256(path)
@@ -93,9 +97,9 @@ func run() -> void:
 		check(ui.store.document.roads.size() == 22,"atomic all junction roads: " + ui.status_label.text)
 		var adopted: Dictionary = ui.store.document.duplicate(true)
 		check(ui.store.undo() == "" and ui.store.document.roads.is_empty(),"junction graph Undo")
-		check(ui.store.redo() == "" and ui.store.document == adopted,"junction graph Redo")
+		check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"junction graph Redo")
 		verify_package(ui,"full-junctions",raw)
-		var package_hash := FileAccess.get_sha256(ProjectSettings.globalize_path("user://full-junctions.memap"))
+		var package_hash := FileAccess.get_sha256(scratch.path_join("full-junctions.memap"))
 		adopted = ui.store.document.duplicate(true)
 		ui._start_import(path,LAYER.OSM_LICENSE)
 		ui._cancel_operation()
@@ -117,7 +121,7 @@ func run() -> void:
 		check(ui.store.redo() == "" and ui.store.document.recipe_version == 1,"restore edit after stale review")
 		for remaining in [1,2]: await verify_crop(ui,path,remaining)
 		await verify_crop(ui,path,2,true)
-		check(FileAccess.get_sha256(ProjectSettings.globalize_path("user://full-junctions.memap")) == package_hash,"previous junction package preserved")
+		check(FileAccess.get_sha256(scratch.path_join("full-junctions.memap")) == package_hash,"previous junction package preserved")
 	check(FileAccess.get_sha256(path) == source_hash,"original junction PBF preserved")
 	check(DirAccess.get_directories_at("user://authoring-candidates").is_empty(),"junction native candidates disposed")
 	ui.store.dirty = false
@@ -157,7 +161,7 @@ func blocked(triangles: Array, start: Vector2, finish: Vector2) -> bool:
 	return false
 
 func verify_package(ui: Control, name: String, raw: Dictionary) -> void:
-	var base := ProjectSettings.globalize_path("user://" + name)
+	var base := scratch.path_join(name)
 	check(ui.store.save_project(base) == "","save junction project " + name)
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"export junction package " + name)
 	check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"reopen junction package " + name)

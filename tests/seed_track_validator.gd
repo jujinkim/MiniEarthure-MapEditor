@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const EDITOR:=preload("res://scripts/editor_main.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures:Array[String]=[]
 func _initialize()->void:run.call_deferred()
 func check(ok:bool,label:String)->void:
@@ -21,12 +25,12 @@ func run()->void:
 		check(after.assembled_track.authoring.instances.size()>1,"template expanded to editable roads "+id)
 		check(screen.store.undo()=="","template Undo accepted "+id)
 		await settle(screen)
-		check(screen.store.document==before,"one Undo restores entire template "+id)
+		check(screen.store._signature(screen.store.document) == screen.store._signature(before),"one Undo restores entire template "+id)
 		check(screen.store.redo()=="","template Redo accepted "+id)
 		await settle(screen)
-		check(screen.store.document==after,"one Redo restores template geometry and interactions "+id)
+		check(screen.store._signature(screen.store.document) == screen.store._signature(after),"one Redo restores template geometry and interactions "+id)
 	var saved:=screen.store.document.duplicate(true)
-	var project:=ProjectSettings.globalize_path("user://jump-source")
+	var project:=scratch.path_join("jump-source")
 	check(screen.store.save_project(project)=="","save jump source")
 	screen.store.new_track()
 	check(screen.store.open_project(project)=="" and screen.store.document==saved,"reopen preserves explicit jump definitions and geometry")

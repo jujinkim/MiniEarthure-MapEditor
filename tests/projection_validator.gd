@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 func check(condition: bool, message: String) -> void:
 	if not condition:
@@ -43,7 +47,7 @@ func run() -> void:
 			check(root.get_texture().get_image().save_png(capture) == OK, "capture geographic form")
 		ui.import_dialog.hide()
 
-	var path := ProjectSettings.globalize_path("user://geographic source.geojson")
+	var path := scratch.path_join("geographic source.geojson")
 	var geo := {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"height_m":12},"geometry":{"type":"Polygon","coordinates":[[[9,55],[9.0002,55],[9.0002,55.0002],[9,55.0002],[9,55]]]}}]}
 	var file := FileAccess.open(path,FileAccess.WRITE)
 	file.store_string(JSON.stringify(geo))
@@ -51,7 +55,7 @@ func run() -> void:
 	var original := FileAccess.get_sha256(path)
 	# SpinBox step arithmetic is not generally the decimal displayed to users.
 	# CLI arguments must round-trip that exact float, not str()'s shorter text.
-	var precise_file := ProjectSettings.globalize_path("user://precise-origin.geojson")
+	var precise_file := scratch.path_join("precise-origin.geojson")
 	var lon := SpinBox.new(); lon.min_value=-180; lon.max_value=180; lon.step=0.000001; lon.value=123.456789
 	var lat := SpinBox.new(); lat.min_value=-80; lat.max_value=84; lat.step=0.000001; lat.value=45.678901
 	var coords := {"mode":"wgs84-utm","origin":[lon.value,lat.value],"local_origin_m":[512.01,512.07]}
@@ -93,7 +97,7 @@ func run() -> void:
 	await wait_import(ui)
 	var footprint: Array = ui.store.document.buildings[0].footprint
 	check(JSON.stringify(footprint) == JSON.stringify(JSON.parse_string('[[51200,51200],[52479,51200],[52479,53426],[51200,53426]]')), "axis/centimetre fixture")
-	var base := ProjectSettings.globalize_path("user://project")
+	var base := scratch.path_join("project")
 	check(ui.store.save_project(base) == "", "save projection")
 	check(RECOVERY_FIXTURE.write(ui.store) == "", "retain projection recovery")
 	var recovery: String = RECOVERY_FIXTURE.path(ui.store)
@@ -101,7 +105,7 @@ func run() -> void:
 	check(reopened.open_project(base) == "", "reopen projection")
 	check(reopened.document.attributions == ui.store.document.attributions, "projection attribution roundtrip")
 	check(reopened.recover(recovery) == "", "recover projection metadata")
-	var output := ProjectSettings.globalize_path("user://project.memap")
+	var output := scratch.path_join("project.memap")
 	var packaged: Dictionary = JSON.parse_string(ui.store.bridge.export_project(base,output))
 	check(packaged.ok, "package projected document")
 	var before_package := FileAccess.get_sha256(output)

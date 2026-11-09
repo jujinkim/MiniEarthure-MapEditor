@@ -1,8 +1,12 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const EDIT := preload("res://scripts/workbench_edit.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var checks := 0
 func _initialize() -> void: run.call_deferred()
@@ -20,6 +24,7 @@ func run() -> void:
 	root.size = Vector2i(1024,720)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_track(true) # Imports author free roam; Seed Track documents own their geometry.
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	ui.import_source_format.select(1)
@@ -28,7 +33,7 @@ func run() -> void:
 	ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512
 	ui.import_origin_y.value = 512
-	var path := ProjectSettings.globalize_path("user://courtyard.osm.pbf")
+	var path := scratch.path_join("courtyard.osm.pbf")
 	var stdout: Array = []
 	check(OS.execute(ui.import_python.text, PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/courtyard_fixture.py"),path]), stdout, true) == 0, "synthetic split-way PBF")
 	var original := FileAccess.get_sha256(path)
@@ -62,33 +67,38 @@ func run() -> void:
 	var layer := LAYER.new()
 	check(layer.load_value(forged,forged.layer_id) == "", "malformed geometry reaches native validation")
 	var empty := STORE.new()
+	empty.new_document()
 	empty.document.recipe_version = 1
 	check(layer.validate_for(empty) != "", "invalid candidate never adopts")
-	var project := ProjectSettings.globalize_path("user://courtyard-project")
+	var project := scratch.path_join("courtyard-project")
 	check(ui.store.save_project(project) == "" and RECOVERY_FIXTURE.write(ui.store) == "", "save and recoverable history")
 	var reopened := STORE.new()
 	check(reopened.open_project(project) == "" and reopened.document.buildings[0] == b, "project roundtrip")
 	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "" and reopened.document.buildings[0] == b, "recovery roundtrip")
-	var package := ProjectSettings.globalize_path("user://courtyard.memap")
+	var package := scratch.path_join("courtyard.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,package)).ok, "package export")
 	var package_hash := FileAccess.get_sha256(package)
 	check(JSON.parse_string(ui.store.bridge.open_package(package)).ok, "native package reopen")
-	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(1,1))
-	check(generated.ok and not generated.data.chunk.building_prisms.is_empty(), "native solid roof generation")
+	# The import fits the empty map to its content, so find the building's cell.
+	var bounds: Dictionary = ui.store.document.bounds
+	var size := int(ui.store.document.cell_size_cm)
+	var cell := Vector2i(int(center.x - bounds.min[0]) / size, int(center.y - bounds.min[1]) / size)
+	var generated: Dictionary = JSON.parse_string(ui.store.bridge.generate_chunk(cell.x, cell.y))
+	check(generated.ok and not generated.data.chunk.building_prisms.is_empty(), "native solid roof generation: " + str(generated.get("error", "")))
 	for prism: Dictionary in generated.data.chunk.building_prisms:
 		var points := PackedVector2Array()
 		for p: Array in prism.footprint: points.append(Vector2(p[0],p[1]))
 		check(not Geometry2D.is_point_in_polygon(center,points), "roof/prism does not fill courtyard")
-	ui.preview_x.value = 1
-	ui.preview_y.value = 1
+	ui.preview_x.value = cell.x
+	ui.preview_y.value = cell.y
 	ui._preview()
 	await wait_work()
-	check(ui.preview_cache.has(Vector2i(1,1)), "shared renderer attached courtyard preview")
-	var old: Node = ui.preview_cache[Vector2i(1,1)].root
+	check(ui.preview_cache.has(cell), "shared renderer attached courtyard preview")
+	var old: Node = ui.preview_cache[cell].root
 	ui._preview()
 	ui._cancel_operation()
 	await wait_work()
-	check(ui.preview_cache[Vector2i(1,1)].root == old, "cancel preserves accepted preview")
+	check(ui.preview_cache[cell].root == old, "cancel preserves accepted preview")
 	if DisplayServer.get_name() != "headless":
 		var capture := OS.get_environment("MAPEDITOR_CAPTURE_PATH")
 		if capture != "":

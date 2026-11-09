@@ -21,7 +21,7 @@ func run() -> void:
 	var ui := UI.new()
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
-	check(ui.import_source_format.item_count == 6, "all six local vector/snapshot formats retained")
+	check(ui.import_source_format.item_count == 7, "all seven local vector/snapshot/facility formats retained")
 	check(ui.osm_panel != null and ui.dem_panel != null, "local crop/streaming and COG panels retained")
 	for method in ["_begin_acquisition", "_new_download_job", "_open_download", "_open_overture", "_download_overture"]:
 		check(not ui.has_method(method), "retired dispatcher absent: " + method)

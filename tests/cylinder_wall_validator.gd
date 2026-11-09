@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const SHAPE := preload("res://scripts/cylinder_wall.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const DATA := preload("res://addons/mapkit/godot/chunk_data.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var checks := 0
 var ui: Control
 func _initialize() -> void: run.call_deferred()
@@ -12,13 +16,14 @@ func check(value: bool, message: String) -> void:
 		quit(1)
 		assert(value, message)
 func button(node: Node, title: String) -> Button:
-	if node is Button and node.text == title: return node
+	# Workbench buttons may shorten their text to the icon; the label stays in metadata.
+	if node is Button and (node.text == title or node.get_meta("action_label", "") == title): return node
 	for child in node.get_children():
 		var result := button(child, title)
 		if result != null: return result
 	return null
 func spin(node: Node, title: String) -> SpinBox:
-	if node is HBoxContainer and node.get_child_count() == 2 and node.get_child(0) is Label and node.get_child(0).text == title and node.get_child(1) is SpinBox: return node.get_child(1)
+	if node is BoxContainer and node.get_child_count() == 2 and node.get_child(0) is Label and node.get_child(0).text == title and node.get_child(1) is SpinBox: return node.get_child(1)
 	for child in node.get_children():
 		var result := spin(child,title)
 		if result != null: return result
@@ -37,7 +42,11 @@ func run() -> void:
 	root.size = Vector2i(1440,900)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui)
+	ui.set_tool_workspace("landscape") # Free-roam drawing tools.
 	await process_frame
+	await process_frame
+	ui._set_view_mode("2d") # After startup layout restoration, which opens 3D.
+	ui.start_panel.hide() # The launch start screen covers the canvas centre.
 	await process_frame
 	check(ui.store.apply_command("small seam fixture", [
 		{"field":"bounds","before":ui.store.document.bounds,"after":{"min":[0,0],"max":[25600,25600]}},
@@ -47,8 +56,10 @@ func run() -> void:
 	author.options.wall_radius_cm = 1600
 	author.options.wall_height_cm = 350
 	author.options.base_cm = -50
-	check(button(ui,"Cylinder wall") != null,"visible authoring tool")
-	button(ui,"Cylinder wall").pressed.emit()
+	# Palette tiles are icon buttons; the Editor keeps them by tool label.
+	var tool: Button = ui.tool_buttons.get("Cylinder wall")
+	check(tool != null and tool.tooltip_text.contains("Cylinder wall"),"visible authoring tool")
+	tool.pressed.emit()
 	check(ui.canvas.tool == "Cylinder wall", "tool wired")
 	var history: int = ui.store.undo_stack.size()
 	await click(Vector2(12800,12800))
@@ -88,12 +99,12 @@ func run() -> void:
 	check(SHAPE.dimensions(transformed).radius_cm == 2200,"moved/rotated/mirrored round wall detected")
 	transformed.footprint[3][0] += 50
 	check(SHAPE.dimensions(transformed).is_empty(),"irregular polygon never silently converted")
-	var project := ProjectSettings.globalize_path("user://cylinder-project")
+	var project := scratch.path_join("cylinder-project")
 	check(ui.store.save_project(project) == "","save circle project")
 	var reopened := STORE.new()
 	check(reopened.open_project(project) == "","reopen circle")
 	check(not SHAPE.dimensions(reopened.document.buildings[0]).is_empty(),"parametric edit survives native roundtrip")
-	var output := ProjectSettings.globalize_path("user://cylinder.memap")
+	var output := scratch.path_join("cylinder.memap")
 	check(JSON.parse_string(reopened.bridge.export_project(project,output)).ok,"export collision wall")
 	var native: RefCounted = ClassDB.instantiate("MapKitBridge")
 	check(JSON.parse_string(native.open_package(output)).ok,"open packaged circle")

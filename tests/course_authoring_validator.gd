@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const SNAPSHOT := preload("res://scripts/project_snapshot.gd")
 const PANEL := preload("res://scripts/course_panel.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failed := false
 func check(value: bool, message: String) -> void:
 	if not value:
@@ -58,7 +62,7 @@ func run() -> void:
 	check(not original.has("validation") and original.definition.start_mode=="air","editor never certifies")
 	check(ui.store.undo()=="" and ui.store.document.get("courses",[]).is_empty(),"map undo removes course")
 	check(ui.store.redo()=="" and ui.store.document.courses[0]==original,"map redo restores exact course")
-	var project := ProjectSettings.globalize_path("user://course-project")
+	var project := scratch.path_join("course-project")
 	check(ui.store.save_project(project)=="","project saves")
 	var native: RefCounted = ClassDB.instantiate("MapKitBridge")
 	check(JSON.parse_string(native.open_project(project)).ok,"native project reload")
@@ -68,7 +72,7 @@ func run() -> void:
 	var proof_hash := opaque.sha256_text()
 	var imported := original.duplicate(true)
 	imported.validation = {"sha256":proof_hash,"bytes":opaque.to_utf8_buffer().size(),"world_content_hash":original.definition.world_content_hash,"geometry_hash":"a".repeat(64),"path":"course-validation/%s.mevalidation" % proof_hash}
-	var source := ProjectSettings.globalize_path("user://course-import")
+	var source := scratch.path_join("course-import")
 	check(SNAPSHOT.install_payload(source.path_join(imported.validation.path),opaque.to_utf8_buffer(),proof_hash)=="","opaque evidence fixture installed")
 	var file := FileAccess.open(source.path_join("course.mecourse"),FileAccess.WRITE)
 	file.store_string(JSON.stringify(imported))
@@ -76,7 +80,7 @@ func run() -> void:
 	panel.import_course(source.path_join("course.mecourse"))
 	check(ui.store.document.courses.size()==1 and ui.store.document.courses[0].has("validation"),"import replaces same course with reference")
 	check(FileAccess.get_sha256(project.path_join(imported.validation.path))==proof_hash,"evidence copied without private game dependency")
-	check(ui.store.save_project(ProjectSettings.globalize_path("user://course-copy"))=="","Save As retains course and payload")
+	check(ui.store.save_project(scratch.path_join("course-copy"))=="","Save As retains course and payload")
 	check(FileAccess.get_sha256(ui.store.project_path.path_join(imported.validation.path))==proof_hash,"Save As payload intact")
 	ui.queue_free()
 	await process_frame

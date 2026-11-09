@@ -1,5 +1,6 @@
 extends SceneTree
 ## Same water/depth/flow on both display paths, with unchanged collision and leases.
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const RENDER := preload("res://addons/mapkit/godot/chunk_renderer.gd")
 const FAR := preload("res://addons/mapkit/godot/distant_renderer.gd")
@@ -9,6 +10,9 @@ class Lease extends RefCounted:
 	var refs: Array[WeakRef]=[]
 	func track(value: Object) -> void: refs.append(weakref(value))
 	func live() -> int: return refs.filter(func(r: WeakRef):return r.get_ref()!=null).size()
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 func _initialize() -> void: run.call_deferred()
 func sample(image: Image) -> Color:
 	var value:=Color(0,0,0,0);var count:=0
@@ -22,7 +26,7 @@ func run() -> void:
 	store.document.bounds={"min":[0,0],"max":[6400,6400]};store.document.cell_size_cm=3200
 	store.document.water_bodies=[{"id":"test-lake","polygon":[[100,100],[3100,100],[3100,3100],[100,3100]],
 		"islands":[],"surface_cm":150,"bottom_cm":-200,"flow_cm_s":[45,-20]}]
-	var source:=ProjectSettings.globalize_path("user://far-water")
+	var source:=scratch.path_join("far-water")
 	var error: String=store.save_project(source)
 	if not error.is_empty():push_error(error);quit(1);return
 	var bridge: RefCounted=ClassDB.instantiate("MapKitBridge")

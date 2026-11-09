@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 func check(condition: bool, message: String) -> void:
@@ -44,7 +48,7 @@ func run() -> void:
 		check(ui.import_dialog.size.x <= root.size.x and ui.import_dialog.size.y <= root.size.y, "OSM form fits minimum window")
 		check(ui.import_origin_y.is_visible_in_tree() and ui.import_source_format.is_visible_in_tree(), "format/origins visible")
 		ui.import_dialog.hide()
-	var path := ProjectSettings.globalize_path("user://" + test_name + " source.osm.pbf")
+	var path := scratch.path_join(test_name + " source.osm.pbf")
 	fixture(ui.import_python.text,path)
 	var original := FileAccess.get_sha256(path)
 	var before: Dictionary = ui.store.document.duplicate(true)
@@ -87,7 +91,7 @@ func run() -> void:
 	ui._adopt_import()
 	await wait_import(ui)
 	check(ui.store.document.buildings.size() == building_count, "one-shot adoption")
-	var base := ProjectSettings.globalize_path("user://" + test_name + "-project")
+	var base := scratch.path_join(test_name + "-project")
 	check(ui.store.save_project(base) == "", "save OSM project")
 	check(RECOVERY_FIXTURE.write(ui.store) == "", "OSM recovery snapshot")
 	var reopened := STORE.new()
@@ -95,7 +99,7 @@ func run() -> void:
 	check(reopened.document.attributions == ui.store.document.attributions, "provenance roundtrip")
 	check(reopened.document.zones == ui.store.document.zones and reopened.document.buildings == ui.store.document.buildings, "all polygon parts and exclusions roundtrip")
 	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "", "recover OSM project")
-	var output := ProjectSettings.globalize_path("user://" + test_name + "-project.memap")
+	var output := scratch.path_join(test_name + "-project.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,output)).ok, "package OSM document")
 	var before_package := FileAccess.get_sha256(output)
 	check(JSON.parse_string(ui.store.bridge.open_package(output)).ok, "open OSM package")
@@ -112,7 +116,7 @@ func run() -> void:
 				check(not Geometry2D.is_point_in_polygon(Vector2(object.position[0],object.position[2]),excluded), "native forest placement preserves hole")
 			if object.id.begins_with(ui.store.document.zones[2].id + ":"): island_trees += 1
 		check(trees > 0 and island_trees > 0, "native forest and inner island both generate trees")
-	var updated_path := ProjectSettings.globalize_path("user://" + test_name + " updated.osm.pbf")
+	var updated_path := scratch.path_join(test_name + " updated.osm.pbf")
 	fixture(ui.import_python.text,updated_path,"23")
 	# A second independent layer cannot overlap existing solid buildings/roads.
 	# Keep the original and author the revised fixture at a separate local origin.

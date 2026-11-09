@@ -1,4 +1,5 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
@@ -19,6 +20,9 @@ class CancelGeneration extends JOB:
 		if expire and reached and not done and not cancelled and limit_warnings.any(func(w): return w.code == "running_time"):
 			warned = true
 			cancel()
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 func check(condition: bool, message: String) -> void:
@@ -61,12 +65,12 @@ func run() -> void:
 	ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512
 	ui.import_origin_y.value = 512
-	var path := ProjectSettings.globalize_path("user://loop-original.pbf")
+	var path := scratch.path_join("loop-original.pbf")
 	var out: Array = []
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_loops_fixture.py"),path]),out,true) == 0,"synthetic loop PBF: " + str(out))
 	var source_hash := FileAccess.get_sha256(path)
 	check(ui.store.apply_command("Choose connected recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "","current generation setup")
-	var base := ProjectSettings.globalize_path("user://baseline")
+	var base := scratch.path_join("baseline")
 	check(ui.store.save_project(base) == "","save baseline")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"export baseline")
 	check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"load baseline bridge")
@@ -173,12 +177,13 @@ func run() -> void:
 	check(ui.store.undo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(before),"one Undo removes loop and approaches")
 	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"one Redo restores graph and source metadata")
 	check(FileAccess.get_sha256(path) == source_hash,"review/adoption/history preserve original PBF")
-	check(ui.store.save_project(ProjectSettings.globalize_path("user://adopted")) == "","save loop graph")
+	check(ui.store.save_project(scratch.path_join("adopted")) == "","save loop graph")
 	check(RECOVERY_FIXTURE.write(ui.store) == "","recovery fixture loop graph")
 	var reopened := STORE.new()
 	check(reopened.open_project(ui.store.project_path) == "" and reopened.document == ui.store.document,"reopen exact geometry/provenance")
-	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store)) == "" and reopened.document == ui.store.document,"recover exact geometry/provenance")
-	var derived := ProjectSettings.globalize_path("user://adopted.memap")
+	var recovered := reopened.recover(RECOVERY_FIXTURE.path(ui.store))
+	check(recovered == "" and reopened._signature(reopened.document) == reopened._signature(ui.store.document),"recover exact geometry/provenance: " + recovered)
+	var derived := scratch.path_join("adopted.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(ui.store.project_path,derived)).ok,"export loop package")
 	check(JSON.parse_string(reopened.bridge.open_package(derived)).ok,"open loop package")
 	verify_surface(reopened,raw)
@@ -226,7 +231,7 @@ func run() -> void:
 	ui._adopt_import()
 	await wait_import(ui)
 	check(ui.pending_import == null and ui.store.document == before,"original source mutation rejects adoption")
-	var collapsed := ProjectSettings.globalize_path("user://collapsed.pbf")
+	var collapsed := scratch.path_join("collapsed.pbf")
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_loops_fixture.py"),collapsed,"collapse"]),out,true) == 0,"synthetic quantization collapse")
 	ui._start_import(collapsed,LAYER.OSM_LICENSE)
 	await wait_import(ui)
@@ -242,8 +247,11 @@ func run() -> void:
 
 func verify_surface(store: RefCounted, raw: Dictionary) -> void:
 	var triangles: Array = []
-	for x in [0,1]:
-		for y in [0,1]:
+	# Every cell of the map, which the import may have fitted to its content.
+	var bounds: Dictionary = store.document.bounds
+	var size := int(store.document.cell_size_cm)
+	for x in ceili(float(bounds.max[0]-bounds.min[0])/size):
+		for y in ceili(float(bounds.max[1]-bounds.min[1])/size):
 			var generated: Dictionary = JSON.parse_string(store.bridge.generate_chunk(x,y))
 			check(generated.ok,"actual loop cell generation %d/%d" % [x,y])
 			if generated.ok: triangles.append_array(generated.data.chunk.triangles)
@@ -272,7 +280,7 @@ func covers(triangles: Array, at: Vector2, height: float) -> bool:
 
 func structural_loops(ui: Control) -> void:
 	for mode: String in ["direct_bridge", "direct_tunnel", "closed_bridge", "closed_tunnel", "closed_join_bridge"]:
-		var path := ProjectSettings.globalize_path("user://" + mode + ".pbf")
+		var path := scratch.path_join(mode + ".pbf")
 		var out: Array = []
 		check(OS.execute(ui.import_python.text, PackedStringArray(["-B", ProjectSettings.globalize_path("res://tests/osm_loops_fixture.py"),path,mode]),out,true) == 0,"synthetic " + mode)
 		var original := FileAccess.get_sha256(path)
@@ -309,7 +317,7 @@ func structural_loops(ui: Control) -> void:
 		await wait_import(ui)
 		check(ui.store.document.roads.size() == raw.feature_count,"atomic structural loop adoption " + mode + ": " + ui.status_label.text)
 		if ui.store.document.roads.size() == raw.feature_count:
-			var base := ProjectSettings.globalize_path("user://project-" + mode)
+			var base := scratch.path_join("project-" + mode)
 			check(ui.store.save_project(base) == "","save " + mode)
 			check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"export " + mode)
 			check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"open " + mode)

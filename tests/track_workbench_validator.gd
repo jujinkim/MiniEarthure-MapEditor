@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const EDITOR := preload("res://scripts/editor_main.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String]=[]
 func _initialize() -> void: run.call_deferred()
 func check(value: bool,label: String) -> void:
@@ -30,13 +34,13 @@ func run() -> void:
 	check(RECOVERY_FIXTURE.write(store)=="","draft recovery")
 	var recovered:=STORE.new()
 	check(recovered.recover(RECOVERY_FIXTURE.path(store))=="" and recovered._signature(recovered.document)==after,"draft restored")
-	var path:=ProjectSettings.globalize_path("user://track-draft")
+	var path:=scratch.path_join("track-draft")
 	var save_error: String=store.save_project(path)
 	check(save_error=="","disconnected project saves: "+save_error)
 	var reopened:=STORE.new()
 	check(reopened.open_project(path)=="" and reopened.document.assembled_track==store.document.assembled_track,"draft project reopens")
 	var native: RefCounted=ClassDB.instantiate("MapKitBridge")
-	var exported: Dictionary=JSON.parse_string(native.export_project(path,ProjectSettings.globalize_path("user://draft.memap")))
+	var exported: Dictionary=JSON.parse_string(native.export_project(path,scratch.path_join("draft.memap")))
 	check(not exported.ok and exported.error.code in ["E_TRACK_DRAFT","E_TRACK_GEOMETRY"],"draft execution export refused: "+str(exported))
 	var geometry: Dictionary=store.document.assembled_track.duplicate(true)
 	var policy: String=store.set_free_roam(true)
@@ -88,8 +92,8 @@ func run() -> void:
 	check(screen.store.undo()=="" and bench.source.actions[0].panel_width_percent==50,"panel layout undo")
 	check(screen.store.redo()=="","panel layout redo accepted")
 	await settle(screen)
-	check(screen.store.document==edited,"panel layout redo includes geometry")
-	var panel_path:=ProjectSettings.globalize_path("user://panel-layout")
+	check(screen.store._signature(screen.store.document) == screen.store._signature(edited),"panel layout redo includes geometry")
+	var panel_path:=scratch.path_join("panel-layout")
 	var panel_error: String=screen.store.save_project(panel_path)
 	check(panel_error=="","panel source save: " + panel_error)
 	var panel_store:=STORE.new()

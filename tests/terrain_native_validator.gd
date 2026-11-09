@@ -1,8 +1,12 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const TERRAIN := preload("res://scripts/terrain_tools.gd")
 const FILES := preload("res://scripts/document_files.gd")
 const WORK := preload("res://scripts/package_work.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var checks := 0
 var failures: Array[String] = []
 class CountingFiles extends FILES:
@@ -46,7 +50,7 @@ func run() -> void:
 	var preview: Dictionary = job.run(store.document,"","preview",Vector2i.ZERO,{},false)
 	check(preview.ok,"unsaved preview: "+str(preview.get("error",{})))
 	check(writer.writes==0 and DirAccess.get_directories_at("user://")==before_files,"preview and history perform zero map writes")
-	var path := ProjectSettings.globalize_path("user://memory-project")
+	var path := scratch.path_join("memory-project")
 	check(store.start_file_operation("save",path)=="","first explicit save starts")
 	await settle(store)
 	check(not store.dirty and writer.writes==1 and store.undo_stack.size()==1,"save baseline preserves undo")
@@ -71,10 +75,10 @@ func run() -> void:
 	var copy := path+"-copy";check(store.save_project(copy)=="","Save As resolves conflict")
 	# Publishing new PNG identities must not rewrite earlier import commands.
 	var imported := STORE.new();imported.new_document();imported.document.bounds.max=[3200,3200];imported.document.cell_size_cm=3200
-	var import_path := ProjectSettings.globalize_path("user://import-history")
+	var import_path := scratch.path_join("import-history")
 	check(imported.save_project(import_path)=="","save import fixture")
 	var samples := PackedInt64Array();samples.resize(17*17);samples.fill(0);samples[8*17+8]=100
-	var source := ProjectSettings.globalize_path("user://history-source.png")
+	var source := scratch.path_join("history-source.png")
 	var source_file := FileAccess.open(source,FileAccess.WRITE);source_file.store_buffer(preload("res://scripts/terrain_png.gd").encode(samples,17).bytes);source_file.close()
 	var importer := TERRAIN.new();importer.store=imported
 	check(importer.import_png(source,Vector2i.ZERO,200,0,1,0,{"source":"Synthetic history","license":"MIT","notice":"fixture"})=="","import original heightmap")
@@ -100,7 +104,7 @@ func run() -> void:
 	for item: Dictionary in ui.commands.buttons:
 		if item.id == "file.save": save_button = item.control.get_ref(); break
 	check(save_button != null and save_button.modulate != Color.WHITE,"dirty content highlights Save")
-	ui._start_save(ProjectSettings.globalize_path("user://shortcut-project"))
+	ui._start_save(scratch.path_join("shortcut-project"))
 	await settle(ui.store)
 	check(save_button.modulate == Color.WHITE,"successful Save clears highlight")
 	for use_meta in [false,true]:

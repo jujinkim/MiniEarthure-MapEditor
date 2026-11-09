@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const EDITOR := preload("res://scripts/editor_main.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 func _initialize() -> void: run.call_deferred()
 func check(value: bool, label: String) -> void:
@@ -12,6 +16,7 @@ func settle(ui: Control) -> void:
 func run() -> void:
 	var ui := EDITOR.new(); root.add_child(ui); await process_frame
 	var bench: Node = ui.track_workbench
+	bench.advanced = true # Exact width and port controls live in the advanced properties.
 	bench.add_piece("cylinder_curve")
 	check(bench.placement.width_cm == 400, "new general pipe defaults to 4m")
 	check(bench.placement.preview_at(Vector3.ZERO) and bench.placement.commit(), "new pipe preview and placement")
@@ -31,10 +36,10 @@ func run() -> void:
 		check(int(bench.source.instances[0].width_cm) == width and int(ui.store.document.gimmicks[0].track.radius_cm) == width/2, "source/compiled bore edit %d" % width)
 		var after: Dictionary = ui.store.document.duplicate(true)
 		ui._history(false); await settle(ui)
-		check(ui.store.document == before, "Undo exact source and geometry %d" % width)
+		check(ui.store._signature(ui.store.document) == ui.store._signature(before), "Undo exact source and geometry %d" % width)
 		ui._history(true); await settle(ui)
-		check(ui.store.document == after, "Redo exact source and geometry %d" % width)
-		var path := ProjectSettings.globalize_path("user://pipe-%d" % width)
+		check(ui.store._signature(ui.store.document) == ui.store._signature(after), "Redo exact source and geometry %d" % width)
+		var path := scratch.path_join("pipe-%d" % width)
 		check(ui.store.save_project(path) == "", "save pipe %d" % width)
 		var reopened := STORE.new()
 		check(reopened.open_project(path) == "", "reopen pipe %d" % width)
@@ -64,7 +69,7 @@ func run() -> void:
 	check(ui.store.document.gimmicks.size() == 1 and ui.store.document.gimmicks[0].track.radius_cm == 200, "save minimum standalone bore")
 	check(ui.store.undo() == "" and ui.store.document.get("gimmicks", []).is_empty(), "standalone Undo")
 	check(ui.store.redo() == "" and ui.store.document.gimmicks[0].track.radius_cm == 200, "standalone Redo")
-	var path := ProjectSettings.globalize_path("user://standalone-pipe")
+	var path := scratch.path_join("standalone-pipe")
 	check(ui.store.save_project(path) == "", "save standalone project")
 	var reopened := STORE.new()
 	check(reopened.open_project(path) == "" and reopened.document.gimmicks == JSON.parse_string(JSON.stringify(ui.store.document.gimmicks)), "standalone reopen retains explicit dimensions and colour")
@@ -76,7 +81,7 @@ func run() -> void:
 func stored_sizes(ui: Control) -> void:
 	for bore: int in [200, 300]:
 		var package := ProjectSettings.globalize_path("res://addons/mapkit/crates/mapkit-package/tests/fixtures/stored-pipe-%d-v1.memap" % bore)
-		var project := ProjectSettings.globalize_path("user://stored-%d" % bore)
+		var project := scratch.path_join("stored-%d" % bore)
 		var opened: Dictionary = JSON.parse_string(ui.store.bridge.open_package(package))
 		check(opened.ok, "read stored package")
 		var unpacked: Dictionary = JSON.parse_string(ui.store.bridge.unpack_source(project))
@@ -102,11 +107,11 @@ func stored_sizes(ui: Control) -> void:
 		var repaired: Dictionary = ui.store.document.duplicate(true)
 		check(ui.store.undo() == "", "undo repair accepted")
 		ui.store.cancel_track_edit(); await settle(ui)
-		check(ui.store.document == repaired and ui.store.draft_pending(), "cancelled stored restoration preserves current map")
+		check(ui.store._signature(ui.store.document) == ui.store._signature(repaired) and ui.store.draft_pending(), "cancelled stored restoration preserves current map")
 		ui.store.retry_track_edit(); await settle(ui)
-		check(ui.store.document == original and not ui.store.draft_pending(), "Undo restores exact stored geometry without recompilation")
+		check(ui.store._signature(ui.store.document) == ui.store._signature(original) and not ui.store.draft_pending(), "Undo restores exact stored geometry without recompilation")
 		check(ui.store.redo() == "", "redo repair accepted"); await settle(ui)
-		check(ui.store.document == repaired, "Redo restores new geometry")
+		check(ui.store._signature(ui.store.document) == ui.store._signature(repaired), "Redo restores new geometry")
 	# A standalone saved cylinder is also readable, but geometry edits need new dimensions.
 	ui.store.new_document()
 	var templates: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://addons/mapkit/godot/driving_templates.json"))

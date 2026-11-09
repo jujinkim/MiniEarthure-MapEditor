@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 func check(condition: bool, message: String) -> void:
@@ -27,7 +31,7 @@ func run() -> void:
 	ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512
 	ui.import_origin_y.value = 512
-	var path := ProjectSettings.globalize_path("user://chain-original.pbf")
+	var path := scratch.path_join("chain-original.pbf")
 	var output: Array = []
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),path,"12","chains"]),output,true) == 0,"synthetic chained PBF: " + str(output))
 	var source_hash := FileAccess.get_sha256(path)
@@ -100,9 +104,9 @@ func run() -> void:
 		check(ui.store.document.roads.size() == 10,"atomic chained adoption: " + ui.status_label.text)
 		var adopted: Dictionary = ui.store.document.duplicate(true)
 		check(ui.store.undo() == "" and ui.store.document.roads.is_empty() and ui.store.document.nodes.is_empty() and ui.store.document.recipe_version == 1,"whole chained graph Undo")
-		check(ui.store.redo() == "" and ui.store.document == adopted,"exact chained Redo")
+		check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"exact chained Redo")
 		await verify_package(ui,"full-chains",raw)
-		var package_hash := FileAccess.get_sha256(ProjectSettings.globalize_path("user://full-chains.memap"))
+		var package_hash := FileAccess.get_sha256(scratch.path_join("full-chains.memap"))
 		adopted = ui.store.document.duplicate(true)
 		ui._start_import(path,LAYER.OSM_LICENSE)
 		ui._cancel_operation()
@@ -116,7 +120,7 @@ func run() -> void:
 		await wait_import(ui)
 		check(ui.store.document.roads.is_empty(),"stale chain review cannot overwrite Undo")
 		await verify_crop(ui,path)
-		check(FileAccess.get_sha256(ProjectSettings.globalize_path("user://full-chains.memap")) == package_hash,"previous full package preserved through cancel/stale/crop")
+		check(FileAccess.get_sha256(scratch.path_join("full-chains.memap")) == package_hash,"previous full package preserved through cancel/stale/crop")
 	check(FileAccess.get_sha256(path) == source_hash,"original chain PBF preserved")
 	check(DirAccess.get_directories_at("user://authoring-candidates").is_empty(),"disposable native candidates cleaned on success and failure")
 	ui.store.dirty = false
@@ -126,7 +130,7 @@ func run() -> void:
 	quit(0 if failures.is_empty() else 1)
 
 func verify_package(ui: Control, name: String, raw: Dictionary) -> void:
-	var base := ProjectSettings.globalize_path("user://" + name)
+	var base := scratch.path_join(name)
 	check(ui.store.save_project(base) == "","save chain project " + name)
 	var package := base + ".memap"
 	check(JSON.parse_string(ui.store.bridge.export_project(base,package)).ok,"export chain package " + name)

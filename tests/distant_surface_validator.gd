@@ -1,5 +1,6 @@
 extends SceneTree
 ## Same terrain, fixed camera/lighting: near and far must not create cell tint seams.
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const RENDER := preload("res://addons/mapkit/godot/chunk_renderer.gd")
 const FAR := preload("res://addons/mapkit/godot/distant_renderer.gd")
@@ -7,6 +8,9 @@ const CACHE := preload("res://addons/mapkit/godot/render_resource_cache.gd")
 const PROFILE := preload("res://addons/mapkit/godot/environment_profile.gd")
 class Lease extends RefCounted:
 	func track(_value: Object) -> void: pass
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 func _initialize() -> void: run.call_deferred()
 func run() -> void:
 	root.size=Vector2i(320,320)
@@ -16,7 +20,7 @@ func run() -> void:
 	store.document.cell_size_cm=3200
 	store.document.environment=PROFILE.defaults()
 	store.document.environment.ground_color=[117,140,88]
-	var source:=ProjectSettings.globalize_path("user://surface-match")
+	var source:=scratch.path_join("surface-match")
 	var error: String=store.save_project(source)
 	if not error.is_empty(): push_error(error);quit(1);return
 	var bridge: RefCounted=ClassDB.instantiate("MapKitBridge")

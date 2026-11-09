@@ -28,7 +28,8 @@ func run() -> void:
 	bench.placement.width_cm = 800
 	check(bench.placement.preview_at(Vector3.ZERO) and bench.placement.commit())
 	await settle_edit(ui, 1)
-	bench.add_piece("curve")
+	# A rail needs a chord turning at least 30° within 8 m beside a 220 cm bypass.
+	bench.add_piece("right90_extra_wide")
 	check(bench.placement.preview_at(Vector3(40, 0, 0)) and bench.placement.commit())
 	await settle_edit(ui, 2)
 	var path: Array = ui.store.document.assembled_track.pieces[0].path
@@ -39,9 +40,9 @@ func run() -> void:
 	var unsafe_source: Dictionary = bench.source.duplicate(true)
 	unsafe_source.attachments = [bench.placement._attachment(unsafe_source.instances[0], 0)]
 	var unsafe_result: Dictionary = JSON.parse_string(ui.store.bridge.compile_track_source(JSON.stringify(unsafe_source)))
-	check(unsafe_result.ok and unsafe_result.data.document.assembled_track.obstacles.is_empty()
-		and unsafe_result.data.document.assembled_track.issues.any(func(issue: String): return issue.contains("obstacle no longer has safe clearance")),
-		"unsafe attachment remains a non-executable draft without obstacle geometry: " + JSON.stringify(unsafe_result.get("error", {})))
+	# MapKit refuses an obstacle without its full footprint and bypass outright.
+	check(not unsafe_result.ok and unsafe_result.error.code == "E_TRACK_CLEARANCE" and str(unsafe_result.error.message).contains("220 cm bypass"),
+		"unsafe attachment is refused without obstacle geometry: " + JSON.stringify(unsafe_result.get("error", {})))
 	for kind: String in bench.catalogue.obstacle_kinds:
 		bench.add_obstacle(kind)
 		var target := 1 if kind == "grind_rail" else 0

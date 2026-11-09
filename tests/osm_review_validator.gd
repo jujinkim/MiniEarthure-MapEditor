@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const UI := preload("res://scripts/editor_main.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failed := false
 func check(ok: bool,message: String) -> void:
 	if not ok: failed=true; push_error(message)
@@ -15,7 +19,7 @@ func run() -> void:
 	await process_frame
 	ui.store.new_track(true)
 	ui.import_python.text=OS.get_environment("MINIEARTHURE_PYTHON")
-	var path:=ProjectSettings.globalize_path("user://review.pbf")
+	var path:=scratch.path_join("review.pbf")
 	var output: Array=[]
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_review_fixture.py"),path]),output,true)==0,"synthetic source: "+str(output))
 	var hash:=FileAccess.get_sha256(path)
@@ -28,11 +32,12 @@ func run() -> void:
 	ui.import_origin_y.value=512
 	ui.osm_panel.enabled.button_pressed=true
 	ui.osm_panel.streaming.button_pressed=true
+	ui.osm_panel.city.button_pressed=false # Exact OSM review; city optimization simplifies structures.
 	var b: Array=[8.9999,54.9999,9.006,55.006]
 	for i in range(4): ui.osm_panel.fields[i].value=b[i]
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	await finish(ui)
-	check(ui.pending_import==null and ui.store.document==before,"unsupported bridge defaults to whole-import rejection")
+	check(ui.pending_import==null and ui.store.document==before,"unsupported bridge defaults to whole-import rejection: "+ui.status_label.text)
 	ui.osm_panel.exclusions.button_pressed=true
 	ui._start_import(path,LAYER.OSM_LICENSE)
 	await finish(ui)

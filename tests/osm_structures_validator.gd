@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 func check(condition: bool, message: String) -> void:
@@ -25,7 +29,7 @@ func run() -> void:
 	ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512
 	ui.import_origin_y.value = 512
-	var path := ProjectSettings.globalize_path("user://structures.osm.pbf")
+	var path := scratch.path_join("structures.osm.pbf")
 	var output: Array = []
 	check(OS.execute(ui.import_python.text, PackedStringArray(["-B", ProjectSettings.globalize_path("res://tests/osm_fixture.py"),path,"12","structures"]),output,true) == 0,"synthetic structure PBF: " + str(output))
 	var source_hash := FileAccess.get_sha256(path)
@@ -56,7 +60,7 @@ func run() -> void:
 	# mutation. Compare canonical content, then capture the current cancellation baseline.
 	check(ui.store.redo() == "" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"redo restores exact graph")
 	adopted = ui.store.document.duplicate(true)
-	var base := ProjectSettings.globalize_path("user://structures-project")
+	var base := scratch.path_join("structures-project")
 	check(ui.store.save_project(base) == "", "save structured source project")
 	var package := base + ".memap"
 	check(JSON.parse_string(ui.store.bridge.export_project(base,package)).ok,"build structure package")
@@ -135,7 +139,7 @@ func check_ground_crop(ui: Control, path: String) -> void:
 	check(roads[0].from.contains("crop-") and roads[0].to == roads[1].from and roads[1].to == roads[2].from,"synthetic outer boundary preserves original bridge joins")
 	check(roads[3].to == roads[4].from and roads[4].to == roads[5].from and roads[4].clearance_cm == 56,"tunnel connections and clearance survive approach crop")
 	var adopted: Dictionary = ui.store.document.duplicate(true)
-	var base := ProjectSettings.globalize_path("user://ground-crop-project")
+	var base := scratch.path_join("ground-crop-project")
 	check(ui.store.save_project(base) == "","save cropped structure source")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"build cropped structure package")
 	check(JSON.parse_string(ui.store.bridge.open_package(base+".memap")).ok,"open cropped structure package")
@@ -228,7 +232,7 @@ func check_structure_crop(ui: Control, path: String) -> void:
 	check(ui.store.document.nodes.size() == 4,"independent degree-one section ends, no invented ground/ramp nodes")
 	for road: Dictionary in roads:
 		check(road.from.contains("crop-") and road.to.contains("crop-"),"two cut endpoints retain distinct identities")
-	var base := ProjectSettings.globalize_path("user://structure-crop-project")
+	var base := scratch.path_join("structure-crop-project")
 	check(ui.store.save_project(base) == "","save partial structure source/provenance")
 	check(JSON.stringify(ui.store.document.attributions).contains("explicit-connected-structure-crop-v1"),"source mapping preserved in document attribution")
 	check(JSON.parse_string(ui.store.bridge.export_project(base,base+".memap")).ok,"build partial structure package")
@@ -300,7 +304,7 @@ func check_structure_crop(ui: Control, path: String) -> void:
 		check(connected.size() == 4,"two structures and two surviving ground approaches")
 		if connected.size() == 4:
 			check(connected[0].to == connected[1].from and connected[2].to == connected[3].from,"original ground joins survive one-sided partial adoption")
-		var joined_base := ProjectSettings.globalize_path("user://one-sided-crop-project")
+		var joined_base := scratch.path_join("one-sided-crop-project")
 		check(ui.store.save_project(joined_base) == "","save one-sided sections")
 		check(JSON.parse_string(ui.store.bridge.export_project(joined_base,joined_base+".memap")).ok,"native exports cropped structures with original ground joins")
 		check(JSON.parse_string(ui.store.bridge.open_package(joined_base+".memap")).ok,"open one-sided section package")

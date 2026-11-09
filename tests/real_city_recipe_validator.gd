@@ -1,9 +1,13 @@
 extends SceneTree
 ## Real-city recipe v1: parsing (areas or bbox), relative paths, wizard round trip and area lookup
 ## through the PBF place search (synthetic fixture), including an ambiguous area stop.
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const UI := preload("res://scripts/editor_main.gd")
 const RECIPE := preload("res://scripts/real_city_recipe.gd")
 const AUTO := preload("res://scripts/real_city_auto.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failed := false
 ## Records the automatic retry without running the Editor steps.
 class Retry extends "res://scripts/real_city_recipe.gd":
@@ -49,10 +53,10 @@ func run() -> void:
 	boxed.traffic = {"side":"left"}
 	check(not RECIPE.parse(JSON.stringify(boxed)).ok,"unknown traffic key refused")
 	# Earlier output is never built over.
-	var outputs := ProjectSettings.globalize_path("user://existing.memap")
+	var outputs := scratch.path_join("existing.memap")
 	FileAccess.open(outputs, FileAccess.WRITE).store_string("x")
 	var guard: RefCounted = RECIPE.new(null)
-	var stopped: Dictionary = await guard._run({"package":outputs, "project":"user://none"}, false)
+	var stopped: Dictionary = await guard._run({"package":outputs, "project":scratch.path_join("none")}, false)
 	check(not stopped.ok and stopped.failed_step == "outputs","an existing package stops the build first: "+str(stopped))
 	DirAccess.remove_absolute(outputs)
 	# A place's automatic area over a package limit is retried as the square, then smaller squares.
@@ -60,7 +64,7 @@ func run() -> void:
 	var retry := Retry.new(null)
 	var square_fail := {"ok":false, "failed_step":"osm_adopt", "status":"Building and placement checks need more work than the game allows; the game refuses maps beyond this", "extent":{"kind":"bbox", "side_m":5000.0}}
 	retry.answers = [area_fail, square_fail, {"ok":true}]
-	var first_project := ProjectSettings.globalize_path("user://retry-project")
+	var first_project := scratch.path_join("retry-project")
 	DirAccess.make_dir_recursive_absolute(first_project)
 	var retried: Dictionary = await retry.run({"place":{"name":"x"}, "project":first_project, "package":first_project + ".memap"})
 	check(retry.calls == [0.0, 5000.0, 3750.0] and retried.ok and retried.attempts.size() == 2 and retried.attempts[0].failed_step == "export","limit failures retry with shrinking squares: "+str(retry.calls))
@@ -96,7 +100,7 @@ func run() -> void:
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.import_python.text=OS.get_environment("MINIEARTHURE_PYTHON")
-	var source := ProjectSettings.globalize_path("user://places.pbf")
+	var source := scratch.path_join("places.pbf")
 	var output: Array=[]
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/pbf_places_fixture.py"),source]),output,true)==0,"synthetic PBF fixture: "+str(output))
 	var hash := FileAccess.get_sha256(source)

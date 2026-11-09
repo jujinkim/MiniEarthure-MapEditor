@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const UI := preload("res://scripts/editor_main.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var failures: Array[String] = []
 func _initialize() -> void: run.call_deferred()
@@ -95,7 +99,7 @@ func run() -> void:
 	check(bench.placement.commit(),"track edit after scenery")
 	await settle()
 	check(ui.store.document.placements == scenery,"scenery survives subsequent track compilation")
-	var path := ProjectSettings.globalize_path("user://driving-flow")
+	var path := scratch.path_join("driving-flow")
 	check(ui.store.save_project(path) == "","mixed document saves")
 	var reopened := preload("res://scripts/document_store.gd").new()
 	check(reopened.open_project(path) == "" and reopened.document.placements == scenery and reopened.track_source().instances.size()==7,"track and scenery reopen together")
@@ -119,9 +123,9 @@ func run() -> void:
 	check(ui.course_tools.proposal.applicable,"circuit suggestion")
 	check(ui.course_tools.apply_proposal(),"circuit course application")
 	await settle()
-	var circuit_path := ProjectSettings.globalize_path("user://circuit-flow")
+	var circuit_path := scratch.path_join("circuit-flow")
 	check(ui.store.save_project(circuit_path) == "","circuit saves")
-	var exported: Dictionary = JSON.parse_string(ui.store.bridge.export_project(circuit_path,ProjectSettings.globalize_path("user://circuit-flow.memap")))
+	var exported: Dictionary = JSON.parse_string(ui.store.bridge.export_project(circuit_path,scratch.path_join("circuit-flow.memap")))
 	check(exported.ok,"assembled circuit exports: "+str(exported.get("error",{})))
 	ui.queue_free(); await process_frame; await process_frame
 	print("driving_workflow_validator: ","PASS" if failures.is_empty() else failures)

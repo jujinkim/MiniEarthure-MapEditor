@@ -54,6 +54,9 @@ def main():
         addon = project / 'addons/mapkit'
         addon.mkdir(parents=True)
         shutil.copytree(root / 'addons/mapkit/godot', addon / 'godot')
+        # Validators also read MapKit's public example sources and stored package fixtures.
+        shutil.copytree(root / 'addons/mapkit/examples', addon / 'examples', ignore=shutil.ignore_patterns('*.import'))
+        shutil.copytree(root / 'addons/mapkit/crates/mapkit-package/tests/fixtures', addon / 'crates/mapkit-package/tests/fixtures')
         shutil.copy2(root / 'addons/mapkit/mapkit.gdextension', addon / 'mapkit.gdextension')
         (addon / 'target/debug').mkdir(parents=True)
         shutil.copy2(native, addon / 'target/debug' / native_name)
@@ -107,6 +110,7 @@ def main():
             with log.open('w') as output:
                 result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, timeout=180, env={
                     **os.environ, "MAPEDITOR_TEST_IMPORT_PYTHON": args.import_python,
+                    "MINIEARTHURE_PYTHON": args.import_python,
                     "MAPEDITOR_TEST_PROJECT": str(project),
                     "MAPEDITOR_TEST_RESOURCE_PACK": str(artifact) if args.resource_pack else "",
                     "MAPEDITOR_RESOURCE_PACK": str(artifact) if args.resource_pack else "",

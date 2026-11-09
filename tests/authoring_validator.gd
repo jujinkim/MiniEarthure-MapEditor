@@ -1,8 +1,12 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const PNG := preload("res://scripts/terrain_png.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var checks := 0
 
@@ -112,7 +116,7 @@ func run() -> void:
 	var initial := state()
 	check(ui.store.apply_command("stale fixture", [{"field":"cell_size_cm","before":ui.store.document.cell_size_cm + 1,"after":6400}]) != "" and state() == initial, "stale before-value preserves document and history")
 	ok(ui.store.apply_command("small synthetic map", [{"field":"bounds","before":ui.store.document.bounds,"after":{"min":[0,0],"max":[12800,12800]}},{"field":"cell_size_cm","before":ui.store.document.cell_size_cm,"after":6400}]), "fixture bounds")
-	var project := ProjectSettings.globalize_path("user://e03-project")
+	var project := scratch.path_join("e03-project")
 	ok(ui.store.save_project(project), "save before file authoring")
 	check(ui.commands.execute_id("create.authoring_settings"), "open authoring through current Create command")
 	await process_frame
@@ -127,7 +131,7 @@ func run() -> void:
 	flat.resize(81)
 	flat.fill(0)
 	var imported := PNG.encode(flat, 9)
-	var flat_path := ProjectSettings.globalize_path("user://flat-source.png")
+	var flat_path := scratch.path_join("flat-source.png")
 	ok(FILES.write_new(flat_path, imported.bytes), "flat import fixture")
 	ok(author.terrain.import_png(flat_path, Vector2i.ZERO, 800, 0, 1, 500, {"source":"Synthetic E03", "license":"MIT", "notice":"Original"}), "import raster source")
 	check(FILES.read(flat_path).bytes == imported.bytes, "import does not rewrite source")
@@ -144,7 +148,7 @@ func run() -> void:
 	ui._document_changed()
 	await process_frame
 	check(ui.store.document.free_roam and ui.store.document.heightmaps.is_empty(), "confirmed new free-roam map starts without old terrain")
-	ok(ui.store.save_project(ProjectSettings.globalize_path("user://e03-structures")), "new authoring project")
+	ok(ui.store.save_project(scratch.path_join("e03-structures")), "new authoring project")
 	ok(author.set_theme("urban"), "structure recipe")
 	ok(author.terrain.import_png(flat_path, Vector2i.ZERO, 6400, 0, 1, 500, {"source":"Synthetic E03", "license":"MIT", "notice":"Original"}), "valid PNG import")
 	check(ui.store.document.heightmaps[0].source_accuracy_cm == 500 and ui.store.document.attributions.size() == 1, "accuracy and attribution retained")
@@ -207,7 +211,7 @@ func run() -> void:
 	# Original MIT synthetic image; importer never changes it.
 	var image := Image.create(4,4,false,Image.FORMAT_RGBA8)
 	image.fill(Color("f4d03f"))
-	var image_path := ProjectSettings.globalize_path("user://original-asset.png")
+	var image_path := scratch.path_join("original-asset.png")
 	check(image.save_png(image_path) == OK, "synthetic asset PNG")
 	var asset := {"id":"gold-box", "path":"", "attribution":{"source":"E03 synthetic", "license":"MIT", "notice":"Original test image"}, "collision":[{"center":[0,100,0],"size_cm":[200,200,200]}]}
 	ok(author.asset(asset,image_path), "asset file/proxy import")

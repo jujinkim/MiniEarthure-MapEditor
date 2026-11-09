@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const HEIGHTS := preload("res://scripts/import_height_supplement.gd")
 const NATIVE := preload("res://scripts/import_native_job.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
@@ -29,7 +33,7 @@ func run() -> void:
 	ui.import_source_format.select(1);ui.import_source_format.item_selected.emit(1)
 	ui.import_origin_lon.value=9.5;ui.import_origin_lat.value=55.5
 	ui.import_origin_x.value=512;ui.import_origin_y.value=512
-	var directory := ProjectSettings.globalize_path("user://")
+	var directory := scratch
 	var output: Array=[]
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_heights_fixture.py"),directory]),output,true)==0,"synthetic missing node fixture: "+str(output))
 	if not failures.is_empty(): await finish(); return
@@ -113,7 +117,7 @@ func run() -> void:
 	var adopted: Dictionary=ui.store.document.duplicate(true)
 	check(ui.store.document.attributions.back().notice.contains(hashes["heights.json"]),"exact supplemental provenance saved in attribution")
 	check(ui.store.undo()=="" and ui.store.document.roads.is_empty(),"single Undo removes supplemental layer")
-	check(ui.store.redo()=="" and ui.store.document==adopted,"Redo restores exact supplemental graph")
+	check(ui.store.redo()=="" and ui.store._signature(ui.store.document) == ui.store._signature(adopted),"Redo restores exact supplemental graph")
 	check(ui.store.save_project(project)=="","save supplemental project")
 	var pack := directory.path_join("supplemented.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,pack)).ok and JSON.parse_string(ui.store.bridge.open_package(pack)).ok,"export/reopen supplemented package")

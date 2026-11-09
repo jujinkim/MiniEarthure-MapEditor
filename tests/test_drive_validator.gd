@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAUNCHER := preload("res://scripts/test_drive_launcher.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var calls: Array[Dictionary] = []
 
@@ -23,7 +27,7 @@ func _run() -> void:
 	root.add_child(ui)
 	await process_frame
 	ui.store.new_track(true)
-	var directory := ProjectSettings.globalize_path("user://drive contract $ literal " + Crypto.new().generate_random_bytes(6).hex_encode())
+	var directory := scratch.path_join("drive contract $ literal " + Crypto.new().generate_random_bytes(6).hex_encode())
 	ui._test_drive()
 	ui.drive_dialog.hide()
 	ui.client_path.text = directory + "/missing-client"

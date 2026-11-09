@@ -1,6 +1,10 @@
 extends SceneTree
 ## Bounded synthetic timing probe. No user files or prolonged performance run.
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const EDITOR := preload("res://scripts/editor_main.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var screen: Control
 var rows: Array = []
 var seeded_source: Dictionary = {}
@@ -104,7 +108,7 @@ func run() -> void:
 		var settings: Dictionary = bench.catalogue.defaults.duplicate(true)
 		settings.seed = 42
 		settings.length = "medium"
-		var generated: Dictionary = JSON.parse_string(screen.store.bridge.generate_track(JSON.stringify(settings), ProjectSettings.globalize_path("user://benchmark-seed.memap")))
+		var generated: Dictionary = JSON.parse_string(screen.store.bridge.generate_track(JSON.stringify(settings), scratch.path_join("benchmark-seed.memap")))
 		assert(generated.ok, str(generated.get("error", {})))
 		seeded_source = JSON.parse_string(screen.store.bridge.track_authoring_source(JSON.stringify(generated.data.document))).data
 	var output_path := OS.get_environment("TRACK_BENCH_SAVE_SOURCE")

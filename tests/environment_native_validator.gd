@@ -1,8 +1,12 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const JOB := preload("res://scripts/generation_native_job.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const REGIONS := preload("res://scripts/import_regions.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var checks := 0
 var failures: Array[String] = []
 func _initialize() -> void: run.call_deferred()
@@ -21,7 +25,7 @@ func run() -> void:
 	store.new_document()
 	store.document.free_roam=true
 	store.document.bounds={"min":[0,0],"max":[25600,25600]}
-	var project := ProjectSettings.globalize_path("user://environment-infill")
+	var project := scratch.path_join("environment-infill")
 	check(store.save_project(project)=="","save base")
 	var original := JSON.stringify(store.document)
 	var settings := {"mode":"fill","theme":"village","seed":9026,"bounds_cm":[0,0,25600,25600],"density":.25,"texture_profile":256}
@@ -45,7 +49,7 @@ func run() -> void:
 	applied=JSON.stringify(store.document)
 	check(RECOVERY_FIXTURE.write(store)=="","generation recovery write")
 	var recovered := STORE.new()
-	check(recovered.recover(RECOVERY_FIXTURE.path(store))=="" and recovered.document==store.document,"generation metadata recovery")
+	check(recovered.recover(RECOVERY_FIXTURE.path(store))=="" and recovered._signature(recovered.document) == recovered._signature(store.document),"generation metadata recovery")
 	job.cleanup()
 	var stale := JOB.new();check(stale.start_generation(store,settings,python)=="","start stale preview")
 	await wait_job(stale)
@@ -56,7 +60,7 @@ func run() -> void:
 	var created := JOB.new();check(created.start_generation(store,settings,python)=="","new world starts")
 	await wait_job(created)
 	check(not created.bundle.is_empty(),"native new world preview: "+str(created.result).left(1800))
-	var target := ProjectSettings.globalize_path("user://environment-new")
+	var target := scratch.path_join("environment-new")
 	if not created.bundle.is_empty():
 		check(created.bundle.report.diagnostics.errors.is_empty(),"required facilities: "+str(created.bundle.report.diagnostics.errors))
 		check(not DirAccess.dir_exists_absolute(target),"preview does not publish directory")

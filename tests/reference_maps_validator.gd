@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const INDEX := preload("res://scripts/preview_index.gd")
 const WORK := preload("res://scripts/package_work.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var checks := 0
 var evidence := {}
 
@@ -23,14 +27,14 @@ func run() -> void:
         var before := FileAccess.get_sha256(source.path_join(name).path_join("document.json"))
         var index := INDEX.build(store.bridge, store.document)
         check(index.ok, name + " Editor index: " + str(index.get("error", "")))
-        var packaged: Dictionary = JSON.parse_string(store.bridge.export_project(source.path_join(name), ProjectSettings.globalize_path("user://" + name + ".memap")))
+        var packaged: Dictionary = JSON.parse_string(store.bridge.export_project(source.path_join(name), scratch.path_join(name + ".memap")))
         check(packaged.ok, name + " native export")
         for key in ["package_sha256", "world_content_hash", "package_bytes", "cell_count", "base_data_bytes", "user_asset_bytes", "expanded_bytes"]:
             check(packaged.data[key] == lock[name].inspection[key], name + " frozen " + key)
-        var assets := WORK.compressed_assets("user://" + name + ".memap", store.document.assets)
+        var assets := WORK.compressed_assets(scratch.path_join(name + ".memap"), store.document.assets)
         check(assets.ok and assets.data == lock[name].capacity.user_asset_compressed_bytes, name + " base/user compressed partition")
         var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
-        var opened: Dictionary = JSON.parse_string(bridge.open_package(ProjectSettings.globalize_path("user://" + name + ".memap")))
+        var opened: Dictionary = JSON.parse_string(bridge.open_package(scratch.path_join(name + ".memap")))
         check(opened.ok, name + " exported native reopen")
         var cells: Array = [[0,0],[9,0],[0,9],[9,9],[11,11],[18,18],[19,19]] if name == "baseline" else [[0,0]]
         if name == "structures": cells = [[0,0],[1,0],[0,1],[1,1]]

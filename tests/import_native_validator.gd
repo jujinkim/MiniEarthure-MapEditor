@@ -1,4 +1,5 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const JOB := preload("res://scripts/import_native_job.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
@@ -36,6 +37,9 @@ class PartialNative extends FaultNative:
 		child.erase("stderr")
 		return child
 
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var entry: Node
 var source := ""
@@ -91,26 +95,26 @@ func run() -> void:
 	ui.import_origin_lon.value = 9; ui.import_origin_lat.value = 55
 	ui.import_origin_x.value = 512; ui.import_origin_y.value = 512
 	if structural_case(): check(ui.store.apply_command("Fixture seed",[{"field":"seed","before":ui.store.document.seed,"after":12345}]) == "", "current setup")
-	var project := ProjectSettings.globalize_path("user://native-project")
+	var project := scratch.path_join("native-project")
 	check(ui.store.save_project(project) == "", "save baseline")
 	var heights := PackedInt64Array(); heights.resize(17*17); heights.fill(0)
 	var encoded: Dictionary = preload("res://scripts/terrain_png.gd").encode(heights,17)
-	var image := ProjectSettings.globalize_path("user://terrain.png")
+	var image := scratch.path_join("terrain.png")
 	write(image,encoded.bytes)
 	var height := preload("res://scripts/heightmap_import_layer.gd").new()
 	check(height.stage(ui.canvas.author.terrain,image,Vector2i(1,1),3200,0,1,0,{"source":"Synthetic flat terrain","license":"MIT","notice":"fixture"}) == "" and height.adopt(ui.canvas.author.terrain) == "", "file-backed candidate terrain")
 	check(ui.store.save_project(project) == "", "save file-backed baseline")
-	var package := ProjectSettings.globalize_path("user://prior.memap")
+	var package := scratch.path_join("prior.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,package)).ok and JSON.parse_string(ui.store.bridge.open_package(package)).ok, "prior package loaded")
 	var bridge_before: String = ui.store.bridge.document_json()
 	var package_hash := FileAccess.get_sha256(package)
 	var before := state()
 	if structural_case():
-		source = ProjectSettings.globalize_path("user://chains.pbf")
+		source = scratch.path_join("chains.pbf")
 		var output: Array = []
 		check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_fixture.py"),source,"12","chains"]),output,true) == 0,"synthetic chain fixture")
 	else:
-		source = ProjectSettings.globalize_path("user://building.geojson")
+		source = scratch.path_join("building.geojson")
 		write(source,JSON.stringify({"type":"FeatureCollection","features":[{"type":"Feature","properties":{"height_m":12},"geometry":{"type":"Polygon","coordinates":[[[520,520],[530,520],[530,530],[520,530],[520,520]]]}}]}).to_utf8_buffer())
 	var original: PackedByteArray = FILES.read(source).bytes
 	ui._start_import(source,LAYER.OSM_LICENSE if structural_case() else "MIT")

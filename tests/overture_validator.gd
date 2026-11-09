@@ -22,6 +22,7 @@ func run() -> void:
 	scratch = SCRATCH.fresh("overture_validator")
 	var ui := UI.new()
 	root.add_child(ui); ui._ensure_import_ui()
+	ui.store.new_track(true) # Imports author free roam; Seed Track documents own their geometry.
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	var before: Dictionary=ui.store.document.duplicate(true)
@@ -77,11 +78,14 @@ func run() -> void:
 	var update:=scratch.path_join("updated.overture.json")
 	var snapshot:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(source))
 	snapshot.features[0].properties.height=23
+	# Native validation rejects overlapping buildings, so the update sits beside the original.
+	for ring: Array in snapshot.features[0].geometry.coordinates[0]:
+		for point: Array in ring: point[0]+=0.0002
 	var f:=FileAccess.open(update,FileAccess.WRITE)
 	f.store_string(JSON.stringify(snapshot));f.close()
 	ui._start_import(update,LAYER.OVERTURE_LICENSE)
 	await wait_job(ui)
-	check(ui.pending_import!=null and ui.pending_import.value.layer_id!=raw.layer_id,"source update is fresh layer")
+	check(ui.pending_import!=null and ui.pending_import.value.layer_id!=raw.layer_id,"source update is fresh layer: "+ui.status_label.text)
 	ui._adopt_import()
 	await wait_job(ui)
 	check(ui.store.document.buildings.size()==2,"update retains old building")
@@ -95,7 +99,8 @@ func run() -> void:
 	await wait_job(ui)
 	check(ui.store.document.buildings.size()==1,"stale review rejected")
 	# Surviving local helper lifetime: deadline, stale response, retry and owner close.
-	ui._start_import(source,LAYER.OVERTURE_LICENSE)
+	# The shifted update, since the original building is still on the map.
+	ui._start_import(update,LAYER.OVERTURE_LICENSE)
 	var owned: RefCounted = ui.import_job
 	# A passed deadline only warns; Cancel stops the local helper.
 	owned.poll(owned.deadline_ms)
@@ -103,15 +108,15 @@ func run() -> void:
 	owned.cancel()
 	await wait_job(ui)
 	check(owned.result.error.code == "E_IMPORT_CANCELLED","Cancel stops a long local helper")
-	ui._start_import(source,LAYER.OVERTURE_LICENSE)
+	ui._start_import(update,LAYER.OVERTURE_LICENSE)
 	ui.generation += 1
 	await wait_job(ui)
 	check(ui.pending_import == null,"stale document rejects local candidate")
-	ui._start_import(source,LAYER.OVERTURE_LICENSE)
+	ui._start_import(update,LAYER.OVERTURE_LICENSE)
 	await wait_job(ui)
-	check(ui.pending_import != null,"fresh local retry succeeds")
+	check(ui.pending_import != null,"fresh local retry succeeds: "+ui.status_label.text)
 	ui._discard_import()
-	ui._start_import(source,LAYER.OVERTURE_LICENSE)
+	ui._start_import(update,LAYER.OVERTURE_LICENSE)
 	owned=ui.import_job
 	ui.store.dirty=false
 	ui.queue_free()

@@ -1258,6 +1258,10 @@ func _preview() -> void:
 func _preview_cell_changed(_value: float) -> void:
 	if preview_enabled:
 		generation += 1
+		# A request waiting for the density worker would otherwise start on the new cell.
+		if not density_deferred_package.is_empty():
+			density_deferred_package.clear()
+			busy = false
 		if package_work != null: package_work.cancel()
 		_cancel_attachment()
 		preview_due = Time.get_ticks_msec() + 150
@@ -1886,6 +1890,14 @@ func _exit_tree() -> void:
 	_save_workbench()
 	if package_work != null: package_work.cancel()
 	_cancel_attachment()
+	# Release preview render resources as the Client does on exit. The grass field
+	# drops freed preview roots on its next frame tick, which never comes at exit,
+	# so release this Editor's grass cells directly.
+	_clear_preview_cache()
+	var grass: Dictionary = preview_resources.entries.get(preload("res://addons/mapkit/godot/grass_field.gd").KEY, {})
+	if grass.has("grass_field"):
+		for cell: RefCounted in grass.grass_field.cells.duplicate(): cell.release()
+	preview_resources.shutdown()
 	if worker.is_started():
 		var output: Variant = worker.wait_to_finish()
 		if output is Dictionary and output.operation == "package" and output.result.ok and output.result.data.has("scratch"):

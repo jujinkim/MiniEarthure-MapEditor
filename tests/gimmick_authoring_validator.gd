@@ -1,4 +1,8 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failed := false
 func _initialize() -> void: run.call_deferred()
 func check(ok: bool, label: String) -> void:
@@ -64,7 +68,7 @@ func run() -> void:
 		check(panel.preview.get_child(0).get_child_count()>0,"resolved preview "+kind)
 	var pose: Transform3D = panel.surface_pose(Vector3(1,2,3),Vector3.LEFT,Vector3.FORWARD)
 	check(pose.basis.y.is_equal_approx(Vector3.LEFT) and pose.origin==Vector3(1,2,3),"surface normal placement")
-	var saved: String = ProjectSettings.globalize_path("user://special-roundtrip")
+	var saved: String = scratch.path_join("special-roundtrip")
 	var expected: Array = ui.store.document.gimmicks.duplicate(true)
 	check(ui.store.save_project(saved) == "","save special project")
 	var reopened := preload("res://scripts/document_store.gd").new()

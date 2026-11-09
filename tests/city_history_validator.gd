@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const CODEC := preload("res://scripts/history_codec.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 func check(value: bool, message: String) -> void:
 	if not value: failures.append(message); push_error(message)
@@ -30,7 +34,7 @@ func run() -> void:
 	var after: Dictionary = store.document.duplicate(true)
 	check(store.undo()=="" and store._signature(store.document)==store._signature(before),"compressed city Undo restores exact original")
 	check(store.redo()=="" and store._signature(store.document)==store._signature(after),"compressed city Redo restores exact accepted geometry")
-	var project := ProjectSettings.globalize_path("user://city-history")
+	var project := scratch.path_join("city-history")
 	check(store.save_project(project)=="","save keeps compressed history readable")
 	after = store.document.duplicate(true)
 	var bad: Dictionary = store.undo_stack[0].duplicate(true)

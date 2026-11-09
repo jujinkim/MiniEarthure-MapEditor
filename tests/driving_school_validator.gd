@@ -1,5 +1,9 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var checks := 0
 func _initialize() -> void: run.call_deferred()
 func check(value: bool, message: String) -> void:
@@ -14,10 +18,10 @@ func run() -> void:
 	var store := STORE.new()
 	var before := FileAccess.get_sha256(source.path_join("document.json"))
 	check(store.open_project(source)=="","Editor opens the complete town")
-	var saved := ProjectSettings.globalize_path("user://school-saved")
+	var saved := scratch.path_join("school-saved")
 	check(store.save_project(saved)=="","Editor Save As copies static models")
 	check(store.open_project(saved)=="","Editor saved project reopens")
-	var output := ProjectSettings.globalize_path("user://school-export.memap")
+	var output := scratch.path_join("school-export.memap")
 	var packed: Dictionary = JSON.parse_string(store.bridge.export_project(saved,output))
 	check(packed.ok,"native export: "+str(packed))
 	check(FileAccess.get_sha256(output)==FileAccess.get_sha256(source+".memap"),"Save As/reopen/export preserves exact package including Q01 assets")

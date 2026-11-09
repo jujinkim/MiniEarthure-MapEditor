@@ -1,10 +1,14 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const SNAPSHOT := preload("res://scripts/project_snapshot.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
 const WORK := preload("res://scripts/package_work.gd")
 const INDEX := preload("res://scripts/preview_index.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 var checks := 0
 
@@ -30,11 +34,11 @@ func check(value: bool, message: String) -> void:
 func ok(value: String, message: String) -> void:
 	check(value == "", message + ": " + value)
 
-func wait_work() -> void:
-	var deadline := Time.get_ticks_msec() + 20000
+func wait_work(limit_ms := 20000) -> void:
+	var deadline := Time.get_ticks_msec() + limit_ms
 	while (ui.busy or ui.store.editing_locked()) and Time.get_ticks_msec() < deadline:
 		await create_timer(0.002).timeout
-	check(not ui.busy and not ui.store.editing_locked(), "worker/attachment completes by deadline")
+	check(not ui.busy and not ui.store.editing_locked(), "worker/attachment completes by deadline: busy %s locked %s render %s frames %d" % [ui.busy, ui.store.editing_locked(), not ui.render_job.is_empty(), ui.preview_stats.attachment_frames])
 
 func building(id: String, x: int) -> Dictionary:
 	return {"id":id, "footprint":[[x,1000],[x+2000,1000],[x+2000,3000],[x,3000]], "base_cm":0, "height_cm":1000, "usage":"residential", "material":"brick", "roof":"flat"}
@@ -64,7 +68,7 @@ func run() -> void:
 	failed_store.file_job_factory = func(): return invalid_job
 	var failures: Array = []
 	failed_store.file_operation_finished.connect(func(result: Dictionary): failures.append(result))
-	ok(failed_store.start_file_operation("export", "user://invalid-worker.memap"), "invalid worker starts")
+	ok(failed_store.start_file_operation("export", scratch.path_join("invalid-worker.memap")), "invalid worker starts")
 	failed_store.poll_file_operation()
 	failed_store.poll_file_operation()
 	check(failures.size() == 1 and not failures[0].ok and failures[0].error.contains("invalid result"), "malformed worker has one visible failure")
@@ -124,7 +128,7 @@ func run() -> void:
 	ui.preview_x.value = 5
 	ui.preview_due = 0
 	await wait_work()
-	check(not ui.preview_cache.has(Vector2i(5,1)), "stale selection discards result")
+	check(not ui.preview_cache.has(Vector2i(5,1)), "stale selection discards result: %s x=%s %s" % [ui.preview_cache.keys(), ui.preview_x.value, ui.status_label.text])
 	ui._preview()
 	await wait_work()
 	check(ui.preview_cache.has(Vector2i(5,1)), "new selected cell ready")
@@ -149,7 +153,7 @@ func run() -> void:
 	check(ui.last_export_report.full_generation_cells == 0, "full 3D is optional")
 	check(JSON.stringify(ui.store.document) == document_before and ui.store.dirty, "validation preserves source and dirty state")
 	ui.export_report.hide()
-	var export_path := ProjectSettings.globalize_path("user://e04-export.memap")
+	var export_path := scratch.path_join("e04-export.memap")
 	ui._start_package("export", export_path)
 	ui._cancel_operation()
 	await wait_work()
@@ -174,7 +178,7 @@ func run() -> void:
 	ui.preview_due = 0
 	ui.store.new_track(true)
 	ui.set_tool_workspace("landscape")
-	var source := ProjectSettings.globalize_path("user://e04-source")
+	var source := scratch.path_join("e04-source")
 	ok(ui.store.save_project(source), "initial save")
 	var image := Image.create(4,4,false,Image.FORMAT_RGBA8)
 	image.fill(Color.YELLOW)
@@ -183,7 +187,7 @@ func run() -> void:
 	var asset := {"id":"image", "path":path, "attribution":{"source":"Synthetic E04","license":"MIT","notice":"Original"}, "collision":[{"center":[0,100,0],"size_cm":[200,200,200]}]}
 	ok(FILES.apply(ui.store,"asset",[{"field":"assets","id":"image","before":null,"after":asset}], {path:bytes}), "immutable asset command")
 	ok(ui.store.undo(), "asset becomes history-only redo")
-	var target := ProjectSettings.globalize_path("user://e04-copy")
+	var target := scratch.path_join("e04-copy")
 	ok(ui.store.save_project(target), "Save As includes history-only files")
 	check(FileAccess.get_file_as_bytes(target.path_join(path)) == bytes, "history file copied byte-exactly")
 	ok(ui.store.redo(), "redo after relocation")
@@ -193,14 +197,14 @@ func run() -> void:
 	check(FileAccess.get_file_as_bytes(source.path_join(path)) == bytes, "original payload retained")
 	var reopened := STORE.new()
 	ok(reopened.open_project(target), "copied project opens independently")
-	var second_copy := ProjectSettings.globalize_path("user://e04-current-copy")
+	var second_copy := scratch.path_join("e04-current-copy")
 	ok(reopened.save_project(second_copy), "Save As copies current referenced asset")
 	check(FileAccess.get_file_as_bytes(second_copy.path_join(path)) == bytes, "current asset byte-exact copy")
 	ok(RECOVERY_FIXTURE.write(reopened), "relocated recovery")
 	var recovered := STORE.new()
 	ok(recovered.recover(RECOVERY_FIXTURE.path(reopened)), "recover copied project")
 	check(recovered.project_path == second_copy, "recovery keeps copied origin")
-	var collision_target := ProjectSettings.globalize_path("user://e04-conflict")
+	var collision_target := scratch.path_join("e04-conflict")
 	ok(FILES.write_new(collision_target.path_join(path), "unrelated".to_utf8_buffer()), "conflict fixture")
 	var state := JSON.stringify([ui.store.document,ui.store.project_path,ui.store.undo_stack,ui.store.redo_stack,ui.store.dirty])
 	check(ui.store.save_project(collision_target) != "", "conflicting destination rejected")
@@ -241,7 +245,7 @@ func run() -> void:
 	# Dense terrain must span frames, and cancellation after a batch retains old root.
 	ui.store.new_track(true)
 	ui.set_tool_workspace("landscape")
-	var dense_source := ProjectSettings.globalize_path("user://e04-dense")
+	var dense_source := scratch.path_join("e04-dense")
 	ok(ui.store.save_project(dense_source), "dense source")
 	ui.preview_x.value = 0
 	ui.preview_y.value = 0
@@ -270,7 +274,9 @@ func run() -> void:
 	ui.set_process(true)
 	var frames: int = ui.preview_stats.attachment_frames
 	ui._preview()
-	await wait_work()
+	# Grass indexing of a full 2 m terrain cell (131,072 triangles) takes about 4,700
+	# 3 ms attachment frames (measured 35 s headless), each within the frame budget.
+	await wait_work(60000)
 	check(ui.preview_stats.attachment_frames > frames + 1, "dense preview completes over multiple frames")
 	check(ui.preview_cache[Vector2i.ZERO].root != old, "dense result atomically replaces prior preview")
 	# Refuse excessive work from source-derived estimate without generation.

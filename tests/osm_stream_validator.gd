@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const JOB := preload("res://scripts/import_job.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var checks := 0
 func check(condition: bool, message: String) -> void:
@@ -26,7 +30,7 @@ func run() -> void:
 	ui.import_origin_lat.value=55
 	ui.import_origin_x.value=512
 	ui.import_origin_y.value=512
-	var path := ProjectSettings.globalize_path("user://large-synthetic.pbf")
+	var path := scratch.path_join("large-synthetic.pbf")
 	var fixture_output: Array=[]
 	check(OS.execute(ui.import_python.text,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/osm_stream_fixture.py"),path]),fixture_output,true)==0,"large synthetic PBF: "+str(fixture_output))
 	var file := FileAccess.open(path,FileAccess.READ)
@@ -94,7 +98,7 @@ func run() -> void:
 	# content must be exact even when Undo/Redo crosses a wall-clock second.
 	check(redo_error=="" and ui.store._signature(ui.store.document)==ui.store._signature(adopted),"exact Redo content: "+redo_error)
 	adopted=ui.store.document.duplicate(true)
-	var base := ProjectSettings.globalize_path("user://stream-project")
+	var base := scratch.path_join("stream-project")
 	check(ui.store.save_project(base)=="","save source provenance")
 	var package := base+".memap"
 	check(JSON.parse_string(ui.store.bridge.export_project(base,package)).ok,"build streaming package")

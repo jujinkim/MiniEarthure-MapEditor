@@ -1,6 +1,10 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const EDITOR:=preload("res://scripts/editor_main.gd")
 const STORE:=preload("res://scripts/document_store.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var ui: Control
 func _initialize() -> void:run.call_deferred()
 func settle() -> void:
@@ -57,11 +61,11 @@ func run() -> void:
 	assert(store.set_free_roam(true)=="" and ui.track_workbench.active)
 	var retained: String=store._signature(store.document)
 	assert(store.edit_road("editable",design,999999)!="" and store._signature(store.document)==retained)
-	var path:=ProjectSettings.globalize_path("user://mixed-road")
+	var path:=scratch.path_join("mixed-road")
 	assert(store.save_project(path)=="")
 	var reopened:=STORE.new();assert(reopened.open_project(path)=="")
 	assert(reopened.document.roads==store.document.roads and reopened.document.surface_attachments==store.document.surface_attachments)
-	var exported: Dictionary=JSON.parse_string(store.bridge.export_project(path,ProjectSettings.globalize_path("user://mixed.memap")))
+	var exported: Dictionary=JSON.parse_string(store.bridge.export_project(path,scratch.path_join("mixed.memap")))
 	assert(exported.ok,str(exported))
 	var collision: Dictionary=JSON.parse_string(store.bridge.source_preview(JSON.stringify(store.document),path,3,3))
 	assert(collision.ok,str(collision))

@@ -1,4 +1,8 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 func _initialize() -> void: run.call_deferred()
 func check(ok: bool, message: String) -> void:
@@ -22,7 +26,7 @@ func run() -> void:
 	if not inspected.ok:
 		quit(1)
 		return
-	var directory := ProjectSettings.globalize_path("user://synthetic-assets")
+	var directory := scratch.path_join("synthetic-assets")
 	DirAccess.make_dir_recursive_absolute(directory)
 	var zip := ZIPReader.new()
 	check(zip.open(source) == OK, "synthetic fixture reader")

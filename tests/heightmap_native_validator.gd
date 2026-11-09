@@ -64,13 +64,13 @@ func run() -> void:
 	root.add_child(ui)
 	await process_frame
 	ui.store.new_document()
-	var project := ProjectSettings.globalize_path("user://png-native-project")
+	var project := scratch.path_join("png-native-project")
 	check(ui.store.save_project(project) == "", "save synthetic PNG project")
 	var heights := PackedInt64Array(); heights.resize(17 * 17); heights.fill(0); heights[8 * 17 + 8] = 100
 	original = PNG.encode(heights, 17).bytes
-	options = {"path":ProjectSettings.globalize_path("user://original.png"), "cell":[0,0], "spacing":3200, "offset":0, "step":1, "accuracy":500, "attribution":{"source":"Synthetic PNG", "license":"MIT", "notice":"private test fixture"}}
+	options = {"path":scratch.path_join("original.png"), "cell":[0,0], "spacing":3200, "offset":0, "step":1, "accuracy":500, "attribution":{"source":"Synthetic PNG", "license":"MIT", "notice":"private test fixture"}}
 	write(options.path, original)
-	var package := ProjectSettings.globalize_path("user://original.memap")
+	var package := scratch.path_join("original.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project, package)).ok, "baseline package")
 	var package_hash := FileAccess.get_sha256(package)
 	var bridge: String = ui.store.bridge.document_json()
@@ -277,7 +277,7 @@ func run() -> void:
 	check(released_command.get("history_released", false) and not released_command.has("binary_mementos"), "raster command over the Undo budget is released")
 	var transfer := JOB.new()
 	transfer.request = {"layer_id":token()}
-	transfer.directory = ProjectSettings.globalize_path("user://raster-released-transfer")
+	transfer.directory = scratch.path_join("raster-released-transfer")
 	DirAccess.make_dir_recursive_absolute(transfer.directory)
 	var transfer_output := {}
 	var prepared := {"canonical":JSON.stringify(ui.store.document), "command_json":command_json, "signature":"a".repeat(64), "command":released_command, "retained":{blob_path:blob}}

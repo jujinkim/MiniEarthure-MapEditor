@@ -1,7 +1,11 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const JOB := preload("res://scripts/import_job.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
+## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
+var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failed := false
 func check(ok: bool, message: String) -> void:
 	if not ok: failed=true; push_error(message)
@@ -16,7 +20,7 @@ func finish(job: RefCounted) -> void:
 func run() -> void:
 	var store := STORE.new()
 	store.new_document()
-	var source := ProjectSettings.globalize_path("user://facilities.csv")
+	var source := scratch.path_join("facilities.csv")
 	var file := FileAccess.open(source,FileAccess.WRITE)
 	file.store_string("name,latitude,longitude\n도서관,55,9\nMissing,,9\n")
 	file.close()
@@ -39,7 +43,7 @@ func run() -> void:
 	check(store.document.pois.size()==1 and store.document.pois[0].name=="도서관","Korean facility preserved")
 	check(store.undo()=="" and store.document.get("pois",[]).is_empty(),"Undo removes the complete layer")
 	check(store.redo()=="" and store.document.pois.size()==1,"Redo restores one facility")
-	var directory := ProjectSettings.globalize_path("user://facilities-project")
+	var directory := scratch.path_join("facilities-project")
 	check(store.save_project(directory)=="" and store.open_project(directory)=="","project save/reopen")
 	var path := directory+".memap"
 	check(JSON.parse_string(store.bridge.export_project(directory,path)).ok,"facility package export")
