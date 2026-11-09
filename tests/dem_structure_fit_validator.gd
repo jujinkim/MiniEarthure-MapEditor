@@ -1,5 +1,6 @@
 extends SceneTree
 ## Estimated bridge/tunnel fitting on a sloped, creased two-cell DEM.
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
 const PNG := preload("res://scripts/terrain_png.gd")
@@ -7,6 +8,8 @@ const FIT := preload("res://scripts/dem_structure_fit.gd")
 const LAYER := "c"
 var failures: Array[String] = []
 var checks := 0
+var scratch := ""
+func _finalize() -> void: SCRATCH.remove(scratch)
 func _initialize() -> void: run.call_deferred()
 func check(ok: bool, message: String) -> void:
 	checks += 1
@@ -89,6 +92,7 @@ func shared_corners(a: Vector2, b: Vector2, c: Vector2, d: Vector2) -> Array:
 	return keys.keys()
 
 func run() -> void:
+	scratch = SCRATCH.fresh("dem_structure_fit_validator")
 	check(FIT.separation_cm(8) == 63 and FIT.max_edit_cm(8) == 800 and FIT.separation_cm(3) == 167 and FIT.max_edit_cm(3) == 2133, "5 m separation and 64 m edit bound follow the map scale")
 	# The 1:3 city default, then the 1:8 map with every refusal case.
 	if case(3): case(8)
@@ -119,7 +123,7 @@ func case(denominator: int) -> bool:
 			road("link", "b", "c", [[20000,0,6400],[23000,0,6400]]), road("diagonal", "dn", "ds", [[8000,0,1500],[16100,0,12300]])]:
 		setup.append({"field":"roads", "id":item.id, "before":null, "after":item})
 	check(store.apply_command("synthetic city", setup) == "", "synthetic estimated city 1:%d" % denominator)
-	check(store.save_project(ProjectSettings.globalize_path("user://structure-fit-%d" % denominator)) == "", "save isolated project")
+	check(store.save_project(scratch.path_join("structure-fit-%d" % denominator)) == "", "save isolated project")
 	var cells: Array = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(3, 0)]
 	check(FILES.apply(store, "flat", [], {}, cells, true) == "", "estimated structures pass on flat terrain")
 	var dem := heightmaps()

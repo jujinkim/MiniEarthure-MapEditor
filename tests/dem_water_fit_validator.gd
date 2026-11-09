@@ -7,6 +7,7 @@ extends SceneTree
 ## into stretches with their own levels, the stream with an island is not; the
 ## DEM itself is never carved (MapKit sinks the basins). A second fit of the
 ## fitted map changes nothing.
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
 const PNG := preload("res://scripts/terrain_png.gd")
@@ -14,6 +15,8 @@ const FIT := preload("res://scripts/dem_water_fit.gd")
 const LAYER := "w"
 var failures: Array[String] = []
 var checks := 0
+var scratch := ""
+func _finalize() -> void: SCRATCH.remove(scratch)
 func _initialize() -> void: run.call_deferred()
 func check(ok: bool, message: String) -> void:
 	checks += 1
@@ -49,6 +52,7 @@ func samples(store: RefCounted, dem: Dictionary, points: Array) -> Array:
 	return points.map(func(point: Vector2) -> int: return int(JSON.parse_string(native.height(point)).data.height))
 
 func run() -> void:
+	scratch = SCRATCH.fresh("dem_water_fit_validator")
 	var store := STORE.new()
 	store.new_document()
 	var frame := {"mode":"wgs84-utm", "origin":[9.5, 55.5], "local_origin_m":[0.0, 0.0]}
@@ -69,7 +73,7 @@ func run() -> void:
 	bodies.append(isle)
 	for item: Dictionary in bodies: setup.append({"field":"water_bodies", "id":item.id, "before":null, "after":item})
 	check(store.apply_command("synthetic city water", setup) == "", "synthetic city with water")
-	check(store.save_project(ProjectSettings.globalize_path("user://water-fit")) == "", "save isolated project")
+	check(store.save_project(scratch.path_join("water-fit")) == "", "save isolated project")
 	var dem := heightmaps()
 	var options := {"coordinates":frame, "cell":[0, 0], "cell_count":[2, 1], "osm_denominator":3.0}
 	var fit: Dictionary = FIT.prepare(store, dem.records, dem.blobs, {}, options)

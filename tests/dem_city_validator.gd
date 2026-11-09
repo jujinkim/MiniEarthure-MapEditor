@@ -1,10 +1,13 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const JOB := preload("res://scripts/dem_native_job.gd")
 const DEM := preload("res://scripts/dem_import_layer.gd")
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
+var scratch := ""
+func _finalize() -> void: SCRATCH.remove(scratch)
 func _initialize() -> void: run.call_deferred()
 func check(ok: bool, message: String) -> void:
 	checks += 1
@@ -16,6 +19,7 @@ func wait_job() -> void:
 	while ui.busy and Time.get_ticks_msec()<deadline: await process_frame
 	check(not ui.busy,"bounded city DEM completes: "+ui.status_label.text)
 func run() -> void:
+	scratch = SCRATCH.fresh("dem_city_validator")
 	# The original 1:8 city scale and the 1:3 city default read back the same way.
 	for denominator in [8, 3]: await run_scale(denominator)
 	print("dem_city_validator: ","PASS" if failures.is_empty() else failures,"; checks=",checks)
@@ -43,9 +47,9 @@ func run_scale(denominator: int) -> void:
 	check(ui.store.apply_command("synthetic city",patches)=="","96-cell synthetic bounds and road")
 	ui.csv_panel.use_imported_frame()
 	check(ui.import_coordinate_mode.selected == 1 and ui.import_origin_lon.value == 9.5 and ui.import_origin_lat.value == 55.5 and ui.import_origin_x.value == 0 and ui.import_origin_y.value == 0, "CSV reuses the same source frame without applying map scale twice")
-	var project := ProjectSettings.globalize_path("user://dem-city-%d" % denominator)
+	var project := scratch.path_join("dem-city-%d" % denominator)
 	check(ui.store.save_project(project)=="","save isolated test project")
-	var source := ProjectSettings.globalize_path("user://synthetic-city-%d.tif" % denominator)
+	var source := scratch.path_join("synthetic-city-%d.tif" % denominator)
 	var python := OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	var output: Array=[]
 	check(OS.execute(python,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/dem_fixture.py"),source]),output,true)==0,"synthetic source: "+str(output))

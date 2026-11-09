@@ -1,10 +1,13 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const DEM := preload("res://scripts/dem_import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
+var scratch := ""
+func _finalize() -> void: SCRATCH.remove(scratch)
 func _initialize() -> void: run.call_deferred()
 func check(ok: bool, message: String) -> void:
 	checks += 1
@@ -21,15 +24,16 @@ func fixture(path: String, bias: int = 0) -> void:
 	var python := OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	check(OS.execute(python,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/dem_fixture.py"),path,str(bias)]),output,true)==0,"create synthetic COG: "+str(output))
 func run() -> void:
+	scratch = SCRATCH.fresh("dem_validator")
 	root.size = Vector2i(1024,720)
 	ui = load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.store.new_document() # One 512 m cell; the launch track uses 128 m cells.
 	check(ui.store.apply_command("single-cell synthetic map",[{"field":"bounds","before":ui.store.document.bounds.duplicate(true),"after":{"min":[0,0],"max":[51200,51200]}}])=="","single-cell fixture bounds")
-	var project := ProjectSettings.globalize_path("user://dem-project")
+	var project := scratch.path_join("project")
 	check(ui.store.save_project(project)=="","save isolated DEM project")
-	var source := ProjectSettings.globalize_path("user://original-synthetic.tif")
+	var source := scratch.path_join("original-synthetic.tif")
 	fixture(source)
 	var source_sha := FileAccess.get_sha256(source)
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
@@ -48,14 +52,14 @@ func run() -> void:
 	await wait_job()
 	check(not panel.plan.is_empty() and not panel.get_ok_button().disabled,"local source size/projection review: "+ui.status_label.text+" | "+panel.summary.text)
 	if panel.plan.is_empty():
-		ui.queue_free();await process_frame;quit(1);return
+		ui.queue_free();await process_frame;print("dem_validator: ",failures,"; checks=",checks);quit(1);return
 	check(panel.plan.sources[0].source.sha256 == source_sha and panel.summary.text.contains("EGM2008") and panel.summary.text.contains("source accuracy"),"review source identity, vertical reference and accuracy")
 	check(state()==before,"review leaves document and history unchanged")
 	panel.get_ok_button().pressed.emit()
 	await wait_job()
 	check(panel.candidate != null and panel.review.visible,"native validates sampled DEM for explicit review: "+ui.validation_label.text)
 	if panel.candidate == null:
-		ui.queue_free();await process_frame;quit(1);return
+		ui.queue_free();await process_frame;print("dem_validator: ",failures,"; checks=",checks);quit(1);return
 	var receipt: Dictionary = panel.candidate.value.dem.receipt.duplicate(true)
 	var first_id: String = panel.candidate.value.layer_id
 	var first_destination: String = panel.destination
@@ -93,7 +97,7 @@ func run() -> void:
 	check(ui.store.undo()=="" and ui.store.document.heightmaps.is_empty(),"atomic geometry/notice undo")
 	check(ui.store.redo()=="" and ui.store.document.heightmaps[0]==first,"redo restores file and descriptor")
 	check(ui.store.save_project(project)=="","save imported terrain")
-	var output := ProjectSettings.globalize_path("user://retained.memap")
+	var output := scratch.path_join("retained.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,output)).ok,"package DEM with shared native geometry")
 	var package_sha := FileAccess.get_sha256(output)
 	fixture(source,2)

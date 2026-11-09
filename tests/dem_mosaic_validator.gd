@@ -1,10 +1,13 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const DEM := preload("res://scripts/dem_import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 var ui: Control
 var failures: Array[String] = []
 var checks := 0
+var scratch := ""
+func _finalize() -> void: SCRATCH.remove(scratch)
 func test_name() -> String: return "dem_mosaic_validator"
 func native_checks(_result: Dictionary, _reviewed: Dictionary, _destination: String, _before: String) -> void: pass
 func start_closing_work(panel: ConfirmationDialog) -> void: panel.prepare()
@@ -24,15 +27,16 @@ func wait_job() -> void:
 	while ui.busy and Time.get_ticks_msec()<deadline: await process_frame
 	check(not ui.busy,"DEM mosaic child completed; "+ui.validation_label.text)
 func run() -> void:
+	scratch = SCRATCH.fresh(test_name())
 	root.size=Vector2i(1024,720)
 	ui=load("res://main.tscn").instantiate()
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.store.new_document()
 	check(ui.store.apply_command("four-cell synthetic map",[{"field":"bounds","before":ui.store.document.bounds.duplicate(true),"after":{"min":[0,0],"max":[102400,102400]}}])=="","fixture bounds")
-	var project := ProjectSettings.globalize_path("user://mosaic-project")
+	var project := scratch.path_join("project")
 	check(ui.store.save_project(project)=="","save isolated mosaic project")
-	var folder := ProjectSettings.globalize_path("user://synthetic-cogs")
+	var folder := scratch.path_join("synthetic-cogs")
 	var output: Array=[]
 	var python := OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	check(OS.execute(python,PackedStringArray(["-B",ProjectSettings.globalize_path("res://tests/dem_fixture.py"),folder,"mosaic"]),output,true)==0,"create synthetic mosaic: "+str(output))
@@ -53,12 +57,12 @@ func run() -> void:
 	var before := state()
 	panel.prepare();await wait_job()
 	check(not panel.plan.is_empty(),"four-source review: "+ui.validation_label.text)
-	if panel.plan.is_empty(): ui.queue_free();await process_frame;quit(1);return
+	if panel.plan.is_empty(): ui.queue_free();await process_frame;print(test_name()+": ",failures,"; checks=",checks);quit(1);return
 	check(panel.plan.sources.size()==4 and panel.plan.cells.size()==4,"review includes every source/cell")
 	check(state()==before,"source review non-mutating")
 	panel.acquire();await wait_job()
 	check(panel.candidate!=null,"whole-mosaic native staging: "+ui.validation_label.text)
-	if panel.candidate==null: ui.queue_free();await process_frame;quit(1);return
+	if panel.candidate==null: ui.queue_free();await process_frame;print(test_name()+": ",failures,"; checks=",checks);quit(1);return
 	var receipt: Dictionary=panel.candidate.value.dem.receipt.duplicate(true)
 	var reviewed: Dictionary=panel.plan.duplicate(true)
 	var destination: String=panel.destination
@@ -96,7 +100,7 @@ func run() -> void:
 	check(ui.store.undo()=="" and ui.store.document.heightmaps.is_empty() and ui.store.document.attributions.is_empty(),"single Undo removes entire mosaic")
 	check(ui.store.redo()=="" and same_content(ui.store.document,first),"single Redo restores entire mosaic")
 	check(ui.store.save_project(project)=="","save mosaic")
-	var package := ProjectSettings.globalize_path("user://mosaic.memap")
+	var package := scratch.path_join("mosaic.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,package)).ok,"native mosaic export")
 	var sha := FileAccess.get_sha256(package)
 	check(layer.stage_dem(ui.canvas.author.terrain,result,reviewed,destination)=="","same-source reimport stage")

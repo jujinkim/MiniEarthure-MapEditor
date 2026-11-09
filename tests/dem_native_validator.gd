@@ -171,7 +171,7 @@ func native_checks(data: Dictionary, reviewed: Dictionary, destination: String, 
 	var large:=raster_result.duplicate(true);large.extension="x".repeat(oversized.request_limit)
 	check(oversized.start_dem(ui.store,large,source_plan,capture,false,"test",token()).contains("1.5 GiB") and oversized.directory=="","request guard before scratch/launch")
 	# Four tiles may exceed 64 MiB together; a tile over 64 MiB only warns.
-	var sparse := ProjectSettings.globalize_path("user://sparse-dem")
+	var sparse := scratch.path_join("sparse-dem")
 	DirAccess.make_dir_recursive_absolute(sparse)
 	var budget_sources: Array = []
 	for index in range(4):
