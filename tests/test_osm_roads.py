@@ -376,6 +376,24 @@ class Roads(unittest.TestCase):
         self.assertIsNone(painted[ramp], "a structure's only approach")
         self.assertEqual(painted[aisle], "service", "a dead-end aisle is still painted")
 
+    def test_carriageways_parting_far_between_rungs_stay_two_one_way_roads(self):
+        def build(detour):
+            self.features, self.next_way = [], 1
+            self.road([(0, 0), (1900, 0), (2000, 0), (2100, 0), (4000, 0)], [100, 110, 111, 112, 101], oneway="yes", name="큰길", width_m=7.0)
+            self.road([(4000, 20), (2200, 20), (2050, detour), (1950, detour), (1800, 20), (0, 20)], [201, 210, 211, 212, 213, 200], oneway="yes", name="큰길", width_m=7.0)
+            for i, (x, a, b) in enumerate(((0, 100, 200), (4000, 101, 201))):
+                self.road([(x, -60), (x, 0)], [300 + i, a], highway="residential")
+                self.road([(x, 0), (x, 20)], [a, b], highway="residential")
+                self.road([(x, 20), (x, 80)], [b, 400 + i], highway="residential")
+            return self.run_city()
+        worker, result, meta, roads = build(20)
+        self.assertEqual(meta["road_rules"]["dual_merged_pairs"], 1, "control: a straight pair merges")
+        # Around a park the carriageways part 220 m: no merged road reaches that width.
+        worker, result, meta, roads = build(220)
+        self.assertEqual(meta["road_rules"].get("dual_merged_pairs", 0), 0)
+        self.assertFalse(any(p.get("_city_dual") for p, g in roads))
+        self.assertTrue(all(max(p.get("_city_widths_m") or [p.get("width_m", 0)]) < 100 for p, g in roads))
+
     def test_parallel_one_way_streets_a_block_apart_do_not_merge(self):
         # 20 m apart with buildings between them, and 45 m apart without.
         self.road([(0, 0), (200, 0)], [1, 2], highway="tertiary", oneway="yes", width_m=6.0)

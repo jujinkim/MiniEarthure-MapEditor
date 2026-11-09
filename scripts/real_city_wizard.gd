@@ -1,14 +1,18 @@
 extends ConfirmationDialog
 ## File → New real-city map: collects a real-city recipe (scripts/real_city_recipe.gd)
 ## and runs it in this Editor, or saves it for the headless
-## `-- --real-city-recipe recipe.json` build. Both use the same steps.
+## `-- --real-city-recipe recipe.json` build. Both use the same steps. A named place
+## (village, station, campus …) gets the automatic extent of `real_city_auto.gd`;
+## traffic set to Automatic follows the country found in the PBF.
 const I18N := preload("./locale_text.gd")
 const RECIPE := preload("./real_city_recipe.gd")
+const AUTO := preload("./real_city_auto.gd")
 var ui: Control
 var pbf: LineEdit
 var query: LineEdit
 var matches: ItemList
-var places: Array = []
+## Areas, then named places, as listed in `matches`: {kind: "area"|"place", value}.
+var entries: Array = []
 var scale: SpinBox
 var driving_side: OptionButton
 var signal_style: OptionButton
@@ -35,13 +39,14 @@ func setup(owner_ui: Control) -> void:
 	pbf = _path_row(grid, "OSM PBF file", "*.pbf", FileDialog.FILE_MODE_OPEN_FILE)
 	ui._label(grid, "Area name")
 	query = LineEdit.new()
-	query.placeholder_text = I18N.t("Administrative area name in this PBF")
+	query.placeholder_text = I18N.t("Area or place name in this PBF")
 	query.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_child(query)
 	ui._button(grid, "Find areas", _find)
 	matches = ItemList.new()
 	matches.select_mode = ItemList.SELECT_MULTI
 	matches.custom_minimum_size.y = 110
+	matches.multi_selected.connect(_selected)
 	column.add_child(matches)
 	var options := GridContainer.new()
 	options.columns = 4
@@ -49,12 +54,15 @@ func setup(owner_ui: Control) -> void:
 	ui._label(options, "Scale 1:")
 	scale = SpinBox.new()
 	scale.min_value = 1; scale.max_value = 8; scale.value = 3
+	scale.value_changed.connect(func(_value): _describe())
 	options.add_child(scale)
 	driving_side = OptionButton.new()
-	for label in ["Right-hand traffic", "Left-hand traffic"]: driving_side.add_item(I18N.t(label))
+	for label in ["Automatic traffic", "Right-hand traffic", "Left-hand traffic"]: driving_side.add_item(I18N.t(label))
+	driving_side.item_selected.connect(func(_index): _describe())
 	options.add_child(driving_side)
 	signal_style = OptionButton.new()
-	for label in ["Horizontal signals", "Vertical signals"]: signal_style.add_item(I18N.t(label))
+	for label in ["Automatic signals", "Horizontal signals", "Vertical signals"]: signal_style.add_item(I18N.t(label))
+	signal_style.item_selected.connect(func(_index): _describe())
 	options.add_child(signal_style)
 	var outputs := GridContainer.new()
 	outputs.columns = 3
@@ -120,21 +128,73 @@ func _find() -> void:
 	hide()
 	panel.start_search()
 
-func _found(found: Array) -> void:
+func _found(data: Dictionary) -> void:
 	ui.osm_panel.search_callback = Callable()
-	places = found.filter(func(p): return p.issue == "")
+	entries = data.get("places", []).filter(func(p): return p.issue == "").map(func(p): return {"kind":"area", "value":p})
+	entries.append_array(data.get("anchors", []).filter(func(a): return a.issue == "").map(func(a): return {"kind":"place", "value":a}))
 	matches.clear()
-	for place: Dictionary in places: matches.add_item("%s · admin %s · %s" % [place.name, place.admin_level, place.source_id])
-	if not places.is_empty(): matches.select(0)
-	status.text = I18N.t("%d matching areas. Select one or more.") % places.size() if not places.is_empty() else I18N.t("No matching administrative area. Try its local name.")
+	for entry: Dictionary in entries:
+		var item: Dictionary = entry.value
+		if entry.kind == "area": matches.add_item("%s · admin %s · %s" % [item.name, item.admin_level, item.source_id])
+		else: matches.add_item("◆ %s · %s · %s" % [item.name, item.kind, _within(item)])
+	if not entries.is_empty(): matches.select(0)
+	_describe()
+	if entries.is_empty(): status.text = I18N.t("No matching area or place. Try its local name.")
 	popup_centered(Vector2i(780, 600))
 
+## "Chuo, Osaka" for a named place: its two smallest containing areas.
+func _within(anchor: Dictionary) -> String:
+	var names: Array = anchor.context.areas.map(func(a): return str(a.name)).filter(func(n): return n != "")
+	names.reverse()
+	return ", ".join(names.slice(0, 2)) if not names.is_empty() else str(anchor.source_id)
+
+## A named place is chosen alone; areas combine.
+func _selected(index: int, selected: bool) -> void:
+	if selected:
+		for other in matches.get_selected_items():
+			if other != index and (entries[index].kind == "place" or entries[other].kind == "place"): matches.deselect(other)
+	_describe()
+
+func _chosen() -> Array:
+	return Array(matches.get_selected_items()).map(func(i): return entries[i])
+
+## The automatic extent of a chosen place, or {} for areas.
+func extent() -> Dictionary:
+	var chosen := _chosen()
+	if chosen.size() != 1 or chosen[0].kind != "place": return {}
+	# The wizard's recipes keep the recipe's default cell size.
+	return AUTO.extent(chosen[0].value.context, chosen[0].value.point, int(scale.value), RECIPE.CELL_CM)
+
+## The convention the build will use: the selectors, else the chosen country's.
+func traffic() -> Dictionary:
+	var chosen := _chosen()
+	var value: Dictionary = AUTO.traffic(chosen[0].value.get("context", {}).get("country", {}) if not chosen.is_empty() else {})
+	if driving_side.selected > 0: value.driving_side = "right" if driving_side.selected == 1 else "left"
+	if signal_style.selected > 0: value.signal_style = "horizontal" if signal_style.selected == 1 else "vertical"
+	return value
+
+func _describe() -> void:
+	var chosen := _chosen()
+	if chosen.is_empty():
+		status.text = I18N.t("%d matches. Select areas or one place.") % entries.size() if not entries.is_empty() else I18N.t("Choose a PBF, find the area by name and select it.")
+		return
+	var lines: Array[String] = []
+	var choice := extent()
+	if not choice.is_empty(): lines.append(I18N.t("Automatic extent: %s") % AUTO.describe(choice))
+	var convention := traffic()
+	lines.append("%s · %s · %s" % [I18N.t("Left-hand traffic" if convention.driving_side == "left" else "Right-hand traffic"), I18N.t("Vertical signals" if convention.signal_style == "vertical" else "Horizontal signals"), convention.country if convention.country != "" else "?"])
+	status.text = "\n".join(lines)
+
 func recipe() -> Dictionary:
-	var areas: Array = []
-	for index in matches.get_selected_items(): areas.append({"name":places[index].name, "source_id":places[index].source_id})
-	var value := {"version":RECIPE.VERSION, "pbf":pbf.text, "areas":areas, "scale":int(scale.value),
-		"traffic":{"driving_side":"left" if driving_side.selected == 1 else "right", "signal_style":"vertical" if signal_style.selected == 1 else "horizontal"},
+	var chosen := _chosen()
+	var value := {"version":RECIPE.VERSION, "pbf":pbf.text, "scale":int(scale.value),
 		"project":project.text, "package":package.text, "full_check":full_check.button_pressed, "mobile_check":mobile_check.button_pressed}
+	if chosen.size() == 1 and chosen[0].kind == "place": value.place = {"name":chosen[0].value.name, "source_id":chosen[0].value.source_id}
+	else: value.areas = chosen.map(func(e): return {"name":e.value.name, "source_id":e.value.source_id})
+	var traffic := {}
+	if driving_side.selected > 0: traffic.driving_side = "right" if driving_side.selected == 1 else "left"
+	if signal_style.selected > 0: traffic.signal_style = "horizontal" if signal_style.selected == 1 else "vertical"
+	if not traffic.is_empty(): value.traffic = traffic
 	if dem.text != "": value.dem = dem.text
 	return value
 

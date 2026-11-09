@@ -11,6 +11,9 @@ const PIPE_LIMIT := 64 * 1024 * 1024
 const RUNNING_TIME := "running_time"
 const LINE_LIMIT := 4096
 const READ_BUDGET := 16384
+## Mirrors osm_stream.REGIONAL_SOURCE_BYTES / REGIONAL_STAGES.
+const REGIONAL_SOURCE_BYTES := 512 * 1024 * 1024
+const REGIONAL_STAGES := ["extract_nodes", "extract_ways", "extract_relations", "extract_members", "extract_write_nodes", "extract_write_ways", "extract_write_relations"]
 const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "osm_generalize.py", "osm_roads.py", "osm_sites.py", "osm_furniture.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
 var pid := -1
 var identity := ""
@@ -70,6 +73,9 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	if coordinates.get("osm_city", false):
 		if not streaming: return "Automatic city optimization requires PBF streaming."
 		stages.insert(stages.find("convert"), "optimize")
+		# Large sources are first cut to the crop's neighbourhood (osm_stream.REGIONAL_*).
+		if size > REGIONAL_SOURCE_BYTES:
+			for stage in REGIONAL_STAGES: stages.insert(stages.find("index_nodes"), stage)
 	if size <= 0 or size > (LAYER.MAX_STREAM_SOURCE_BYTES if streaming else LAYER.MAX_SOURCE_BYTES): return "Import source exceeds %s or is empty; PBF streaming needs an explicit crop area." % ("64 GiB" if streaming else "256 MiB")
 	if streaming: LIMITS.over(limit_warnings, "stream_source_bytes", size, LAYER.WARN_STREAM_SOURCE_BYTES, "PBF source size in bytes")
 	else: LIMITS.over(limit_warnings, "source_bytes", size, LAYER.WARN_SOURCE_BYTES, "Import source size in bytes")
@@ -322,7 +328,7 @@ func cleanup() -> void:
 	if presence != null: presence.close()
 	presence = null
 	# Only files owned by this request; never recursively delete user inputs.
-	for name in MODULES + ["vertical.json", "csv.json", "height-supplement.json", "source.pbf.part", "source.pbf", "source-index.sqlite", "node-ids.i64", "node-xy.i32", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
+	for name in MODULES + ["vertical.json", "csv.json", "height-supplement.json", "source.pbf.part", "source.pbf", "regional.pbf", "source-index.sqlite", "node-ids.i64", "node-xy.i32", "copernicus_dem.py", "dem.png.part", "request.json", "source.tif.part", "layer.json"]:
 		var path := directory.path_join(name)
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory.path_join(PRESENCE.PENDING))

@@ -638,6 +638,52 @@ class City(unittest.TestCase):
             geojson.main()
         return json.loads(output.read_bytes())
 
+    def test_city_cli_drops_every_feature_of_an_excluded_source(self):
+        # A wall ring is also the outer way of two multipolygons sharing it: both
+        # relations and their member way are excluded, so the wall is not imported.
+        import geojson, tempfile
+        from osm_city_fixture import xml as city_xml
+        from osm_fixture import pbf
+        from osm_extract import LICENSE
+        extra = '''<node id="9001" lon="9.0015" lat="55.0015"/><node id="9002" lon="9.0018" lat="55.0015"/>
+<node id="9003" lon="9.0018" lat="55.0018"/><node id="9004" lon="9.0015" lat="55.0018"/>
+<way id="9001"><nd ref="9001"/><nd ref="9002"/><nd ref="9003"/><nd ref="9004"/><nd ref="9001"/><tag k="barrier" v="wall"/></way>
+<relation id="9101"><member type="way" ref="9001" role="outer"/><tag k="type" v="multipolygon"/><tag k="landuse" v="grass"/></relation>
+<relation id="9102"><member type="way" ref="9001" role="outer"/><tag k="type" v="multipolygon"/><tag k="landuse" v="grass"/></relation></osm>'''
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)/"shared.pbf"; pbf(source, city_xml().replace("</osm>", extra))
+            output = Path(directory)/"shared.json"
+            argv = ["geojson.py",str(source),str(output),"--input-format","pbf","--coordinates","wgs84-utm","--origin","9","55",
+                    "--local-origin","512","512","--license",LICENSE,"--layer-id","9"*32,"--osm-bbox","8.9999","54.9999","9.002","55.002",
+                    "--osm-stream","--osm-city","--osm-review-exclusions"]
+            with patch.object(sys,"argv",argv),patch("builtins.print",lambda *a,**k:None):
+                geojson.main()
+            layer = json.loads(output.read_bytes())
+        excluded = {e["source_id"] for e in layer["coordinates"]["osm_review"]["excluded"]}
+        self.assertIn("way/9001", excluded)
+        self.assertNotIn("way/9001", layer["coordinates"]["osm_city"]["source_ids"])
+
+    def test_city_cli_excludes_a_building_thinner_than_the_map_lattice(self):
+        import geojson, tempfile
+        from osm_city_fixture import xml as city_xml
+        from osm_fixture import pbf
+        from osm_extract import LICENSE
+        extra = '''<node id="9201" lon="9.0012" lat="55.0012"/><node id="9202" lon="9.0012" lat="55.0012001"/>
+<node id="9203" lon="9.0016" lat="55.0012"/>
+<way id="9201"><nd ref="9201"/><nd ref="9202"/><nd ref="9203"/><nd ref="9201"/><tag k="building" v="shed"/></way></osm>'''
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)/"sliver.pbf"; pbf(source, city_xml().replace("</osm>", extra))
+            output = Path(directory)/"sliver.json"
+            argv = ["geojson.py",str(source),str(output),"--input-format","pbf","--coordinates","wgs84-utm","--origin","9","55",
+                    "--local-origin","512","512","--license",LICENSE,"--layer-id","8"*32,"--osm-bbox","8.9999","54.9999","9.002","55.002",
+                    "--osm-stream","--osm-city","--osm-scale","3","--osm-review-exclusions"]
+            with patch.object(sys,"argv",argv),patch("builtins.print",lambda *a,**k:None):
+                geojson.main()
+            layer = json.loads(output.read_bytes())
+        excluded = {e["source_id"]: e["reason"] for e in layer["coordinates"]["osm_review"]["excluded"]}
+        self.assertIn("thinner than the 1:3 map lattice", excluded.get("way/9201", ""))
+        self.assertNotIn("way/9201", layer["coordinates"]["osm_city"]["source_ids"])
+
     def test_city_ladder_adopts_the_largest_gap_with_warnings_when_no_gap_meets_targets(self):
         import import_layer, tempfile
         with tempfile.TemporaryDirectory() as directory:

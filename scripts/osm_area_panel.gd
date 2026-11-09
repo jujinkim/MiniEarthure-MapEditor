@@ -25,8 +25,11 @@ var place_choices: OptionButton
 var place_status: Label
 var places: Array = []
 ## Set by a caller that consumes search results itself (real-city recipe/wizard);
-## the crop dialog then stays closed.
+## the crop dialog then stays closed. It receives the whole lookup (`places`,
+## `anchors`, contexts; `{}` on failure).
 var search_callback := Callable()
+## [lon, lat] whose containing areas and country the next search also lists.
+var search_point: Array = []
 ## Places whose exact boundary union clips the import (empty: rectangle crop).
 var selected_areas: Array = []
 const LIMITS := preload("./limit_warnings.gd")
@@ -256,7 +259,8 @@ func open() -> void:
 func start_search() -> void:
 	if ui.busy: return
 	var job := PLACES_JOB.new()
-	var failure := job.search(source_path.text,place_query.text,ui.import_python.text.strip_edges(),Crypto.new().generate_random_bytes(16).hex_encode())
+	var failure := job.search(source_path.text,place_query.text,ui.import_python.text.strip_edges(),Crypto.new().generate_random_bytes(16).hex_encode(),search_point)
+	search_point = []
 	if failure != "": place_status.text = failure; return
 	dialog.hide()
 	ui.dem_mode = ""
@@ -284,7 +288,7 @@ func finish_search(job: RefCounted, result: Dictionary) -> void:
 	else: place_status.text = str(result.get("error",{}).get("message","PBF lookup failed."))
 	ui._status(place_status.text)
 	if search_callback.is_valid():
-		search_callback.call(places.duplicate(true) if result.get("ok",false) else [])
+		search_callback.call(result.data.duplicate(true) if result.get("ok",false) else {})
 		return
 	dialog.popup_centered(Vector2i(840,680))
 
@@ -323,6 +327,11 @@ func _fit_areas() -> void:
 	var b: Array = selected_areas[0].bbox.duplicate()
 	for place: Dictionary in selected_areas:
 		b = [minf(b[0],place.bbox[0]),minf(b[1],place.bbox[1]),maxf(b[2],place.bbox[2]),maxf(b[3],place.bbox[3])]
+	fit_bbox(b)
+
+## Streams the rectangle [west, south, east, north] (degrees) with its centre as the
+## import origin; selected areas, when any, still clip it to their boundaries.
+func fit_bbox(b: Array) -> void:
 	# Round outward to the UI precision so a boundary is never clipped by rounding.
 	for i in range(4): fields[i].value = (floorf(b[i]*1000000.0) if i < 2 else ceilf(b[i]*1000000.0))/1000000.0
 	enabled.button_pressed = true

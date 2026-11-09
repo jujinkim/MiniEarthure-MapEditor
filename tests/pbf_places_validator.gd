@@ -31,8 +31,18 @@ func run() -> void:
 	check(ui.osm_panel.area.places[0].name=="가상시","boundary map includes place name")
 	check(ui.store.document==before and not DirAccess.dir_exists_absolute(directory),"search only changes import settings and cleans scratch")
 	var job:=JOB.new()
-	var value: Dictionary={"profile":"pbf-place-preview-v1","query":"가상시","source_name":"places.pbf","source_sha256":hash,"source_bytes":100,"places":ui.osm_panel.places.duplicate(true)}
+	var value: Dictionary={"profile":"pbf-place-preview-v1","query":"가상시","source_name":"places.pbf","source_sha256":hash,"source_bytes":100,"places":ui.osm_panel.places.duplicate(true),"anchors":[]}
 	check(JOB.validate(value,"가상시")=="","checked preview contract")
+	check(ui.osm_panel.places[0].context is Dictionary and ui.osm_panel.places[0].context.areas.size()==1,"an area carries its containing-area context: "+str(ui.osm_panel.places[0].get("context")))
+	value.anchors=[{"name":"가상시","source_id":"node/7","kind":"place=town","tier":0,"point":[9.0001,55.0001],"issue":"","context":{"areas":[],"country":{}}}]
+	check(JOB.validate(value,"가상시")=="","checked named place")
+	value.anchors[0].context.country={"code":"ZZ","name":"","driving_side":"middle","basis":"boundary"}
+	check(JOB.validate(value,"가상시")!="","forged driving side rejected")
+	value.anchors[0].context.country={}
+	value.anchors[0].point=[]
+	check(JOB.validate(value,"가상시")!="","a named place without position needs an issue")
+	value.anchors=[]
+	check(JOB.validate(value,"가상시",[],[],[9.0,55.0])!="","a point search needs its point context")
 	value.places[0].bbox[2]=-180
 	check(JOB.validate(value,"가상시")!="","forged extent rejected")
 	ui.osm_panel.dialog.hide()

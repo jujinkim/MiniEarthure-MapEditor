@@ -220,6 +220,8 @@ def _plan(options):
     local_source(selected, folder=folder)
     if not folder and len(tiles) != 1:
         raise ValueError("Interpolation needs multiple source tiles; select a local folder")
+    missing = [tile_filename(tile) for tile in tiles if folder and not (selected / tile_filename(tile)).is_file()]
+    if missing: raise ValueError("The map extent needs these Copernicus tiles in the folder: " + ", ".join(missing))
     items, paths = [], []
     for tile in tiles:
         path = local_source(selected / tile_filename(tile) if folder else selected)

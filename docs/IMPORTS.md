@@ -161,7 +161,11 @@ translation is invented. Results show relation IDs, exact extents and simplified
 outlines (the best 32 matches; outlines thinned to 20,000 display points; names over
 256 characters shortened). More matches, thinning and more than 200,000 boundary
 references warn; 10 million references are refused. Missing outer geometry is
-reported, never guessed.
+reported, never guessed. The same lookup lists up to 16 named features whose name
+is exactly the query (anchors with their position), and for each area centre and
+anchor the complete administrative boundaries containing it and its country (ISO
+code, `driving_side` tag and basis); above 8 million context references it warns
+and lists none. The real-city wizard uses them ([IMPORT_CITY](IMPORT_CITY.md#automatic-extent-and-traffic)).
 
 Selecting a result fills outward-rounded W/S/E/N fields and centres the WGS84
 origin. **Add selected area** combines up to 64 results (warning above eight; for
@@ -230,7 +234,9 @@ checks at review and adoption run under its Authoring profile: its document and 
 budgets warn the same way (merged by code with the Editor's) and refuse only above
 its raised guards (1.6 million objects, 8 million vertices, 8× the work budgets).
 Only those guards and memory/parser guards refuse. Malformed or unsupported data,
-identity and topology errors still reject.
+identity and topology errors still reject; only the city profile's exclusion review
+lists an invalid source area (for example a self-intersecting land-cover ring) with
+its reason and leaves it out whole, never repaired ([IMPORT_CITY](IMPORT_CITY.md#review-and-adoption)).
 
 | Bound | Exact profile: warning above | Refused above |
 | --- | --- | --- |
@@ -244,7 +250,13 @@ not RSS limits; low free disk warns, and a full disk fails the import. The scan
 reads dense node IDs/locations and way references straight from the captured blocks
 (each way checked against libosmium's ID and node count); only tagged nodes and
 way/relation tags become Python objects, and the road incidence index keeps only
-nodes that two or more highways share. The review candidate is immutable; source
+nodes that two or more highways share. A city import of a source above 512 MiB
+first copies the crop's neighbourhood from the captured bytes into a regional PBF
+(seven `extract_*` passes): every node within the crop + 5 km, every way touching
+one of them with all its nodes, every relation with such a member and all member
+ways of those multipolygons; the index and every later pass read that copy, and the
+receipt keeps the original's bytes and hash (`regional` counts in the stream
+metadata). Area boundaries are still read from the whole capture. The review candidate is immutable; source
 recheck and command preparation run in owned workers, and late or stale results are
 rejected. Adopt adds the whole layer in one Undo command (a command over 16 MiB is
 applied without Undo); Discard releases the candidate. Layer visibility/lock are

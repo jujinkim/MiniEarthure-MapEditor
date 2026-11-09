@@ -163,6 +163,23 @@ class CropTests(unittest.TestCase):
         with patch("osm_area.MAX_POINTS",1): out=run([feature("LineString",[[0,0],[.01,.01]])])
         self.assertIn("crop_points", {e["code"] for e in import_layer.limit_entries()})
         with patch("osm_area.version",return_value="0"), self.assertRaisesRegex(ValueError,"requirements-import"): run([])
+    def test_city_review_excludes_an_invalid_source_area_whole(self):
+        from osm_review import Review
+        bowtie = feature("Polygon",[[[.001,.001],[.002,.002],[.001,.002],[.002,.001],[.001,.001]]])
+        bowtie["properties"] = {"osm_source_id": "way/7", "landuse": "farmland"}
+        road = feature("LineString",[[0,0],[.01,.01]])
+        outline = feature("LineString",[[.001,.001],[.002,.002]])
+        outline["properties"] = {"osm_source_id": "way/7", "barrier": "fence"}
+        collection = lambda: dict(type="FeatureCollection", features=[json.loads(json.dumps(bowtie)), road, json.loads(json.dumps(outline))])
+        review = Review(True)
+        out, _ = crop(collection(), [0,0,0.01,0.01], review=review)
+        self.assertEqual([f["geometry"]["type"] for f in out["features"]], ["LineString"], "every feature of the source is left out")
+        self.assertEqual(list(review.excluded), ["way/7"])
+        self.assertIn("Self-intersection", review.excluded["way/7"]["reason"])
+        # Without review (or for an invalid line) the whole import still rejects.
+        with self.assertRaisesRegex(ValueError,"Invalid OSM"): crop(collection(), [0,0,0.01,0.01], review=Review(False))
+        with self.assertRaisesRegex(ValueError,"Invalid OSM"): crop(collection(), [0,0,0.01,0.01])
+
     def test_osm_xml_pbf_parity_and_cli(self):
         script=Path(__file__).resolve().parents[1]/"scripts/importers/geojson.py"
         with tempfile.TemporaryDirectory() as directory:

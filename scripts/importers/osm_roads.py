@@ -683,6 +683,11 @@ class DualCarriageways:
                     q = (near.x, near.y)
                 coords.append(((point[0] + q[0]) / 2, (point[1] + q[1]) / 2))
                 widths.append(math.dist(point, q) + self.width[i] / 2 + wb / 2)
+                # A run whose carriageways part far beyond a median (for example
+                # around a park) between its rungs stays two one-way roads.
+                if math.dist(point, q) - self.width[i] / 2 - wb / 2 > RUNG_FACTOR * MEDIAN_M[1]:
+                    self.reasons['merge_wide'] += 1
+                    return
             if any(a == b for a, b in zip(coords, coords[1:])):
                 self.reasons['merge_collapsed'] += 1
                 return

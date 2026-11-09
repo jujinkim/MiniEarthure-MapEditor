@@ -1,15 +1,19 @@
 extends RefCounted
 ## Real-city map recipe (Editor tool format v1). One JSON object drives the same
-## Editor steps as File → New real-city map: new free-roam map → OSM city import of
-## named PBF areas at 1:D → review → adopt → optional facility CSV → optional
-## Copernicus DEM (structure/water fit, grounded buildings) → save → Export
-## (optional full 3D check, optional mobile 1.5 GiB open). Paths in a recipe file
-## are relative to that file. The Editor's own steps keep every limit and review.
+## Editor steps as File → New real-city map: new free-roam map → OSM city import at
+## 1:D of named PBF areas, one `bbox` rectangle or the automatic extent around a
+## named `place` (`real_city_auto.gd`) → review → adopt → optional facility CSV →
+## optional Copernicus DEM (structure/water fit, grounded buildings) → save → Export
+## (optional full 3D check, optional mobile 1.5 GiB open). `traffic` keys left out
+## follow the country found in the PBF. Paths in a recipe file are relative to that
+## file. The Editor's own steps keep every limit and review.
+const AUTO := preload("./real_city_auto.gd")
 const VERSION := 1
-const KEYS := ["version","pbf","areas","scale","cell_cm","traffic","python","facilities","dem","dem_zero_m","project","package","full_check","mobile_check"]
+const KEYS := ["version","pbf","areas","bbox","place","scale","cell_cm","traffic","python","facilities","dem","dem_zero_m","project","package","full_check","mobile_check"]
 const FACILITY_KEYS := ["csv","license","encoding","name_column","latitude_column","longitude_column","category","source_url","accuracy"]
 const ENCODINGS := ["utf-8","cp949","euc-kr"]
 const MOBILE_BYTES := 1536 * 1024 * 1024
+const CELL_CM := 12800
 var ui: Control
 var progress := Callable()
 var report := {}
@@ -28,14 +32,23 @@ static func parse(text: String, base := "") -> Dictionary:
 	if int(recipe.get("version", 0)) != VERSION: return _error("Recipe version must be 1")
 	for key in ["pbf","project","package"]:
 		if str(recipe.get(key, "")) == "": return _error("Recipe needs " + key)
-	var areas: Variant = recipe.get("areas")
-	if areas is not Array or areas.is_empty(): return _error("Recipe needs areas: [{\"name\": ...}]")
-	for area: Variant in areas:
-		if area is not Dictionary or str(area.get("name", "")) == "": return _error("Every area needs a name")
+	if int(recipe.has("areas")) + int(recipe.has("bbox")) + int(recipe.has("place")) != 1: return _error("Recipe needs one of areas, place or bbox")
+	if recipe.has("place"):
+		var place: Variant = recipe.place
+		if place is not Dictionary or place.get("name") is not String or str(place.name).strip_edges() == "" or place.keys().any(func(k): return k not in ["name","source_id"]) or (place.has("source_id") and place.source_id is not String): return _error("place needs a name")
+	elif recipe.has("bbox"):
+		var box: Variant = recipe.bbox
+		if box is not Array or box.size() != 4 or box.any(func(v): return v is not float and v is not int): return _error("bbox: [west, south, east, north] degrees")
+		if box[0] < -180 or box[2] > 180 or box[1] < -80 or box[3] > 84 or box[0] >= box[2] or box[1] >= box[3]: return _error("bbox: [west, south, east, north] degrees")
+	else:
+		var areas: Variant = recipe.areas
+		if areas is not Array or areas.is_empty(): return _error("Recipe needs areas: [{\"name\": ...}]")
+		for area: Variant in areas:
+			if area is not Dictionary or str(area.get("name", "")) == "": return _error("Every area needs a name")
 	var scale := int(recipe.get("scale", 3))
 	if scale < 1 or scale > 8: return _error("Scale must be 1..8 (1:D)")
 	var traffic: Variant = recipe.get("traffic", {})
-	if traffic is not Dictionary or str(traffic.get("driving_side","right")) not in ["right","left"] or str(traffic.get("signal_style","horizontal")) not in ["horizontal","vertical"]:
+	if traffic is not Dictionary or traffic.keys().any(func(k): return k not in ["driving_side","signal_style"]) or str(traffic.get("driving_side","right")) not in ["right","left"] or str(traffic.get("signal_style","horizontal")) not in ["horizontal","vertical"]:
 		return _error("traffic: driving_side right or left, signal_style horizontal or vertical")
 	var facilities: Variant = recipe.get("facilities")
 	if facilities != null:
@@ -62,7 +75,7 @@ func _say(text: String) -> void:
 	if progress.is_valid(): progress.call(text)
 
 func _status() -> String:
-	return ui.status_label.text.replace("\n", " | ")
+	return ui.status_label.text.replace("\n", " | ") if ui != null else ""
 
 func _fail(step: String) -> Dictionary:
 	report.ok = false
@@ -84,18 +97,25 @@ func _busy() -> bool:
 func _rejects() -> bool:
 	return ui.store.limit_warnings.any(func(e): return e is Dictionary and bool(e.get("runtime_rejects", false)))
 
+## One PBF lookup (pbf_places.py) by name and/or [lon, lat]; {} on failure.
+func _search(pbf: String, name: String, point: Array = []) -> Dictionary:
+	var panel: RefCounted = ui.osm_panel
+	var data := {}  # Filled in place: a lambda captures locals by value.
+	panel.source_path.text = pbf
+	panel.search_callback = func(value: Dictionary): data.merge(value)
+	panel.place_query.text = name
+	panel.search_point = point
+	panel.start_search()
+	await _wait(_busy, 1800000)
+	panel.search_callback = Callable()
+	return data
+
 ## Finds each recipe area by name (and optional source_id / admin_level) in the PBF.
 func _areas(recipe: Dictionary) -> Variant:
 	var chosen: Array = []
 	var panel: RefCounted = ui.osm_panel
-	panel.source_path.text = recipe.pbf
 	for wanted: Dictionary in recipe.areas:
-		var found: Array = []
-		panel.search_callback = func(places: Array): found.append_array(places)
-		panel.place_query.text = str(wanted.name)
-		panel.start_search()
-		await _wait(_busy, 1800000)
-		panel.search_callback = Callable()
+		var found: Array = (await _search(recipe.pbf, str(wanted.name))).get("places", [])
 		var matches: Array = []
 		for place: Dictionary in found:
 			if str(place.name) != str(wanted.name) or place.issue != "": continue
@@ -110,9 +130,67 @@ func _areas(recipe: Dictionary) -> Variant:
 		chosen.append(matches[0])
 	return chosen
 
+## The named place (anchor) of a `place` recipe: its source_id, else the only
+## candidate of the best kind (settlements before landmarks before other features).
+func _place(recipe: Dictionary) -> Variant:
+	var wanted: Dictionary = recipe.place
+	var found: Array = (await _search(recipe.pbf, str(wanted.name).strip_edges())).get("anchors", [])
+	var matches: Array = found.filter(func(a): return a.issue == "" and (not wanted.has("source_id") or a.source_id == wanted.source_id))
+	if not matches.is_empty():
+		var best: int = matches.map(func(a): return int(a.tier)).min()
+		matches = matches.filter(func(a): return int(a.tier) == best)
+	if matches.size() != 1:
+		report.place_candidates = found.map(func(a): return {"name":a.name, "source_id":a.source_id, "kind":a.kind, "point":a.point, "issue":a.issue})
+		report.error = "Place %s: %d best matches; add source_id from place_candidates" % [wanted.name, matches.size()]
+		report.search_status = ui.osm_panel.place_status.text
+		return null
+	return matches[0]
+
+## Steps whose failure on a package or game limit sends a `place` recipe's automatic
+## administrative area back to the square around the place, then to smaller squares.
+const RETRY_STEPS := ["osm_review", "osm_adopt", "export", "export_limits", "mobile_check"]
+const SHRINK := 0.75
+const MIN_SIDE_M := 2000.0
+
 func run(recipe: Dictionary) -> Dictionary:
+	var result: Dictionary = await _run(recipe, 0.0)
+	var attempts: Array = []
+	var side := AUTO.box_side_m(int(recipe.get("scale", 3)), int(recipe.get("cell_cm", CELL_CM)))
+	while not result.ok and recipe.has("place") and _over_limit(result):
+		var extent: Dictionary = result.get("extent", {})
+		if extent.get("kind") == "bbox": side = float(extent.get("side_m", side)) * SHRINK
+		if side < MIN_SIDE_M: break
+		var attempt := {"failed_step":result.failed_step, "status":result.get("status", ""), "extent":extent}
+		# Each attempt's own project and package are kept beside the next one's.
+		for key in ["project", "package"]:
+			var path := str(recipe[key])
+			if not (DirAccess.dir_exists_absolute(path) or FileAccess.file_exists(path)): continue
+			var kept := path.trim_suffix("/") + "-attempt-%d" % (attempts.size() + 1)
+			if DirAccess.dir_exists_absolute(kept) or FileAccess.file_exists(kept) or DirAccess.rename_absolute(path, kept) != OK:
+				result.error = "Cannot keep the earlier attempt's %s at %s" % [key, kept]
+				result.attempts = attempts
+				return result
+			attempt[key] = kept
+		attempts.append(attempt)
+		_say("The extent exceeds the map limits; retrying with a %.1f km square around the place" % (side / 1000.0))
+		result = await _run(recipe, side)
+	if not attempts.is_empty(): result.attempts = attempts
+	return result
+
+## A failure a smaller extent can fix: a package or game limit in the steps above.
+func _over_limit(result: Dictionary) -> bool:
+	if str(result.get("failed_step", "")) not in RETRY_STEPS: return false
+	var text := (str(result.get("status", "")) + " " + str(result.get("error", ""))).to_lower()
+	return ["e_limit", "limit", "exceeds", "refuses"].any(func(word): return text.contains(word))
+
+## `side_m` 0: the automatic extent; above 0: a square of that source side.
+func _run(recipe: Dictionary, side_m: float) -> Dictionary:
 	report = {"ok":false, "recipe_version":VERSION}
 	var started := Time.get_ticks_msec()
+	# Never build over earlier output: Save and Export keep existing files.
+	if FileAccess.file_exists(recipe.package) or FileAccess.file_exists(str(recipe.project).path_join("document.json")):
+		report.error = "The project or package already exists; choose new paths"
+		return _fail("outputs")
 	ui._ensure_import_ui()
 	ui.preview_enabled = false
 	ui.preview_due = 0
@@ -121,22 +199,50 @@ func run(recipe: Dictionary) -> Dictionary:
 	ui.store.new_track(true)
 	await ui.get_tree().process_frame
 	var doc: Dictionary = ui.store.document
-	ui.store.apply_command("Map extent", [{"field":"cell_size_cm","id":"","before":doc.cell_size_cm,"after":int(recipe.get("cell_cm", 12800))}])
-	_say("Finding areas in the PBF")
-	var areas: Variant = await _areas(recipe)
-	if areas == null: return _fail("areas")
-	report.areas = areas.map(func(p): return {"name":p.name, "source_id":p.source_id})
+	ui.store.apply_command("Map extent", [{"field":"cell_size_cm","id":"","before":doc.cell_size_cm,"after":int(recipe.get("cell_cm", CELL_CM))}])
+	var areas: Variant = []
+	var bbox: Array = recipe.get("bbox", [])
+	var country: Variant = {}
+	var scale := int(recipe.get("scale", 3))
+	if recipe.has("areas"):
+		_say("Finding areas in the PBF")
+		areas = await _areas(recipe)
+		if areas == null: return _fail("areas")
+		report.areas = areas.map(func(p): return {"name":p.name, "source_id":p.source_id})
+		country = areas[0].get("context", {}).get("country", {})
+	elif recipe.has("place"):
+		_say("Finding the place in the PBF")
+		var place: Variant = await _place(recipe)
+		if place == null: return _fail("place")
+		report.place = {"name":place.name, "source_id":place.source_id, "kind":place.kind, "point":place.point}
+		var choice: Dictionary = AUTO.extent(place.context, place.point, scale, int(ui.store.document.cell_size_cm))
+		if side_m > 0.0:
+			var square := AUTO.box(place.point, side_m)
+			choice = {"kind":"bbox", "bbox":square, "side_m":side_m, "cells":AUTO.cells(square, scale, int(ui.store.document.cell_size_cm))}
+		report.extent = choice.duplicate(true)
+		report.extent.text = AUTO.describe(choice)
+		if choice.kind == "area": areas = [choice.area]
+		else: bbox = choice.bbox
+		country = place.context.country
+	elif recipe.get("traffic", {}).size() < 2:
+		_say("Finding the country in the PBF")
+		country = (await _search(recipe.pbf, "", [(bbox[0] + bbox[2]) * 0.5, (bbox[1] + bbox[3]) * 0.5])).get("point_context", {}).get("country", {})
+	if not recipe.has("areas"): report.bbox = bbox
+	var traffic: Dictionary = AUTO.traffic(country)
+	traffic.merge(recipe.get("traffic", {}), true)
+	if recipe.get("traffic", {}).size() == 2: traffic.basis = "recipe"
+	report.traffic = traffic
 	# OSM city import (File → Import vector → OSM, city optimization, exclusions).
 	var panel: RefCounted = ui.osm_panel
 	ui.import_source_format.select(1); ui.import_source_format.item_selected.emit(1)
 	panel.city.button_pressed = true
 	panel.exclusions.button_pressed = true
-	panel.scale.value = int(recipe.get("scale", 3))
-	var traffic: Dictionary = recipe.get("traffic", {})
+	panel.scale.value = scale
 	panel.driving_side.select(1 if traffic.get("driving_side") == "left" else 0)
 	panel.signal_style.select(1 if traffic.get("signal_style") == "vertical" else 0)
 	panel.selected_areas = areas
-	panel._fit_areas()
+	if areas.is_empty(): panel.fit_bbox(bbox)
+	else: panel._fit_areas()
 	report.crop = {"bbox":panel.bbox(), "origin":[ui.import_origin_lon.value, ui.import_origin_lat.value], "local_origin_m":[ui.import_origin_x.value, ui.import_origin_y.value]}
 	if panel.error() != "": report.error = panel.error(); return _fail("crop")
 	_say("Importing OSM (review)")
@@ -185,12 +291,18 @@ func run(recipe: Dictionary) -> Dictionary:
 		_say("Sampling DEM (review)")
 		dem.acquire()
 		await _wait(_busy, 1800000)
-		if dem.candidate == null: return _fail("dem_review")
-		_say("Applying DEM")
-		dem.adopt()
-		await _wait(_busy, 1800000)
-		if ui.store.document.heightmaps.is_empty() or _rejects(): return _fail("dem_adopt")
-		report.heightmaps = ui.store.document.heightmaps.size()
+		if dem.candidate == null and _status().contains("the map keeps its flat terrain"):
+			# DEM is optional: when it cannot be fitted (for example estimated
+			# overpasses losing separation on the terrain) the map stays flat.
+			report.dem_skipped = _status()
+			_say("DEM cannot be fitted; the map keeps its flat terrain")
+		elif dem.candidate == null: return _fail("dem_review")
+		else:
+			_say("Applying DEM")
+			dem.adopt()
+			await _wait(_busy, 1800000)
+			if ui.store.document.heightmaps.is_empty() or _rejects(): return _fail("dem_adopt")
+			report.heightmaps = ui.store.document.heightmaps.size()
 	_say("Saving project")
 	ui._start_save(recipe.project)
 	await _wait(_busy, 1800000)
@@ -198,10 +310,11 @@ func run(recipe: Dictionary) -> Dictionary:
 	DirAccess.make_dir_recursive_absolute(str(recipe.package).get_base_dir())
 	ui.full_generation.button_pressed = bool(recipe.get("full_check", true))
 	_say("Exporting map")
+	ui.last_export_report = {}
 	ui._start_package("export", recipe.package)
 	await _wait(_busy, 5400000)
-	if not FileAccess.file_exists(recipe.package): return _fail("export")
 	var exported: Dictionary = ui.last_export_report
+	if not FileAccess.file_exists(recipe.package) or int(exported.get("cell_count", 0)) <= 0: return _fail("export")
 	report.cells = int(exported.get("cell_count", 0))
 	report.full_check_cells = int(exported.get("full_generation_cells", 0))
 	report.package_sha256 = FileAccess.get_sha256(recipe.package)

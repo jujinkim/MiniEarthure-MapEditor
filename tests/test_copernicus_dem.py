@@ -125,6 +125,11 @@ class DemTests(unittest.TestCase):
             self.assertEqual(result['outputs'][-1]['cell'],[7,11])
         self.assertEqual(dem.identity(self.source),original)
 
+    def test_a_folder_missing_tiles_names_them(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "needs these Copernicus tiles in the folder: Copernicus_DSM_COG_10_N55_00_E009_00_DEM.tif"):
+                dem.plan(dict(options(folder)))
+
     def test_bad_rasters_no_fill_and_dependency_failure(self):
         with tempfile.TemporaryDirectory() as folder:
             d=Path(folder);bad=d/"bad.tif"

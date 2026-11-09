@@ -699,6 +699,19 @@ class Generalizer:
         roads, self.road_rules["open_deck_ends"] = osm_roads.open_deck_ends(joined + output)
         return roads
 
+    def lattice_collapses(self, geometry):
+        """Every polygon's outer ring, snapped to whole map centimetres, keeps
+        fewer than three points or no area."""
+        def collapses(ring):
+            points = []
+            for point in ring.coords[:-1]:
+                snapped = self.snap(point)
+                if not points or points[-1] != snapped: points.append(snapped)
+            if len(points) > 1 and points[0] == points[-1]: points.pop()
+            return len(points) < 3 or Polygon(points).area == 0
+        polygons = getattr(geometry, "geoms", [geometry])
+        return all(collapses(polygon.exterior) for polygon in polygons if polygon.geom_type == "Polygon")
+
     def snap(self, point):
         """Nearest whole 1:scale map centimetre in this projection's local metres."""
         snapped = []
@@ -1287,13 +1300,36 @@ class Generalizer:
         if missing:
             # Quantization or a derived courtyard clearance must not erase a
             # small source island. Keep those original features unmerged; they
-            # still face the ordinary native geometry/output budget checks.
+            # still face the ordinary native geometry/output budget checks. A
+            # building thinner than the map lattice itself (a sub-centimetre
+            # sliver) would collapse at adoption: exclude it explicitly.
             for feature, geometry in self.features:
-                if missing.intersection(source_ids(feature)):
-                    items.append((deepcopy(feature),geometry))
-                    self.retained_groups += 1
+                ids = missing.intersection(source_ids(feature))
+                if not ids: continue
+                if is_building(feature, geometry) and self.lattice_collapses(geometry):
+                    for identity in sorted(ids):
+                        self.review.reject(identity, f"Building footprint is thinner than the 1:{self.scale} map lattice; it cannot keep a solid on the map. Explicit source exclusion is required.")
+                        self.excluded_sources.add(identity)
+                    continue
+                items.append((deepcopy(feature),geometry))
+                self.retained_groups += 1
             items.sort(key=order)
             retained = {identity for f,g in items for identity in source_ids(f)}
+            expected = set(self.input_ids) - self.excluded_sources
+        # A building solid thinner than the map lattice (a sub-centimetre sliver
+        # left by a numeric fallback or partition) collapses at adoption: it is
+        # left out, and a source left with no solid is excluded explicitly.
+        thin = [(f, g) for f, g in items if is_building(f, g) and g.geom_type in ("Polygon", "MultiPolygon") and self.lattice_collapses(g)]
+        if thin:
+            items = [item for item in items if not any(item is t for t in thin)]
+            survivors = {identity for f, g in items for identity in source_ids(f)}
+            for f, g in thin:
+                for identity in source_ids(f):
+                    if identity in survivors or identity in self.excluded_sources: continue
+                    self.review.reject(identity, f"Building footprint is thinner than the 1:{self.scale} map lattice; it cannot keep a solid on the map. Explicit source exclusion is required.")
+                    self.excluded_sources.add(identity)
+            retained = {identity for f,g in items for identity in source_ids(f)}
+            expected = set(self.input_ids) - self.excluded_sources
         if retained != expected:
             raise ValueError("City optimization source coverage mismatch")
         result = {k:deepcopy(v) for k,v in self.collection.items() if k != "features"}

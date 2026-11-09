@@ -239,7 +239,7 @@ def city_points(points, selected, region, options):
     return unique[:POI_LIMIT], street
 
 
-def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region=None, areas=None, denominator=8):
+def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region=None, areas=None, denominator=8, review=None):
     """Clip to the rectangle, or to rectangle ∩ `region` (the exact union of selected
     administrative boundaries, `areas` naming them) when one is given. `denominator`
     is the map scale 1:D the pieces are adopted at."""
@@ -291,7 +291,23 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region
         # Point/line-only contacts have no road length / polygon area.
         counts["boundary_contacts"] += 1
         return []
+    # With exclusion review, an invalid source area (e.g. a self-intersecting
+    # land-cover ring) is listed and left out whole, with every feature of that
+    # source; it is never repaired. Any excluded source leaves with every feature
+    # built from it (a wall that is also the outer way of an excluded multipolygon).
+    invalid = set()
+    if review is not None and review.enabled:
+        invalid.update(review.excluded)
+        from shapely.validation import explain_validity
+        for feature in collection["features"]:
+            identity = feature["properties"].get("osm_source_id")
+            if not identity or feature["geometry"]["type"] not in ("Polygon", "MultiPolygon"): continue
+            area = shape(feature["geometry"])
+            if not area.is_valid or area.is_empty:
+                review.reject(identity, "Invalid source area geometry (" + explain_validity(area)[:160] + "); not repaired")
+                invalid.add(identity)
     for index, feature in enumerate(collection["features"]):
+        if feature["properties"].get("osm_source_id") in invalid: continue
         source = shape(feature["geometry"])
         if not source.is_valid or source.is_empty:
             raise ValueError("Invalid OSM geometry before crop; no repair or silent filtering")

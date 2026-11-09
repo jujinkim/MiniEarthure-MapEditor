@@ -49,7 +49,7 @@ CITY_SITE_AMENITY = ("school", "hospital", "university", "college")
 CITY_SITE_LANDUSE = ("residential", "commercial", "retail", "industrial")
 CITY_PARKING_LEVELS = ("underground", "multi-storey", "rooftop")
 # Tags placing an object off the ground; city-only selections skip them.
-OFF_GROUND = ("bridge", "tunnel", "layer", "covered", "building:part", "min_height", "building:min_level", "incline", "ele", "level", "location")
+OFF_GROUND = ("bridge", "tunnel", "layer", "covered", "building:part", "min_height", "building:min_level", "incline", "level", "location")
 
 
 def off_ground(tags):
@@ -295,6 +295,15 @@ def city_tags(tags):
     if tags.get("highway") in PEDESTRIAN and not is_structure(tags) and "incline" in tags:
         return {key: value for key, value in tags.items() if key != "incline"}
     return tags
+
+
+def city_ground_tags(tags):
+    """City profile: `ele` on a ground area, building, barrier or waterway is the
+    elevation of the ground it stands on (bulk building imports tag every
+    footprint); the city map is flat or DEM-grounded, so it is dropped. Roads and
+    structures keep it (explicit heights stay exact)."""
+    if "ele" not in tags or "highway" in tags or is_structure(tags): return tags
+    return {key: value for key, value in tags.items() if key != "ele"}
 
 
 def city_building_tags(tags, member=False):
@@ -949,6 +958,9 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                 layered.add("relation/" + str(identity))
             lifted_relations.append((identity, kind, members, raised))
         relations = lifted_relations
+        all_ways = {identity: (refs, city_ground_tags(tags)) for identity, (refs, tags) in all_ways.items()}
+        ways = [(identity, kind, refs, city_ground_tags(tags)) for identity, kind, refs, tags in ways]
+        relations = [(identity, kind, members, city_ground_tags(tags)) for identity, kind, members, tags in relations]
     assembled, consumed = [], set()
     for relation in sorted(relations):
         try:

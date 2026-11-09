@@ -70,6 +70,49 @@ class Streaming(unittest.TestCase):
             self.assertEqual(self.source.read_bytes(),original)
             self.assertTrue(all(not (self.directory/n).exists() for n in stream.OWNED_FILES))
 
+    def test_large_city_sources_index_only_the_regional_neighbourhood(self):
+        # A way 100 km away is left out of the regional copy; a multipolygon with a
+        # member near the crop gets its far member too; the crop result is unchanged.
+        far = '''<node id="900" lon="10" lat="56"/><node id="901" lon="10.001" lat="56"/>
+<node id="902" lon="10.001" lat="56.001"/><node id="903" lon="10" lat="56.001"/>
+<way id="900"><nd ref="900"/><nd ref="901"/><tag k="highway" v="residential"/></way>
+<way id="901"><nd ref="900"/><nd ref="901"/><nd ref="902"/><nd ref="903"/><nd ref="900"/></way></osm>'''
+        for xml,selected in [(multipolygon_xml(),[9.0031,55.0011,9.0049,55.0029]),(structural_xml(),[9.0004,54.9999,9.0016,55.0001])]:
+            with self.subTest(xml=xml[:40]):
+                xml = xml.replace("</osm>", far)
+                self.source.unlink(missing_ok=True)
+                original=pbf(self.source,xml)
+                whole=stream.extract(self.source,selected,self.directory,city=True)
+                events=[]
+                with patch("osm_stream.REGIONAL_SOURCE_BYTES",0):
+                    regional=stream.extract(self.source,selected,self.directory,lambda *a:events.append(a),city=True)
+                self.assertEqual(regional[0],whole[0])
+                self.assertEqual(regional[2]["source_bytes"],whole[2]["source_bytes"])
+                self.assertEqual(regional[2]["source_sha256"],whole[2]["source_sha256"])
+                self.assertLess(regional[2]["scan"]["ways"],whole[2]["scan"]["ways"])
+                self.assertEqual(regional[2]["regional"]["margin_m"],stream.REGIONAL_MARGIN_M)
+                stages=[e[0] for e in events]
+                order=[stages.index(stage) for stage in ("read",*stream.REGIONAL_STAGES,"index_nodes")]
+                self.assertEqual(order,sorted(order))
+                self.assertEqual(self.source.read_bytes(),original)
+                self.assertTrue(all(not (self.directory/n).exists() for n in stream.OWNED_FILES))
+        # The far member of a near multipolygon is completed.
+        xml = multipolygon_xml().replace("</osm>", far.replace("</osm>", '''<relation id="950"><member type="way" ref="901" role="outer"/>
+<member type="way" ref="3" role="outer"/><tag k="type" v="multipolygon"/><tag k="landuse" v="forest"/></relation></osm>'''))
+        self.source.unlink(missing_ok=True)
+        pbf(self.source,xml)
+        from osm_extract import dependency
+        osmium = dependency()
+        output = self.directory/"regional-test.pbf"
+        self.addCleanup(output.unlink, missing_ok=True)
+        stream._regional(self.source, output, [9.0031,55.0011,9.0049,55.0029], lambda *a: None, self.source.stat().st_size, osmium)
+        ways = {w.id for w in osmium.FileProcessor(str(output), osmium.osm.WAY)}
+        nodes = {n.id for n in osmium.FileProcessor(str(output), osmium.osm.NODE)}
+        relations = {r.id for r in osmium.FileProcessor(str(output), osmium.osm.RELATION)}
+        self.assertIn(901, ways, "the far member of a near multipolygon is completed")
+        self.assertNotIn(900, ways, "an unrelated far way is left out")
+        self.assertTrue({900, 901, 902, 903} <= nodes and 950 in relations)
+
     def test_enclosing_relation_holes_island_and_crossing_no_inside_vertices(self):
         for xml,box in [(XML,[9.00051,54.9999,9.0006,55.0001]),
                         (XML,[9.00005,55.00005,9.00015,55.00015]),

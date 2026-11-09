@@ -475,6 +475,17 @@ class CityLayersAndEntrances(unittest.TestCase):
             with self.subTest(kind=kind, tags=tags), self.assertRaisesRegex(ValueError, "way/1: OSM bridge/tunnel/nonzero layer requires explicit vertical geometry"):
                 osm.parse(self.osm(tags, building=kind), "osm", city=True)
 
+    def test_ground_ele_on_a_city_building_is_dropped(self):
+        # Bulk building imports tag every footprint with its ground elevation.
+        raw = self.osm((("ele", "158.8"),))
+        with self.assertRaisesRegex(ValueError, "unsupported vertical semantics"):
+            osm.parse(raw, "osm")
+        self.assertNotIn("ele", self.features(raw)["way/1"])
+        self.assertIn("way/1", self.features(raw))
+        # Structures keep the exact rule.
+        with self.assertRaisesRegex(ValueError, "way/1: OSM bridge/tunnel"):
+            osm.parse(self.osm((("ele", "158.8"), ("layer", "-1"))), "osm", city=True)
+
     def test_layered_building_relations_and_their_outlines_are_lifted(self):
         root = ET.fromstring(self.osm())
         outer = root.find("way[@id='1']")

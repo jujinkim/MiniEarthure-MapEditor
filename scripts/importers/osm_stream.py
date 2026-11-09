@@ -6,6 +6,7 @@ location/area cache. Their combined disk allocation stays within MAX_INDEX.
 PBF framing makes progress actual bytes, not an estimate of parser position.
 """
 import hashlib
+import math
 import json
 import os
 from pathlib import Path
@@ -37,7 +38,14 @@ MAX_BLOB = 32 * 1024**2
 MAX_HEADER = 64 * 1024
 COPY_BLOCK = 1024**2
 PROFILE = "pbf-area-stream-v1"
-OWNED_FILES = ("source.pbf.part", "source.pbf", "source-index.sqlite", *NODE_FILES)
+# City imports of large sources first copy the crop's neighbourhood into a regional
+# PBF (complete ways, completed multipolygons), so the node index holds that region
+# instead of the whole country. The margin keeps incident ways, junctions and short
+# structure chains past the crop edge.
+REGIONAL_SOURCE_BYTES = 512 * 1024**2
+REGIONAL_MARGIN_M = 5000.0
+REGIONAL_STAGES = ("extract_nodes", "extract_ways", "extract_relations", "extract_members", "extract_write_nodes", "extract_write_ways", "extract_write_relations")
+OWNED_FILES = ("source.pbf.part", "source.pbf", "regional.pbf", "source-index.sqlite", *NODE_FILES)
 WAY_BATCH_ROWS = 128
 WAY_BATCH_BYTES = 4 * 1024**2  # Batch flush size; a single way warns above it.
 WAY_PAYLOAD_CEILING = 64 * 1024**2  # Memory guard for one way payload.
@@ -453,6 +461,78 @@ def _structure_closure(db, event, size, read_way=None, limits=None):
                 ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits, **(dict(loops=loops) if loops else {}))
 
 
+def _regional(path, output, selected, event, size, osmium):
+    """Copy every node inside `selected` + REGIONAL_MARGIN_M, every way touching
+    one of them with all its nodes, and every relation with such a member;
+    multipolygon relations among them get all their member ways. Returns the
+    regional size and counts. Only IDs are kept in memory (sorted arrays)."""
+    import numpy as np
+    from array import array
+    lat = (selected[1] + selected[3]) / 2
+    dy = REGIONAL_MARGIN_M / 110574.0
+    dx = REGIONAL_MARGIN_M / (111320.0 * max(math.cos(math.radians(lat)), 0.01))
+    window = [round(v * 10000000) for v in (selected[0] - dx, selected[1] - dy, selected[2] + dx, selected[3] + dy)]
+    inside, slow = [], array("q")
+    def inside_xy(x, y): return window[0] <= x <= window[2] and window[1] <= y <= window[3]
+    def node_block(offset, payload):
+        blocks = _decode_block(np, payload, nodes=True)
+        if blocks is None: return None
+        for ids, xy, visible in blocks[0]:
+            if len(ids):
+                mask = (xy[:, 0] >= window[0]) & (xy[:, 0] <= window[2]) & (xy[:, 1] >= window[1]) & (xy[:, 1] <= window[3])
+                inside.append(np.asarray(ids, np.int64)[mask])
+        return osmium.filter.IdFilter([])
+    def node(entity):
+        if entity.location.valid() and inside_xy(entity.location.x, entity.location.y): slow.append(entity.id)
+    _scan(path, REGIONAL_STAGES[0], event, size, osmium, osmium.osm.NODE, node, block_callback=node_block)
+    inside = np.unique(np.concatenate(inside + [np.frombuffer(slow.tobytes(), np.int64)]))
+    kept_ways, needed = [], [inside]
+    def touches(refs): return len(refs) and np.isin(refs, inside, assume_unique=False).any()
+    def way_block(offset, payload):
+        blocks = _decode_block(np, payload, ways=True)
+        if blocks is None or blocks[1] is None: return None if blocks is None else osmium.filter.IdFilter([])
+        ids, counts, refs = blocks[1]
+        refs = np.asarray(refs, np.int64)
+        if not len(ids): return osmium.filter.IdFilter([])
+        lengths = np.asarray(counts, np.int64)
+        starts = np.concatenate(([0], np.cumsum(lengths)[:-1]))
+        hits = np.zeros(len(ids), np.int64)
+        full = lengths > 0
+        if full.any(): hits[full] = np.add.reduceat(np.isin(refs, inside).astype(np.int64), starts[full])
+        for index in np.flatnonzero(hits):
+            kept_ways.append(int(ids[index]))
+            needed.append(refs[starts[index]:starts[index] + lengths[index]])
+        return osmium.filter.IdFilter([])
+    def way(entity):
+        refs = np.fromiter((n.ref for n in entity.nodes), np.int64)
+        if touches(refs):
+            kept_ways.append(entity.id)
+            needed.append(refs)
+    _scan(path, REGIONAL_STAGES[1], event, size, osmium, osmium.osm.WAY, way, block_callback=way_block)
+    ways = np.unique(np.asarray(kept_ways, np.int64))
+    relations, complete = [], array("q")
+    def relation(entity):
+        members = [(m.type, m.ref) for m in entity.members]
+        if any(kind == "w" and len(ways) and ways[min(np.searchsorted(ways, ref), len(ways) - 1)] == ref or
+               kind == "n" and len(inside) and inside[min(np.searchsorted(inside, ref), len(inside) - 1)] == ref for kind, ref in members):
+            relations.append(entity.id)
+            if entity.tags.get("type") == "multipolygon": complete.extend(ref for kind, ref in members if kind == "w")
+    _scan(path, REGIONAL_STAGES[2], event, size, osmium, osmium.osm.RELATION, relation)
+    extra = np.setdiff1d(np.unique(np.frombuffer(complete.tobytes(), np.int64)), ways)
+    def member(entity): needed.append(np.fromiter((n.ref for n in entity.nodes), np.int64))
+    _scan(path, REGIONAL_STAGES[3], event, size, osmium, osmium.osm.WAY, member, osmium.filter.IdFilter(extra.tolist()))
+    ways = np.union1d(ways, extra)
+    nodes = np.unique(np.concatenate(needed))
+    writer = osmium.SimpleWriter(str(output))
+    try:
+        for stage, bits, ids, add in ((REGIONAL_STAGES[4], osmium.osm.NODE, nodes, writer.add_node), (REGIONAL_STAGES[5], osmium.osm.WAY, ways, writer.add_way),
+                                      (REGIONAL_STAGES[6], osmium.osm.RELATION, np.asarray(relations, np.int64), writer.add_relation)):
+            _scan(path, stage, event, size, osmium, bits, add, osmium.filter.IdFilter(ids.tolist()))
+    finally:
+        writer.close()
+    return output.stat().st_size, dict(nodes=int(len(nodes)), ways=int(len(ways)), relations=len(relations), margin_m=REGIONAL_MARGIN_M)
+
+
 def extract(source, selected, directory, event=lambda *a: None, supplement=None, review=None, *, city=False, areas=None):
     """`areas` (relation IDs) resolve their exact boundary union from the same captured
     bytes; it is returned as `meta["_region"]` for the crop and never stored."""
@@ -477,6 +557,10 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
             w, s_, e, n = region.bounds
             if w < selected[0] or s_ < selected[1] or e > selected[2] or n > selected[3]:
                 raise ValueError("Selected areas extend beyond the crop rectangle; use their combined extent")
+        source_size, regional = size, None
+        if city and size > REGIONAL_SOURCE_BYTES:
+            size, regional = _regional(path, directory / "regional.pbf", selected, event, size, osmium)
+            path = directory / "regional.pbf"
         # The disk quota grows with the source, within the free workspace disk.
         quota = max(MAX_INDEX, min(INDEX_PER_SOURCE * size, shutil.disk_usage(directory).free - 64*COPY_BLOCK))
         db = sqlite3.connect(directory / "source-index.sqlite")
@@ -844,9 +928,10 @@ def extract(source, selected, directory, event=lambda *a: None, supplement=None,
                     if (kind == "w" and ref in all_ways or kind == "r" and ref in selected_relations) and (kind, ref) not in sites:
                         sites[(kind, ref)] = "relation/" + str(identity)
         value, counts = build_features(nodes,node_tags,ways,all_ways,relations,blocked,counts,supplement,digest,review,feature_limit=feature_limit,city=city,sites=sites)
-        meta = dict(profile=PROFILE,passes=3,source_bytes=size,source_sha256=digest,
+        meta = dict(profile=PROFILE,passes=3,source_bytes=source_size,source_sha256=digest,
                     scan=totals,structure_closure=closure,selected=dict(nodes=len(nodes),ways=len(all_ways),relations=len(relations),references=selected_refs,bytes=selection_bytes))
         if city: meta.update(index_policy="source-block-pointers-v1", resolved_way_blocks=resolved_blocks)
+        if regional is not None: meta.update(regional=regional)
         if region is not None: meta.update(areas=area_meta, _region=region)
         if city:
             # [node id, lon, lat, kind, category, weight, name], in ID order.

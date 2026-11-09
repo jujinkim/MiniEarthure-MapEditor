@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import math
 from osm_extract import PEDESTRIAN, speed_kmh
 from pathlib import Path
 import sys
@@ -145,7 +146,19 @@ def landmark_points(collection):
     return rows
 
 
-def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False, captured_source=None, city=False):
+def _collapses(ring, denominator):
+    """A source-cm ring that adoption's whole-map-centimetre rounding (÷D, half
+    away from zero) turns into fewer than three points or no area."""
+    snap = lambda v: int(math.copysign(math.floor(abs(v) / denominator + 0.5), v))
+    points = []
+    for x, y in ((snap(p[0]), snap(p[1])) for p in ring):
+        if not points or points[-1] != (x, y): points.append((x, y))
+    if len(points) > 1 and points[0] == points[-1]: points.pop()
+    area = sum(a[0] * b[1] - a[1] * b[0] for a, b in zip(points, points[1:] + points[:1]))
+    return len(points) < 3 or area == 0
+
+
+def convert(value, source, license_name, *, layer_id=None, source_bytes=None, accuracy="unknown", progress=None, coordinates=None, osm_graph=False, captured_source=None, city=False, denominator=None):
     if not isinstance(value, dict) or value.get("type") != "FeatureCollection" or "crs" in value:
         raise ValueError("expected FeatureCollection without legacy CRS; coordinates must be explicitly selected")
     raw = b"" if captured_source is not None else source_bytes if source_bytes is not None else json.dumps(value, sort_keys=True, allow_nan=False).encode()
@@ -321,7 +334,16 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             if solids is not None:
                 layer.add("buildings", city_building(identity, projected, solids, properties, layer, scalar))
                 projected = []
+            building = not (properties.get("osm_region") or properties.get("_city_water") or properties.get("_city_paint") or zone)
+            if city and denominator and building and len(projected) > 1:
+                # A sliver piece of a split building that the map lattice would
+                # erase is left out; the source keeps its other pieces.
+                kept = [rings for rings in projected if not _collapses(rings[0][:-1], denominator)]
+                if kept and len(kept) < len(projected):
+                    layer.warning(f"{properties.get('osm_source_id', identity)}: {len(projected) - len(kept)} building piece(s) thinner than one map centimetre left out")
+                    projected = [rings if not _collapses(rings[0][:-1], denominator) else None for rings in projected]
             for part, rings in enumerate(projected):
+                if rings is None: continue
                 part_id = identity if kind == "Polygon" else f"{identity}-part-{part}"
                 polygon = rings[0][:-1]
                 if city and osm_graph and properties.get("osm_region") and properties.get("_city_site") == "school":
@@ -545,7 +567,7 @@ def main():
             from osm_area import crop
             if args.osm_city:
                 from osm_stream import CITY_FEATURES, CITY_POINTS
-                value, osm_crop = crop(value, args.osm_bbox, feature_limit=CITY_FEATURES, point_limit=CITY_POINTS, region=region, areas=osm_stream.get("areas"), denominator=scale)
+                value, osm_crop = crop(value, args.osm_bbox, feature_limit=CITY_FEATURES, point_limit=CITY_POINTS, region=region, areas=osm_stream.get("areas"), denominator=scale, review=review)
             else:
                 value, osm_crop = crop(value, args.osm_bbox, region=region, areas=osm_stream.get("areas") if osm_stream else None)
     parse_bytes = osm_stream["selected"]["bytes"] if osm_stream else size
@@ -583,7 +605,7 @@ def main():
             metadata["skipped"] = dict(barrier_ways=osm_counts.get("skipped_barriers", 0), city_areas=osm_counts.get("skipped_city_areas", 0))
             try:
                 trial = convert(candidate, args.source_name or args.source.name, args.license, layer_id=args.layer_id,
-                    accuracy=args.accuracy, coordinates=options, osm_graph=True, captured_source=captured_source, city=True)
+                    accuracy=args.accuracy, coordinates=options, osm_graph=True, captured_source=captured_source, city=True, denominator=scale)
                 metadata["groups"] = trial.coordinates.pop("city_mappings")
                 if metadata["source_ids"] != trial.coordinates.pop("city_source_ids"):
                     raise ValueError("City source table changed during conversion")

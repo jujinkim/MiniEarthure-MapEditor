@@ -10,15 +10,52 @@ It separates larger bounded source work from the smaller output MapKit accepts.
 **Create → New real-city map…** (`real_city_wizard.gd`) and the headless
 `-- --real-city-recipe recipe.json [--report report.json]` user argument run the
 same steps (`real_city_recipe.gd`, Editor tool format v1): new free-roam map
-(terrain 0, `cell_cm` default 12800) → PBF areas found by exact name (optional
-`source_id`/`admin_level`) → city import at 1:`scale` with review exclusions and
-`traffic` → adopt → optional facility CSV (`facilities`) → optional Copernicus
-`dem` folder (mosaic over the imported frame, grounded buildings) → save to
-`project` → Export to `package` (`full_check` default true; `mobile_check` opens it
-under the 1.5 GiB phone budget). Recipe keys outside that list are refused; paths
-are relative to the recipe file. Every step keeps its review and limits; a step
-that fails stops the run with `failed_step` and the status text (exit code 1). The
-wizard saves its settings as a recipe. Recommended: 1:3, 128 m cells, one district.
+(terrain 0, `cell_cm` default 12800) → extent → city import at 1:`scale` with
+review exclusions and `traffic` → adopt → optional facility CSV (`facilities`) →
+optional Copernicus `dem` folder (mosaic over the imported frame, grounded
+buildings) → save to `project` → Export to `package` (`full_check` default true;
+`mobile_check` opens it under the 1.5 GiB phone budget). The extent is exactly one
+of `areas` (PBF administrative areas found by exact name, optional
+`source_id`/`admin_level`), `place` (a named feature, `{"name", optional
+"source_id"}`, with the automatic extent below) or `bbox` (`[west, south, east,
+north]` degrees, a plain rectangle crop without play-area boundary). Recipe keys
+outside that list are refused; paths are relative to the recipe file. Every step
+keeps its review and limits; a step that fails stops the run with `failed_step` and
+the status text (exit code 1); an ambiguous name lists `area_candidates` or
+`place_candidates`. A DEM that cannot be fitted (its review reports that the map
+keeps its flat terrain, for example estimated overpasses losing separation) leaves
+the map flat and the build continues (`dem_skipped` in the report). The report records the chosen `extent`, `place` and `traffic`
+(with its `basis`). The wizard saves its settings as a recipe. Recommended: 1:3,
+128 m cells, one district.
+
+### Automatic extent and traffic
+
+`real_city_auto.gd` turns the PBF lookup ([IMPORTS](IMPORTS.md#choosing-a-geographic-area))
+into Editor defaults; explicit values always win.
+
+- Places: the wizard's search lists matching administrative areas and named
+  features whose name (or `name:ko`/`en`/`ja`, official, alternative, international,
+  short or local name) is exactly the query, settlements before landmarks before
+  other features. A recipe `place` takes the `source_id`, else the only candidate of
+  the best kind.
+- Extent of a place: the largest administrative area containing it whose bounding
+  box fits 512 cells at the chosen 1:D and cell size and covers at least a quarter
+  of the fallback square; otherwise a square of 5 km source side centred on the
+  place (smaller when 5 km exceeds 512 cells). The wizard shows the choice and its
+  cell count before building. When the chosen extent then fails import, adoption,
+  export or the phone check on a package or game limit (a dense district's source
+  mapping can outgrow the 4 MiB manifest, a dense square the game's work budgets),
+  the build runs again with the square, then with squares of 0.75 × the previous
+  side down to 2 km; each earlier attempt's project and package are kept beside
+  the next with an `-attempt-N` suffix and listed in the report's `attempts`.
+- Traffic: a `traffic` key left out (wizard: **Automatic**) follows the country of
+  the area or place: the `driving_side` tag of its country boundary, else the
+  Editor's list of left-hand-traffic ISO countries; horizontal signals in Japan,
+  both Koreas and Taiwan, vertical elsewhere. The country is the containing
+  country boundary, else the ISO 3166-2 code of a containing subdivision (regional
+  extracts cut country boundaries), else the extract's only country; a `bbox`
+  recipe looks up its centre. An unknown country keeps right-hand traffic and
+  horizontal signals.
 
 ## Map scale 1:D
 
@@ -88,7 +125,9 @@ remainder so lattice points are whole map centimetres.
   separation)). Each merged run needs one real rung (converge node or piece);
   motorway and trunk sections between ramps may merge between aligned nodes
   alone, as may any pair whose centres lie closer than half their summed one-way
-  profile widths (they would overlap on the map). A slip road beside its carriageway runs the same way and never pairs. No building, water or
+  profile widths (they would overlap on the map). A run whose carriageways part
+  more than 75 m (3 × the 25 m median bound) at any vertex between its rungs, for
+  example around a park, stays two one-way roads. A slip road beside its carriageway runs the same way and never pairs. No building, water or
   other road may lie between the carriageways; median links, U-turns and junction
   pieces joined only to the pair are absorbed. The merged centreline is the
   midline: the first carriageway's nodes move to it with every incident road, the
@@ -136,7 +175,9 @@ remainder so lattice points are whole map centimetres.
   ground (`surface_areas`), not roads; cars cross them as terrain. Steps keep their
   class; bridge, tunnel, layered or conveying steps (escalators) are excluded. A
   ground walking way's `incline` is its slope and is ignored on the flat map, as
-  is the `level` of an entrance node (a building floor, not road height). Their source-width
+  is the `level` of an entrance node (a building floor, not road height) and the
+  `ele` of a ground area, building, barrier or waterway (its ground elevation, set
+  on every footprint by bulk building imports; roads and structures keep `ele`). Their source-width
   ribbons are united on the map-centimetre lattice and cut per 32 m map cell, and
   through any enclosed hole, into hole-free pieces of ≤256 vertices. Each piece maps
   to every source way it covers and takes the surface covering most of it (untagged:
@@ -273,7 +314,11 @@ remainder so lattice points are whole map centimetres.
   so they stay visibly separate; an enclosed source keeps its ID/name in the
   enclosing volume with an estimated height. Complex polygons split into native
   pieces with 4 map cm separation (0.04·D m); pieces meeting at a point keep 2 map
-  cm. Region crops drop cut pieces shorter than one map centimetre.
+  cm. Region crops drop cut pieces shorter than one map centimetre, and a piece of
+  a split building that adoption's whole-centimetre rounding would collapse (a
+  sliver under one map centimetre wide) is left out with a warning while its
+  source keeps the other pieces; a source whose every solid is such a sliver is
+  excluded in review ("thinner than the 1:D map lattice").
   Numeric failures keep the original geometry; a source erased by quantization
   returns as its road-trimmed shape on the map-centimetre lattice.
 
@@ -524,7 +569,10 @@ to contiguous output records; missing, duplicate or excluded claims fail validat
 No supported source is dropped to fit a limit. A building entirely inside derived road
 space, or road-trimmed to a remainder smaller than the map lattice, fails that candidate with its source ID unless exclusion review is enabled; then
 the whole source is excluded with a warning and the inspected-exclusions checkbox is
-required.
+required. An invalid source area (self-intersecting ring and similar) is excluded the
+same way with its validity reason; it is never repaired. An excluded source leaves
+with every feature built from it (a wall that is also the outer way of an excluded
+multipolygon is not imported either).
 
 Every map cell is generated sequentially before review and adoption (warning above
 256 cells, at most 16,384); after 120 s a running-time warning appears and Cancel
