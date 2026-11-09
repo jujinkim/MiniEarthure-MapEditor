@@ -1,4 +1,5 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const JOB := preload("res://scripts/asset_native_job.gd")
 const FILES := preload("res://scripts/authoring_files.gd")
@@ -28,6 +29,8 @@ class GuardedStore extends STORE:
 		return {"error":"Main-thread asset command preparation forbidden."}
 var ui: Control
 var checks := 0
+var scratch := ""
+func _finalize() -> void: SCRATCH.remove(scratch)
 var failures: Array[String] = []
 var source := ""
 var project := ""
@@ -63,19 +66,20 @@ func wait_ui() -> void:
 	while ui.busy and Time.get_ticks_msec() < deadline: await process_frame
 	check(not ui.busy, "asset UI completes: " + ui.author_panel.feedback.text)
 func run() -> void:
+	scratch = SCRATCH.fresh("asset_native_validator")
 	root.size = Vector2i(1024,720)
 	ui = load("res://main.tscn").instantiate(); root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.store.new_document()
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
-	project = ProjectSettings.globalize_path("user://asset-project")
+	project = scratch.path_join("asset-project")
 	check(ui.canvas.author.set_theme("default") == "", "recipe for native asset validation")
 	check(ui.store.save_project(project) == "", "save isolated asset project")
-	source = ProjectSettings.globalize_path("user://asset.png")
+	source = scratch.path_join("asset.png")
 	var picture := Image.create(4,4,false,Image.FORMAT_RGBA8); picture.fill(Color.YELLOW)
 	check(picture.save_png(source) == OK, "synthetic PNG")
 	var original: PackedByteArray = FILES.read(source).bytes
-	var package := ProjectSettings.globalize_path("user://asset-original.memap")
+	var package := scratch.path_join("asset-original.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project, package)).ok, "baseline package")
 	var package_hash := FileAccess.get_sha256(package)
 	var bridge: String = ui.store.bridge.document_json()

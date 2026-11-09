@@ -1,10 +1,13 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const UI := preload("res://scripts/editor_main.gd")
 var failures: Array[String] = []
 var checks := 0
+var scratch := ""
+func _finalize() -> void: SCRATCH.remove(scratch)
 func check(ok: bool, message: String) -> void:
 	checks += 1
 	if not ok:
@@ -16,12 +19,13 @@ func wait_job(ui: Control) -> void:
 	while ui.busy and Time.get_ticks_msec() < deadline: await process_frame
 	check(not ui.busy, "Overture worker terminates: " + ui.status_label.text)
 func run() -> void:
+	scratch = SCRATCH.fresh("overture_validator")
 	var ui := UI.new()
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	var before: Dictionary=ui.store.document.duplicate(true)
-	var source := ProjectSettings.globalize_path("user://overture_validator.gd.json")
+	var source := scratch.path_join("overture_validator.gd.json")
 	var output: Array = []
 	check(OS.execute(ui.import_python.text, PackedStringArray(["-B", ProjectSettings.globalize_path("res://tests/overture_fixture.py"), "--snapshot", source]), output, true) == 0, "local synthetic snapshot")
 	ui.import_source_format.select(3)
@@ -59,18 +63,18 @@ func run() -> void:
 	ui._adopt_import()
 	await wait_job(ui)
 	check(ui.store.document.buildings.size()==1,"one-shot candidate")
-	var project:=ProjectSettings.globalize_path("user://overture-project")
+	var project:=scratch.path_join("overture-project")
 	check(ui.store.save_project(project)=="","save provenance")
 	check(RECOVERY_FIXTURE.write(ui.store)=="","recovery snapshot")
 	var reopened:=STORE.new()
 	check(reopened.open_project(project)=="" and reopened.document.attributions==ui.store.document.attributions,"source notices roundtrip")
 	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store))=="","recover source layer")
-	var pack:=ProjectSettings.globalize_path("user://overture.memap")
+	var pack:=scratch.path_join("overture.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,pack)).ok,"package imported building")
 	var pack_hash:=FileAccess.get_sha256(pack)
 	check(JSON.parse_string(ui.store.bridge.open_package(pack)).ok,"open package")
 	check(JSON.parse_string(ui.store.bridge.generate_chunk(1,1)).ok,"same MapKit geometry generation")
-	var update:=ProjectSettings.globalize_path("user://updated.overture.json")
+	var update:=scratch.path_join("updated.overture.json")
 	var snapshot:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(source))
 	snapshot.features[0].properties.height=23
 	var f:=FileAccess.open(update,FileAccess.WRITE)

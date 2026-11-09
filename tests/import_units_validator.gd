@@ -1,12 +1,16 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 var checks := 0
+var scratch := ""
+func _finalize() -> void: SCRATCH.remove(scratch)
 func check(ok: bool, message: String) -> void:
 	checks += 1
 	if not ok: push_error(message); quit(1); assert(ok, message)
 func _initialize() -> void: run.call_deferred()
 func run() -> void:
+	scratch = SCRATCH.fresh("import_units_validator")
 	var store := STORE.new()
 	store.new_document()
 	var layer := LAYER.new()
@@ -20,7 +24,7 @@ func run() -> void:
 	check(store.undo() == "" and store.document.buildings.is_empty(), "undo removes only new layer")
 	check(store.redo() == "", "redo restores already converted records")
 	var authored: Dictionary = store.document.duplicate(true)
-	var path := ProjectSettings.globalize_path("user://unit-roundtrip")
+	var path := scratch.path_join("unit-roundtrip")
 	check(store.save_project(path) == "" and store.open_project(path) == "", "save and reopen")
 	check(store.document.buildings == authored.buildings, "reopen never scales custom source")
 	var package := path + ".memap"

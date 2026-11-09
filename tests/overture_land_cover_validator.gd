@@ -1,10 +1,13 @@
 extends SceneTree
+const SCRATCH := preload("res://tests/validator_scratch.gd")
 const RECOVERY_FIXTURE := preload("res://tests/recovery_fixture.gd")
 const LAYER := preload("res://scripts/import_layer.gd")
 const STORE := preload("res://scripts/document_store.gd")
 const UI := preload("res://scripts/editor_main.gd")
 var failures: Array[String] = []
 var checks := 0
+var scratch := ""
+func _finalize() -> void: SCRATCH.remove(scratch)
 func check(ok: bool, message: String) -> void:
 	checks += 1
 	if not ok:
@@ -16,13 +19,14 @@ func wait_job(ui: Control) -> void:
 	while ui.busy and Time.get_ticks_msec() < deadline: await process_frame
 	check(not ui.busy, "Overture worker terminates: " + ui.status_label.text)
 func run() -> void:
+	scratch = SCRATCH.fresh("overture_land_cover_validator")
 	var ui := UI.new()
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
 	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	check(ui.store.apply_command("Choose vegetation recipe",[{"field":"seed","before":ui.store.document.seed,"after":12345}])=="","current generation setup for native vegetation generation")
 	var before: Dictionary=ui.store.document.duplicate(true)
-	var source := ProjectSettings.globalize_path("user://overture_land_cover_validator.gd.json")
+	var source := scratch.path_join("overture_land_cover_validator.gd.json")
 	var output: Array = []
 	check(OS.execute(ui.import_python.text, PackedStringArray(["-B", ProjectSettings.globalize_path("res://tests/overture_land_cover_fixture.py"), "--snapshot", source]), output, true) == 0, "local synthetic snapshot")
 	ui.import_source_format.select(5)
@@ -92,13 +96,13 @@ func run() -> void:
 	var adopted: Dictionary = ui.store.document.duplicate(true)
 	check(ui.store.undo()=="" and ui.store.document.zones.is_empty(),"one-command undo removes complete forest zones")
 	check(ui.store.redo()=="" and ui.store.document==adopted,"redo restores complete forest zones/provenance")
-	var project:=ProjectSettings.globalize_path("user://overture-land-cover-project")
+	var project:=scratch.path_join("overture-land-cover-project")
 	check(ui.store.save_project(project)=="","save provenance")
 	check(RECOVERY_FIXTURE.write(ui.store)=="","recovery snapshot")
 	var reopened:=STORE.new()
 	check(reopened.open_project(project)=="" and reopened.document.attributions==ui.store.document.attributions,"source notices roundtrip")
 	check(reopened.recover(RECOVERY_FIXTURE.path(ui.store))=="","recover source layer")
-	var pack:=ProjectSettings.globalize_path("user://overture-land-cover.memap")
+	var pack:=scratch.path_join("overture-land-cover.memap")
 	check(JSON.parse_string(ui.store.bridge.export_project(project,pack)).ok,"package imported forest")
 	var pack_hash:=FileAccess.get_sha256(pack)
 	check(JSON.parse_string(ui.store.bridge.open_package(pack)).ok,"open package")
@@ -123,7 +127,7 @@ func run() -> void:
 	ui._cancel_operation()
 	await wait_job(ui)
 	check(ui.preview_cache[Vector2i(1,1)].root==accepted,"cancel retains accepted forest preview")
-	var update:=ProjectSettings.globalize_path("user://updated-transportation.overture-land-cover.json")
+	var update:=scratch.path_join("updated-transportation.overture-land-cover.json")
 	var snapshot:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(source))
 	for feature in snapshot.features:
 		if feature.id == "a-forest": feature.properties.version=2
@@ -138,7 +142,7 @@ func run() -> void:
 	check(ui.store.undo()=="" and ui.store.document.zones.size()==3,"undo updated layer")
 	check(ui.store.redo()=="" and ui.store.document.zones.size()==6,"redo updated layer")
 	check(FileAccess.get_sha256(source)==original and FileAccess.get_sha256(pack)==pack_hash,"source/package preserved")
-	var bad_path:=ProjectSettings.globalize_path("user://unknown-class.overture-land-cover.json")
+	var bad_path:=scratch.path_join("unknown-class.overture-land-cover.json")
 	var bad_source:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(source))
 	bad_source.features[-1].properties.subtype="unknown-class"
 	var bad_file:=FileAccess.open(bad_path,FileAccess.WRITE)
