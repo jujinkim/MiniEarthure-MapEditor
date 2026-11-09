@@ -89,6 +89,7 @@ func run() -> void:
 	check(layer.adopt(ui.canvas.author.terrain)!="","one-shot adoption")
 	var first: Dictionary = ui.store.document.heightmaps[0].duplicate(true)
 	check(ui.store.document.attributions[0].notice.contains(source_sha) and not ui.store.document.attributions[0].notice.contains(source.get_base_dir()),"original COG hash, not its local path, survives native attribution")
+	check(ui.store.document.attributions[0].license.begins_with("Copernicus DEM; produced using Copernicus WorldDEM-") and ui.store.document.attributions[0].license.contains("© DLR e.V. 2010-2014") and ui.store.document.attributions[0].license.ends_with("; "+preload("res://scripts/dem_import_layer.gd").LICENSE),"adopted attribution carries the readable Copernicus credit")
 	check(ui.store.undo()=="" and ui.store.document.heightmaps.is_empty(),"atomic geometry/notice undo")
 	check(ui.store.redo()=="" and ui.store.document.heightmaps[0]==first,"redo restores file and descriptor")
 	check(ui.store.save_project(project)=="","save imported terrain")

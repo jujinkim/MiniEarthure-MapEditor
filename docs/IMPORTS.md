@@ -74,7 +74,10 @@ the sample support touches and refuses a hard excess before hashing or copying; 
 review lists each tile's blocks and decoded/compressed bytes, and the captured copies must touch the same blocks. Whole
 tiles are still hashed and copied for their identity. The adopted source notice names each tile
 file with its bytes and SHA-256; local source and capture paths stay out of the map
-(the capture folder keeps its own review sidecars). DEM is optional: a region beyond
+(the capture folder keeps its own review sidecars). The adopted attribution's license
+label is the readable credit `Copernicus DEM; <each tile's Copernicus notice>; <license
+URL>`, like the OSM `ODbL-1.0; © OpenStreetMap contributors; <URL>` label, so games
+show it as the map credit. DEM is optional: a region beyond
 the hard bounds is refused with that explanation and keeps its flat terrain. **Use imported OSM coordinates and full
 map extent** copies the imported frame, selects all cells and uses 4 m map spacing
 when the grid allows. On an OSM-scaled map (the review sends `osm_denominator`) the

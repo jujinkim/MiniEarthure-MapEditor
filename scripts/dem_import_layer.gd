@@ -47,6 +47,16 @@ func summary() -> String:
 	return text+I18N.t("\nLicense: ")+LICENSE
 
 
+## The adopted attribution's readable license label, like the OSM one
+## (name; credit; URL): each tile resolution's required Copernicus notice, which
+## viewers show as the map credit.
+static func credit(sources: Array) -> String:
+	var parts := PackedStringArray(["Copernicus DEM"])
+	for item: Dictionary in sources:
+		if str(item.get("notice", "")) not in parts: parts.append(str(item.notice))
+	parts.append(LICENSE)
+	return "; ".join(parts)
+
 func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary, destination: String, context: Dictionary = {}) -> String:
 	if result.get("review") is not Dictionary or result.get("raster") is not Dictionary or result.get("outputs") is not Array: return "Invalid DEM mosaic result."
 	var receipt: Dictionary = result.review
@@ -149,7 +159,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		value.dem.grounding=grounded.receipt
 		if not doc.buildings.is_empty() and _cells.is_empty():
 			for record: Dictionary in records: _cells.append(Vector2i(record.cell.x,record.cell.y))
-	var notice := {"source":"Copernicus 2021 mosaic#"+value.layer_id,"license":LICENSE,"notice":JSON.stringify(value)}
+	var notice := {"source":"Copernicus 2021 mosaic#"+value.layer_id,"license":credit(value.dem.receipt.sources),"notice":JSON.stringify(value)}
 	_patches.append({"field":"attributions","id":terrain.store.record_id("attributions",notice),"before":null,"after":notice})
 	_patches.append({"field":"free_roam","id":"","before":terrain.store.document.free_roam,"after":true})
 	var failure := FILES.apply(terrain.store,"Adopt DEM mosaic",_patches,_blobs,_cells,true,context)

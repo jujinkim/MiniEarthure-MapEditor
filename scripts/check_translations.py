@@ -13,6 +13,7 @@ NON_DISPLAY = {'produced using Copernicus WorldDEM-%d © DLR e.V. 2010-2014 and 
 NON_DISPLAY.update({
     "Copernicus 2021 mosaic": "persisted source name",
     "Copernicus 2021 mosaic#": "persisted source path prefix",
+    "Copernicus DEM": "persisted credit label prefix",
     "EPSG:3855 / EGM2008 metres": "persisted vertical datum contract",
     "EPSG:5773 / EGM96 metres": "persisted vertical datum contract",
     "the map keeps its flat terrain": "DEM fit failure matcher",
