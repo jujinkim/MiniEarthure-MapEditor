@@ -113,7 +113,7 @@ func _start_asset(record: Dictionary, source: String) -> void:
 	asset_request = {"record":record.duplicate(true), "source":source}
 	var job := ASSET_JOB.new()
 	job.editor_generation = editor.generation
-	var failure := job.start_asset(editor.store, record, source, asset_selection(), Crypto.new().generate_random_bytes(16).hex_encode(), editor.import_python.text.strip_edges(), int(asset_fields["texture_profile"].get_item_metadata(asset_fields["texture_profile"].selected)))
+	var failure := job.start_asset(editor.store, record, source, asset_selection(), Crypto.new().generate_random_bytes(16).hex_encode(), editor.import_python_path(), int(asset_fields["texture_profile"].get_item_metadata(asset_fields["texture_profile"].selected)))
 	if failure != "":
 		_discard_asset()
 		report(failure)

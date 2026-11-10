@@ -554,6 +554,12 @@ func _build_ui() -> void:
 	add_child(unsaved_dialog)
 	_build_test_drive_dialog()
 
+## Configured Python for workers. The Import settings field is built lazily, so
+## sign/model adoption and region generation can run before it was ever opened.
+func import_python_path() -> String:
+	_ensure_import_ui()
+	return import_python.text.strip_edges()
+
 func _ensure_import_ui() -> void:
 	if is_instance_valid(import_dialog): return
 	import_dialog = ConfirmationDialog.new()

@@ -1,14 +1,15 @@
 {
-  "source_sha256": "1bcfa4902fb0d6e510eba2dbf0a0de044e742ee0c21648bca57746d56c09ae01",
+  "source_sha256": "4ae7fda90d62549a93a73a0ed82b9ff4c037a1ef99f06c1c9692ae2a4c483ef3",
   "inspection": {
-    "base_data_bytes": 13535,
+    "base_data_bytes": 13553,
     "cell_count": 24,
-    "expanded_bytes": 249551,
-    "package_bytes": 170947,
-    "package_sha256": "1d1c3b200cbdf5065ee3f48e80f8289ed19c1a6a3d5235bf814fe1666246e506",
-    "retained_memory_bytes": 116397254,
+    "expanded_bytes": 249569,
+    "free_roam": false,
+    "package_bytes": 170960,
+    "package_sha256": "c11337dad7deee26d846d3750dce36544bb145f1f532da74e8f124b09173edda",
+    "retained_memory_bytes": 60013146,
     "user_asset_bytes": 236016,
-    "validation_peak_bytes": 409131500,
-    "world_content_hash": "aad17dfb8cea9c8c5ab6fa39f846aa4681081a8d042fd4b62235deea54e18666"
+    "validation_peak_bytes": 361636719,
+    "world_content_hash": "7f6207deb5eee5b386ec4fb4a134d3be114018633a3bb0b43690c238a2403540"
   }
 }

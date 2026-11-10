@@ -24,5 +24,5 @@ func run() -> void:
 	check(ui.store.document.environment==accepted.environment,"invalid region cannot mutate source")
 	ui.queue_free()
 	for frame in 6: await process_frame
-	print("environment_editor_validator: ","FAIL" if failed else "PASS")
+	print("environment_validator: ","FAIL" if failed else "PASS")
 	quit(1 if failed else 0)

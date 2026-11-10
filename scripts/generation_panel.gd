@@ -193,7 +193,7 @@ func generate_preview() -> void:
 	discard()
 	job=JOB.new()
 	submitted_settings=JSON.stringify(settings())
-	var failure: String=job.start_generation(editor.store,settings(),editor.import_python.text.strip_edges())
+	var failure: String=job.start_generation(editor.store,settings(),editor.import_python_path())
 	if failure != "": message.text=I18N.diagnostic(failure);discard();return
 	generate_button.disabled=true
 	message.text=I18N.t("Generating terrain, districts and scenery…")

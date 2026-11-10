@@ -42,6 +42,9 @@ func run() -> void:
 	# Exercise the real authoring panel and the existing detached asset worker.
 	var ui: Control=load("res://main.tscn").instantiate();root.add_child(ui)
 	await process_frame
+	# Workers use the configured Python; its Import settings field is built lazily.
+	ui._ensure_import_ui()
+	ui.import_python.text = OS.get_environment("MAPEDITOR_TEST_IMPORT_PYTHON")
 	check(ui.canvas.author.set_theme("default")=="","recipe")
 	check(ui.store.save_project(scratch.path_join("sign-ui"))=="","saved UI document")
 	ui.author_panel.open()
@@ -56,7 +59,7 @@ func run() -> void:
 	controls.font_size.value=104
 	await panel._bake()
 	await wait_ui(ui)
-	check(ui.store.document.assets.size()==1,"one sign adopted through UI")
+	check(ui.store.document.assets.size()==1,"one sign adopted through UI: "+ui.author_panel.feedback.text+" "+str(ui.store.document.assets.size()))
 	var first: Dictionary=ui.store.document.assets[0].duplicate(true)
 	check(first.path.ends_with(".glb"),"UV surface with embedded offline PNG")
 	check(ui.store.undo()=="" and ui.store.document.assets.is_empty() and ui.store.redo()=="","single binary Undo/Redo")

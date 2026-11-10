@@ -83,6 +83,16 @@ These synthetic MIT fixtures are kept intact and are never upgraded automaticall
 Fixture names such as v1–v6 or "recipe 9" are fixture generations, not format
 versions; all own formats are v1.
 
+On 2026-11-10 the examples written before the required `free_roam` field were
+refreshed explicitly: generator-backed maps (`driving`, `fleet-playground`,
+`physics-test`, `special-driving/demo`, `world-themes/*`) took their current
+generator output; earlier generations without a generator (`physics-test-v1`,
+`driving-school-v1`, `-v2`, `world-themes-atmosphere/*`) only gained the field
+(`true` for the physics lineage, otherwise `false`). Their packages and locks were
+re-exported. `driving-school`, `-v3`…`v5`, `-recipe9` and `-atmosphere` still lack
+the field and do not open: they predate the current road corridor, automatic rail
+and structural-junction rules, so the town needs re-authoring first.
+
 **Driving School Town** (`examples/driving-school/`, `examples/driving-school.memap`,
 profile `driving-school-town-v6`) is a 576 × 192 m town at 1:1 with 432 cells of
 16 m, 622 roads and 786 buildings: western practice courses, a Korean district and a

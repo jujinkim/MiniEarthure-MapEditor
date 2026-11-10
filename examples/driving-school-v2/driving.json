@@ -33,7 +33,7 @@
     "source_accuracy_cm": null
   },
   "source_files": {
-    "document.json": "550462d10076ab8831215928ca891aa67d4f3260cd394fbde432ed40a0712d68",
+    "document.json": "d5d0dc444fe064bd88adf6288bf1d2484773eff0763e87f298b0ed0a888a427c",
     "assets/distance-marker.glb": "b92836d1d552f23fb52b11bc405cc70b0ad79ac0bf23ddb98fd51cac53c7c6d1",
     "assets/school-pylon.glb": "639cb2a1c08eaec5379389ce03d7b06b31f933082384b9daa1573e0ed868cc67",
     "terrain/flat.png": "7f2194a0699162298f38abd241b1d61e5e1bd3a14a39341708604a3cdef675c7"

@@ -149,7 +149,8 @@ func _finish_result() -> void:
 	var data: Variant = result.get("data")
 	var valid: bool = data is Dictionary and data.get("request") == identity and data.get("ok") is bool
 	if valid and data.ok: valid = generated_all and command_prepared and source_rechecked and LAYER._hex(data.get("payloads"), 64)
-	elif valid: valid = data.get("error") is Dictionary and data.error.get("code") == "E_IMPORT_NATIVE" and data.error.get("message") is String and data.error.message.length() <= 2000
+	# The asset worker reports a failed model/texture derivative as E_ASSET.
+	elif valid: valid = data.get("error") is Dictionary and data.error.get("code") in ["E_IMPORT_NATIVE", "E_ASSET"] and data.error.get("message") is String and data.error.message.length() <= 2000
 	# Child limit warnings travel with the hash-bound result; shape-checked here.
 	var child_notes: Array = []
 	if valid: valid = LIMITS.merge(child_notes, data.get("limit_warnings"))

@@ -33,7 +33,7 @@
     "description": "Implicit flat terrain beneath elevated ramps"
   },
   "source_files": {
-    "document.json": "85e4ee387359c43397e760cfef27801f8f242d7961f4f4c5905fbc9394913b4b",
+    "document.json": "a17c689859611723da5cd046e94c4557a41f3dcf993cd5007d3f0848fd634e2d",
     "assets/post.glb": "7a5379bdf509b68cff935aa40ab2d72576c1473ce498ec2e8100d8d8e445b02a",
     "assets/probe.glb": "480f385da0e4cbd4fa33c09a2307300b41f98c61781cccbd632866ac7ce00ed6"
   },

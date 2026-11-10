@@ -8,9 +8,6 @@ def write(path,value):path.write_text(json.dumps(value,ensure_ascii=False,sort_k
 def place(templates,kind,position,yaw=0,strength=100):
     g=copy.deepcopy(templates[kind]);g['position']=list(map(round,position));g['rotation_mdeg']=[0,round(yaw*1000),0]
     if 'effect' in g:g['effect']['strength_percent']=strength
-    if kind in ['target_speed','jump_height']:
-        for part in g['parts']:
-            for v in part['vertices']:v[1]=1 if v[1]>0 else -1
     if 'track' in g:
         t=g['track'];radius=4*t['radius_cm']+(2*t['width_cm'] if kind=='loop' else t['length_cm']//2)+40
     else:radius=max(sum(abs(c) for c in v) for p in g['parts'] for v in p['vertices'])

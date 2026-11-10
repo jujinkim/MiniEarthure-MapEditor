@@ -10,4 +10,5 @@ store. Grind Line belongs to the Gimmick tab. Pipe and cylinder sizes are listed
 
 `tests/gimmick_authoring_validator.gd` covers editing, save, replacement, preview and
 Undo/Redo. `scripts/driving_features.py` builds the `examples/special-driving/demo`
-fixture.
+fixture from the current MapKit templates unchanged (panel triggers keep their
+on-road top).
