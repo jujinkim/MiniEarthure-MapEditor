@@ -44,6 +44,16 @@ INDUSTRIAL_BUILDINGS = ("industrial", "warehouse", "factory", "manufacture", "se
 WOODEN_INDUSTRIAL = ("greenhouse", "barn", "farm_auxiliary", "shed")
 HOUSE_TALL_M = 12.0  # Unknown residential below this is a brick house.
 LEVEL_M = 3.0  # Estimated storey height when `height` is missing.
+# A tagged `height` below this per tagged level is an eave or survey height:
+# the levels decide (LEVEL_M each).
+LOW_LEVEL_M = 2.6
+# Untagged buildings with at least NEIGHBOURS tagged neighbours (source centroid
+# distance ≤ NEIGHBOUR_M) of their use take the neighbours' median height in
+# whole storeys ± one seeded storey; an apartment complex skips its tower rule
+# where at least NEIGHBOURS tagged neighbours of any use all stand below LOW_M.
+NEIGHBOUR_M = 60.0
+NEIGHBOURS = 3
+LOW_M = 12.0
 # Untagged blocks of an apartment complex (a residential site with at least
 # APARTMENT_COUNT apartment buildings): one seeded base storey count per site,
 # each block varies by the site's seeded spread, clamped to COMPLEX_FLOORS.
@@ -52,9 +62,10 @@ COMPLEX_BASE = (15, 35)
 COMPLEX_SPREAD = (5, 10)
 COMPLEX_MIN_AREA_M2 = 250.0  # Smaller untagged buildings are annexes.
 COMPLEX_BUILDINGS = ("apartments", "residential", "dormitory", "yes")
-# Untagged buildings outside complexes: seeded storeys per category (houses,
-# small and large residential blocks, commercial by footprint, public,
-# industrial). Tagged `height` or `building:levels` always wins.
+# Untagged buildings outside complexes without enough tagged neighbours:
+# seeded storeys per category (houses, small and large residential blocks,
+# commercial by footprint, public, industrial). Tagged `height` or
+# `building:levels` always wins.
 SEEDED_FLOORS = {"house": (1, 2), "residential": (2, 5), "residential_large": (3, 7), "commercial": (2, 4),
                  "commercial_mid": (3, 6), "commercial_large": (4, 8), "public": (2, 5), "industrial": (1, 3)}
 SMALL_RESIDENTIAL_M2 = 250.0
@@ -186,6 +197,30 @@ def seeded_height(p, usage, geometry, source_id):
         kind = "public" if usage == "public" else "industrial"
     low, high = SEEDED_FLOORS[kind]
     return LEVEL_M * (low + _seeded("storeys", source_id) % (high - low + 1))
+
+
+def low_tagged_height(p):
+    """True when a tagged `height` is below LOW_LEVEL_M per tagged level."""
+    return "height_m" in p and "_city_levels" in p and not p.get("_city_levels_height") and float(p["height_m"]) < LOW_LEVEL_M * p["_city_levels"]
+
+
+def low_neighbours(near):
+    """True when at least NEIGHBOURS tagged neighbours ((height, use) pairs)
+    all stand below LOW_M: no apartment towers among them."""
+    return len(near) >= NEIGHBOURS and all(height < LOW_M for height, usage in near)
+
+
+def neighbour_height(p, usage, near, source_id):
+    """Median height (source metres) of the tagged neighbours of the same use,
+    in whole LEVEL_M storeys ± one seeded storey (at least one), for an
+    untagged building with at least NEIGHBOURS of them, else None."""
+    if "height_m" in p or "_city_levels" in p: return None
+    heights = sorted(height for height, use in near if use == usage)
+    if len(heights) < NEIGHBOURS: return None
+    middle = len(heights) // 2
+    median = heights[middle] if len(heights) % 2 else (heights[middle - 1] + heights[middle]) / 2
+    storeys = math.floor(median / LEVEL_M + 0.5) + _seeded("neighbour-storey", source_id) % 3 - 1
+    return LEVEL_M * max(1, storeys)
 
 
 def facade(p, site_kind):

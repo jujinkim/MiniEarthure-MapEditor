@@ -876,6 +876,88 @@ class CityRules(unittest.TestCase):
         self.assertEqual(heights["way/10"], seeded_storeys("way/10", "commercial_mid"), "a 900 m² commercial building")
         self.assertEqual(heights["way/11"], seeded_storeys("way/11", "residential_large"), "one apartment block is no complex")
 
+    def source_heights(self, worker, out, boxes):
+        """Source way → output solid height (source metres)."""
+        heights = {}
+        for f, solids in self.solids(worker, out):
+            p = f["properties"]
+            for solid, part in zip(solids, p.get("_city_parts") or [p]):
+                [source] = [i for i, b in boxes.items() if b.contains(solid.representative_point())]
+                heights[f"way/{source}"] = part.get("height_m")
+        return heights
+
+    def test_tagged_height_below_levels_uses_three_metre_levels(self):
+        from geojson import convert
+        self.setup_city()
+        boxes = {1: box(0, 0, 10, 10), 2: box(200, 0, 210, 10), 3: box(400, 0, 410, 10)}
+        self.add(1, boxes[1], height_m=6, _city_levels=4)  # 6 m < 4 × 2.6 m: an eave height.
+        self.add(2, boxes[2], height_m=11, _city_levels=4)  # 11 m ≥ 10.4 m: the tag wins.
+        self.add(3, boxes[3], height_m=6)  # No levels: the tag wins.
+        worker = self.worker(3)
+        for gap in (16, 4):  # 4 m rebuilds the road space and the height rules.
+            with self.subTest(gap=gap):
+                out, meta = worker.candidate(gap)
+                self.assertEqual(self.source_heights(worker, out, boxes), {"way/1": 12.0, "way/2": 11, "way/3": 6})
+                self.assertEqual(meta["building_heights"], {"levels_over_low_height": 1})
+        layer = convert(out, "synthetic", "ODbL-1.0", coordinates=self.options, osm_graph=True, city=True)
+        self.assertEqual(layer.estimates["height_m"], 1, "the level height is an estimate; tagged heights are not")
+
+    def test_untagged_buildings_take_the_median_of_tagged_same_use_neighbours(self):
+        self.setup_city()
+        boxes = {1: box(0, 0, 10, 10), 2: box(30, 0, 40, 10), 3: box(0, 40, 10, 50), 4: box(-40, 0, -30, 10),
+                 5: box(-30, -30, -20, -20), 6: box(100, 0, 110, 10), 7: box(500, 0, 510, 10), 8: box(530, 0, 540, 10),
+                 9: box(500, 30, 510, 40), 10: box(5, -40, 15, -30)}
+        self.add(1, boxes[1], usage="commercial")  # Three tagged commercial neighbours.
+        self.add(2, boxes[2], usage="commercial", height_m=12)
+        self.add(3, boxes[3], usage="commercial", _city_levels=5)  # Levels count as tagged: 15 m.
+        self.add(4, boxes[4], usage="commercial", height_m=31)
+        self.add(5, boxes[5], usage="house", height_m=3)  # Another use: not a commercial neighbour.
+        self.add(6, boxes[6], usage="commercial")  # 70 m from the nearest tagged centroid.
+        self.add(7, boxes[7], usage="commercial")  # Only two tagged neighbours.
+        self.add(8, boxes[8], usage="commercial", height_m=30)
+        self.add(9, boxes[9], usage="commercial", height_m=30)
+        self.add(10, boxes[10], usage="house")  # One house neighbour only.
+        worker = self.worker(3)
+        for gap in (16, 4):
+            with self.subTest(gap=gap):
+                out, meta = worker.candidate(gap)
+                heights = self.source_heights(worker, out, boxes)
+                storeys = 5 + osm_sites._seeded("neighbour-storey", "way/1") % 3 - 1
+                self.assertEqual(heights["way/1"], osm_sites.LEVEL_M * storeys, "median 15 m, ±1 seeded storey")
+                self.assertEqual((heights["way/2"], heights["way/3"], heights["way/4"]), (12, 15.0, 31), "tagged heights stay")
+                self.assertEqual(heights["way/6"], seeded_storeys("way/6", "commercial"), "no neighbours within 60 m")
+                self.assertEqual(heights["way/7"], seeded_storeys("way/7", "commercial"), "two neighbours are too few")
+                self.assertEqual(heights["way/10"], seeded_storeys("way/10", "house"), "other uses are no neighbours")
+                self.assertEqual(meta["building_heights"], {"neighbour_median": 1})
+        self.assertEqual(osm_sites.neighbour_height({}, "residential", [(3.0, "residential")] * 3, "way/9"), osm_sites.LEVEL_M * max(1, 1 + osm_sites._seeded("neighbour-storey", "way/9") % 3 - 1), "at least one storey")
+        self.assertEqual(osm_sites.neighbour_height({}, "residential", [(6.0, "residential"), (9.0, "residential"), (12.0, "residential"), (30.0, "residential")], "way/1") / osm_sites.LEVEL_M,
+                         4 + osm_sites._seeded("neighbour-storey", "way/1") % 3 - 1, "an even count takes the middle mean: 10.5 m is 4 storeys")
+
+    def test_low_tagged_neighbours_skip_the_apartment_complex_tower_rule(self):
+        self.setup_city()
+        self.site(100, box(0, 0, 400, 100), "residential")
+        boxes = {1: box(10, 10, 30, 30), 2: box(40, 10, 50, 20), 3: box(10, 40, 20, 50), 4: box(40, 40, 50, 50),
+                 5: box(150, 10, 170, 30), 6: box(180, 10, 190, 20), 7: box(150, 40, 160, 50), 8: box(180, 40, 190, 50),
+                 9: box(300, 10, 320, 30)}
+        self.add(1, boxes[1], usage="apartments")  # 400 m² among three low houses.
+        self.add(2, boxes[2], usage="house", height_m=6)
+        self.add(3, boxes[3], usage="house", height_m=9)
+        self.add(4, boxes[4], usage="house", _city_levels=3)
+        self.add(5, boxes[5], usage="apartments")  # One 15 m neighbour: still a complex block.
+        self.add(6, boxes[6], usage="house", height_m=6)
+        self.add(7, boxes[7], usage="house", height_m=6)
+        self.add(8, boxes[8], usage="house", height_m=15)
+        self.add(9, boxes[9], usage="apartments")  # No tagged neighbours.
+        worker = self.worker(3)
+        for gap in (16, 4):
+            with self.subTest(gap=gap):
+                out, meta = worker.candidate(gap)
+                heights = self.source_heights(worker, out, boxes)
+                self.assertEqual(heights["way/1"], osm_sites.LEVEL_M * (3 + osm_sites._seeded("neighbour-storey", "way/1") % 3 - 1), "the median of the low houses: 9 m ± one storey")
+                for source in ("way/5", "way/9"):
+                    self.assertTrue(10 <= round(heights[source] / osm_sites.LEVEL_M) <= 50, (source, heights[source]))
+                self.assertEqual(meta["building_heights"], {"complex_skipped": 1, "neighbour_median": 1}, "only way/1; complex blocks keep the tower rule")
+
     def test_record_parts_convert_to_one_building_with_its_own_heights(self):
         from geojson import convert
         self.setup_city()

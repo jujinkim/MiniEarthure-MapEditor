@@ -36,6 +36,11 @@ PAINT_SPLIT_DEPTH = 32  # Warn above.
 PAINT_SPLIT_CEILING = 48
 LEVELS = (0, 2, 4, 8, 16, 32, 64)  # Source metres: simplification levels (buildings are never gap-filled).
 BUILDING_TOLERANCE = 1.0  # Source metres: each footprint stays recognisable.
+# Building height estimates that are no source height for their neighbours.
+ESTIMATED_HEIGHTS = ("_city_complex_height", "_city_neighbour_height", "_city_seeded_height")
+# Review counts (meta `building_heights`) of the height rules, by flag.
+HEIGHT_RULES = {"levels_over_low_height": "_city_low_height", "neighbour_median": "_city_neighbour_height",
+                "complex_skipped": "_city_complex_gated"}
 SURFACES = {"asphalt":"asphalt", "concrete":"concrete", "dirt":"dirt", "gravel":"gravel", "grass":"grass",
             "paved":"asphalt", "paving_stones":"concrete", "sett":"concrete", "cobblestone":"concrete",
             "concrete:plates":"concrete", "concrete:lanes":"concrete", "compacted":"gravel",
@@ -853,7 +858,9 @@ class Generalizer:
                     g = trimmed
             prepared.append((f,g,building))
         singles = []
-        for f,g,building in prepared:
+        sites, known = self.tagged_heights(prepared)
+        tagged = STRtree([centre for centre, height, usage in known])
+        for index, (f,g,building) in enumerate(prepared):
             # Exclude the whole source object, including other multipart pieces,
             # only through the existing explicit ID/reason review contract.
             if self.excluded_sources.intersection(source_ids(f)):
@@ -863,23 +870,35 @@ class Generalizer:
                 # Every building keeps its own footprint (no gap filling or
                 # fusion). Its record key groups it with the buildings of its
                 # site (else 256 m source tile) and category as building parts.
-                site = self.sites.key(f, g)
-                if "_city_building" not in p: p["_city_building"] = p.get("usage", "yes")
-                if "height_m" not in p and "_city_levels" in p:
-                    p["height_m"] = osm_sites.LEVEL_M * p["_city_levels"]
-                    p["_city_levels_height"] = True
+                site = sites[index]
                 landmark = p.get("_city_landmark") or float(p.get("height_m", 12)) >= 40 or p["_city_building"] in ("public", "hospital", "school", "church", "cathedral")
                 protected = landmark or (p.get("_city_name") and site[0] == "tile")
+                usage, near = osm_sites.facade(p, self.sites.kind(site))[1], []
+                if "height_m" not in p:
+                    # Tagged neighbours (height, use) within NEIGHBOUR_M of the centroid.
+                    ids = sorted(int(i) for i in tagged.query(g.centroid, predicate="dwithin", distance=osm_sites.NEIGHBOUR_M))
+                    self.spend(len(ids))
+                    near = [known[i][1:] for i in ids]
                 # Untagged apartment-complex blocks get a seeded storey count
-                # after the landmark test, which keeps the source height.
+                # after the landmark test, which keeps the source height, unless
+                # their tagged neighbours are all low (no false towers).
                 tall = osm_sites.complex_height(self.sites, site, p, g, min(source_ids(f)))
+                if tall is not None and osm_sites.low_neighbours(near):
+                    p["_city_complex_gated"] = True
+                    tall = None
                 if tall is not None:
                     p["height_m"] = tall
                     p["_city_levels_height"] = True
                     p["_city_complex_height"] = True
-                # Other untagged buildings get seeded storeys of their category
+                # Other untagged buildings take the median of their tagged
+                # same-use neighbours, else seeded storeys of their category
                 # (so low residential blocks can become brick below 12 m).
-                seeded = osm_sites.seeded_height(p, osm_sites.facade(p, self.sites.kind(site))[1], g, min(source_ids(f)))
+                median = osm_sites.neighbour_height(p, usage, near, min(source_ids(f)))
+                if median is not None:
+                    p["height_m"] = median
+                    p["_city_levels_height"] = True
+                    p["_city_neighbour_height"] = True
+                seeded = osm_sites.seeded_height(p, usage, g, min(source_ids(f)))
                 if seeded is not None:
                     p["height_m"] = seeded
                     p["_city_levels_height"] = True
@@ -906,6 +925,27 @@ class Generalizer:
         singles.sort(key=lambda item:(source_ids(item[0]), _key(item[1])))
         return ([(f,g) for f,g,building in prepared], fixed,
                 [(True, [item]) for item in singles] + [(key[0], sorted(groups[key], key=lambda item:(source_ids(item[0]), _key(item[1])))) for key in sorted(groups)])
+
+    def tagged_heights(self, prepared):
+        """Site keys by prepared index and (centroid, height, use) of the
+        retained buildings with a source height or levels, before any
+        estimate. Levels estimate a missing height (LEVEL_M each) and replace
+        a tagged height below LOW_LEVEL_M per level."""
+        sites, known = {}, []
+        for index, (f,g,building) in enumerate(prepared):
+            if not building or self.excluded_sources.intersection(source_ids(f)): continue
+            p = f["properties"]
+            sites[index] = site = self.sites.key(f, g)
+            if "_city_building" not in p: p["_city_building"] = p.get("usage", "yes")
+            if osm_sites.low_tagged_height(p):
+                del p["height_m"]
+                p["_city_low_height"] = True
+            if "height_m" not in p and "_city_levels" in p:
+                p["height_m"] = osm_sites.LEVEL_M * p["_city_levels"]
+                p["_city_levels_height"] = True
+            if "height_m" in p and not any(p.get(k) for k in ESTIMATED_HEIGHTS):
+                known.append((g.centroid, float(p["height_m"]), osm_sites.facade(p, self.sites.kind(site))[1]))
+        return sites, known
 
     def native_polygon_parts(self, geometry, depth=0):
         result = []
@@ -1359,6 +1399,8 @@ class Generalizer:
                     unmerged_numeric_groups=self.retained_groups, painted_pedestrian_ways=self.paint_ways,
                     level_structures=self.level_structures,
                     road_rules=dict(sorted((self.road_rules + self.finish_counts).items())), paint_segment_bound=self.paint_bound,
+                    building_heights={key: n for key, flag in sorted(HEIGHT_RULES.items())
+                                      if (n := sum(bool(f["properties"].get(flag)) and not self.excluded_sources.intersection(source_ids(f)) for f,g in self.features))},
                     layered_buildings=sum(bool(f["properties"].get("_city_layer_building")) and not self.excluded_sources.intersection(source_ids(f)) for f,g in self.features),
                     estimated_structure_roads=sum("_city_estimated_m" in f["properties"] for f,g in items),
                     groups=groups, protected_buildings=sum(bool(f["properties"].get("_city_name") or f["properties"].get("_city_landmark") or float(f["properties"].get("height_m",12))>=40) for f,g in items if is_building(f,g)),

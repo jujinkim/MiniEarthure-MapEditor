@@ -182,6 +182,7 @@ func run_rules() -> void:
 		if ui.pending_import==null: ui.queue_free(); await process_frame; return
 		var meta: Dictionary=ui.pending_import.value.coordinates.osm_city
 		check(ui.import_summary.text.contains("building records"),"review discloses building records, barriers and ground paint")
+		check(meta.get("building_heights") is Dictionary and ui.import_summary.text.contains("Building heights:") and ui.import_summary.text.contains("skip the tower rule"),"review counts the building height rules")
 		check(ui.pending_import.limit_warnings.any(func(e: Dictionary) -> bool: return e.code=="city_ground_surface")==keep,"a kept user ground surface is disclosed, never overwritten")
 		check(ui.import_summary.text.contains("Not imported:") and ui.import_summary.text.contains("Ground paint:"),"review discloses dropped and skipped city inputs and the paint breakdown")
 		for mutation in ["dropped-imported", "dropped-count", "skipped"]:

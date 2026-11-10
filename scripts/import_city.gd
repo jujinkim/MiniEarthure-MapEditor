@@ -280,6 +280,8 @@ static func summary(meta: Dictionary) -> String:
 	var paint: Dictionary = meta.get("ground_paint", {})
 	if not records.is_empty() or not barriers.is_empty():
 		result += I18N.t("City sites: %d building records with %d solids (nearby buildings of one site and category share a record as separate parts).\n") % [int(records.get("records", 0)), int(records.get("solids", 0))]
+		var estimates: Dictionary = meta.get("building_heights", {})
+		result += I18N.t("Building heights: %d tagged heights below 2.6 m per tagged level use 3 m per level; %d untagged buildings take the median height of at least 3 tagged neighbours of their use within 60 m (whole storeys ± one seeded storey); %d apartment-complex blocks whose tagged neighbours are all below 12 m skip the tower rule (estimates).\n") % [int(estimates.get("levels_over_low_height", 0)), int(estimates.get("neighbour_median", 0)), int(estimates.get("complex_skipped", 0))]
 		result += I18N.t("Barriers: %d pieces from %d explicit OSM barrier ways and %d pieces of %d inferred site perimeters, opened at paths, painted driveways and gates; heights are estimates.\n") % [int(barriers.get("explicit_records", 0)), int(barriers.get("explicit_ways", 0)), int(barriers.get("inferred_records", 0)), int(barriers.get("inferred_sites", 0))]
 		result += I18N.t("Ground paint: %d pieces (pedestrian %d, grass %d, asphalt %d, concrete %d, dirt %d, gravel %d) over concrete unpainted ground.\n") % [int(paint.get("pieces", 0)), int(paint.get("pedestrian", 0)), int(paint.get("grass", 0)), int(paint.get("asphalt", 0)), int(paint.get("concrete", 0)), int(paint.get("dirt", 0)), int(paint.get("gravel", 0))]
 		var places: Dictionary = meta.get("places", {})

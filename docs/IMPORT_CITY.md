@@ -306,16 +306,22 @@ remainder so lattice points are whole map centimetres.
   everything else is concrete residential. A tagged `building:material` replaces
   the rule's material (brick → brick, wood/timber framing → wood, concrete,
   plaster, stone, glass, metal → concrete). A missing `height` is estimated as
-  3 m × `building:levels`. Inside an apartment complex (a residential site with
-  at least two `building=apartments`), an untagged apartment, residential or `yes`
-  building of at least 250 m² gets a seeded storey count instead: the site's base
-  (15–35 storeys) varied by its seeded spread (±5–10), clamped to 10–50 storeys of
-  3 m. Every other untagged building gets seeded storeys of its category (stable
-  per source ID): houses 1–2, residential under 250 m² 2–5 and larger 3–7,
-  commercial under 200 m² 2–4, under 1,000 m² 3–6 and larger 4–8, public 2–5,
-  industrial 1–3; the facade rule then sees that height, so a low untagged
-  residential building can become brick. Tagged `height` or `building:levels`
-  always wins. `roof:shape=gabled` keeps a gable roof only on a solid
+  3 m × `building:levels`, and so is a tagged `height` below 2.6 m per tagged
+  level (an eave or survey height). Tagged neighbours are buildings with a
+  `height` or `building:levels` (never an estimate) whose source centroid lies
+  within 60 m. Inside an apartment complex (a residential site with at least two
+  `building=apartments`), an untagged apartment, residential or `yes` building of
+  at least 250 m² gets a seeded storey count instead: the site's base (15–35
+  storeys) varied by its seeded spread (±5–10), clamped to 10–50 storeys of 3 m,
+  unless at least three tagged neighbours (any use) all stand below 12 m. Every
+  other untagged building with at least three tagged neighbours of its use takes
+  their median height in whole 3 m storeys ± one seeded storey (at least one);
+  the rest get seeded storeys of their category (stable per source ID): houses
+  1–2, residential under 250 m² 2–5 and larger 3–7, commercial under 200 m² 2–4,
+  under 1,000 m² 3–6 and larger 4–8, public 2–5, industrial 1–3. The facade rule
+  then sees that height, so a low untagged residential building can become
+  brick; review counts each height rule. Otherwise a tagged `height` or
+  `building:levels` wins. `roof:shape=gabled` keeps a gable roof only on a solid
   whose final footprint is an axis-aligned rectangle (MapKit's gable rule); other
   solids and records are flat. Rule-assigned uses, level heights and every
   material/roof count as estimates in review; the source value stays in the
