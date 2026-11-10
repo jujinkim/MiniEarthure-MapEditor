@@ -886,6 +886,30 @@ class CityRules(unittest.TestCase):
                 heights[f"way/{source}"] = part.get("height_m")
         return heights
 
+    def height_runs(self):
+        """(worker, gap): 16 m, then 4 m on the same worker (a rebuilt road
+        space re-runs the height rules from the source), then 4 m on a fresh one."""
+        worker = self.worker(3)
+        return [(worker, 16), (worker, 4), (self.worker(3), 4)]
+
+    def test_tagged_neighbour_towers_keep_an_untagged_building_grouped_in_every_road_space(self):
+        self.setup_city()
+        boxes = {1: box(0, 0, 10, 10), 2: box(30, 0, 40, 10), 3: box(0, 30, 10, 40), 4: box(-30, 0, -20, 10), 5: box(100, 0, 110, 10)}
+        self.add(1, boxes[1], usage="commercial")  # Median 48 m of three tagged towers.
+        self.add(2, boxes[2], usage="commercial", height_m=45)
+        self.add(3, boxes[3], usage="commercial", height_m=48)
+        self.add(4, boxes[4], usage="commercial", height_m=51)
+        self.add(5, boxes[5], usage="commercial")  # Out of reach: seeded storeys.
+        for worker, gap in self.height_runs():
+            with self.subTest(gap=gap):
+                out, meta = worker.candidate(gap)
+                heights = self.source_heights(worker, out, boxes)
+                self.assertEqual(heights["way/1"], osm_sites.LEVEL_M * (16 + osm_sites._seeded("neighbour-storey", "way/1") % 3 - 1))
+                self.assertGreaterEqual(heights["way/1"], 40)
+                self.assertEqual(sorted(self.records(worker, out)), [("way/1", "way/5"), ("way/2",), ("way/3",), ("way/4",)],
+                                 "the landmark test sees source heights only: the estimate stays a grouped part")
+                self.assertEqual(meta["building_heights"], {"neighbour_median": 1})
+
     def test_tagged_height_below_levels_uses_three_metre_levels(self):
         from geojson import convert
         self.setup_city()
@@ -893,8 +917,7 @@ class CityRules(unittest.TestCase):
         self.add(1, boxes[1], height_m=6, _city_levels=4)  # 6 m < 4 × 2.6 m: an eave height.
         self.add(2, boxes[2], height_m=11, _city_levels=4)  # 11 m ≥ 10.4 m: the tag wins.
         self.add(3, boxes[3], height_m=6)  # No levels: the tag wins.
-        worker = self.worker(3)
-        for gap in (16, 4):  # 4 m rebuilds the road space and the height rules.
+        for worker, gap in self.height_runs():
             with self.subTest(gap=gap):
                 out, meta = worker.candidate(gap)
                 self.assertEqual(self.source_heights(worker, out, boxes), {"way/1": 12.0, "way/2": 11, "way/3": 6})
@@ -917,8 +940,7 @@ class CityRules(unittest.TestCase):
         self.add(8, boxes[8], usage="commercial", height_m=30)
         self.add(9, boxes[9], usage="commercial", height_m=30)
         self.add(10, boxes[10], usage="house")  # One house neighbour only.
-        worker = self.worker(3)
-        for gap in (16, 4):
+        for worker, gap in self.height_runs():
             with self.subTest(gap=gap):
                 out, meta = worker.candidate(gap)
                 heights = self.source_heights(worker, out, boxes)
@@ -948,8 +970,7 @@ class CityRules(unittest.TestCase):
         self.add(7, boxes[7], usage="house", height_m=6)
         self.add(8, boxes[8], usage="house", height_m=15)
         self.add(9, boxes[9], usage="apartments")  # No tagged neighbours.
-        worker = self.worker(3)
-        for gap in (16, 4):
+        for worker, gap in self.height_runs():
             with self.subTest(gap=gap):
                 out, meta = worker.candidate(gap)
                 heights = self.source_heights(worker, out, boxes)

@@ -286,8 +286,8 @@ remainder so lattice points are whole map centimetres.
   enclosing landuse residential/commercial/retail/industrial or
   school/hospital/university/college polygon, else the 256 m source tile; the
   category is the facade below. Names of grouped buildings are kept as the
-  record's names. Landmarks (historic, tourism or amenity tags, ≥40 m,
-  public/hospital/school/church use) and named buildings outside a site stay their
+  record's names. Landmarks (historic, tourism or amenity tags, a source height
+  ≥40 m, public/hospital/school/church use) and named buildings outside a site stay their
   own records, unsimplified; a landmark's native pieces share its record.
 - Facade (`material`, `usage`, `roof`; the MapKit v1 values) follows the first
   matching rule on the `building` value, use tags, height and enclosing site:
@@ -345,8 +345,9 @@ remainder so lattice points are whole map centimetres.
   budgets), since a smaller level only keeps more vertices. A smaller level is built
   only when a larger one fails conversion or a typed topology check (for example an
   unreviewed building inside road space); a hard ceiling fails the whole import.
-  Building a new road space drops the exclusions of the replaced one, so review
-  lists only the kept candidate's exclusions.
+  Building a new road space drops the exclusions and height estimates of the
+  replaced one, so review lists only the kept candidate's exclusions and every
+  estimate comes from the source and the kept road space.
 - A building above other features (a positive integer `layer`, for example over
   tracks or a stream) stands on the ground and is counted as an estimate in review.
   It is also cut around source-height bridge and tunnel corridors (their width plus

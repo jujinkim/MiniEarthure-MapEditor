@@ -930,11 +930,17 @@ class Generalizer:
         """Site keys by prepared index and (centroid, height, use) of the
         retained buildings with a source height or levels, before any
         estimate. Levels estimate a missing height (LEVEL_M each) and replace
-        a tagged height below LOW_LEVEL_M per level."""
+        a tagged height below LOW_LEVEL_M per level. Estimates of an earlier
+        road space are dropped first, so every road space estimates from the
+        source alone (its neighbours, landmark test and seeded rules)."""
         sites, known = {}, []
         for index, (f,g,building) in enumerate(prepared):
-            if not building or self.excluded_sources.intersection(source_ids(f)): continue
+            if not building: continue
             p = f["properties"]
+            if any(p.get(k) for k in ESTIMATED_HEIGHTS):
+                for k in ("height_m", "_city_levels_height") + ESTIMATED_HEIGHTS: p.pop(k, None)
+            p.pop("_city_complex_gated", None)
+            if self.excluded_sources.intersection(source_ids(f)): continue
             sites[index] = site = self.sites.key(f, g)
             if "_city_building" not in p: p["_city_building"] = p.get("usage", "yes")
             if osm_sites.low_tagged_height(p):
