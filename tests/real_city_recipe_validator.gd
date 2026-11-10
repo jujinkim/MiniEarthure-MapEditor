@@ -57,12 +57,19 @@ func check_inputs() -> void:
 		check(RECIPE.fingerprint(RECIPE.inputs(changed[1], changed[2], false)) != digest,changed[0]+" changes the fingerprint")
 	check(RECIPE.fingerprint(RECIPE.inputs(recipe, document, true)) != digest,"a skipped DEM changes the fingerprint")
 	check(RECIPE.source_names(document).map(func(s): return s.name) == ["N37E126.tif", "N37E127.tif", "shops.csv", "seoul.osm.pbf"],"source names follow the source order: "+str(RECIPE.source_names(document)))
+	var no_dem := recipe.duplicate(true)
+	no_dem.erase("dem")
+	var empty_dem := recipe.duplicate(true)
+	empty_dem.dem = ""
+	check(not RECIPE.inputs(no_dem, document, false).has("dem") and RECIPE.inputs(empty_dem, document, false) == RECIPE.inputs(no_dem, document, false),"an empty dem is the same input as no dem")
 	var no_osm := document.duplicate(true)
 	no_osm.attributions = no_osm.attributions.filter(func(a): return not str(a.notice).contains("osm-extract-v1"))
 	check(RECIPE.fingerprint(RECIPE.inputs(recipe, no_osm, false)) == "" and RECIPE.fingerprint(RECIPE.inputs(recipe, {}, false)) == "","no fingerprint before OSM is adopted")
 	var code: Dictionary = RECIPE.code_identity()
 	var hex := RegEx.create_from_string("^[0-9a-f]{64}$")
 	check(hex.search(str(code.get("editor_scripts"))) != null and RECIPE.code_identity() == code and str(code.get("godot")) == Engine.get_version_info().string,"code identity: "+str(code))
+	# Reference: hashlib with the implementation_fingerprint.py framing; an empty file is framed, not skipped.
+	check(RECIPE.digest_files([["b.py", PackedByteArray()], ["a.gd", "x\n".to_utf8_buffer()]]) == "4bf1c6c10c9c11e3b1adf837e7c252d9b685ec93fa8c8d11aee42c3df7aa6d42","empty file digest matches hashlib")
 	check(RECIPE._lf(PackedByteArray([97, 13, 10, 98, 13, 99, 13])) == PackedByteArray([97, 10, 98, 13, 99, 13]),"CR LF becomes LF; lone CR stays")
 func run() -> void:
 	var base := {"version":1,"pbf":"src/a.pbf","areas":[{"name":"가상시"}],"project":"out/p","package":"/abs/m.memap"}

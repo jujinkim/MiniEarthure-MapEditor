@@ -30,10 +30,10 @@ the map flat and the build continues (`dem_skipped` in the report). The report r
 - `inputs`: the adopted sources as role, bytes and SHA-256 (OSM PBF, facility CSV,
   each DEM tile), the OSM crop `bbox`, sorted area `source_id`s, shapely/GEOS and
   pyproj/PROJ versions, 1:D, the authored-units profile, `cell_size_cm`, the map's
-  `driving_side`/`signal_style`, the facility settings without the CSV path and
-  `dem` (`zero_m`, `skipped`). Paths, file names and the check-only keys
-  (`full_check`, `mobile_check`) are left out, and attribution order does not
-  matter. `source_names` lists the file names beside it, outside the hash.
+  `driving_side`/`signal_style`, the facility settings without the CSV path and,
+  when the recipe names a `dem` folder, `dem` (`zero_m`, `skipped`). Paths, file
+  names and the check-only keys (`full_check`, `mobile_check`) are left out, and
+  attribution order does not matter. `source_names` lists the file names beside it, outside the hash.
 - `input_fingerprint`: SHA-256 of `inputs` as JSON with sorted keys and full
   precision; `input_id` is its first 16 hex digits. A run that stopped before OSM
   was adopted has no fingerprint (`input_fingerprint_reason: "no OSM adopted"`);
@@ -44,7 +44,10 @@ the map flat and the build continues (`dem_skipped` in the report). The report r
   `scripts/implementation_fingerprint.py` (sorted relative names, CRLF → LF, 8-byte
   little-endian length before each name and content), and the `godot` version.
   It does not cover MapKit native generation or Python packages other than the
-  versions in `inputs`; an exported Editor hashes its own exported files.
+  versions in `inputs`. An exported Editor holds tokenized `scripts/*.gdc` instead
+  of `.gd` and hashes those bytes, so its digest differs from a source checkout. A
+  script that cannot be read leaves `editor_scripts` empty with
+  `editor_scripts_reason`.
 
 The same `input_fingerprint` tells runs from the same sources and settings apart
 from runs with other inputs; compare `code` to see whether the Editor code

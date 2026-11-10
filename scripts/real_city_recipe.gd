@@ -156,6 +156,7 @@ func run(recipe: Dictionary) -> Dictionary:
 	var result: Dictionary = await _run(recipe, 0.0)
 	var attempts: Array = []
 	var side := AUTO.box_side_m(int(recipe.get("scale", 3)), int(recipe.get("cell_cm", CELL_CM)))
+	var stuck := false
 	while not result.ok and recipe.has("place") and _over_limit(result):
 		var extent: Dictionary = result.get("extent", {})
 		if extent.get("kind") == "bbox": side = float(extent.get("side_m", side)) * SHRINK
@@ -168,13 +169,14 @@ func run(recipe: Dictionary) -> Dictionary:
 			var kept := path.trim_suffix("/") + "-attempt-%d" % (attempts.size() + 1)
 			if DirAccess.dir_exists_absolute(kept) or FileAccess.file_exists(kept) or DirAccess.rename_absolute(path, kept) != OK:
 				result.error = "Cannot keep the earlier attempt's %s at %s" % [key, kept]
-				result.attempts = attempts
-				return result
+				stuck = true
+				break
 			attempt[key] = kept
+		if stuck: break
 		attempts.append(attempt)
 		_say("The extent exceeds the map limits; retrying with a %.1f km square around the place" % (side / 1000.0))
 		result = await _run(recipe, side)
-	if not attempts.is_empty(): result.attempts = attempts
+	if stuck or not attempts.is_empty(): result.attempts = attempts
 	# The `outputs` stop leaves the open document untouched (possibly the user's map).
 	if ui != null and str(result.get("failed_step", "")) != "outputs":
 		var document: Dictionary = ui.store.document
@@ -253,7 +255,8 @@ static func inputs(recipe: Dictionary, document: Dictionary, dem_skipped: bool) 
 		settings.merge(facilities, true)
 		settings.erase("csv")
 		result.facilities = settings
-	if recipe.has("dem"): result.dem = {"zero_m":float(recipe.get("dem_zero_m", 0)), "skipped":dem_skipped}
+	# The same condition as the DEM step in _run(): an empty `dem` builds no terrain.
+	if str(recipe.get("dem", "")) != "": result.dem = {"zero_m":float(recipe.get("dem_zero_m", 0)), "skipped":dem_skipped}
 	return result
 
 ## Display names of the fingerprinted sources, in `inputs.sources` order; not hashed.
@@ -264,28 +267,46 @@ static var _code := {}
 
 ## Which code ran, apart from the input fingerprint. `editor_scripts` hashes
 ## res://scripts/*.gd and res://scripts/importers/*.py with the framing of the root
-## scripts/implementation_fingerprint.py (sorted relative names, CRLF → LF, 8-byte
-## little-endian length + bytes for name and content). It does not cover MapKit
-## native generation or Python packages; an exported build hashes its own files.
+## scripts/implementation_fingerprint.py. An exported build (script_export_mode 2)
+## holds tokenized scripts/*.gdc instead of .gd; those bytes are hashed as they are,
+## so its digest differs from a source checkout. It does not cover MapKit native
+## generation or Python packages. A file that cannot be read leaves `editor_scripts`
+## empty with an `editor_scripts_reason`.
 static func code_identity() -> Dictionary:
 	if not _code.is_empty(): return _code.duplicate()
-	var names: Array = []
-	for folder: Array in [["scripts", "gd"], ["scripts/importers", "py"]]:
+	var files: Array = []
+	var unreadable := ""
+	for folder: Array in [["scripts", ["gd", "gdc"]], ["scripts/importers", ["py"]]]:
 		for file: String in DirAccess.get_files_at("res://" + folder[0]):
-			if file.get_extension() == folder[1]: names.append(folder[0] + "/" + file)
-	names.sort()
+			if file.get_extension() not in folder[1]: continue
+			var name: String = folder[0] + "/" + file
+			var bytes := FileAccess.get_file_as_bytes("res://" + name)
+			if FileAccess.get_open_error() != OK and unreadable == "": unreadable = name
+			# Tokenized .gdc is binary: only text gets CRLF → LF.
+			files.append([name, bytes if file.get_extension() == "gdc" else _lf(bytes)])
+	_code = {"editor_scripts":digest_files(files), "godot":Engine.get_version_info().string}
+	if unreadable != "":
+		_code.editor_scripts = ""
+		_code.editor_scripts_reason = "cannot read " + unreadable
+	return _code.duplicate()
+
+## SHA-256 over [[relative name, bytes], ...] with the framing of the root
+## scripts/implementation_fingerprint.py: sorted names, then for name and content
+## an 8-byte little-endian length and the bytes. Bytes are hashed as given.
+static func digest_files(files: Array) -> String:
+	var sorted := files.duplicate()
+	sorted.sort_custom(func(a, b): return str(a[0]) < str(b[0]))
 	var hashing := HashingContext.new()
 	hashing.start(HashingContext.HASH_SHA256)
-	for name: String in names:
-		var content := _lf(FileAccess.get_file_as_bytes("res://" + name))
-		for value: PackedByteArray in [name.to_utf8_buffer(), content]:
+	for file: Array in sorted:
+		for value: PackedByteArray in [str(file[0]).to_utf8_buffer(), file[1]]:
 			var length := PackedByteArray()
 			length.resize(8)
 			length.encode_u64(0, value.size())
 			hashing.update(length)
-			hashing.update(value)
-	_code = {"editor_scripts":hashing.finish().hex_encode(), "godot":Engine.get_version_info().string}
-	return _code.duplicate()
+			# HashingContext refuses an empty chunk; hashlib treats one as a no-op.
+			if value.size() > 0: hashing.update(value)
+	return hashing.finish().hex_encode()
 
 ## A failure a smaller extent can fix: a package or game limit in the steps above.
 func _over_limit(result: Dictionary) -> bool:
