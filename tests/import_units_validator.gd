@@ -113,7 +113,7 @@ func run() -> void:
 	units.widen_roads(between,[])
 	check(between[0].after.widths_cm == [60],"a building part limits widening like a footprint")
 	var paved: Array = city_layer.patches(store).filter(func(p): return p.field == "ground_surface")
-	check(paved.size() == 1 and paved[0].before == null and paved[0].after == "concrete","a city layer paves a map without a ground surface")
+	check(paved.size() == 1 and paved[0].before == null and paved[0].after == "grass","a city layer supplies natural ground only when no user surface exists")
 	store.document.ground_surface = "gravel"
 	city_layer.limit_warnings = []
 	check(city_layer.patches(store).filter(func(p): return p.field == "ground_surface").is_empty() and city_layer.limit_warnings.any(func(e): return e.code == "city_ground_surface"),"another ground surface is kept with a warning")

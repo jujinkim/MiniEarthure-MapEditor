@@ -22,8 +22,8 @@ const MAX_CHECK_CELLS := 16384
 ## Count re-checks of own adapter output: shape sanity only, never a budget.
 const SANITY := 1000000000000
 const FIELDS := ["nodes", "roads", "buildings", "zones", "surface_areas", "pois", "barriers", "water_bodies", "placements"]
-## City imports pave unpainted ground (MapKit `ground_surface`) of a map without one.
-const CITY_GROUND_SURFACE := "concrete"
+## Unclassified city terrain uses the v1 natural ground; user surfaces stay owned.
+const CITY_GROUND_SURFACE := "grass"
 const OSM_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 const OVERTURE_LICENSE := "ODbL-1.0; © OpenStreetMap contributors, Overture Maps Foundation; https://docs.overturemaps.org/attribution/#buildings"
 const OVERTURE_TRANSPORTATION_LICENSE := "ODbL-1.0; © OpenStreetMap contributors; TomTom; Overture Maps Foundation; https://docs.overturemaps.org/attribution/#transportation"

@@ -22,9 +22,9 @@ north]` degrees, a plain rectangle crop without play-area boundary). Recipe keys
 outside that list are refused; paths are relative to the recipe file. Every step
 keeps its review and limits; a step that fails stops the run with `failed_step` and
 the status text (exit code 1); an ambiguous name lists `area_candidates` or
-`place_candidates`. A DEM that cannot be fitted (its review reports that the map
-keeps its flat terrain, for example estimated overpasses losing separation) leaves
-the map flat and the build continues (`dem_skipped` in the report). The report records the chosen `extent`, `place` and `traffic`
+`place_candidates`. When a recipe requests a DEM, its review and adoption must
+succeed; a failed fit stops the build atomically. The report records the chosen
+`extent`, `place` and `traffic`
 (with its `basis`). It also records what the run was built from and with:
 
 - `inputs`: the adopted sources as role, bytes and SHA-256 (OSM PBF, facility CSV,
@@ -377,25 +377,22 @@ remainder so lattice points are whole map centimetres.
 
 ## Urban ground and barriers
 
-- Adoption sets the map's `ground_surface` to concrete when it has none, so
-  unpainted city terrain is paved; a map with another surface keeps it (warning).
-  Undo restores the previous value.
-- Green land paints grass: `leisure` park, garden, playground and pitch, `landuse`
-  grass, meadow, recreation_ground, village_green, cemetery, farmland, orchard and
-  forest, and `natural` grassland, scrub and wood. `amenity=parking` (not
-  underground, multi-storey or rooftop) paints asphalt. A tagged hard surface
-  (asphalt, concrete, gravel, dirt) wins over grass. City-only areas (green leisure,
-  parking, school/hospital/university/college grounds) are rule inputs: they map to
-  their paint and barriers but are not generation regions; ones off the ground
-  (bridge, tunnel, layer, level) are not selected, and ones that cannot be imported
-  are skipped, never excluded.
-- Area paint simplifies like other areas (level/4, at most 8 m) and shares the
-  pedestrian paint cells and limits: pedestrian ribbons first, then asphalt,
-  concrete, gravel, dirt and grass, each minus water and everything painted before
-  it with a 2 map cm margin (lattice snap rounding never closes it), so pieces never
-  overlap. Area pieces under one map square metre are not painted, and exactly
-  collinear vertices are dropped from every piece. Buildings stand on top and roads
-  keep precedence natively. Each piece maps to the area sources it covers.
+- Adoption sets an absent `ground_surface` to v1 `grass`. Explicit user surfaces
+  stay unchanged and Undo restores the previous value. Untagged plains and mountains
+  share this natural ground; imported DEM relief drives MapKit's slope-based grass,
+  earth and rock shading. Untagged hills do not generate forests.
+- Explicit `surface` wins, followed by parking/paved-use estimates, then natural
+  land cover. Forests and orchards produce both ground paint and vegetation zones.
+  Grassland, scrub, heath, fell and farmland use grass; bare rock, scree and shingle
+  use gravel, and sand/beach use dirt. These existing-material approximations are
+  disclosed in review. Urban, residential and university boundaries alone leave
+  natural ground. Off-ground areas keep their exclusion rules.
+- Pedestrian ribbons keep precedence; area paint then follows explicit surfaces,
+  use estimates and natural cover, with asphalt/concrete/gravel/dirt/grass as stable
+  ties. Each subtracts water and earlier paint with a 2 map cm margin. Paint
+  simplifies like other areas (level/4, at most 8 m), partitions on the map lattice,
+  drops pieces below one map square metre and keeps source provenance. Buildings
+  stand on top and roads keep native precedence.
 - Water: OSM water areas (`natural=water`, `landuse=reservoir|basin`) plus
   waterway lines (`waterway=river|canal|stream|drain|ditch`, on the ground; culverts
   and other off-ground ways are skipped) as ribbons of their `width` (else river

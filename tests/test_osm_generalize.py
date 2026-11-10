@@ -1024,6 +1024,34 @@ class CityRules(unittest.TestCase):
         self.assertTrue(any(s == "asphalt" and src == ["way/4"] for s, src, _ in paint), "a tagged hard pitch surface wins over grass")
         self.assertEqual(meta["ground_paint"]["grass"] + meta["ground_paint"]["asphalt"] + meta["ground_paint"]["pedestrian"], meta["ground_paint"]["pieces"])
 
+    def test_natural_ground_and_explicit_surface_priority(self):
+        from osm_extract import city_ground, city_polygon_properties, category
+        from geojson import convert
+        self.setup_city()
+        for identity, tags in enumerate((
+            {"landuse": "forest"}, {"landuse": "orchard"}, {"landuse": "farmland"},
+            {"natural": "bare_rock"}, {"natural": "sand"}, {"natural": "scree"},
+            {"amenity": "university"}, {"landuse": "residential"}, {"natural": "fell"}), 1):
+            p = {"landuse": tags.get("landuse", tags.get("natural", "university"))}
+            if category(tags, True) != "zone": p["osm_region"] = True
+            city_polygon_properties(p, tags, mapping(box(0, 0, 80, 80)), "way", identity, {})
+            self.add(identity, box(identity * 100, 0, identity * 100 + 80, 80), **p)
+        self.assertIsNone(city_ground({"amenity": "university"}))
+        self.assertIsNone(city_ground({"landuse": "residential"}))
+        self.assertIsNone(city_ground({}))  # Flat and mountainous unclassified ground use the map default.
+        self.add(20, box(100, 10, 170, 70), osm_region=True, landuse="parking", _city_ground=city_ground({"amenity": "parking"}))
+        self.add(21, box(110, 20, 160, 60), osm_region=True, landuse="parking", _city_ground=city_ground({"amenity": "parking", "surface": "grass"}))
+        worker = self.worker(3)
+        out, _ = worker.candidate(0)
+        layer = convert(out, "synthetic", "ODbL-1.0", coordinates=self.options, osm_graph=True, city=True)
+        self.assertGreaterEqual(sum(p["field"] == "zones" for p in layer.patches), 2)
+        paint = [(f["properties"]["_city_paint"], f["properties"]["_city_sources"], transform(worker.project, shape(f["geometry"]))) for f in out["features"] if "_city_paint" in f["properties"]]
+        for identity, surface in ((1, "grass"), (2, "grass"), (3, "grass"), (4, "gravel"), (5, "dirt"), (6, "gravel"), (9, "grass"), (20, "asphalt"), (21, "grass")):
+            self.assertTrue(any(s == surface and f"way/{identity}" in ids for s, ids, _ in paint), (identity, surface))
+        self.assertFalse(any(set(ids) & {"way/7", "way/8"} for _, ids, _ in paint))
+        from shapely.geometry import Point
+        self.assertTrue(any(s == "grass" and g.contains(Point(130, 40)) for s, _, g in paint), "explicit grass overrides inferred parking")
+
     def test_city_water_from_areas_and_waterways_minus_roads(self):
         from geojson import convert
         self.setup_city()

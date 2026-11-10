@@ -5,7 +5,7 @@ Editor-only city rules on projected source-metre features (current v1):
 - Buildings keep their own footprints. Nearby buildings of one site (or 256 m
   source tile) and category become one record whose solids are MapKit
   `Building.parts`; the record groups objects, never vertices.
-- Green land paints grass and parking asphalt over the city's concrete
+- Explicit surfaces, parking and natural cover paint over the city's grass
   `ground_surface`; water is never painted.
 - Explicit OSM barrier ways and inferred site perimeters become `barriers`.
 """
@@ -300,8 +300,8 @@ def building_records(items, is_building, source_ids, key):
 
 
 def ground_areas(features, tolerance, surfaces, source_ids):
-    """Painted area sources: [(sources, surface, polygon)] and the water union.
-    Green land is grass (a tagged hard surface wins), parking asphalt."""
+    """Painted sources [(sources, surface, polygon, priority)] and water.
+    Explicit surfaces precede use estimates, then natural cover."""
     areas, water = [], []
     for f, g in features:
         if g.geom_type == "LineString": continue
@@ -312,12 +312,12 @@ def ground_areas(features, tolerance, surfaces, source_ids):
         ground = p.get("_city_ground")
         if not ground: continue
         mapped = surfaces.get(ground.get("surface") or "", None)
-        if ground["kind"] == "parking": surface = mapped or "asphalt"
-        else: surface = mapped if mapped in ("asphalt", "concrete", "gravel", "dirt") else "grass"
+        surface = mapped or ("asphalt" if ground["kind"] == "parking" else "grass")
+        priority = 0 if mapped and ground["kind"] != "natural" else 1 if ground["kind"] == "parking" else 2
         shape = g.simplify(tolerance, preserve_topology=True) if tolerance else g
         if not shape.is_valid: shape = g
         for part in _polygons(shape):
-            areas.append((source_ids(f), surface, part))
+            areas.append((source_ids(f), surface, part, priority))
     return areas, water
 
 

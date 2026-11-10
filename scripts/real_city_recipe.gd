@@ -478,18 +478,12 @@ func _run(recipe: Dictionary, side_m: float) -> Dictionary:
 		_say("Sampling DEM (review)")
 		dem.acquire()
 		await _wait(_busy, 1800000)
-		if dem.candidate == null and _status().contains("the map keeps its flat terrain"):
-			# DEM is optional: when it cannot be fitted (for example estimated
-			# overpasses losing separation on the terrain) the map stays flat.
-			report.dem_skipped = _status()
-			_say("DEM cannot be fitted; the map keeps its flat terrain")
-		elif dem.candidate == null: return _fail("dem_review")
-		else:
-			_say("Applying DEM")
-			dem.adopt()
-			await _wait(_busy, 1800000)
-			if ui.store.document.heightmaps.is_empty() or _rejects(): return _fail("dem_adopt")
-			report.heightmaps = ui.store.document.heightmaps.size()
+		if dem.candidate == null: return _fail("dem_review")
+		_say("Applying DEM")
+		dem.adopt()
+		await _wait(_busy, 1800000)
+		if ui.store.document.heightmaps.is_empty() or _rejects(): return _fail("dem_adopt")
+		report.heightmaps = ui.store.document.heightmaps.size()
 	_say("Saving project")
 	ui._start_save(recipe.project)
 	await _wait(_busy, 1800000)

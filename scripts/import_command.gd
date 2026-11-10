@@ -77,7 +77,7 @@ static func decode(value: Variant, allow_assets: bool = false, allow_generation:
 				return {"error":"Import cannot rewrite assembled geometry."}
 			continue
 		if not allow_assets and patch is Dictionary and patch.get("field") == "ground_surface":
-			# A city import paves the unpainted ground of a map without a surface.
+			# Only an absent surface may receive the natural city default.
 			if patch.get("id") != "" or patch.get("before") != null or patch.get("after") != TYPES.CITY_GROUND_SURFACE or candidate.get("ground_surface") != patch.after:
 				return {"error":"Invalid imported ground surface."}
 			continue

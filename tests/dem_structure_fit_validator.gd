@@ -92,6 +92,7 @@ func shared_corners(a: Vector2, b: Vector2, c: Vector2, d: Vector2) -> Array:
 	return keys.keys()
 
 func run() -> void:
+	crossing_constraints()
 	scratch = SCRATCH.fresh("dem_structure_fit_validator")
 	check(FIT.separation_cm(8) == 63 and FIT.max_edit_cm(8) == 800 and FIT.separation_cm(3) == 167 and FIT.max_edit_cm(3) == 2133, "5 m separation and 64 m edit bound follow the map scale")
 	# The 1:3 city default, then the 1:8 map with every refusal case.
@@ -180,10 +181,20 @@ func case(denominator: int) -> bool:
 	check(again._apply(again.document, fit.patches, false) == "", "apply fitted roads")
 	var repeat: Dictionary = FIT.prepare(again, after.records, after.blobs, options)
 	check(not repeat.has("error") and repeat.patches.is_empty() and repeat.receipt.edited_samples == 0, "fit is idempotent: " + JSON.stringify(repeat.get("receipt", repeat.get("error", ""))))
+	var original_roads: Array = store.document.roads.duplicate(true)
+	var original_nodes: Array = store.document.nodes.duplicate(true)
+	var adopted := FILES.apply(store, "DEM with structures", patches(store, after.records) + fit.patches, after.blobs, cells)
+	check(adopted == "", "terrain and structures adopt as one command: " + adopted)
+	var adopted_roads: Array = store.document.roads.duplicate(true)
+	check(store.undo() == "" and store.document.heightmaps.is_empty() and store.document.roads == original_roads and store.document.nodes == original_nodes, "one Undo restores terrain, structure heights and junctions")
+	check(store.redo() == "" and store.document.heightmaps.size() == 4 and store.document.roads == adopted_roads, "one Redo restores fitted terrain and structures")
+	check(store.undo() == "", "restore flat candidate for refusal checks")
 	# A DSM spike of about 11 m under the deck: beyond the 64 m bound at 1:8
 	# (800 cm), within it at 1:3 (2133 cm).
 	var spiked := heightmaps(1200)
+	var snapshot := JSON.stringify(store.document)
 	var tall: Dictionary = FIT.prepare(store, spiked.records, spiked.blobs, options)
+	check(JSON.stringify(store.document) == snapshot, "both successful and refused fits leave the live document untouched")
 	if denominator == 8: check(str(tall.get("error", "")).contains("terrain edit beyond the bound"), "edit bound refuses at 1:8: " + str(tall.get("error", "")))
 	else: check(not tall.has("error") and tall.receipt.max_cut_cm > FIT.max_edit_cm(8), "the same spike stays within the bound at 1:%d: %s" % [denominator, str(tall.get("error", tall.get("receipt", {}).get("max_cut_cm")))])
 	if denominator != 8: return true
@@ -219,6 +230,42 @@ func case(denominator: int) -> bool:
 	var foreign: Dictionary = patch.duplicate(true); foreign.id = "manual"; foreign.before.id = "manual"; foreign.after.id = "manual"
 	check(not FIT.valid_patch(foreign, index), "record outside the document rejected")
 	return true
+
+func crossing_constraints() -> void:
+	var fit := FIT.new()
+	fit._separation_cm = 167
+	fit._max_edit_cm = 2133
+	var first := road("high", "a", "b", [[0,0,4000],[2000,500,4000],[8000,500,4000],[10000,0,4000]], "bridge")
+	var second := road("low", "c", "d", [[5000,0,0],[5000,200,2000],[5000,200,8000],[5000,0,10000]], "bridge")
+	var roads := {first.id:first, second.id:second}
+	var vertex := {}
+	var original := {}
+	var fixed := {}
+	for r: Dictionary in roads.values():
+		for i in range(r.points.size()):
+			var key: String = r.id + "@" + str(i)
+			vertex[key] = key; original[key] = r.points[i][1]
+			if i in [0,3]: fixed[key] = true
+	var constraints: Array = fit._structure_crossings(roads, roads, vertex, original)
+	check(constraints.size() == 1, "one proper ordered crossing")
+	for inverted in [false, true]:
+		var lifted := original.duplicate()
+		for i in [1,2]: lifted[first.id + "@" + str(i)] = 100 if inverted else 300
+		var result: Dictionary = fit._fit_crossings(constraints, lifted, fixed)
+		check(not result.has("error"), "sloping bases with reduced or reversed separation can be corrected")
+		var gap: float = (lifted[first.id + "@1"] + lifted[first.id + "@2"]) * .5 - (lifted[second.id + "@1"] * 2.0 + lifted[second.id + "@2"]) / 3.0
+		check(gap >= 167, "original upper structure stays above with minimum spacing")
+		for key: String in fixed: check(lifted[key] == original[key], "junction anchors remain fixed")
+	# Source-height structures are constraints, never variables.
+	var only := {first.id:first}
+	var explicit: Array = fit._structure_crossings(roads, only, vertex, original)
+	var raised := original.duplicate()
+	raised[first.id + "@1"] = 0; raised[first.id + "@2"] = 0
+	check(not fit._fit_crossings(explicit, raised, fixed).has("error"), "estimated bridge clears an immutable crossing")
+	check(raised[second.id + "@1"] == original[second.id + "@1"], "explicit source height unchanged")
+	var refused := FIT.new(); refused._max_edit_cm = 1
+	var bad := original.duplicate(); bad[first.id + "@1"] = -2000; bad[first.id + "@2"] = -2000
+	check(refused._fit_crossings(constraints, bad, fixed).has("error"), "impossible bounded correction refuses")
 
 func finish() -> void:
 	print("dem_structure_fit_validator: ", "PASS" if failures.is_empty() else failures, "; checks=", checks)

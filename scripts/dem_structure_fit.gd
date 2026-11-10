@@ -354,6 +354,7 @@ func _run(store: RefCounted, records: Array, blobs: Dictionary, options: Diction
 		if structures.has(road.id) or road.kind != "ground": continue
 		for i in range(road.points.size() - 1): ground_segments.append([road, i, _xz(road.points[i]), _xz(road.points[i + 1])])
 	var ground_buckets := _buckets(ground_segments)
+	var crossings := _structure_crossings(roads, structures, vertex, height)
 	# A pad level is free within the bounds its crossings put on its samples;
 	# moving it moves the decks rebased on it, so repeat until it settles.
 	var lifted := {}
@@ -366,7 +367,11 @@ func _run(store: RefCounted, records: Array, blobs: Dictionary, options: Diction
 		for key: String in position:
 			var base: float = level[lead_of[key]] if lead_of.has(key) else _weighted(weights[key], level)
 			lifted[key] = height[key] - roundi(old_base[key]) + roundi(base)
+		var correction := _fit_crossings(crossings, lifted, lead_of)
+		if correction.has("error"): return _refuse()
 		report = _constrain(structures, vertex, position, lifted, relative, own, ground_segments, ground_buckets)
+		report.structure_crossings = crossings.size()
+		report.max_structure_correction_cm = correction.maximum
 		# The last round only rebases; unresolved bounds refuse below.
 		if rounds > MAX_ROUNDS: break
 		var moved := false
@@ -423,24 +428,6 @@ func _run(store: RefCounted, records: Array, blobs: Dictionary, options: Diction
 	for id: String in arms: ground_roads[id] = true
 	for node_id: String in claims:
 		for road: Dictionary in incident[node_id]: ground_roads[road.id] = true
-	# Estimated structures crossing each other keep their separation.
-	var structure_segments: Array = []
-	for id: String in structures:
-		var road: Dictionary = structures[id]
-		for i in range(road.points.size() - 1): structure_segments.append([road, i, _xz(road.points[i]), _xz(road.points[i + 1])])
-	var structure_buckets := _buckets(structure_segments)
-	for x in range(structure_segments.size()):
-		var first: Dictionary = structure_segments[x][0]
-		var i: int = structure_segments[x][1]
-		for y: int in _near(structure_buckets, structure_segments[x][2], structure_segments[x][3]):
-			if y <= x: continue
-			var second: Dictionary = structure_segments[y][0]
-			var j: int = structure_segments[y][1]
-			var hit: Variant = _cross(structure_segments[x][2], structure_segments[x][3], structure_segments[y][2], structure_segments[y][3])
-			if hit == null: continue
-			var before := absf(_at(first, i, hit, height, vertex) - _at(second, j, hit, height, vertex))
-			var after := absf(_at(first, i, hit, lifted, vertex) - _at(second, j, hit, lifted, vertex))
-			if before >= 1.0 and after < minf(before, _separation_cm): _fail("crossing structures lose separation", first.id + " × " + second.id)
 	var delta := PackedInt32Array()
 	var changes := {"pad":[], "cut":[], "fill":[]}
 	var keys := _pad.duplicate()
@@ -531,6 +518,81 @@ func _run(store: RefCounted, records: Array, blobs: Dictionary, options: Diction
 	report.fitted_cells = fitted.size()
 	report.delta_sha256 = _digest(delta)
 	return {"patches":patches, "fitted":fitted, "receipt":report}
+
+## Signed crossing constraints preserve the original above/below order, including
+## crossings with immutable source-height structures. A shared endpoint is a join.
+func _structure_crossings(roads: Dictionary, structures: Dictionary, vertex: Dictionary, height: Dictionary) -> Array:
+	var segments: Array = []
+	for road: Dictionary in roads.values():
+		if road.kind not in ["bridge", "tunnel"]: continue
+		for i in range(road.points.size() - 1): segments.append([road, i, _xz(road.points[i]), _xz(road.points[i + 1])])
+	var buckets := _buckets(segments)
+	var constraints: Array = []
+	for x in range(segments.size()):
+		var first: Array = segments[x]
+		for y: int in _near(buckets, first[2], first[3]):
+			if y <= x: continue
+			var second: Array = segments[y]
+			if not structures.has(first[0].id) and not structures.has(second[0].id): continue
+			var hit: Variant = Geometry2D.segment_intersects_segment(first[2], first[3], second[2], second[3])
+			if hit == null: continue
+			var coefficients := {}
+			var fixed := 0.0
+			for pair: Array in [[first, 1.0], [second, -1.0]]:
+				var segment: Array = pair[0]
+				var road: Dictionary = segment[0]
+				var i: int = segment[1]
+				var t := clampf(segment[2].distance_to(hit) / maxf(segment[2].distance_to(segment[3]), 1.0), 0.0, 1.0)
+				for end in range(2):
+					var weight: float = pair[1] * (1.0 - t if end == 0 else t)
+					if structures.has(road.id):
+						var key: String = vertex[road.id + "@" + str(i + end)]
+						coefficients[key] = coefficients.get(key, 0.0) + weight
+					else: fixed += weight * road.points[i + end][1]
+			var original := fixed
+			for key: String in coefficients: original += coefficients[key] * height[key]
+			# Coplanar joins and adjacent segments impose no vertical separation.
+			if absf(original) < 1.0: continue
+			var direction := signf(original)
+			for key: String in coefficients: coefficients[key] *= direction
+			constraints.append({"coefficients":coefficients, "fixed":fixed * direction,
+				"gap":minf(absf(original), _separation_cm), "label":first[0].id + " × " + second[0].id})
+	return constraints
+
+## Project violated half-spaces onto free interior heights. Junctions and their
+## level leads remain fixed, shared vertices move once, and centimetre rounding
+## is included in each iteration. Recompute terrain constraints only after this
+## solve. Failure never reaches the owning snapshot.
+func _fit_crossings(constraints: Array, lifted: Dictionary, fixed: Dictionary) -> Dictionary:
+	var baseline := lifted.duplicate()
+	for iteration in range(128):
+		var violated := false
+		for constraint: Dictionary in constraints:
+			var actual: float = constraint.fixed
+			var norm := 0.0
+			for key: String in constraint.coefficients:
+				var c: float = constraint.coefficients[key]
+				actual += c * lifted[key]
+				if not fixed.has(key): norm += c * c
+			if actual + 0.00001 >= constraint.gap: continue
+			violated = true
+			if norm < 0.000001:
+				_fail("crossing fixed leads lose separation", constraint.label)
+				return {"error":true}
+			for key: String in constraint.coefficients:
+				if fixed.has(key): continue
+				var c: float = constraint.coefficients[key]
+				var change: float = (constraint.gap - actual + 1.0) * c / norm
+				lifted[key] += ceili(change) if change > 0 else floori(change)
+				if absi(lifted[key] - baseline[key]) > _max_edit_cm:
+					_fail("structure correction beyond the bound", constraint.label)
+					return {"error":true}
+		if not violated:
+			var maximum := 0
+			for key: String in lifted: maximum = maxi(maximum, absi(lifted[key] - baseline[key]))
+			return {"maximum":maximum}
+	_fail("crossing constraints do not converge", str(constraints.size()))
+	return {"error":true}
 
 static func _weighted(weights: Array, heights: Dictionary) -> float:
 	var total := 0.0

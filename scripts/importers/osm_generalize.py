@@ -45,7 +45,7 @@ SURFACES = {"asphalt":"asphalt", "concrete":"concrete", "dirt":"dirt", "gravel":
             "paved":"asphalt", "paving_stones":"concrete", "sett":"concrete", "cobblestone":"concrete",
             "concrete:plates":"concrete", "concrete:lanes":"concrete", "compacted":"gravel",
             "fine_gravel":"gravel", "pebblestone":"gravel", "unpaved":"dirt", "ground":"dirt",
-            "earth":"dirt", "sand":"dirt", "mud":"dirt", "wood":"concrete", "metal":"concrete"}
+            "earth":"dirt", "sand":"dirt", "mud":"dirt", "rock":"gravel", "stone":"gravel", "wood":"concrete", "metal":"concrete"}
 PAINT_CELL = 3200  # Map centimetres: one native cell partitions pedestrian paint.
 # Area paint cell: PAINT_CELL × this. Larger cells give fewer but larger pieces,
 # which cost MapKit's surface-area overlap check more (measured), so it stays 1.
@@ -1068,8 +1068,8 @@ class Generalizer:
         Pedestrian ribbons are united on the 1:scale map-centimetre lattice and
         cut per native cell, so the pieces never overlap; each keeps every source
         way it covers and takes the surface covering most of its area. Area
-        paint follows in surface priority order (asphalt, concrete, gravel, dirt,
-        grass), each minus water and everything painted before it, so pieces of
+        paint follows explicit surfaces, paved-use estimates and natural cover
+        (stable surface ties: asphalt, concrete, gravel, dirt, grass), each minus water and everything painted before it, so pieces of
         different surfaces never overlap either. Buildings are not subtracted
         (they stand on top) and roads keep precedence natively.
         """
@@ -1090,7 +1090,7 @@ class Generalizer:
         tree = STRtree(ribbons)
         polygonal = lambda geometries: [unary_union(parts(g)) if g.geom_type not in ("Polygon", "MultiPolygon") else g
                                         for g in shapely.make_valid(shapely.set_precision(moved(np.array(geometries, dtype=object), to_map), 1))]
-        shapes = polygonal([g for _, _, g in areas]) if areas else []
+        shapes = polygonal([g for _, _, g, _ in areas]) if areas else []
         waters = polygonal(water) if water else []
         self.spend(sum(positions(g) for g in shapes) + sum(positions(g) for g in waters))
         # Ribbons are cut per PAINT_CELL, areas per PAINT_CELL × AREA_FACTOR.
@@ -1136,8 +1136,8 @@ class Generalizer:
             blocked = [areal(shapely.intersection(waters[k], cell, grid_size=1)) for k in water_ids]
             blocked += [areal(taken[(a, b)]) for a in range(i*AREA_FACTOR, (i+1)*AREA_FACTOR) for b in range(j*AREA_FACTOR, (j+1)*AREA_FACTOR) if (a, b) in taken]
             blocked = areal(shapely.union_all(blocked, grid_size=1)) if blocked else None
-            for surface in osm_sites.AREA_SURFACES:
-                members = [k for k in area_ids if areas[k][1] == surface and not clipped[k].is_empty]
+            for priority, surface in ((p, s) for p in range(3) for s in osm_sites.AREA_SURFACES):
+                members = [k for k in area_ids if areas[k][1] == surface and areas[k][3] == priority and not clipped[k].is_empty]
                 if not members: continue
                 local = areal(shapely.union_all([clipped[k] for k in members], grid_size=1))
                 if blocked is not None and not blocked.is_empty:

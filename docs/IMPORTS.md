@@ -31,7 +31,7 @@ city ground paint (`surface_areas`), city barriers and building parts, and facil
 the same bytes are reimported. References to existing objects, arbitrary map-value
 mutation and deletions are rejected; the only map values an adoption sets are the
 extent of an empty map, `free_roam` and, for a city layer on a map without one,
-`ground_surface: concrete` (a different existing surface is kept with a warning;
+`ground_surface: grass` (a different existing surface is kept with a warning;
 Undo restores its absence).
 
 Custom maps use real metres. OSM adoption divides coordinates, widths, heights,
@@ -145,8 +145,13 @@ pads share the median), level leads and adjoining ground vertices take the pad
 height (a level vertex is inserted when an arm is too short), and each profile keeps
 its height above a base interpolated between its own anchors. Terrain is cut under
 decks (ground roads beneath keep 5 m at 1:D, or their flat clearance when smaller)
-and filled over tunnels where ground roads cross. Pad levels iterate within those
-bounds. Any conflict, an anchor outside the DEM, an edit beyond 64 m at 1:D, a
+and filled over tunnels where ground roads cross. Crossing structures retain
+their original above/below order and at least their
+original gap capped at 5 source metres. Bounded interior-height corrections move
+only estimated structures, keeping shared vertices and level leads continuous;
+source-height structures are immutable constraints. Cut/fill and pad levels are
+recomputed together until all constraints settle. Any conflict, an anchor outside
+the DEM, an edit beyond 64 m at 1:D, a
 designed or explicit-height joint, mixed terrain spacing or a DEM reviewed at
 another scale refuses the whole fit and the map keeps its flat terrain. The summary
 discloses counts and the largest change; the notice adds `structure_fit`

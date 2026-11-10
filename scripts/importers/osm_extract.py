@@ -44,7 +44,8 @@ CITY_BARRIERS = ("fence", "wall", "hedge", "retaining_wall", "guard_rail")
 CITY_WATERWAYS = {"river": 12.0, "canal": 8.0, "stream": 3.0, "drain": 2.0, "ditch": 1.5}
 CITY_GREEN_LEISURE = ("park", "garden", "playground", "pitch")
 CITY_GREEN_LANDUSE = ("grass", "meadow", "recreation_ground", "village_green", "cemetery", "farmland", "orchard", "forest")
-CITY_GREEN_NATURAL = ("grassland", "scrub", "wood")
+CITY_GREEN_NATURAL = ("grassland", "scrub", "wood", "heath", "fell")
+CITY_BARE_NATURAL = {"bare_rock": "gravel", "scree": "gravel", "shingle": "gravel", "sand": "dirt", "beach": "dirt"}
 CITY_SITE_AMENITY = ("school", "hospital", "university", "college")
 CITY_SITE_LANDUSE = ("residential", "commercial", "retail", "industrial")
 CITY_PARKING_LEVELS = ("underground", "multi-storey", "rooftop")
@@ -122,7 +123,9 @@ def speed_kmh(value):
 
 def city_area(tags):
     """A city-only selected area: green leisure, parking or a school/hospital site."""
-    return (not off_ground(tags) and (tags.get("leisure") in CITY_GREEN_LEISURE
+    return (not off_ground(tags) and (tags.get("surface") is not None
+            or tags.get("natural") in CITY_BARE_NATURAL or tags.get("natural") in CITY_GREEN_NATURAL
+            or tags.get("leisure") in CITY_GREEN_LEISURE
             or tags.get("amenity") in CITY_SITE_AMENITY
             or tags.get("amenity") == "parking" and tags.get("parking") not in CITY_PARKING_LEVELS))
 
@@ -173,13 +176,18 @@ def city_site(tags):
 
 
 def city_ground(tags):
-    """Painted city ground of an area: parking (asphalt) or green land (grass);
-    a tagged surface is mapped later. None for other areas."""
+    """Explicit surface, paved use, then natural cover. Site boundaries alone
+    do not pave terrain; relief and unclassified ground are supplied by the DEM."""
+    if off_ground(tags): return None
     if tags.get("amenity") == "parking" and tags.get("parking") not in CITY_PARKING_LEVELS:
         return dict(kind="parking", surface=tags.get("surface"))
+    if tags.get("surface"):
+        return dict(kind="explicit", surface=tags["surface"])
     if (tags.get("leisure") in CITY_GREEN_LEISURE or tags.get("landuse") in CITY_GREEN_LANDUSE
             or tags.get("natural") in CITY_GREEN_NATURAL):
         return dict(kind="green", surface=tags.get("surface"))
+    if tags.get("natural") in CITY_BARE_NATURAL:
+        return dict(kind="natural", surface=CITY_BARE_NATURAL[tags["natural"]])
     return None
 
 
@@ -1148,6 +1156,10 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
 
 def city_polygon_properties(p, tags, geometry, kind, identity, sites):
     """City profile: site, painted ground, outline and levels of an area or building."""
+    if p.get("osm_region") or p.get("landuse") in ("forest", "orchard"):
+        ground = city_ground(tags)
+        if ground: p["_city_ground"] = ground
+        if not p.get("osm_region"): return  # Vegetation is also ground, never a building.
     if p.get("osm_region"):
         # A city-only area (green, parking, school site) is a rule input: its
         # source maps to paint and barriers, never to generation regions.
@@ -1159,8 +1171,6 @@ def city_polygon_properties(p, tags, geometry, kind, identity, sites):
             # only original boundary, never a crop cut.
             rings = [geometry["coordinates"][0]] if geometry["type"] == "Polygon" else [polygon[0] for polygon in geometry["coordinates"]]
             p["_city_outline"] = [[list(point) for point in ring] for ring in rings]
-        ground = city_ground(tags)
-        if ground: p["_city_ground"] = ground
         return
     levels = tags.get("building:levels", "")
     if re.fullmatch(r"[1-9][0-9]{0,2}", levels): p["_city_levels"] = int(levels)

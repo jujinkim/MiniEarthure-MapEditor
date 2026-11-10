@@ -115,7 +115,7 @@ func run_scale(denominator: int) -> void:
 	check(ui.store.document.buildings.size()==3 and ui.store.document.roads.size()==1,"city adoption is complete")
 	check(ui.store.document.buildings.any(func(b: Dictionary) -> bool: return b.get("parts", []).size()==5),"six overlapping footprints adopt as one record with five parts")
 	check(ui.store.document.surface_areas.size()==meta.after.areas-1 and ui.store.document.surface_areas.all(func(area: Dictionary) -> bool: return area.surface in ["concrete","grass"]) and ui.store.document.surface_areas.any(func(area: Dictionary) -> bool: return area.surface=="grass"),"the footway is painted concrete and the forest grass, cut at cell lines")
-	check(ui.store.document.get("ground_surface")=="concrete","a city import paves unpainted ground")
+	check(ui.store.document.get("ground_surface", "grass")=="grass","a city import uses natural unclassified ground")
 	var forest: Dictionary = ui.store.document.zones[0]
 	check(forest.spacing_cm==500 and forest.density_per_mille==750 and forest.get("tree",{}).get("asset_id")=="builtin:city_tree" and forest.tree.radius_cm==200,"city forests grow wide city trees every 5 map m after one scale conversion")
 	check(preload("res://scripts/import_units.gd").dem_denominator(ui.store.document)==denominator,"DEM and CSV read the adopted 1:%d back" % denominator)
@@ -203,7 +203,7 @@ func run_rules() -> void:
 		check(document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="fence" and b.height_cm==40) and document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="wall" and b.height_cm==67) and document.barriers.any(func(b: Dictionary) -> bool: return b.kind=="hedge" and b.height_cm==27),"source-metre barrier heights ÷3")
 		check(document.buildings.size()==6 and document.buildings.filter(func(b: Dictionary) -> bool: return not b.get("parts",[]).is_empty()).size()==3,"site and category records carry building parts")
 		check(document.surface_areas.any(func(a: Dictionary) -> bool: return a.surface=="grass") and document.surface_areas.any(func(a: Dictionary) -> bool: return a.surface=="asphalt"),"green land is grass and parking asphalt")
-		check(document.get("ground_surface")==("asphalt" if keep else "concrete"),"ground surface: %s" % document.get("ground_surface"))
+		check(document.get("ground_surface", "grass")==("asphalt" if keep else "grass"),"ground surface: %s" % document.get("ground_surface"))
 		check(ui.store.undo()=="" and ui.store.document.get("barriers",[]).is_empty() and ui.store.document.get("ground_surface")==("asphalt" if keep else null),"Undo removes barriers and restores the ground surface")
 		check(ui.store.redo()=="" and ui.store.document.barriers.size()==int(meta.after.barriers),"Redo restores barriers")
 		if not keep:
