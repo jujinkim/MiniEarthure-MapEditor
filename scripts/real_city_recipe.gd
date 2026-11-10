@@ -271,7 +271,8 @@ static var _code := {}
 ## holds tokenized scripts/*.gdc instead of .gd; those bytes are hashed as they are,
 ## so its digest differs from a source checkout. `mapkit` is the loaded MapKit
 ## library's build fingerprint (its Rust sources, schemas and Cargo files), empty
-## with a `mapkit_reason` when the library has none. Python packages are not
+## with a `mapkit_reason` when MapKitBridge is not registered or the library has
+## none. Python packages are not
 ## covered. A file that cannot be read leaves `editor_scripts` empty with an
 ## `editor_scripts_reason`.
 static func code_identity() -> Dictionary:
@@ -289,8 +290,9 @@ static func code_identity() -> Dictionary:
 	_code = {"editor_scripts":digest_files(files), "godot":Engine.get_version_info().string, "mapkit":""}
 	# A library built before the getter would stop the run with a script error.
 	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
-	if bridge != null and bridge.has_method("build_fingerprint"): _code.mapkit = str(bridge.build_fingerprint())
-	else: _code.mapkit_reason = "the loaded MapKit library has no build_fingerprint"
+	if bridge == null: _code.mapkit_reason = "MapKitBridge is not registered"
+	elif not bridge.has_method("build_fingerprint"): _code.mapkit_reason = "the loaded MapKit library has no build_fingerprint"
+	else: _code.mapkit = str(bridge.build_fingerprint())
 	if unreadable != "":
 		_code.editor_scripts = ""
 		_code.editor_scripts_reason = "cannot read " + unreadable

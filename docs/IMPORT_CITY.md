@@ -45,7 +45,8 @@ the map flat and the build continues (`dem_skipped` in the report). The report r
   little-endian length before each name and content), the `godot` version, and
   `mapkit`, the loaded MapKit library's build fingerprint
   (`MapKitBridge.build_fingerprint()`: MapKit Rust sources, schemas and Cargo
-  files; empty with `mapkit_reason` if the library has no such method). Python
+  files; empty with `mapkit_reason` if MapKitBridge is not registered or the
+  library has no such method). Python
   packages other than the versions in `inputs` are not covered. An exported Editor
   holds tokenized `scripts/*.gdc` instead of `.gd` and hashes those bytes, so its
   digest differs from a source checkout. A script that cannot be read leaves
