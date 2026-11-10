@@ -25,8 +25,33 @@ the status text (exit code 1); an ambiguous name lists `area_candidates` or
 `place_candidates`. A DEM that cannot be fitted (its review reports that the map
 keeps its flat terrain, for example estimated overpasses losing separation) leaves
 the map flat and the build continues (`dem_skipped` in the report). The report records the chosen `extent`, `place` and `traffic`
-(with its `basis`). The wizard saves its settings as a recipe. Recommended: 1:3,
-128 m cells, one district.
+(with its `basis`). It also records what the run was built from and with:
+
+- `inputs`: the adopted sources as role, bytes and SHA-256 (OSM PBF, facility CSV,
+  each DEM tile), the OSM crop `bbox`, sorted area `source_id`s, shapely/GEOS and
+  pyproj/PROJ versions, 1:D, the authored-units profile, `cell_size_cm`, the map's
+  `driving_side`/`signal_style`, the facility settings without the CSV path and
+  `dem` (`zero_m`, `skipped`). Paths, file names and the check-only keys
+  (`full_check`, `mobile_check`) are left out, and attribution order does not
+  matter. `source_names` lists the file names beside it, outside the hash.
+- `input_fingerprint`: SHA-256 of `inputs` as JSON with sorted keys and full
+  precision; `input_id` is its first 16 hex digits. A run that stopped before OSM
+  was adopted has no fingerprint (`input_fingerprint_reason: "no OSM adopted"`);
+  a stop at `outputs` adds none of these fields, because the open map may be the
+  user's own.
+- `code`: `editor_scripts`, the SHA-256 of `scripts/*.gd` and
+  `scripts/importers/*.py` with the framing of the root
+  `scripts/implementation_fingerprint.py` (sorted relative names, CRLF → LF, 8-byte
+  little-endian length before each name and content), and the `godot` version.
+  It does not cover MapKit native generation or Python packages other than the
+  versions in `inputs`; an exported Editor hashes its own exported files.
+
+The same `input_fingerprint` tells runs from the same sources and settings apart
+from runs with other inputs; compare `code` to see whether the Editor code
+changed. A MapKit-only change keeps both `input_fingerprint` and `editor_scripts`
+and shows only as a different `package_sha256`. Reruns of one recipe usually
+differ by code, not by input, so the fingerprint does not name run folders. The
+wizard saves its settings as a recipe. Recommended: 1:3, 128 m cells, one district.
 
 ### Automatic extent and traffic
 

@@ -1,6 +1,7 @@
 extends SceneTree
 ## Real-city recipe v1: parsing (areas or bbox), relative paths, wizard round trip and area lookup
-## through the PBF place search (synthetic fixture), including an ambiguous area stop.
+## through the PBF place search (synthetic fixture), including an ambiguous area stop, and the
+## report's input fingerprint and code identity over a synthetic adopted document.
 const SCRATCH := preload("res://tests/validator_scratch.gd")
 const UI := preload("res://scripts/editor_main.gd")
 const RECIPE := preload("res://scripts/real_city_recipe.gd")
@@ -19,6 +20,50 @@ class Retry extends "res://scripts/real_city_recipe.gd":
 func check(ok: bool, message: String) -> void:
 	if not ok: failed=true; push_error(message)
 func _initialize() -> void: run.call_deferred()
+## A synthetic adopted document: OSM, facility CSV and a two-tile DEM notice.
+func synthetic(pbf_sha := "a".repeat(64), tile_sha := "b".repeat(64), scale := 3, cell_cm := 12800, names := ["seoul.osm.pbf", "N37E126.tif", "N37E127.tif", "shops.csv"]) -> Dictionary:
+	var osm := {"import_version":1, "adapter":"osm-extract-v1", "layer_id":"1".repeat(32), "source":{"name":names[0], "bytes":1000, "sha256":pbf_sha, "license":"ODbL", "accuracy":"unknown"},
+		"coordinates":{"mode":"wgs84-utm", "pyproj":"3.7.2", "proj":"9.5.1", "osm_crop":{"bbox":[126.95, 37.56, 127.02, 37.63], "areas":[{"source_id":"relation/9"}, {"source_id":"relation/2"}], "shapely":"2.1.2", "geos":"3.13.1"}, "osm_city":{"scale_denominator":scale}},
+		"authored_units":{"profile":"city-1to%d" % scale, "source_denominator":scale}}
+	var dem := {"import_version":1, "adapter":"copernicus-dem-v1", "dem":{"receipt":{"options":{"source":"tiles"}, "sources":[{"source":{"name":names[1], "bytes":500, "sha256":tile_sha}}, {"source":{"name":names[2], "bytes":600, "sha256":"c".repeat(64)}}]}}}
+	var csv := {"import_version":1, "adapter":"facility-csv-v1", "source":{"name":names[3], "bytes":80, "sha256":"d".repeat(64), "license":"CC0", "accuracy":"unknown"}}
+	var attributions: Array = [osm, dem, csv].map(func(n): return {"source":"x", "license":"y", "notice":JSON.stringify(n)})
+	attributions.append({"source":"hand", "license":"own", "notice":"not json"})
+	attributions.append({"source":"hand", "license":"own", "notice":"[1]"})
+	return {"cell_size_cm":cell_cm, "traffic":{"driving_side":"right", "signal_style":"horizontal", "basis":"boundary"}, "attributions":attributions}
+## The recipe report's input fingerprint and code identity (real_city_recipe.gd).
+func check_inputs() -> void:
+	var recipe := {"version":1, "pbf":"/home/u/src/seoul.osm.pbf", "areas":[{"name":"a"}], "project":"/home/u/out/p", "package":"/home/u/out/m.memap", "python":"/home/u/.venv/bin/python",
+		"dem":"/home/u/dem", "dem_zero_m":20.5, "facilities":{"csv":"/home/u/src/shops.csv", "license":"CC0", "name_column":"n", "latitude_column":"lat", "longitude_column":"lon"}, "full_check":true, "mobile_check":false}
+	var document := synthetic()
+	var values: Dictionary = RECIPE.inputs(recipe, document, false)
+	var digest: String = RECIPE.fingerprint(values)
+	check(digest.length() == 64 and values.sources.size() == 4 and values.osm.size() == 1 and values.osm[0].crop.areas == ["relation/2", "relation/9"] and values.osm[0].scale_denominator == 3 and values.osm[0].pyproj == "3.7.2","inputs from the adopted notices: "+str(values))
+	check(values.sources.map(func(s): return s.role) == ["dem", "dem", "facilities", "osm"] and values.sources.all(func(s): return s.keys() == ["role", "bytes", "sha256"]),"sources by role then hash, without names: "+str(values.sources))
+	check(values.facilities == {"encoding":"utf-8", "category":"", "source_url":"", "accuracy":"unknown", "license":"CC0", "name_column":"n", "latitude_column":"lat", "longitude_column":"lon"} and values.dem == {"zero_m":20.5, "skipped":false} and values.traffic == {"driving_side":"right", "signal_style":"horizontal"},"settings without paths: "+str(values))
+	var reversed := document.duplicate(true)
+	reversed.attributions.reverse()
+	check(RECIPE.inputs(recipe, reversed, false) == values,"attribution order does not matter")
+	var text := JSON.stringify(values, "", true, true)
+	check(not text.contains("/home/u") and not text.contains("seoul") and not text.contains(".tif") and not text.contains("shops"),"no paths or file names in the canonical JSON: "+text)
+	var moved := recipe.duplicate(true)
+	for key in ["pbf", "project", "package", "python", "dem"]: moved[key] = "/elsewhere/" + str(moved[key]).get_file()
+	moved.facilities.csv = "/elsewhere/renamed.csv"
+	moved.full_check = false; moved.mobile_check = true
+	check(RECIPE.fingerprint(RECIPE.inputs(moved, synthetic("a".repeat(64), "b".repeat(64), 3, 12800, ["copy.pbf", "t1.tif", "t2.tif", "renamed.csv"]), false)) == digest,"paths, file names and check-only keys keep the fingerprint")
+	var dem_zero := recipe.duplicate(true)
+	dem_zero.dem_zero_m = 21.0
+	for changed: Array in [["PBF hash", recipe, synthetic("e".repeat(64))], ["DEM tile hash", recipe, synthetic("a".repeat(64), "f".repeat(64))], ["scale", recipe, synthetic("a".repeat(64), "b".repeat(64), 4)], ["cell size", recipe, synthetic("a".repeat(64), "b".repeat(64), 3, 6400)], ["dem_zero_m", dem_zero, document]]:
+		check(RECIPE.fingerprint(RECIPE.inputs(changed[1], changed[2], false)) != digest,changed[0]+" changes the fingerprint")
+	check(RECIPE.fingerprint(RECIPE.inputs(recipe, document, true)) != digest,"a skipped DEM changes the fingerprint")
+	check(RECIPE.source_names(document).map(func(s): return s.name) == ["N37E126.tif", "N37E127.tif", "shops.csv", "seoul.osm.pbf"],"source names follow the source order: "+str(RECIPE.source_names(document)))
+	var no_osm := document.duplicate(true)
+	no_osm.attributions = no_osm.attributions.filter(func(a): return not str(a.notice).contains("osm-extract-v1"))
+	check(RECIPE.fingerprint(RECIPE.inputs(recipe, no_osm, false)) == "" and RECIPE.fingerprint(RECIPE.inputs(recipe, {}, false)) == "","no fingerprint before OSM is adopted")
+	var code: Dictionary = RECIPE.code_identity()
+	var hex := RegEx.create_from_string("^[0-9a-f]{64}$")
+	check(hex.search(str(code.get("editor_scripts"))) != null and RECIPE.code_identity() == code and str(code.get("godot")) == Engine.get_version_info().string,"code identity: "+str(code))
+	check(RECIPE._lf(PackedByteArray([97, 13, 10, 98, 13, 99, 13])) == PackedByteArray([97, 10, 98, 13, 99, 13]),"CR LF becomes LF; lone CR stays")
 func run() -> void:
 	var base := {"version":1,"pbf":"src/a.pbf","areas":[{"name":"가상시"}],"project":"out/p","package":"/abs/m.memap"}
 	var parsed: Dictionary = RECIPE.parse(JSON.stringify(base), "/work/recipes")
@@ -81,6 +126,7 @@ func run() -> void:
 		case[0].merge({"project":"/nonexistent/p", "package":"/nonexistent/m.memap"})
 		await retry.run(case[0])
 		check(retry.calls == [0.0],"no retry: "+str(case))
+	check_inputs()
 	# Automatic choices (real_city_auto.gd).
 	check(AUTO.traffic({"code":"JP","driving_side":"","basis":"subdivision"}) == {"driving_side":"left","signal_style":"horizontal","country":"JP","basis":"subdivision"},"Japan: left, horizontal")
 	check(AUTO.traffic({"code":"NO","driving_side":"","basis":"boundary"}).driving_side == "right" and AUTO.traffic({"code":"NO"}).signal_style == "vertical","Norway: right, vertical")

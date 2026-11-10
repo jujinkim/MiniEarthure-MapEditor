@@ -21,8 +21,9 @@ func _ready() -> void:
 	if not worker and recipe >= 0: _run_recipe.call_deferred(editor, args, recipe)
 
 ## Headless real-city build: `-- --real-city-recipe recipe.json [--report out.json]`
-## runs the same steps as File → New real-city map, prints the report and quits
-## with 0 on success.
+## runs the same steps as File → New real-city map, prints the report (with the
+## `inputs`/`input_fingerprint`/`input_id` and `code` identity) and quits with 0 on
+## success.
 func _run_recipe(editor: Control, args: PackedStringArray, at: int) -> void:
 	var RECIPE := preload("./real_city_recipe.gd")
 	var path := args[at + 1] if at + 1 < args.size() else ""

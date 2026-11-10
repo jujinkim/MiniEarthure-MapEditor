@@ -175,7 +175,117 @@ func run(recipe: Dictionary) -> Dictionary:
 		_say("The extent exceeds the map limits; retrying with a %.1f km square around the place" % (side / 1000.0))
 		result = await _run(recipe, side)
 	if not attempts.is_empty(): result.attempts = attempts
+	# The `outputs` stop leaves the open document untouched (possibly the user's map).
+	if ui != null and str(result.get("failed_step", "")) != "outputs":
+		var document: Dictionary = ui.store.document
+		result.inputs = inputs(recipe, document, result.has("dem_skipped"))
+		result.source_names = source_names(document)
+		result.code = code_identity()
+		# A run that stopped before adopting OSM has no extent to tell it apart.
+		var digest := fingerprint(result.inputs)
+		if digest == "": result.input_fingerprint_reason = "no OSM adopted"
+		else:
+			result.input_fingerprint = digest
+			result.input_id = digest.left(16)
 	return result
+
+## SHA-256 of the canonical `inputs` JSON (sorted keys, full precision); "" without OSM.
+static func fingerprint(values: Dictionary) -> String:
+	if values.get("osm", []).is_empty(): return ""
+	return JSON.stringify(values, "", true, true).sha256_text()
+
+## The adopted source notices of `document` that parse to a Dictionary with an adapter.
+static func _notices(document: Dictionary) -> Array:
+	var result: Array = []
+	var json := JSON.new()  # Quiet: hand-written notices need not be JSON.
+	for attribution: Variant in document.get("attributions", []):
+		if attribution is not Dictionary or attribution.get("notice") is not String or json.parse(attribution.notice) != OK: continue
+		var notice: Variant = json.data
+		if notice is Dictionary and notice.get("adapter") is String: result.append(notice)
+	return result
+
+## [{role, name, bytes, sha256}] of the adopted OSM PBF, facility CSV and DEM tiles.
+static func _sources(notices: Array) -> Array:
+	var result: Array = []
+	for notice: Dictionary in notices:
+		var role: String = {"osm-extract-v1":"osm", "facility-csv-v1":"facilities"}.get(notice.adapter, "")
+		var files: Array = []
+		if role != "": files = [notice.get("source")]
+		elif notice.adapter == "copernicus-dem-v1":
+			role = "dem"
+			var receipt: Variant = notice.get("dem", {}).get("receipt", {}) if notice.get("dem") is Dictionary else {}
+			var tiles: Variant = receipt.get("sources", []) if receipt is Dictionary else []
+			if tiles is Array: files = tiles.map(func(t): return t.get("source") if t is Dictionary else null)
+		for file: Variant in files:
+			if file is Dictionary: result.append({"role":role, "name":str(file.get("name", "")), "bytes":int(file.get("bytes", 0)), "sha256":str(file.get("sha256", ""))})
+	result.sort_custom(func(a, b): return [a.role, a.sha256, a.name] < [b.role, b.sha256, b.name])
+	return result
+
+## What the run built from: adopted source bytes and hashes, the OSM crop and scale,
+## cell size, traffic, facility and DEM settings. Paths, file names and the check-only
+## keys (full_check, mobile_check) are left out, so the same bytes and settings give
+## the same `inputs` wherever the files live. Attribution order does not matter.
+static func inputs(recipe: Dictionary, document: Dictionary, dem_skipped: bool) -> Dictionary:
+	var notices := _notices(document)
+	var osm: Array = []
+	for notice: Dictionary in notices:
+		if notice.adapter != "osm-extract-v1": continue
+		var coordinates: Dictionary = notice.get("coordinates", {}) if notice.get("coordinates") is Dictionary else {}
+		var crop: Dictionary = coordinates.get("osm_crop", {}) if coordinates.get("osm_crop") is Dictionary else {}
+		var areas: Array = crop.get("areas", []).map(func(a): return str(a.get("source_id", "")) if a is Dictionary else "") if crop.get("areas") is Array else []
+		areas.sort()
+		var units: Dictionary = notice.get("authored_units", {}) if notice.get("authored_units") is Dictionary else {}
+		var city: Variant = coordinates.get("osm_city")
+		var block := {"crop":{"bbox":crop.get("bbox", []), "areas":areas, "shapely":crop.get("shapely", ""), "geos":crop.get("geos", "")},
+			"scale_denominator":int(city.get("scale_denominator", 0)) if city is Dictionary else int(units.get("source_denominator", 0)),
+			"units_profile":units.get("profile", "")}
+		for key in ["pyproj", "proj"]:
+			if coordinates.has(key): block[key] = coordinates[key]
+		osm.append(block)
+	osm.sort_custom(func(a, b): return JSON.stringify(a, "", true) < JSON.stringify(b, "", true))
+	var traffic: Variant = document.get("traffic")
+	var result := {"recipe_version":VERSION, "sources":_sources(notices).map(func(s): return {"role":s.role, "bytes":s.bytes, "sha256":s.sha256}), "osm":osm,
+		"cell_size_cm":int(document.get("cell_size_cm", 0)),
+		"traffic":{"driving_side":traffic.get("driving_side", ""), "signal_style":traffic.get("signal_style", "")} if traffic is Dictionary else {}}
+	var facilities: Variant = recipe.get("facilities")
+	if facilities is Dictionary:
+		var settings := {"encoding":"utf-8", "category":"", "source_url":"", "accuracy":"unknown"}
+		settings.merge(facilities, true)
+		settings.erase("csv")
+		result.facilities = settings
+	if recipe.has("dem"): result.dem = {"zero_m":float(recipe.get("dem_zero_m", 0)), "skipped":dem_skipped}
+	return result
+
+## Display names of the fingerprinted sources, in `inputs.sources` order; not hashed.
+static func source_names(document: Dictionary) -> Array:
+	return _sources(_notices(document)).map(func(s): return {"role":s.role, "name":s.name, "sha256":s.sha256})
+
+static var _code := {}
+
+## Which code ran, apart from the input fingerprint. `editor_scripts` hashes
+## res://scripts/*.gd and res://scripts/importers/*.py with the framing of the root
+## scripts/implementation_fingerprint.py (sorted relative names, CRLF → LF, 8-byte
+## little-endian length + bytes for name and content). It does not cover MapKit
+## native generation or Python packages; an exported build hashes its own files.
+static func code_identity() -> Dictionary:
+	if not _code.is_empty(): return _code.duplicate()
+	var names: Array = []
+	for folder: Array in [["scripts", "gd"], ["scripts/importers", "py"]]:
+		for file: String in DirAccess.get_files_at("res://" + folder[0]):
+			if file.get_extension() == folder[1]: names.append(folder[0] + "/" + file)
+	names.sort()
+	var hashing := HashingContext.new()
+	hashing.start(HashingContext.HASH_SHA256)
+	for name: String in names:
+		var content := _lf(FileAccess.get_file_as_bytes("res://" + name))
+		for value: PackedByteArray in [name.to_utf8_buffer(), content]:
+			var length := PackedByteArray()
+			length.resize(8)
+			length.encode_u64(0, value.size())
+			hashing.update(length)
+			hashing.update(value)
+	_code = {"editor_scripts":hashing.finish().hex_encode(), "godot":Engine.get_version_info().string}
+	return _code.duplicate()
 
 ## A failure a smaller extent can fix: a package or game limit in the steps above.
 func _over_limit(result: Dictionary) -> bool:
@@ -329,3 +439,11 @@ func _run(recipe: Dictionary, side_m: float) -> Dictionary:
 	report.seconds = (Time.get_ticks_msec() - started) / 1000.0
 	report.status = _status()
 	return report
+
+## The bytes with every CR LF pair turned into LF.
+static func _lf(bytes: PackedByteArray) -> PackedByteArray:
+	if not bytes.has(13): return bytes
+	var result := PackedByteArray()
+	for i in bytes.size():
+		if bytes[i] != 13 or i + 1 >= bytes.size() or bytes[i + 1] != 10: result.append(bytes[i])
+	return result
