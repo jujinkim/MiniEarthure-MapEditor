@@ -19,6 +19,10 @@ NON_DISPLAY.update({
     "the map keeps its flat terrain": "DEM fit failure matcher",
     "^(?:Limit warning: )?(.+) \\((\\d{1,15}) > (\\d{1,15})\\)(; the game refuses maps beyond this)?$": "limit warning text parser",
 })
+NON_DISPLAY.update({key: "headless real-city recipe report.json field" for key in (
+    "A job is still running; the outputs keep their paths", "Cannot keep the earlier attempt's ", "Cannot keep the failed run's ",
+    "MapKitBridge is not registered", "The project folder holds the recipe or report; it keeps its path", "cannot read ",
+    "no OSM adopted", "the loaded MapKit library has no build_fingerprint")})
 NON_DISPLAY.update({key: "MapKit per-cell budget error matcher" for key in ("chunk triangle budget", "occupancy limit", "occupied solid budget", "road local ", "road sampling limit", "road subdivision work", "sidewalk fragments", "courtyard topology", "water shoreline work")})
 def unique(pairs):
     result = {}
