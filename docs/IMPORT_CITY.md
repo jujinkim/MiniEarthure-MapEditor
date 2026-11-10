@@ -42,17 +42,19 @@ the map flat and the build continues (`dem_skipped` in the report). The report r
 - `code`: `editor_scripts`, the SHA-256 of `scripts/*.gd` and
   `scripts/importers/*.py` with the framing of the root
   `scripts/implementation_fingerprint.py` (sorted relative names, CRLF → LF, 8-byte
-  little-endian length before each name and content), and the `godot` version.
-  It does not cover MapKit native generation or Python packages other than the
-  versions in `inputs`. An exported Editor holds tokenized `scripts/*.gdc` instead
-  of `.gd` and hashes those bytes, so its digest differs from a source checkout. A
-  script that cannot be read leaves `editor_scripts` empty with
-  `editor_scripts_reason`.
+  little-endian length before each name and content), the `godot` version, and
+  `mapkit`, the loaded MapKit library's build fingerprint
+  (`MapKitBridge.build_fingerprint()`: MapKit Rust sources, schemas and Cargo
+  files; empty with `mapkit_reason` if the library has no such method). Python
+  packages other than the versions in `inputs` are not covered. An exported Editor
+  holds tokenized `scripts/*.gdc` instead of `.gd` and hashes those bytes, so its
+  digest differs from a source checkout. A script that cannot be read leaves
+  `editor_scripts` empty with `editor_scripts_reason`.
 
 The same `input_fingerprint` tells runs from the same sources and settings apart
-from runs with other inputs; compare `code` to see whether the Editor code
-changed. A MapKit-only change keeps both `input_fingerprint` and `editor_scripts`
-and shows only as a different `package_sha256`. Reruns of one recipe usually
+from runs with other inputs; compare `code` to see whether the Editor or MapKit
+code changed. A MapKit native change keeps `input_fingerprint` and
+`editor_scripts` and shows in `code.mapkit`. Reruns of one recipe usually
 differ by code, not by input, so the fingerprint does not name run folders. The
 wizard saves its settings as a recipe. Recommended: 1:3, 128 m cells, one district.
 

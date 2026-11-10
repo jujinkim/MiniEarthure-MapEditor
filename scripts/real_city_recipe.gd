@@ -269,9 +269,11 @@ static var _code := {}
 ## res://scripts/*.gd and res://scripts/importers/*.py with the framing of the root
 ## scripts/implementation_fingerprint.py. An exported build (script_export_mode 2)
 ## holds tokenized scripts/*.gdc instead of .gd; those bytes are hashed as they are,
-## so its digest differs from a source checkout. It does not cover MapKit native
-## generation or Python packages. A file that cannot be read leaves `editor_scripts`
-## empty with an `editor_scripts_reason`.
+## so its digest differs from a source checkout. `mapkit` is the loaded MapKit
+## library's build fingerprint (its Rust sources, schemas and Cargo files), empty
+## with a `mapkit_reason` when the library has none. Python packages are not
+## covered. A file that cannot be read leaves `editor_scripts` empty with an
+## `editor_scripts_reason`.
 static func code_identity() -> Dictionary:
 	if not _code.is_empty(): return _code.duplicate()
 	var files: Array = []
@@ -284,7 +286,11 @@ static func code_identity() -> Dictionary:
 			if FileAccess.get_open_error() != OK and unreadable == "": unreadable = name
 			# Tokenized .gdc is binary: only text gets CRLF → LF.
 			files.append([name, bytes if file.get_extension() == "gdc" else _lf(bytes)])
-	_code = {"editor_scripts":digest_files(files), "godot":Engine.get_version_info().string}
+	_code = {"editor_scripts":digest_files(files), "godot":Engine.get_version_info().string, "mapkit":""}
+	# A library built before the getter would stop the run with a script error.
+	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
+	if bridge != null and bridge.has_method("build_fingerprint"): _code.mapkit = str(bridge.build_fingerprint())
+	else: _code.mapkit_reason = "the loaded MapKit library has no build_fingerprint"
 	if unreadable != "":
 		_code.editor_scripts = ""
 		_code.editor_scripts_reason = "cannot read " + unreadable

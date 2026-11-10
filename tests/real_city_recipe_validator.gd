@@ -68,6 +68,8 @@ func check_inputs() -> void:
 	var code: Dictionary = RECIPE.code_identity()
 	var hex := RegEx.create_from_string("^[0-9a-f]{64}$")
 	check(hex.search(str(code.get("editor_scripts"))) != null and RECIPE.code_identity() == code and str(code.get("godot")) == Engine.get_version_info().string,"code identity: "+str(code))
+	var bridge: RefCounted = ClassDB.instantiate("MapKitBridge")
+	check(hex.search(str(code.get("mapkit"))) != null and not code.has("mapkit_reason") and code.mapkit == str(bridge.build_fingerprint()),"code.mapkit is the loaded MapKit build fingerprint: "+str(code))
 	# Reference: hashlib with the implementation_fingerprint.py framing; an empty file is framed, not skipped.
 	check(RECIPE.digest_files([["b.py", PackedByteArray()], ["a.gd", "x\n".to_utf8_buffer()]]) == "4bf1c6c10c9c11e3b1adf837e7c252d9b685ec93fa8c8d11aee42c3df7aa6d42","empty file digest matches hashlib")
 	check(RECIPE._lf(PackedByteArray([97, 13, 10, 98, 13, 99, 13])) == PackedByteArray([97, 10, 98, 13, 99, 13]),"CR LF becomes LF; lone CR stays")
