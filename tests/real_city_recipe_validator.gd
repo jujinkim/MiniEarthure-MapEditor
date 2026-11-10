@@ -72,6 +72,28 @@ func check_set_aside() -> void:
 	report = {"ok":false, "failed_step":"areas"}
 	runner.set_aside_failed({"project":scratch.path_join("fail/none"), "package":scratch.path_join("fail/none.memap")}, report)
 	check(not report.has("failed_outputs") and not report.has("set_aside_error"),"no outputs, nothing recorded: "+str(report))
+	# A project folder that already existed and was never saved into keeps its name.
+	var before := scratch.path_join("fail/before")
+	DirAccess.make_dir_recursive_absolute(before)
+	report = {"ok":false, "failed_step":"areas"}
+	runner.set_aside_failed({"project":before, "package":scratch.path_join("fail/before.memap")}, report)
+	check(DirAccess.dir_exists_absolute(before) and not DirAccess.dir_exists_absolute(before + "-failed") and not report.has("failed_outputs") and not report.has("set_aside_error"),"an existing unsaved project folder is not renamed: "+str(report))
+	# A package inside the project folder is renamed before the folder moves.
+	var nested := scratch.path_join("fail/nested")
+	DirAccess.make_dir_recursive_absolute(nested)
+	FileAccess.open(nested.path_join("document.json"), FileAccess.WRITE).store_string("{}")
+	FileAccess.open(nested.path_join("city.memap"), FileAccess.WRITE).store_string("pkg")
+	report = {"ok":false, "failed_step":"export"}
+	runner.set_aside_failed({"project":nested, "package":nested.path_join("city.memap")}, report)
+	check(report.get("failed_outputs") == {"project":nested + "-failed", "package":nested + "-failed/city.memap-failed"} and not report.has("set_aside_error") and FileAccess.get_file_as_string(nested + "-failed/city.memap-failed") == "pkg" and not FileAccess.file_exists(nested + "-failed/city.memap"),"a nested package loses the success name: "+str(report))
+	# A project folder that holds the recipe or report keeps its path; the package still moves.
+	var home := scratch.path_join("fail/home")
+	DirAccess.make_dir_recursive_absolute(home)
+	FileAccess.open(home.path_join("document.json"), FileAccess.WRITE).store_string("{}")
+	FileAccess.open(home.path_join("city.memap"), FileAccess.WRITE).store_string("pkg")
+	report = {"ok":false, "failed_step":"export"}
+	runner.set_aside_failed({"project":home, "package":home.path_join("city.memap")}, report, [home.path_join("recipe.json"), ""])
+	check(report.get("failed_outputs") == {"package":home.path_join("city.memap-failed")} and str(report.get("set_aside_error")).contains("recipe or report") and FileAccess.file_exists(home.path_join("document.json")) and not DirAccess.dir_exists_absolute(home + "-failed"),"a project folder holding the recipe keeps its path: "+str(report))
 ## The recipe report's input fingerprint and code identity (real_city_recipe.gd).
 func check_inputs() -> void:
 	var recipe := {"version":1, "pbf":"/home/u/src/seoul.osm.pbf", "areas":[{"name":"a"}], "project":"/home/u/out/p", "package":"/home/u/out/m.memap", "python":"/home/u/.venv/bin/python",

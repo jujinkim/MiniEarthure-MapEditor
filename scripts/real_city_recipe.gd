@@ -188,13 +188,14 @@ func run(recipe: Dictionary) -> Dictionary:
 	return result
 
 ## Renames the recipe's existing project folder and package to `<path><suffix>`; never
-## deletes. Returns {project?, package?} of the new paths. An existing target moves
-## nothing and gives {error}; a failed rename adds {error} to the renames before it.
+## deletes. The package moves first, so one inside the project folder is renamed too.
+## Returns {project?, package?} of the new paths. An existing target moves nothing and
+## gives {error}; a failed rename adds {error} to the renames before it.
 func _set_aside(recipe: Dictionary, suffix: String) -> Dictionary:
 	var moves: Array = []
-	for key: String in ["project", "package"]:
+	for key: String in ["package", "project"]:
 		var path := str(recipe[key])
-		if not (DirAccess.dir_exists_absolute(path) or FileAccess.file_exists(path)): continue
+		if path == "" or not (DirAccess.dir_exists_absolute(path) or FileAccess.file_exists(path)): continue
 		var target := path.trim_suffix("/") + suffix
 		if DirAccess.dir_exists_absolute(target) or FileAccess.file_exists(target): return {"error":"%s at %s" % [key, target]}
 		moves.append([key, path, target])
@@ -204,6 +205,10 @@ func _set_aside(recipe: Dictionary, suffix: String) -> Dictionary:
 			kept.error = "%s at %s" % [move[0], move[2]]
 			break
 		kept[move[0]] = move[2]
+	# A package inside the project folder now sits under the renamed folder.
+	var inside := str(recipe.project).trim_suffix("/") + "/"
+	if kept.has("project") and str(kept.get("package", "")).begins_with(inside):
+		kept.package = str(kept.project) + "/" + str(kept.package).trim_prefix(inside)
 	return kept
 
 ## Headless runs only: a failed run's project and package move to `<project>-failed`
@@ -211,15 +216,27 @@ func _set_aside(recipe: Dictionary, suffix: String) -> Dictionary:
 ## keeps the success name. Records `failed_outputs` and/or `set_aside_error`. An
 ## `outputs` stop belongs to an earlier run and is left alone; while a job still runs
 ## (a step that timed out) it could write the success path again, so nothing moves.
-func set_aside_failed(recipe: Dictionary, result: Dictionary) -> void:
+## The project folder moves only once this run saved its `document.json` there (the
+## `outputs` guard refuses one that was there before), so a folder that already
+## existed stays put; one that is or holds a `keep` path (the recipe and report
+## files) keeps its path too.
+func set_aside_failed(recipe: Dictionary, result: Dictionary, keep: PackedStringArray = []) -> void:
 	if result.get("ok", false) or str(result.get("failed_step", "")) == "outputs": return
 	if _busy():
 		result.set_aside_error = "A job is still running; the outputs keep their paths"
 		return
-	var kept := _set_aside(recipe, "-failed")
+	var outputs := recipe.duplicate()
+	var project := str(recipe.project).simplify_path()
+	var errors: Array = []
+	if not FileAccess.file_exists(project.path_join("document.json")): outputs.project = ""
+	elif Array(keep).any(func(path: String) -> bool: return path != "" and (path.simplify_path() == project or path.simplify_path().begins_with(project.trim_suffix("/") + "/"))):
+		outputs.project = ""
+		errors.append("The project folder holds the recipe or report; it keeps its path")
+	var kept := _set_aside(outputs, "-failed")
 	if kept.has("error"):
-		result.set_aside_error = "Cannot keep the failed run's " + str(kept.error)
+		errors.append("Cannot keep the failed run's " + str(kept.error))
 		kept.erase("error")
+	if not errors.is_empty(): result.set_aside_error = "; ".join(errors)
 	if not kept.is_empty(): result.failed_outputs = kept
 
 ## SHA-256 of the canonical `inputs` JSON (sorted keys, full precision); "" without OSM.

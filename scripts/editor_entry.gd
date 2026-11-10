@@ -38,7 +38,7 @@ func _run_recipe(editor: Control, args: PackedStringArray, at: int) -> void:
 		var runner: RefCounted = RECIPE.new(editor, func(text: String): print("REAL_CITY ", text))
 		report = await runner.run(parsed.recipe)
 		editor.store.dirty = false
-		if not report.get("ok", false): runner.set_aside_failed(parsed.recipe, report)
+		if not report.get("ok", false): runner.set_aside_failed(parsed.recipe, report, [path, report_path])
 	var text := JSON.stringify(report, "  ")
 	print("REAL_CITY_REPORT ", text)
 	if report_path != "":

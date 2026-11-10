@@ -60,13 +60,16 @@ differ by code, not by input, so the fingerprint does not name run folders. The
 wizard saves its settings as a recipe. Recommended: 1:3, 128 m cells, one district.
 
 A failed headless run sets its outputs aside before it quits
-(`set_aside_failed`): the `project` folder is renamed `<project>-failed` and the
-package `<package>-failed` (`.memap-failed`, outside the `*.memap` file filter),
-listed in the report's `failed_outputs`. Nothing is deleted. A stop at `outputs`
-(an earlier run's files) moves nothing. A step that timed out with its job still
-running, or an existing `-failed` target for either output, moves neither and
-records `set_aside_error`. Only those two paths are renamed; the folder around
-them, the recipe and the report keep their names. The wizard keeps a failed map
+(`set_aside_failed`): the package is renamed `<package>-failed` (`.memap-failed`,
+outside the `*.memap` file filter) and then the `project` folder
+`<project>-failed`, listed in the report's `failed_outputs`. Nothing is deleted.
+The project moves only once the run saved its `document.json` there, so a folder
+that already existed keeps its name after an earlier stop; a project folder that
+is or holds the recipe or report keeps its path and records `set_aside_error`.
+A stop at `outputs` (an earlier run's files) moves nothing. A step that timed out
+with its job still running, or an existing `-failed` target for either output,
+moves neither and records `set_aside_error`. Only those two paths are renamed;
+the folder around them, the recipe and the report keep their names. The wizard keeps a failed map
 open under its paths so it can be fixed and retried.
 
 ### Automatic extent and traffic
