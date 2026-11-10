@@ -323,9 +323,11 @@ remainder so lattice points are whole map centimetres.
   storey on commercial buildings (door, mullioned display windows and a fascia
   sign per slot) with whole storeys fitted below the eaves (a commercial solid of
   L ≥ 3 whole levels shows the shop storey and L − 2 taller storeys, two levels a plain
-  parapet), and a record palette (one site and category shares
-  its wall body, roof colour, pane pattern and, for apartment complexes, accent
-  columns and base storey) that the distant mesh keeps at every distance
+  parapet), and a record palette (one site and category shares its wall
+  finish, glass, signs and, for apartment complexes, accent columns and base
+  storey; each solid's wall body, roof colour, pane pattern and bay follow its
+  look, the record's or, for the key's `own_share` of solids, its own) that the
+  distant mesh keeps at every distance
   ([MapKit materials](../addons/mapkit/docs/RICHER_MATERIALS.md)).
 - Levels (0–64 m) set the simplification: lines ≤ level/4 (at most 4 m), areas ≤
   level/4 (at most 8 m), buildings ≤ level/4 (at most 1 m). A level repeating the
