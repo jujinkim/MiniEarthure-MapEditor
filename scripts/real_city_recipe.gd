@@ -92,7 +92,7 @@ func _wait(condition: Callable, limit_ms: int) -> void:
 		await ui.get_tree().process_frame
 
 func _busy() -> bool:
-	return ui.busy or ui.store.editing_locked()
+	return ui != null and (ui.busy or ui.store.editing_locked())
 
 func _rejects() -> bool:
 	return ui.store.limit_warnings.any(func(e): return e is Dictionary and bool(e.get("runtime_rejects", false)))
@@ -163,16 +163,12 @@ func run(recipe: Dictionary) -> Dictionary:
 		if side < MIN_SIDE_M: break
 		var attempt := {"failed_step":result.failed_step, "status":result.get("status", ""), "extent":extent}
 		# Each attempt's own project and package are kept beside the next one's.
-		for key in ["project", "package"]:
-			var path := str(recipe[key])
-			if not (DirAccess.dir_exists_absolute(path) or FileAccess.file_exists(path)): continue
-			var kept := path.trim_suffix("/") + "-attempt-%d" % (attempts.size() + 1)
-			if DirAccess.dir_exists_absolute(kept) or FileAccess.file_exists(kept) or DirAccess.rename_absolute(path, kept) != OK:
-				result.error = "Cannot keep the earlier attempt's %s at %s" % [key, kept]
-				stuck = true
-				break
-			attempt[key] = kept
-		if stuck: break
+		var kept := _set_aside(recipe, "-attempt-%d" % (attempts.size() + 1))
+		if kept.has("error"):
+			result.error = "Cannot keep the earlier attempt's " + str(kept.error)
+			stuck = true
+			break
+		attempt.merge(kept)
 		attempts.append(attempt)
 		_say("The extent exceeds the map limits; retrying with a %.1f km square around the place" % (side / 1000.0))
 		result = await _run(recipe, side)
@@ -190,6 +186,41 @@ func run(recipe: Dictionary) -> Dictionary:
 			result.input_fingerprint = digest
 			result.input_id = digest.left(16)
 	return result
+
+## Renames the recipe's existing project folder and package to `<path><suffix>`; never
+## deletes. Returns {project?, package?} of the new paths. An existing target moves
+## nothing and gives {error}; a failed rename adds {error} to the renames before it.
+func _set_aside(recipe: Dictionary, suffix: String) -> Dictionary:
+	var moves: Array = []
+	for key: String in ["project", "package"]:
+		var path := str(recipe[key])
+		if not (DirAccess.dir_exists_absolute(path) or FileAccess.file_exists(path)): continue
+		var target := path.trim_suffix("/") + suffix
+		if DirAccess.dir_exists_absolute(target) or FileAccess.file_exists(target): return {"error":"%s at %s" % [key, target]}
+		moves.append([key, path, target])
+	var kept := {}
+	for move: Array in moves:
+		if DirAccess.rename_absolute(move[1], move[2]) != OK:
+			kept.error = "%s at %s" % [move[0], move[2]]
+			break
+		kept[move[0]] = move[2]
+	return kept
+
+## Headless runs only: a failed run's project and package move to `<project>-failed`
+## and `<package>-failed` (`.memap-failed`, outside the `*.memap` filter), so no output
+## keeps the success name. Records `failed_outputs` and/or `set_aside_error`. An
+## `outputs` stop belongs to an earlier run and is left alone; while a job still runs
+## (a step that timed out) it could write the success path again, so nothing moves.
+func set_aside_failed(recipe: Dictionary, result: Dictionary) -> void:
+	if result.get("ok", false) or str(result.get("failed_step", "")) == "outputs": return
+	if _busy():
+		result.set_aside_error = "A job is still running; the outputs keep their paths"
+		return
+	var kept := _set_aside(recipe, "-failed")
+	if kept.has("error"):
+		result.set_aside_error = "Cannot keep the failed run's " + str(kept.error)
+		kept.erase("error")
+	if not kept.is_empty(): result.failed_outputs = kept
 
 ## SHA-256 of the canonical `inputs` JSON (sorted keys, full precision); "" without OSM.
 static func fingerprint(values: Dictionary) -> String:

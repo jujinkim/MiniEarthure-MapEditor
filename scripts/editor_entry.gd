@@ -23,7 +23,8 @@ func _ready() -> void:
 ## Headless real-city build: `-- --real-city-recipe recipe.json [--report out.json]`
 ## runs the same steps as File → New real-city map, prints the report (with the
 ## `inputs`/`input_fingerprint`/`input_id` and `code` identity) and quits with 0 on
-## success.
+## success. A failed run's project and package are renamed `-failed` first
+## (`set_aside_failed`); the File menu wizard keeps them open under their paths.
 func _run_recipe(editor: Control, args: PackedStringArray, at: int) -> void:
 	var RECIPE := preload("./real_city_recipe.gd")
 	var path := args[at + 1] if at + 1 < args.size() else ""
@@ -37,6 +38,7 @@ func _run_recipe(editor: Control, args: PackedStringArray, at: int) -> void:
 		var runner: RefCounted = RECIPE.new(editor, func(text: String): print("REAL_CITY ", text))
 		report = await runner.run(parsed.recipe)
 		editor.store.dirty = false
+		if not report.get("ok", false): runner.set_aside_failed(parsed.recipe, report)
 	var text := JSON.stringify(report, "  ")
 	print("REAL_CITY_REPORT ", text)
 	if report_path != "":

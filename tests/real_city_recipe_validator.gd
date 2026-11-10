@@ -1,7 +1,8 @@
 extends SceneTree
 ## Real-city recipe v1: parsing (areas or bbox), relative paths, wizard round trip and area lookup
 ## through the PBF place search (synthetic fixture), including an ambiguous area stop, and the
-## report's input fingerprint and code identity over a synthetic adopted document.
+## report's input fingerprint and code identity over a synthetic adopted document, and the
+## -failed set-aside of a failed headless run's outputs.
 const SCRATCH := preload("res://tests/validator_scratch.gd")
 const UI := preload("res://scripts/editor_main.gd")
 const RECIPE := preload("res://scripts/real_city_recipe.gd")
@@ -17,6 +18,9 @@ class Retry extends "res://scripts/real_city_recipe.gd":
 	func _run(_recipe: Dictionary, side_m: float) -> Dictionary:
 		calls.append(side_m)
 		return answers[calls.size() - 1].duplicate(true)
+## A job that is still running after its step timed out.
+class Busy extends "res://scripts/real_city_recipe.gd":
+	func _busy() -> bool: return true
 func check(ok: bool, message: String) -> void:
 	if not ok: failed=true; push_error(message)
 func _initialize() -> void: run.call_deferred()
@@ -31,6 +35,43 @@ func synthetic(pbf_sha := "a".repeat(64), tile_sha := "b".repeat(64), scale := 3
 	attributions.append({"source":"hand", "license":"own", "notice":"not json"})
 	attributions.append({"source":"hand", "license":"own", "notice":"[1]"})
 	return {"cell_size_cm":cell_cm, "traffic":{"driving_side":"right", "signal_style":"horizontal", "basis":"boundary"}, "attributions":attributions}
+## A failed headless run's outputs are renamed `-failed`, never deleted (set_aside_failed).
+func check_set_aside() -> void:
+	var project := scratch.path_join("fail/project")
+	var package := scratch.path_join("fail/export/city.memap")
+	var outputs := func() -> void:
+		DirAccess.make_dir_recursive_absolute(project)
+		DirAccess.make_dir_recursive_absolute(package.get_base_dir())
+		FileAccess.open(project.path_join("document.json"), FileAccess.WRITE).store_string("{}")
+		FileAccess.open(package, FileAccess.WRITE).store_string("pkg")
+	var both_kept := func() -> bool: return FileAccess.file_exists(project.path_join("document.json")) and FileAccess.file_exists(package)
+	var recipe := {"project":project, "package":package}
+	outputs.call()
+	var runner: RefCounted = RECIPE.new(null)
+	var report := {"ok":false, "failed_step":"dem_review"}
+	runner.set_aside_failed(recipe, report)
+	check(report.get("failed_outputs") == {"project":project + "-failed", "package":package + "-failed"} and not report.has("set_aside_error"),"a failed run records its set-aside outputs: "+str(report))
+	check(FileAccess.file_exists(project + "-failed/document.json") and FileAccess.get_file_as_string(package + "-failed") == "pkg" and not DirAccess.dir_exists_absolute(project) and not FileAccess.file_exists(package),"the project and package are renamed -failed with their contents")
+	# Only the project exists (a DEM step failure): only it moves.
+	DirAccess.make_dir_recursive_absolute(project)
+	FileAccess.open(project.path_join("document.json"), FileAccess.WRITE).store_string("{}")
+	report = {"ok":false, "failed_step":"dem_plan"}
+	runner.set_aside_failed(recipe, report)
+	check(str(report.get("set_aside_error")).contains(project + "-failed") and not report.has("failed_outputs") and FileAccess.file_exists(project.path_join("document.json")),"an existing -failed target refuses and keeps the output: "+str(report))
+	DirAccess.remove_absolute(project.path_join("document.json")); DirAccess.remove_absolute(project)
+	# An existing package target moves nothing, not even the project.
+	outputs.call()
+	DirAccess.remove_absolute(project + "-failed/document.json"); DirAccess.remove_absolute(project + "-failed")
+	report = {"ok":false, "failed_step":"export_limits"}
+	runner.set_aside_failed(recipe, report)
+	check(str(report.get("set_aside_error")).contains(package + "-failed") and not report.has("failed_outputs") and both_kept.call() and not DirAccess.dir_exists_absolute(project + "-failed"),"an existing package target keeps both outputs: "+str(report))
+	for kept: Array in [[{"ok":false, "failed_step":"outputs"}, runner, "an outputs stop renames nothing"], [{"ok":true}, runner, "a successful run renames nothing"], [{"ok":false, "failed_step":"dem_acquire"}, Busy.new(null), "a running job renames nothing"]]:
+		var stopped: Dictionary = kept[0]
+		kept[1].set_aside_failed(recipe, stopped)
+		check(both_kept.call() and not stopped.has("failed_outputs") and stopped.has("set_aside_error") == (kept[1] is Busy),kept[2]+": "+str(stopped))
+	report = {"ok":false, "failed_step":"areas"}
+	runner.set_aside_failed({"project":scratch.path_join("fail/none"), "package":scratch.path_join("fail/none.memap")}, report)
+	check(not report.has("failed_outputs") and not report.has("set_aside_error"),"no outputs, nothing recorded: "+str(report))
 ## The recipe report's input fingerprint and code identity (real_city_recipe.gd).
 func check_inputs() -> void:
 	var recipe := {"version":1, "pbf":"/home/u/src/seoul.osm.pbf", "areas":[{"name":"a"}], "project":"/home/u/out/p", "package":"/home/u/out/m.memap", "python":"/home/u/.venv/bin/python",
@@ -135,6 +176,7 @@ func run() -> void:
 		case[0].merge({"project":"/nonexistent/p", "package":"/nonexistent/m.memap"})
 		await retry.run(case[0])
 		check(retry.calls == [0.0],"no retry: "+str(case))
+	check_set_aside()
 	check_inputs()
 	# Automatic choices (real_city_auto.gd).
 	check(AUTO.traffic({"code":"JP","driving_side":"","basis":"subdivision"}) == {"driving_side":"left","signal_style":"horizontal","country":"JP","basis":"subdivision"},"Japan: left, horizontal")
