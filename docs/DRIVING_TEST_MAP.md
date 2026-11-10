@@ -89,17 +89,26 @@ refreshed explicitly: generator-backed maps (`driving`, `fleet-playground`,
 generator output; earlier generations without a generator (`physics-test-v1`,
 `driving-school-v1`, `-v2`, `world-themes-atmosphere/*`) only gained the field
 (`true` for the physics lineage, otherwise `false`). Their packages and locks were
-re-exported. `driving-school`, `-v3`…`v5`, `-recipe9` and `-atmosphere` still lack
-the field and do not open: they predate the current road corridor, automatic rail
-and structural-junction rules, so the town needs re-authoring first.
+re-exported. The current Driving School Town was regenerated for the current
+MapKit rules (below). `driving-school-v3`…`v5`, `-recipe9` and `-atmosphere` still
+lack the field and do not open: they predate the road corridor, automatic deck
+rail and structural-junction rules and have no reproducing generator.
 
 **Driving School Town** (`examples/driving-school/`, `examples/driving-school.memap`,
 profile `driving-school-town-v6`) is a 576 × 192 m town at 1:1 with 432 cells of
-16 m, 622 roads and 786 buildings: western practice courses, a Korean district and a
+16 m, 624 roads and 665 buildings: western practice courses, a Korean district and a
 high-rise district. `driving.json` holds the sixteen start locations and ten routes
 (school perimeter, license, technical, slalom, skidpad, straight, hairpins and three
 kart courses studying Village layouts, using round [cylinder walls](AUTHORING.md#cylinder-walls)).
 `overview.svg`, `village-freeway.svg` and `village-finger.svg` show the layout.
+Town buildings keep a 12 cm setback from every road edge, plus the 20 cm deck
+rail outset beside elevated roads and bridges, whose rails MapKit generates; only
+ground kart sections carry authored rails. Freeway deck corners use one 115 m
+authoring radius tangent to their straights, so every vertex mouth of the 5 m deck
+clears; expanded corners are resampled on the exact circle. Six highway piers are
+collision assets (a placement may stand 1 cm below a deck; a building needs
+50 cm). At the wrist the bridge keeps a level third, the thumb branches from a
+ground junction and only a level plaza meets the clock-tower tunnel.
 Reproduce with Shapely 2.1.2 (not an Editor runtime dependency):
 
 ```sh

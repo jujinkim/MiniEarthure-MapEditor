@@ -141,17 +141,21 @@ def freeway(t):
     c.turn("highway-entry",3940,3350,70,180,270,height=20)
     c.line("highway-kink",(4010,20,3280),(4050,20,3330))
     c.line("highway-straight",(4700,20,3330))
-    c.turn("highway-exit",4700,3430,100,-90,0,height=20)
-    c.line("upper-approach",(4800,20,3750))
-    c.turn("upper-left",4880,3750,80,180,90,height=20)
-    c.line("upper-link",(5070,20,3830))
-    c.turn("upper-right",5070,3750,80,90,0,height=20)
-    c.line("hairpin-approach",(5150,20,3600))
-    c.turn("upper-hairpin",5230,3600,80,180,360,height=20,solid=True)
-    c.line("hairpin-exit",(5310,20,3900))
-    c.turn("exit-left",5390,3900,80,180,90,height=20)
-    c.line("exit-link",(5460,20,3980))
-    c.turn("descent-entry",5460,4060,80,-90,0,height=20)
+    # Deck corners use one 115 m radius, tangent to their straights: at the
+    # compact scale this clears every vertex mouth of the 5 m elevated deck
+    # (MapKit structural junction rule) without widening corners afterwards.
+    deck=115
+    c.turn("highway-exit",4700,3330+deck,deck,-90,0,height=20)
+    c.line("upper-approach",(4700+deck,20,3750))
+    c.turn("upper-left",4700+2*deck,3750,deck,180,90,height=20)
+    c.line("upper-link",(4950,20,3750+deck))
+    c.turn("upper-right",4950,3750,deck,90,0,height=20)
+    c.line("hairpin-approach",(4950+deck,20,3600))
+    c.turn("upper-hairpin",4950+2*deck,3600,deck,180,360,height=20,solid=True)
+    c.line("hairpin-exit",(4950+3*deck,20,3830))
+    c.turn("exit-left",4950+4*deck,3830,deck,180,90,height=20)
+    c.line("exit-link",(5540-deck,20,3830+deck))
+    c.turn("descent-entry",5540-deck,3830+2*deck,deck,-90,0,height=20)
     # The outward dogleg leads into the signature downhill and last Z corners.
     c.line("descent",(5540,20,4080),(5540,0,4400),(5540,0,4420))
     c.turn("last-right",5500,4420,40,0,90)
@@ -169,8 +173,11 @@ def freeway(t):
     c.walls()
     t.building("kart-freeway-grandstand",4200,4140,600,70,12,"public")
     t.building("kart-freeway-paddock",3410,4080,170,90,10,"industrial")
-    for i,x in enumerate(range(4110,4700,100)):
-        t.building(f"kart-freeway-pier-{i}",x,3306,5,5,18,"industrial")
+    # Deck piers are collision assets: MapKit lets a placement stand below an
+    # elevated deck (1 cm gap), while a building needs 50 cm of roof clearance.
+    from driving_school_map import box
+    t.asset("kart-freeway-pier",[(box((0,9.5,0),(5,19,5)),(0.62,0.6,0.56,1))],(4110,0,3330))
+    for i,x in enumerate(range(4210,4700,100)): t.place(f"kart-freeway-pier-{i+1}","kart-freeway-pier",(x,0,3330))
     t.location("kart-entry","고가의 질주 / 출발",(3750,0,4030),"kart-freeway-start","원형 광장 → 진입 램프 → 고가 직선 → 헤어핀 → 내리막 → Z자",180)
     t.location("kart-highway","고가의 질주 / 고가 직선",(4200,20,3330),"kart-freeway-highway-straight","높이 20m, 길이 650m의 고가 직선",-90)
     t.location("kart-downhill","고가의 질주 / 내리막",(5540,10,4240),"kart-freeway-descent","6.25% 내리막 뒤 감속과 Z자",0)

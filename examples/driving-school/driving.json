@@ -15,25 +15,25 @@
   "cell_size_cm": 1600,
   "cell_count": 432,
   "counts": {
-    "nodes": 399,
-    "roads": 622,
-    "buildings": 786,
+    "nodes": 401,
+    "roads": 624,
+    "buildings": 665,
     "zones": 37,
-    "assets": 31,
-    "placements": 1316,
+    "assets": 32,
+    "placements": 1322,
     "repetitions": 0,
     "heightmaps": 432
   },
-  "authored_object_count": 3623,
-  "road_centerline_planar_m": 9719.337764,
-  "road_centerline_spatial_m": 9719.442828,
+  "authored_object_count": 3513,
+  "road_centerline_planar_m": 9714.581546,
+  "road_centerline_spatial_m": 9714.68191,
   "terrain": {
     "description": "exact synthetic flat PNG16, 4m grid; compact practice hill, elevated freeway and two vehicle-clearance bridges",
     "spacing_cm": 400,
     "source_accuracy_cm": null
   },
   "source_files": {
-    "document.json": "d17761ab685a915c3102f2308ba3d878611bc70b251a3de65e2d3ecc5bc6912c",
+    "document.json": "20113b71ad4c0ac6c9f0a92cfc7b3ce29ef918cc2c5682b7756d81032c5cbaf5",
     "assets/city-bench.glb": "3689eb6cc7957f86e35f89e5bfc590f74eb6085ae7b187c24edfc3cb96b88eab",
     "assets/city-bin.glb": "396edb1d0c6421cc013a41c2091731b54a92088dcd7f9b3831c953d8d6c1a29b",
     "assets/city-bollard.glb": "9174f47302fca9d2a345e97b4c3fecd3a617ce7eebcc5828f53d0c49b6524c0e",
@@ -41,6 +41,7 @@
     "assets/city-lamp.glb": "98623e20350e83092f3c52cea09ffbd8fd50c598da0da4315610793573bbca5d",
     "assets/city-tree.glb": "6015cc8f4456c1b3af701f48ed865738c2e6c7cf576d511452d59dcd5c670d30",
     "assets/distance-marker.glb": "01067e07d0566c6c7a4e083f1f1eda54b77df8da9b2faf3e2de8da7e67b74ea0",
+    "assets/kart-freeway-pier.glb": "019181686217f066d3aa386d247f5dbb756c88faefda2d163becfb090f2ddf50",
     "assets/q01-arrow.glb": "fb1064f983070bc27cc1f12628551103d64002b090195a975485e231bbd878a4",
     "assets/q01-asphalt-repair.glb": "e9fdf6643098dd4677351d69e63a261256187fd586407588e46342db9f1a0c27",
     "assets/q01-book.glb": "d97b9940d527a6e9b2a0b7377ac331bb28953da4872e297015b2f8b6bc95d1b7",
@@ -238,6 +239,8 @@
         "kart-finger-finger-4-in",
         "kart-finger-wrist-entry",
         "kart-finger-bridge-in",
+        "kart-finger-clock-approach",
+        "kart-finger-clock-plaza",
         "kart-finger-clock-tower",
         "kart-finger-bridge-out",
         "kart-finger-wrist-return",
@@ -369,22 +372,22 @@
       "position_cm": [
         13635,
         62,
-        10208
+        10186
       ],
       "surface_id": "kart-freeway-highway-straight",
-      "heading_degrees": -76.675,
+      "heading_degrees": -78.218,
       "purpose": "높이 0.625m, 길이 20.31m의 고가 직선"
     },
     {
       "id": "kart-downhill",
       "title": "고가의 질주 / 내리막",
       "position_cm": [
-        17434,
-        41,
-        13228
+        17433,
+        33,
+        13221
       ],
       "surface_id": "kart-freeway-descent",
-      "heading_degrees": -10.337,
+      "heading_degrees": -13.309,
       "purpose": "6.25% 내리막 뒤 감속과 Z자"
     },
     {
@@ -4954,7 +4957,7 @@
     "city_blocks": 41,
     "city_buildings": 372,
     "village_homes": 88,
-    "guardrail_sections": 302,
+    "guardrail_sections": 187,
     "hairpin_turns": 6,
     "straight_m": 62.5,
     "kart_highway_height_m": 0.625,

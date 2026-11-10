@@ -8,6 +8,11 @@ from shapely.geometry import LineString, Polygon, Point
 from shapely.ops import unary_union, nearest_points
 
 
+BUILDING_SETBACK_CM = 12
+# MapKit's automatic deck rails occupy this outset beside elevated roads and bridges.
+DECK_RAIL_CM = 20
+
+
 def compact(t):
     d = t.doc
     d['recipe_version'] = 1
@@ -40,10 +45,20 @@ def compact(t):
                 uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/det
                 radius=math.hypot(ax-ux,ay-uy)
                 minimum=max(r['widths_cm'])/2+80
+                # Deck curves keep every vertex mouth clear (MapKit structural
+                # junction rule): radius at least 1.4 half widths.
+                if r['kind'] in ('elevated', 'bridge'): minimum=max(minimum, 1.4*max(r['widths_cm'])/2)
                 if radius<minimum and all(abs(math.hypot(p[0]-ux,p[2]-uy)-radius)<3 for p in ps):
-                    for p in ps:
-                        p[0]=round(ux+(p[0]-ux)*minimum/radius)
-                        p[2]=round(uy+(p[2]-uy)*minimum/radius)
+                    # Resample evenly on the exact circle: scaled rounded points
+                    # would vary the local radius from vertex to vertex.
+                    angles=[math.atan2(p[2]-uy,p[0]-ux) for p in ps]
+                    for i in range(1,len(angles)):
+                        while angles[i]-angles[i-1]>math.pi: angles[i]-=2*math.pi
+                        while angles[i]-angles[i-1]<-math.pi: angles[i]+=2*math.pi
+                    for i,p in enumerate(ps):
+                        angle=angles[0]+(angles[-1]-angles[0])*i/(len(ps)-1)
+                        p[0]=round(ux+minimum*math.cos(angle))
+                        p[2]=round(uy+minimum*math.sin(angle))
                     adjusted_nodes[r['from']]=ps[0]
                     adjusted_nodes[r['to']]=ps[-1]
                     sign = 1 if (ps[0][0]-ux)*(ps[1][2]-uy)-(ps[0][2]-uy)*(ps[1][0]-ux)>0 else -1
@@ -115,15 +130,65 @@ def compact(t):
         if n['id'] == clock['to']: n['position'] = clock['points'][-1]
     for r in (bridge_in, bridge_out):
         for p in r['points']: p[1] = round(p[1] / 2)
+    # MapKit checks the mouths of every junction touching a structure. The
+    # thumb therefore branches off a level approach between the bridge and the
+    # clock-tower tunnel, never at the portal; the whole thumb moves with it.
+    access = next(r for r in d['roads'] if r['id'] == 'kart-finger-thumb-access')
+    portal, level = bridge_in['points'][-1], bridge_in['points'][-2]
+    assert portal[1] == level[1] == 0 and access['points'][0] == portal
+    # The bridge keeps a level third of its approach, so the ground/structure
+    # apron lies on flat terrain; the thumb joins at the second third.
+    step = (portal[2] - level[2]) // 3
+    level = [level[0], 0, level[2] + step]
+    middle = [level[0], 0, level[2] + step]
+    thumb_shift = middle[2] - portal[2]
+    width, surface = bridge_in['widths_cm'][-1], bridge_in['surfaces'][-1]
+    bridge_in['points'][-1] = level
+    junctions = {'kart-finger-wrist-level': level, 'kart-finger-wrist-junction': middle}
+    for ident, position in junctions.items():
+        d['nodes'].append(dict(id=ident, position=position, level=0))
+        moved[ident] = position
+    bridge_in['to'] = 'kart-finger-wrist-level'
+    portal_node = clock['from']
+    for ident, a, b, start, end in [('kart-finger-clock-approach', level, middle, 'kart-finger-wrist-level', 'kart-finger-wrist-junction'),
+                                    ('kart-finger-clock-plaza', middle, portal, 'kart-finger-wrist-junction', portal_node)]:
+        d['roads'].append(dict(id=ident, **{'from': start, 'to': end}, points=[list(a), list(b)], widths_cm=[width],
+                               surfaces=[surface], kind='ground', clearance_cm=None, sidewalk_cm=0))
+    # Point lists are shared between roads and nodes: shift each list once.
+    thumb_nodes = {access['to']}
+    shifted = {}
+    for r in d['roads']:
+        if r['id'].startswith('kart-thumb-'):
+            shifted.update({id(q): q for q in r['points']})
+            thumb_nodes |= {r['from'], r['to']}
+    shifted.update({id(q): q for q in access['points'][1:]})
+    shifted.update({id(moved[n]): moved[n] for n in thumb_nodes})
+    for n in d['nodes']:
+        if n['id'] in thumb_nodes: shifted[id(n['position'])] = n['position']
+    for q in shifted.values(): q[2] += thumb_shift
+    access['points'][0] = list(middle)
+    access['from'] = 'kart-finger-wrist-junction'
+    for route in t.routes:
+        if 'kart-finger-bridge-in' in route['roads']:
+            i = route['roads'].index('kart-finger-bridge-in')
+            route['roads'][i+1:i+1] = ['kart-finger-clock-approach', 'kart-finger-clock-plaza']
     d['bounds']['max'] = [19200, 19200]
     d['cell_size_cm'] = 1600
     for h in d['heightmaps']: h['spacing_cm'] = 400
-    corridors = []
+    corridors, setbacks = [], []
     for r in d['roads']:
         # Mitres bound the compiler's planar strip at bends, including endpoints.
         line = LineString([(p[0], p[2]) for p in r['points']])
         corridors.append(line.buffer(max(r['widths_cm']) / 2 + 3, cap_style=3, join_style=2))
-    occupied = unary_union(corridors)
+        # MapKit's road corridor includes rounded edges and junction aprons
+        # beyond the planar strip; buildings keep a BUILDING_SETBACK_CM gap.
+        deck = DECK_RAIL_CM if r['kind'] in ('elevated', 'bridge') else 0
+        setbacks.append(line.buffer(max(r['widths_cm']) / 2 + deck + BUILDING_SETBACK_CM, cap_style=3, join_style=2))
+    occupied = unary_union(setbacks)
+    # Kart course structures (cylinder walls, clock towers, piers, paddocks) are
+    # laid out against their own track and keep the planar-strip clearance.
+    course_occupied = unary_union(corridors)
+    solid_union = Polygon()
     bounds = Polygon([(0,0),(19200,0),(19200,19200),(0,19200)])
     # Retain every city/home landmark; fit small footprints within widened blocks.
     buildings = []
@@ -133,6 +198,7 @@ def compact(t):
         cx, cy = poly.centroid.coords[0]
         if '-cylinder-' in b['id']:
             if b['id'].startswith(('kart-finger-', 'kart-thumb-')): cy = (466000 + (cy*32 - 491000)*1.6)/32
+            if b['id'].startswith('kart-thumb-'): cy += thumb_shift
             poly = Point(cx,cy).buffer(10, quad_segs=12)
         if b['id'].startswith('city-block-'):
             _, _, i, j, k = b['id'].split('-')
@@ -145,7 +211,7 @@ def compact(t):
         for radius in range(0, 1601, 20):
             for angle in range(0, 360, 15) if radius else [0]:
                 candidate = translate(poly, radius*math.cos(math.radians(angle)), radius*math.sin(math.radians(angle)))
-                if bounds.contains(candidate) and not occupied.intersects(candidate):
+                if bounds.contains(candidate) and not (course_occupied if b['id'].startswith('kart-') else occupied).intersects(candidate):
                     placed = candidate; break
             if placed is not None: break
         if placed is None: raise ValueError('No safe position for ' + b['id'])
@@ -154,10 +220,15 @@ def compact(t):
         b['height_cm'] = max(1, round(b['height_cm']/32))
         if '-cylinder-' in b['id']: b['height_cm'] = max(28, b['height_cm'])
         occupied = occupied.union(placed.buffer(3))
+        course_occupied = course_occupied.union(placed.buffer(3))
+        solid_union = solid_union.union(placed.buffer(3))
         buildings.append(b)
     # Continuous widened track boundaries replace the old narrow rails. Every
     # segment is a solid prism; road corridors are subtracted at access mouths.
     roads_union = unary_union(corridors)
+    # Ground rails also stay clear of the automatic deck rails of structures.
+    decks = unary_union([LineString([(p[0], p[2]) for p in r['points']]).buffer(max(r['widths_cm'])/2 + DECK_RAIL_CM + 3, cap_style=3, join_style=2)
+                         for r in d['roads'] if r['kind'] in ('elevated', 'bridge')])
     rails = []
     for r in d['roads']:
         for a,b in zip(r['points'],r['points'][1:]):
@@ -165,7 +236,9 @@ def compact(t):
             rails.append((r, line.buffer(max(r['widths_cm'])/2+3, cap_style=2, join_style=2)))
     for section, (r, corridor) in enumerate(rails):
         if not r['id'].startswith(('kart-freeway-', 'kart-finger-', 'kart-thumb-')) or 'access' in r['id'] or 'shortcut' in r['id']: continue
-        boundary = corridor.buffer(10, join_style=2).difference(roads_union.buffer(3)).difference(occupied)
+        # MapKit generates the safety rails of elevated decks and bridges itself.
+        if r['kind'] in ('elevated', 'bridge'): continue
+        boundary = corridor.buffer(10, join_style=2).difference(roads_union.buffer(3)).difference(decks).difference(solid_union)
         parts = list(boundary.geoms) if hasattr(boundary, 'geoms') else [boundary]
         for i, poly in enumerate(parts):
             if poly.geom_type != 'Polygon' or poly.area < 10: continue
@@ -178,7 +251,7 @@ def compact(t):
                 usage='industrial', material='concrete', roof='flat')
             if holes: b['holes'] = holes
             buildings.append(b)
-            occupied = occupied.union(poly.buffer(3))
+            solid_union = solid_union.union(poly.buffer(3))
     d['buildings'] = buildings
     for z in d['zones']:
         z['polygon'] = [[round(x/32), round(y/32)] for x,y in z['polygon']]
@@ -192,10 +265,13 @@ def compact(t):
             convex['faces'] = oriented_faces(convex['vertices'])
             solids.append(([tuple(v/100 for v in p) for p in convex['vertices']], (1,0.66,0.08,1)))
         t.payloads[asset['path']] = glb(solids)
+    # Props keep the planar-strip clearance; only buildings use the setback.
+    occupied = roads_union.union(solid_union)
     for placement in d['placements']:
         p = point(placement['position'])
         spot = Point(p[0], p[2])
-        if occupied.buffer(10).contains(spot):
+        # Deck piers stand below the elevated highway on purpose.
+        if not placement['asset_id'] == 'kart-freeway-pier' and occupied.buffer(10).contains(spot):
             free = bounds.difference(occupied.buffer(12))
             x,y = nearest_points(spot, free)[1].coords[0]
             p[0],p[2] = round(x),round(y)
