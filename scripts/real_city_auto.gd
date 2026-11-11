@@ -3,7 +3,7 @@ extends RefCounted
 ## the country's traffic convention and the map extent around a named place. These
 ## are Editor defaults, not survey data; explicit wizard and recipe values win.
 ##
-## Places fill a centre; the default geodesic radius is 1.5km source distance.
+## Places fill a centre; the default geodesic radius is 2km source distance.
 const M_PER_DEGREE := 111320.0
 ## ISO 3166-1 alpha-2 codes driving on the left. A `driving_side` tag on the
 ## country boundary in the PBF wins over this table.
@@ -35,7 +35,7 @@ static func box(point: Array, side_m: float) -> Array:
 
 ## Fixed centre/radius choice, independent of administrative boundaries.
 static func extent(_context: Variant, point: Array, scale: int, cell_cm: int) -> Dictionary:
-	return circle(point, 1.5, scale, cell_cm)
+	return circle(point, 2.0, scale, cell_cm)
 
 static func circle(point: Array, radius_km: float, scale: int, cell_cm: int) -> Dictionary:
 	# Conservative scan rectangle; Python constructs the exact WGS84 disk.

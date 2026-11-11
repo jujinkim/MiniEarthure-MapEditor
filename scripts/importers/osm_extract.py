@@ -379,6 +379,7 @@ GRADE = 0.08
 # aprons at 1:8 (1 m on the map) and is only more conservative at a smaller D.
 LEAD_M = 8.0  # Level lead at each ground anchor; native aprons stay on it.
 SEPARATION_M = 5.0  # Real metres.
+WATER_SEPARATION_M = 2.0  # Water needs deck thickness/freeboard, not road headroom.
 TUNNEL_CLEARANCE_M = 4.5
 
 
@@ -557,6 +558,14 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
             for way, _ in path:
                 for other, point in crossings(way):
                     if owner.get(other) == key: continue
+                    # Ordinary walking ways become terrain paint. They have no
+                    # independent flat deck; DEM fitting checks the actual
+                    # terrain and water beneath this bridge. Estimated ramps,
+                    # explicit heights and closed source graphs remain physical.
+                    if (wet_points(path) and other not in owner and roads[other][1].get("highway") in PEDESTRIAN
+                        and not structure(roads[other][1]) and looped.isdisjoint(roads[other][0])
+                        and not any("ele" in node_tags.get(ref,{}) for ref in roads[other][0])):
+                        continue
                     if other not in owner and structure(roads[other][1]) and other not in level and other not in leveled:
                         continue  # An unestimated structure is excluded, not drawn.
                     checked += 1
@@ -572,12 +581,12 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
                         break
                 if not ok: break
             for point in wet_points(path):
-                if profile(line.project(point)) < SEPARATION_M: ok = False
+                if profile(line.project(point)) < WATER_SEPARATION_M: ok = False
             if not ok or (not checked and not bridge(path)) or key in cut_keys:
                 # Crossing nothing drawn, the chain lies on the ground instead;
                 # a cut chain's profile would end where the excluded way was.
-                if ok and not checked: leveled.update(way for way, _ in path if way in candidates)
-                elif ok and cut_chains is not None: cut_chains.update(way for way, _ in path if way in candidates)
+                if ok and not checked and not bridge(path): leveled.update(way for way, _ in path if way in candidates)
+                elif ok and key in cut_keys and cut_chains is not None: cut_chains.update(way for way, _ in path if way in candidates)
                 del result[key]
                 changed = True
                 break
@@ -1037,7 +1046,11 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     cut_nodes = {ref for identity, _, references, _ in ways if identity in absent for ref in references}
     cut_chains, chain_of = set(), {}
     level = level_structures(present, nodes, node_tags) if city else set()
-    estimated, leveled = estimate_structures(present, nodes, node_tags, level, cut_nodes, cut_chains, chain_of, water) if city else ({}, set())
+    if city:
+        from osm_structure_sections import estimate
+        estimated, leveled, estimated_sections = estimate(present,nodes,node_tags,level,cut_nodes,cut_chains,chain_of,water)
+    else:
+        estimated, leveled, estimated_sections = {}, set(), {}
     level |= leveled
     for identity, kind, references, tags in sorted(ways):
         if identity in consumed:
@@ -1051,7 +1064,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                 raise ValueError(CUT_STRUCTURE)
             if city and kind == "road":
                 tags = city_tags(tags)
-            if identity in level or identity in estimated:
+            if identity in level or identity in estimated or identity in estimated_sections:
                 tags = {key: value for key, value in tags.items() if key not in LEVEL_TAGS}
             if kind in ("barrier", "waterway"):
                 continue  # Barrier and waterway lines are added below (city profile).
@@ -1079,6 +1092,19 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                     _city_estimated_refs=[ref for _, _, _, ref in points], _city_ends=[str(references[0]), str(references[-1])],
                     _city_estimated_chain=chain_of[identity])
                 if structure == "tunnel": feature["properties"]["_city_estimated_clearance_m"] = TUNNEL_CLEARANCE_M
+            if identity in estimated_sections:
+                from copy import deepcopy
+                source = features.pop()
+                for section in estimated_sections[identity]:
+                    feature=deepcopy(source);points=section["points"];structure=section["kind"]
+                    feature["geometry"]["coordinates"]=[[x,y] for x,y,_,_ in points]
+                    feature["properties"].update(_city_estimated_refs=[ref for _,_,_,ref in points],
+                        _city_ends=[str(points[0][3]),str(points[-1][3])])
+                    if structure != "ground":
+                        feature["properties"].update(_city_estimated_m=[round(h,2) for _,_,h,_ in points],
+                            _city_estimated_kind=structure,_city_estimated_chain=section["chain"])
+                        if structure == "tunnel":feature["properties"]["_city_estimated_clearance_m"]=TUNNEL_CLEARANCE_M
+                    features.append(feature)
         except ValueError as exc:
             review.reject("way/" + str(identity), exc)
     loop_refs = {ref for f in features if closed_road(f["properties"])
@@ -1167,6 +1193,14 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         connected_features.extend(barrier_features(ways, nodes, node_tags, counts))
         connected_features.extend(waterway_features(ways, nodes, node_tags, counts))
     collection["features"] = connected_features
+    if water_evidence:
+        # Retain failed crossings as well as imported ones. A reviewer must be
+        # able to distinguish a missing bridge from a dry source road.
+        for identity, evidence in water_evidence.items():
+            rejected = review.excluded.get("way/" + str(identity))
+            evidence["status"] = "excluded" if rejected else "imported"
+            if rejected: evidence["failure"] = rejected["reason"]
+        collection["osm_water_crossings"] = [water_evidence[key] for key in sorted(water_evidence)]
     if connections: collection["osm_connections"] = connections
     if loop_sources:
         structural = any(s["kind"] != "ground" for s in loop_sources)

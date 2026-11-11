@@ -96,7 +96,11 @@ func _apply() -> void:
 	if not validated.get("ok",false):
 		panel.feedback.text = I18N.diagnostic(str(validated.get("error", "Invalid environment")))
 		return
-	patches.append_array(preload("./regional_style.gd").patches(store,before if before is Dictionary else PROFILE.defaults(),value))
+	var evidence_errors: Array = []
+	patches.append_array(preload("./regional_style.gd").patches(store,before if before is Dictionary else PROFILE.defaults(),value,evidence_errors))
+	if not evidence_errors.is_empty():
+		panel.feedback.text = I18N.diagnostic(str(evidence_errors[0]))
+		return
 	var failure: String = store.apply_command("Environment design",patches)
 	panel.feedback.text = I18N.t("Environment saved in document · Undo is available") if failure.is_empty() else I18N.diagnostic(failure)
 	if failure.is_empty() and not limits.is_empty(): panel.feedback.text += "\n" + LIMITS.text(limits)

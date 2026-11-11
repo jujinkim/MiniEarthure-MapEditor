@@ -15,7 +15,7 @@ review exclusions and `traffic` → adopt → optional facility CSV (`facilities
 optional [regional composition](REGIONAL_SOURCES.md) (`regional`) → optional Copernicus `dem` folder (mosaic over the imported frame, grounded
 buildings) → save to `project` → Export to `package` (`full_check` default true;
 `mobile_check` opens it under the 1.5 GiB phone budget). The extent is exactly one of `center: [longitude, latitude]` with
-`radius_km` (default 1.5 source km), `place` (a named feature supplying that
+`radius_km` (default 2 source km), `place` (a named feature supplying that
 centre), `areas` (explicit administrative union) or `bbox` (explicit rectangle).
 The wizard provides latitude, longitude and radius; search fills the centre.
 The circle uses WGS84 distances, keeps its full requested radius, and is stored
@@ -30,6 +30,10 @@ Each unique OSM `way/<id>` correction must match the captured PBF SHA-256 and
 a selected vehicle road; all targets are checked before any change. The report
 retains original and corrected dimensions, and the request enters the input
 fingerprint. A missing target, malformed value or changed snapshot fails generation.
+PBF review waits for the source worker to finish, fail or be cancelled, without
+an elapsed-time limit. A long source import retains ownership of its outputs
+and cannot become a completed recipe while its worker is still active.
+
 Recipe keys
 outside that list are refused; paths are relative to the recipe file. Every step
 keeps its review and limits; a step that fails stops the run with `failed_step` and
@@ -70,7 +74,7 @@ from runs with other inputs; compare `code` to see whether the Editor or MapKit
 code changed. A MapKit native change keeps `input_fingerprint` and
 `editor_scripts` and shows in `code.mapkit`. Reruns of one recipe usually
 differ by code, not by input, so the fingerprint does not name run folders. The
-wizard saves its settings as a recipe. Recommended: 1:3, 128 m cells, 1.5km source radius.
+wizard saves its settings as a recipe. Recommended: 1:3, 128 m cells, 2km source radius.
 
 A failed headless run sets its outputs aside before it quits
 (`set_aside_failed`): the package is renamed `<package>-failed` (`.memap-failed`,
@@ -173,7 +177,8 @@ remainder so lattice points are whole map centimetres.
   midline: the first carriageway's nodes move to it with every incident road, the
   second's rung nodes are renamed to them and a side road meeting only the second
   carriageway gets its own midline node. Width is both carriageways plus the
-  median per segment, `lanes` their sum (up to 16), and `oneway` is removed.
+  median per segment, `lanes` their sum (up to 16), and `oneway=no` explicitly
+  preserves both directions even for motorway records.
   Lane count and lane-space changes bound each paired chain. Every
   absorbed way stays in the merged road's sources, as does a road looping back onto
   one merged node (a jughandle U-turn, up to 150 m; a longer loop stops the merge).
@@ -235,12 +240,18 @@ remainder so lattice points are whole map centimetres.
   source-water crossings remain structures.
 - Supported structures get estimated heights: a chain of bridge (tunnel)
   ways joined end to end rises (sinks) 6 m per layer with ramps of at most 8 % and
-  an 8 m level lead at each ground anchor. Where the chain is too short, whole
-  ground ways continuing it up to a junction or dead end join it as the same
-  structure; vertices are added where the profile bends. Chain ways have no side
+  an 8 m level lead at each ground anchor. Where the chain is too short, source
+  ground sections continuing it up to a junction or dead end join it as the same
+  structure; vertices are added where the profile bends. Source ways are divided
+  only at existing junction nodes, retain their parent IDs and keep the remaining
+  ground sections. Chain sections have no side
   roads along them, no closed-road contact and no bend over 60° (a bend of θ needs
   neighbouring segments of 12 m · tan(θ/2) + 2 m, so native structure mouths stay
-  separate); every crossing keeps 5 m of separation; tunnels use 4.5 m clearance.
+  separate); road crossings keep 5 m of separation and source-water crossings
+  keep 2 m of initial deck freeboard; tunnels use 4.5 m clearance. Ordinary walking
+  paint below a water bridge uses the fitted terrain, while explicit-height,
+  closed and estimated walking structures keep the road separation check.
+  DEM fitting independently enforces deck, water and approach continuity.
   A non-bridge chain crossing only excluded structures can be drawn at ground
   level, as can a non-bridge chain crossing only open ground walking paint (not a
   closed way or one touching it, a ramp of an estimated chain or a way with source
@@ -393,12 +404,13 @@ remainder so lattice points are whole map centimetres.
 - Water crossings are decided against original OSM water polygons (including
   island holes) and open waterway ribbons, before road subtraction. Explicit
   bridges retain their structure even without a road crossing. Untagged roads
-  crossing water between two land anchors receive a disclosed bridge estimate;
-  tangents and water dead ends require review. Ford, culvert/tunnel and embankment
+  crossing water along a connected source-node chain between two land anchors
+  receive a disclosed bridge estimate, independent of way segmentation. Branches,
+  loops, tangents and water dead ends require review. Ford, culvert/tunnel and embankment
   evidence takes precedence; conflicting tags and unresolved geometry are
   excluded through review. Estimated chains retain connected land approaches,
-  bounded grades and road/structure separation. Review lists source IDs and
-  crossing evidence. Generated road-cut land strips are never land evidence.
+  bounded grades and road/structure separation. Review and recipe reports list source IDs, chain members,
+  land anchors and crossing evidence, including excluded crossings and reasons. Generated road-cut land strips are never land evidence.
 - Water surfaces keep their original source shape through bridge corridors;
   ground-road subtraction retains explicit embankments and original land passages,
   while fords keep water continuous. DEM water levels derive from the original

@@ -19,6 +19,7 @@ from rasterio.features import shapes
 from rasterio.io import MemoryFile
 import shapely
 from shapely.geometry import LineString, Point, Polygon, box, shape
+from shapely.affinity import scale as geometry_scale
 from shapely.ops import transform, unary_union
 from shapely.strtree import STRtree
 
@@ -67,6 +68,27 @@ def parts(geometry, cell=6400):
 
 
 def ring(polygon): return [[round(x),round(y)] for x,y in polygon.exterior.coords[:-1]]
+
+
+def building_parts(geometry):
+    """Keep exact lattice outlines when a courtyard touches another ring.
+
+    GEOS permits a point contact; a native courtyard requires separated rings.
+    Constrained triangles share one building owner and use existing vertices,
+    preserving both the outline and the void without a clearance cut.
+    """
+    result=[]
+    for polygon in polygons(shapely.set_precision(geometry,1)):
+        rings=[polygon.exterior,*polygon.interiors]
+        touching=any(a.intersects(b) for i,a in enumerate(rings) for b in rings[:i])
+        if not touching:
+            result.append(polygon)
+            continue
+        triangles=polygons(shapely.constrained_delaunay_triangles(polygon))
+        if not triangles or unary_union(triangles).symmetric_difference(polygon).area != 0:
+            raise ValueError("regional courtyard partition changed the source outline")
+        result.extend(triangles)
+    return sorted(result,key=lambda p:(p.bounds,p.wkb))
 
 
 class Frame:
@@ -151,6 +173,24 @@ def part_solids(props, local, frame, boundary):
     return result
 
 
+def building_road_space(roads):
+    """The same rounded carriageway/junction and bridge envelope as OSM review.
+
+    Native document centimetres become working metres at scale one, so this
+    helper's heights and 50 cm under-deck clearance stay in map dimensions.
+    """
+    from regional_road_conflicts import corridors
+    features=[]
+    for road in roads:
+        properties=dict(road_kind=road.get("kind","ground"),
+            clearance_m=(road.get("clearance_cm") or 450)/100,
+            _city_widths_m=[w/100 for w in road["widths_cm"]],
+            elevations_m=[p[1]/100 for p in road["points"]],
+            osm_node_refs=[road["from"],road["to"]])
+        features.append((dict(id=road["id"],properties=properties),LineString([(p[0]/100,p[2]/100) for p in road["points"]])))
+    return corridors(features,1,lambda f:[f["id"]])
+
+
 def compose(document, request, catalog):
     original = document
     doc = deepcopy(document)
@@ -159,12 +199,20 @@ def compose(document, request, catalog):
     regional.validate(request, catalog, notice["source"]["sha256"], frame.bbox)
     adopted = notice["coordinates"].get("regional", {}).get("request")
     if adopted != regional.input_receipt(request): raise ValueError("regional source/profile request differs from the adopted OSM classification")
-    if any(a.get("source") == OWNER for a in doc.get("attributions", [])): raise ValueError("regional sources already applied; regenerate from the pinned recipe to replace them")
+    for attribution in doc.get("attributions", []):
+        try: existing = json.loads(attribution.get("notice", ""))
+        except (ValueError, TypeError): continue
+        if isinstance(existing, dict) and existing.get("adapter") == OWNER:
+            raise ValueError("regional sources already applied; regenerate from the pinned recipe to replace them")
     boundary = unary_union([Polygon(p) for p in doc.get("play_area", [])]) if doc.get("play_area") else box(*doc["bounds"]["min"], *doc["bounds"]["max"])
     counts, diagnostics = Counter(), []
     rows = solids(doc)
     occupied = [g for b,g in rows]
     tree = STRtree(occupied)
+    ground_roads = [r for r in doc.get("roads", []) if r.get("kind", "ground") == "ground"]
+    roads = [LineString([(p[0],p[2]) for p in r["points"]]).buffer(max(r["widths_cm"])/2 + (r.get("sidewalk_cm") or 0),quad_segs=2) for r in ground_roads]
+    road_tree = STRtree(roads)
+    road_space = building_road_space(doc.get("roads", []))
     osm_ids = set(notice["coordinates"]["osm_city"]["source_ids"])
     auxiliary = regional.read_buildings(request["buildings"]) if "buildings" in request else []
     added = AddedIndex()
@@ -197,6 +245,17 @@ def compose(document, request, catalog):
             height = float(np.median(nearby)) if len(nearby) >= 3 else 6
             height_basis = "context:neighbour_median" if len(nearby) >= 3 else "context:profile"
         else: height_basis = "auxiliary:height" if props.get("height") else "auxiliary:floors"
+        from regional_road_conflicts import trim
+        local_metres=geometry_scale(local,xfact=.01,yfact=.01,origin=(0,0))
+        top=max([height]+[part.get("height") or height for part in props.get("parts",[])])
+        base=min([props.get("min_height") or 0]+[part.get("min_height") or 0 for part in props.get("parts",[])])
+        _,road_hits,removed=trim(local_metres,road_space,top/frame.scale,base/frame.scale)
+        sidewalk_hits=[ground_roads[int(i)]["id"] for i in road_tree.query(local.buffer(2)) if roads[int(i)].distance(local)<2]
+        road_hits=sorted(set(road_hits+sidewalk_hits))
+        if road_hits:
+            counts["building_road_conflict"] += 1
+            diagnostics.append(dict(source_id=sid, reason="auxiliary footprint conflicts with retained OSM road; detailed road wins", road_ids=road_hits))
+            continue
         arch = selected["architecture"]
         material = props.get("facade_material")
         material_basis = "auxiliary:material" if material in catalog["materials"] else "context:profile"
@@ -206,30 +265,37 @@ def compose(document, request, catalog):
             part_roof, _, part_evidence = regional.roof_style({},dict(props,**part),{},arch,kind,catalog)
             part_style = f"building/{arch}/{kind}/{material}"+part_roof
             record_ids = []
-            for polygon_index, polygon in enumerate(polygons(geometry)):
-                if polygon.area < 4: raise ValueError("Overture footprint collapsed at map scale: " + sid)
+            record = None
+            for polygon_index, polygon in enumerate(building_parts(geometry)):
+                if polygon.area <= 0: raise ValueError("Overture footprint collapsed at map scale: " + sid)
                 if len(polygon.interiors) > 16 or sum(len(r.coords)-1 for r in [polygon.exterior, *polygon.interiors]) > 512: raise ValueError("Overture footprint exceeds native polygon budget: " + sid)
                 h = part.get("height") or height
                 base = part.get("min_height") or 0
                 if base >= h: raise ValueError("Overture part has nonpositive solid height: " + sid)
-                record = dict(id=f"regional-ov-{sid}-{part_index}-{polygon_index}", footprint=ring(polygon), base_cm=round(base*100/frame.scale), height_cm=max(1,round((h-base)*100/frame.scale)),
-                    usage="industrial" if kind in ("factory", "warehouse", "barn", "utility") else "public" if kind in ("school", "university", "hospital", "civic", "religious", "station", "research") else "commercial" if kind in ("shop", "mixed_use", "office", "hotel", "shopping") else "residential",
-                    material=material if material in ("brick", "wood") else "concrete", roof="flat", style_id=part_style)
-                if polygon.interiors: record["holes"] = [[[round(x),round(y)] for x,y in r.coords[:-1]] for r in polygon.interiors]
-                doc.setdefault("buildings", []).append(record)
-                record_ids.append(record["id"])
+                solid = dict(footprint=ring(polygon), base_cm=round(base*100/frame.scale), height_cm=max(1,round((h-base)*100/frame.scale)))
+                if polygon.interiors: solid["holes"] = [[[round(x),round(y)] for x,y in r.coords[:-1]] for r in polygon.interiors]
+                if record is None:
+                    record = dict(id=f"regional-ov-{sid}-{part_index}-0", **solid, roof="flat",
+                        usage="industrial" if kind in ("factory", "warehouse", "barn", "utility") else "public" if kind in ("school", "university", "hospital", "civic", "religious", "station", "research") else "commercial" if kind in ("shop", "mixed_use", "office", "hotel", "shopping") else "residential",
+                        material=material if material in ("brick", "wood") else "concrete", style_id=part_style)
+                    doc.setdefault("buildings", []).append(record)
+                    record_ids.append(record["id"])
+                    counts["building_added"] += 1
+                else:
+                    # Point-touching components of one source part are one
+                    # native owner. Their outlines and style remain unchanged.
+                    record.setdefault("parts",[]).append(solid)
                 added.add(polygon)
-                counts["building_added"] += 1
-            diagnostics.append(dict(source_id=sid, part_id=part.get("id",sid), style_id=part_style, region=region_id, record_ids=record_ids, evidence=dict(type=basis.replace("source:", "auxiliary:"), height="auxiliary:height" if part.get("height") else height_basis, material=material_basis, architecture="context:profile", **part_evidence)))
+            source_bases=[s.get("base_cm",record["base_cm"]) for s in [record]+record.get("parts",[])] if record else []
+            diagnostics.append(dict(source_id=sid, part_id=part.get("id",sid), style_id=part_style, region=region_id, record_ids=record_ids, source_bases_cm=source_bases, evidence=dict(type=basis.replace("source:", "auxiliary:"), height="auxiliary:height" if part.get("height") else height_basis, material=material_basis, architecture="context:profile", **part_evidence)))
     existing = [Polygon(p["polygon"]) for p in doc.get("surface_areas", [])]
     water = [Polygon(p["polygon"], p.get("islands", [])) for p in doc.get("water_bodies", [])]
-    roads = []
-    for road in doc.get("roads", []):
-        if road.get("kind", "ground") != "ground": continue
-        line = LineString([(p[0],p[2]) for p in road["points"]])
-        roads.append(line.buffer(max(road["widths_cm"])/2 + (road.get("sidewalk_cm") or 0), quad_segs=2))
     vegetation = [Polygon(z["polygon"], z.get("exclusions", [])) for z in doc.get("zones", [])]
     blocked = unary_union(existing + water + roads + occupied + added_shapes + vegetation)
+    # Integer cuts can move an oblique edge by a fraction of a centimetre.
+    # Keep the same two-map-centimetre clearance as city paint so raster cover
+    # cannot overlap a detailed source area after quantization and partitioning.
+    cover_blocked = blocked.buffer(2,join_style="mitre")
     coverage = cover(request["worldcover"], frame, boundary) if "worldcover" in request else []
     by_style = {}
     for code, polygon in coverage:
@@ -240,11 +306,13 @@ def compose(document, request, catalog):
         by_style.setdefault(style, []).append(polygon)
     generated = []
     for style, geometries in sorted(by_style.items()):
-        residual = unary_union(geometries).difference(blocked)
-        for polygon in parts(residual):
+        residual = unary_union(geometries).difference(cover_blocked)
+        emitted = parts(residual)
+        for polygon in emitted:
             record = dict(id="regional-cover-"+hashlib.sha256(style.encode()+polygon.wkb).hexdigest()[:24], polygon=ring(polygon), surface=catalog["ground"][style]["surface"], style_id="ground/"+style)
             generated.append(record)
-        counts["cover:"+style] = sum(p.area for p in polygons(residual)) / 10000
+        counts["cover:"+style] = sum(p.area for p in emitted) / 10000
+        if emitted: cover_blocked = cover_blocked.union(unary_union(emitted).buffer(2,join_style="mitre"))
     # Sidewalk candidates require a retained building/fence within ten source
     # metres of a road, and built-up cover. Coarse cover alone creates no ribbon.
     built = unary_union(by_style.get("pavers", []))
@@ -271,10 +339,19 @@ def compose(document, request, catalog):
     doc["ground_style_id"] = "ground/"+base_style
     distribution = {field: dict(sorted(Counter(record.get("style_id", "unspecified") for record in doc.get(field, [])).items())) for field in ("buildings", "roads", "surface_areas", "zones", "barriers")}
     evidence = Counter()
-    for group in notice["coordinates"]["osm_city"].get("groups", []):
+    for group in regional.receipt_rows(notice["coordinates"]["osm_city"],"groups"):
         for dimension, basis in group.get("regional", {}).get("evidence", {}).items(): evidence[dimension+":"+basis] += 1
     receipt = dict(adapter=OWNER,version=1,inputs=regional.input_receipt(request),counts=dict(sorted(counts.items())),distribution=distribution,evidence=dict(sorted(evidence.items())),objects=diagnostics)
-    attribution = dict(source=OWNER,license="Source-specific licenses in notice",notice=regional.canonical(receipt))
+    names, licenses = [], []
+    for key, name in (("worldcover", "ESA WorldCover"), ("buildings", "Overture Buildings")):
+        if key in request:
+            names.append(name + " " + request[key]["release"])
+            licenses.append(request[key]["license"])
+    stored_receipt=deepcopy(receipt)
+    regional.pack_rows(stored_receipt,"objects")
+    attribution = dict(source=" + ".join(names) or "Regional appearance profiles",
+                       license="; ".join(licenses) or "MIT; generated appearance classification",
+                       notice=regional.canonical(stored_receipt))
     doc.setdefault("attributions", []).append(attribution)
     patches = []
     for field in FIELDS:
@@ -289,7 +366,7 @@ def compose(document, request, catalog):
     for record in doc.get("buildings", []) + generated:
         p = record.get("footprint", record.get("polygon"))
         x,y = np.mean(p,axis=0)
-        costs[(math.floor(x/size),math.floor(y/size))] += 1
+        costs[(math.floor((x-doc["bounds"]["min"][0])/size),math.floor((y-doc["bounds"]["min"][1])/size))] += 1
     cells = [dict(x=x,y=y) for (x,y), count in sorted(costs.items(),key=lambda item:(-item[1],item[0]))[:16]]
     report = dict(patches=patches,payloads={},diagnostics=dict(errors=[],metrics=dict(cost_cells=cells),limit_warnings=[],regional=receipt))
     return doc, report

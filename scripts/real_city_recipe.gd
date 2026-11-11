@@ -34,7 +34,7 @@ static func parse(text: String, base := "") -> Dictionary:
 		if str(recipe.get(key, "")) == "": return _error("Recipe needs " + key)
 	if int(recipe.has("areas")) + int(recipe.has("bbox")) + int(recipe.has("place")) + int(recipe.has("center")) != 1: return _error("Recipe needs one of center, areas, place or bbox")
 	if recipe.has("radius_km") and not (recipe.has("center") or recipe.has("place")): return _error("radius_km needs center or place")
-	var radius: Variant = recipe.get("radius_km", 1.5)
+	var radius: Variant = recipe.get("radius_km", 2.0)
 	if (radius is not float and radius is not int) or not is_finite(float(radius)) or radius <= 0 or radius > 20: return _error("radius_km must be positive and at most 20")
 	if recipe.has("center"):
 		var point: Variant = recipe.center
@@ -103,7 +103,7 @@ func _wait(condition: Callable, limit_ms: int) -> void:
 	var end := Time.get_ticks_msec() + limit_ms
 	# The DEM panel chains jobs; idle must hold for a few frames.
 	var idle := 0
-	while Time.get_ticks_msec() < end and idle < 30:
+	while (limit_ms <= 0 or Time.get_ticks_msec() < end) and idle < 30:
 		idle = 0 if condition.call() else idle + 1
 		await ui.get_tree().process_frame
 
@@ -235,6 +235,16 @@ func set_aside_failed(recipe: Dictionary, result: Dictionary, keep: PackedString
 static func fingerprint(values: Dictionary) -> String:
 	if values.get("osm", []).is_empty(): return ""
 	return JSON.stringify(values, "", true, true).sha256_text()
+
+## Stable source-object namespace; worker requests still use fresh nonces.
+## Output locations and local tool/source paths do not choose scenery variants.
+static func layer_identity(recipe: Dictionary, role: String, source_sha: String) -> String:
+	var semantic := recipe.duplicate(true)
+	for key in ["pbf","dem","project","package","python","full_check","mobile_check"]: semantic.erase(key)
+	for key in ["worldcover","buildings"]:
+		if semantic.get("regional", {}).has(key): semantic.regional[key].erase("path")
+	if semantic.has("facilities"): semantic.facilities.erase("csv")
+	return JSON.stringify({"recipe":semantic,"role":role,"source_sha256":source_sha},"",true,true).sha256_text().left(32)
 
 ## The adopted source notices of `document` that parse to a Dictionary with an adapter.
 static func _notices(document: Dictionary) -> Array:
@@ -379,7 +389,7 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 	var bbox: Array = recipe.get("bbox", [])
 	var circle: Dictionary = {}
 	if recipe.has("center"):
-		circle = AUTO.circle(recipe.center, float(recipe.get("radius_km", 1.5)), int(recipe.get("scale", 3)), int(ui.store.document.cell_size_cm))
+		circle = AUTO.circle(recipe.center, float(recipe.get("radius_km", 2.0)), int(recipe.get("scale", 3)), int(ui.store.document.cell_size_cm))
 		bbox = circle.bbox
 		report.extent = circle.duplicate(true)
 	var country: Variant = {}
@@ -395,7 +405,7 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 		var place: Variant = await _place(recipe)
 		if place == null: return _fail("place")
 		report.place = {"name":place.name, "source_id":place.source_id, "kind":place.kind, "point":place.point}
-		circle = AUTO.circle(place.point, float(recipe.get("radius_km", 1.5)), scale, int(ui.store.document.cell_size_cm))
+		circle = AUTO.circle(place.point, float(recipe.get("radius_km", 2.0)), scale, int(ui.store.document.cell_size_cm))
 		report.extent = circle.duplicate(true)
 		report.extent.text = AUTO.describe(circle)
 		bbox = circle.bbox
@@ -425,11 +435,19 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 	_say("Importing OSM (review)")
 	panel.road_overrides = recipe.get("road_overrides", {}).duplicate(true)
 	panel.regional = recipe.get("regional", {}).duplicate(true)
-	ui._start_import(recipe.pbf, ui.IMPORT_LAYER.OSM_LICENSE)
+	var osm_identity := layer_identity(recipe,"osm",FileAccess.get_sha256(recipe.pbf))
+	ui.store.apply_command("Recipe identity",[{"field":"map_id","id":"","before":ui.store.document.map_id,"after":"city-"+osm_identity}])
+	ui._start_import(recipe.pbf, ui.IMPORT_LAYER.OSM_LICENSE,osm_identity)
 	panel.road_overrides = {}
 	panel.regional = {}
-	await _wait(_busy, 3000000)
+	# Source workers own completion, failure and cancellation. Large local PBFs
+	# have no elapsed-time limit, just as in interactive import.
+	await _wait(_busy, 0)
 	if ui.pending_import == null: return _fail("osm_review")
+	report.osm_review = ui.pending_import.value.coordinates.get("osm_review", {}).duplicate(true)
+	report.water_crossings = ui.pending_import.value.coordinates.get("osm_city", {}).get("water_crossing_evidence", []).duplicate(true)
+	report.road_footprint_corrections = ui.pending_import.value.coordinates.get("osm_city", {}).get("road_footprint_corrections", []).duplicate(true)
+	report.osm_regional = ui.pending_import.value.coordinates.get("regional",{}).duplicate(true)
 	if ui.import_exclusions.visible: ui.import_exclusions.button_pressed = true
 	_say("Applying OSM")
 	ui._adopt_import()
@@ -448,7 +466,7 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 		for key: String in ["name_column","latitude_column","longitude_column","category","source_url"]:
 			ui.csv_panel.fields[key].text = str(facilities.get(key, ""))
 		ui.import_accuracy.text = str(facilities.get("accuracy", "unknown"))
-		ui._start_import(facilities.csv, str(facilities.license))
+		ui._start_import(facilities.csv, str(facilities.license),layer_identity(recipe,"facilities",FileAccess.get_sha256(facilities.csv)))
 		await _wait(_busy, 1800000)
 		if ui.pending_import == null: return _fail("facility_review")
 		if ui.import_exclusions.visible: ui.import_exclusions.button_pressed = true

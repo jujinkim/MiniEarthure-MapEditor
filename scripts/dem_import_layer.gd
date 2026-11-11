@@ -115,7 +115,7 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 	var water: Dictionary = WATER_FIT.prepare(terrain.store,sampled,sampled_blobs,{},options)
 	if water.has("error"): return water.error
 	var bodies: Dictionary = {}
-	for body: Dictionary in doc.water_bodies: bodies[body.id] = body
+	for body: Dictionary in doc.get("water_bodies",[]): bodies[body.id] = body
 	for patch: Dictionary in water.patches:
 		if patch.after == null: bodies.erase(patch.id)
 		else: bodies[patch.id] = patch.after

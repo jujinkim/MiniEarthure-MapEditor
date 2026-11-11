@@ -72,6 +72,16 @@ func run_scale(denominator: int) -> void:
 	check(meta.scale_denominator==denominator and is_equal_approx(meta.grid_m,denominator/100.0) and is_equal_approx(meta.road_clearance_m,denominator/10.0),"the city lattice and clearances follow 1:%d" % denominator)
 	check(ui.import_summary.text.contains("Automatic city optimization · 1:%d" % denominator) and ui.import_summary.text.contains("→") and ui.import_summary.text.contains("÷ %d," % denominator),"review shows measured reductions at the chosen scale")
 	check(ui.store.document==before,"review leaves document unchanged")
+	var scrub: Dictionary = raw.duplicate(true)
+	for patch: Dictionary in scrub.patches:
+		if patch.field != "zones": continue
+		patch.after.spacing_cm = 400 * denominator
+		patch.after.density_per_mille = 500
+		patch.after.tree = {"asset_id":"builtin:shrub", "radius_cm":42, "clearance_cm":30}
+	check(LAYER.new().load_value(scrub,ui.import_identity,ui.import_coordinates_request)=="","regional scrub survives the worker boundary")
+	for patch: Dictionary in scrub.patches:
+		if patch.field == "zones": patch.after.tree.radius_cm = 200
+	check(LAYER.new().load_value(scrub,ui.import_identity,ui.import_coordinates_request)!="","scrub rejects a mismatched tree footprint")
 	for mutation in ["scale","requested-scale","grid","clearance","coverage","record","counts","request","excluded","vegetation"]:
 		var bad: Dictionary=raw.duplicate(true)
 		var request: Dictionary=ui.import_coordinates_request.duplicate(true)

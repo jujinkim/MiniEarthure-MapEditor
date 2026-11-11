@@ -70,6 +70,17 @@ func run() -> void:
 	await finish(success)
 	check(success.result.get("ok",false) and success.sequence >= 8, "actual conversion progress and complete payload hash")
 	check(success.result.data.source.sha256 == original, "source snapshot hash")
+	var stable := "b".repeat(32)
+	var previous := ""
+	for index in 2:
+		var deterministic := JOB.new()
+		var request := Crypto.new().generate_random_bytes(16).hex_encode()
+		check(deterministic.start(source,"MIT","unknown","python3",request,{"mode":"local-metres"},"geojson","",stable) == "", "stable layer with fresh request")
+		await finish(deterministic)
+		check(deterministic.result.get("ok",false) and deterministic.identity == request and deterministic.result.data.layer_id == stable, "request nonce remains separate from layer identity")
+		var text := JSON.stringify(deterministic.result.data)
+		if index: check(text == previous,"same source/settings produce identical layer bytes")
+		previous = text
 	check(FileAccess.get_sha256(source) == original, "all faults preserve input")
 	var verification: Array = []
 	var verify_code := "import os,sys\nfor pid in map(int,sys.argv[1:]):\n try: os.kill(pid,0)\n except ProcessLookupError: continue\n raise SystemExit('child still alive: '+str(pid))\nprint('all child PIDs stopped')"

@@ -4,7 +4,7 @@ extends RefCounted
 const PROFILE := preload("res://addons/mapkit/godot/environment_profile.gd")
 const OWNER := "mapeditor-regional-style-v1"
 
-static func evidence(document: Dictionary) -> Dictionary:
+static func evidence(document: Dictionary, errors: Array = []) -> Dictionary:
 	var result := {}
 	for attribution: Dictionary in document.get("attributions", []):
 		var parser := JSON.new()
@@ -12,9 +12,14 @@ static func evidence(document: Dictionary) -> Dictionary:
 		var notice: Dictionary = parser.data
 		var rows: Array = []
 		if notice.get("adapter") == "osm-extract-v1":
-			for group: Dictionary in notice.get("coordinates", {}).get("osm_city", {}).get("groups", []):
+			var decoded := preload("./source_receipt.gd").rows(notice.get("coordinates",{}).get("osm_city",{}),"groups")
+			if not decoded.ok: errors.append(decoded.error); return {}
+			for group: Dictionary in decoded.data:
 				if group.get("regional") is Dictionary: rows.append(group.regional)
-		elif notice.get("adapter") == "mapeditor-regional-v1": rows = notice.get("objects", [])
+		elif notice.get("adapter") == "mapeditor-regional-v1":
+			var decoded := preload("./source_receipt.gd").rows(notice,"objects")
+			if not decoded.ok: errors.append(decoded.error); return {}
+			rows = decoded.data
 		elif notice.get("adapter") == OWNER: result.merge(notice.get("evidence", {}), true)
 		for row: Dictionary in rows:
 			for identity: String in row.get("record_ids", []): result[identity] = row.get("evidence", {}).duplicate(true)
@@ -25,9 +30,10 @@ static func centre(solid: Dictionary) -> Vector2:
 	for vertex: Array in solid.footprint: point += Vector2(vertex[0],vertex[1]) / 100.0
 	return point / float(solid.footprint.size())
 
-static func patches(store: RefCounted, before: Dictionary, after: Dictionary) -> Array:
+static func patches(store: RefCounted, before: Dictionary, after: Dictionary, errors: Array = []) -> Array:
 	var result: Array = []
-	var facts := evidence(store.document)
+	var facts := evidence(store.document,errors)
+	if not errors.is_empty(): return []
 	var changed_facts := {}
 	for building: Dictionary in store.document.buildings:
 		var style := str(building.get("style_id", "")).split("/")

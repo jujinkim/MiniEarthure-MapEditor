@@ -145,7 +145,7 @@ def _pose(theta_deg):
 
 
 class Furniture:
-    def __init__(self, patches, coordinates, scale, traffic):
+    def __init__(self, patches, coordinates, scale, traffic, building_blockers=()):
         self.scale = scale
         self.left_hand = traffic.get("driving_side") == "left"
         self.signal = "builtin:signal_v" if traffic.get("signal_style") == "vertical" else "builtin:signal_h"
@@ -173,6 +173,8 @@ class Furniture:
         # MapKit's joint faces between two segments (street planting and lamps).
         self.joints = self._joints(roads)
         self.buildings, self.water, self.barriers = [], [], []
+        self.buildings.extend(building_blockers)
+        blocks.extend(g.buffer(GAP_CM * scale) for g in building_blockers)
         for p in patches:
             if p["field"] == "buildings":
                 rings = [p["after"]["footprint"]] + [part["footprint"] for part in p["after"].get("parts", [])]
@@ -1421,11 +1423,11 @@ class Furniture:
         return (hx / length, hy / length) if length else None
 
 
-def generate(layer_id, patches, coordinates, scale, traffic, road_info=None, school_areas=None):
+def generate(layer_id, patches, coordinates, scale, traffic, road_info=None, school_areas=None, building_blockers=()):
     """(placement records, counts) for a converted city layer. `road_info`
     (road id -> {highway, name, maxspeed}) and `school_areas` (source-cm rings)
     are transient conversion inputs of the road signs and street trees."""
-    furniture = Furniture(patches, coordinates, scale, traffic)
+    furniture = Furniture(patches, coordinates, scale, traffic, building_blockers)
     street = coordinates.get("osm_street_points", [])
     furniture.signals([p for p in street if p["kind"] == "traffic_signals"])
     furniture.stops(street)

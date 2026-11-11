@@ -28,7 +28,9 @@ func run() -> void:
 	var failure: String = job.commit(store)
 	check(failure == "","apply native source composition: "+failure)
 	if failure == "":
-		check(store.document.buildings.size() == 4,"auxiliary parts and parent remainder keep independent source heights")
+		check(store.document.buildings.size() == 6,"auxiliary parts and parent remainder keep independent source heights")
+		check(store.document.buildings.any(func(b): return b.get("parts",[]).size()==1),"point-touching source components share one native owner")
+		check(store.document.buildings.any(func(b): return b.id.begins_with("regional-ov-touching-courtyard") and b.get("parts",[]).size()>1),"touching courtyard keeps its exact void as disjoint parts")
 		check(store.document.surface_areas.size()>1,"WorldCover residual geometry applied")
 		check(store.undo() == "" and store._signature(store.document)==original,"one undo restores every original source record")
 	job.cleanup()

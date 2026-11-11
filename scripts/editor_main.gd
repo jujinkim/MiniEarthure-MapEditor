@@ -132,6 +132,7 @@ var import_license: LineEdit
 var import_accuracy: LineEdit
 const IMPORT_LAYER := preload("./import_layer.gd")
 var import_identity := ""
+var import_layer_identity := ""
 var pending_import: RefCounted
 var import_review: ConfirmationDialog
 var import_details: AcceptDialog
@@ -1518,7 +1519,7 @@ func _trim_preview_cache(keep: Vector2i) -> void:
 		preview_cache[oldest].root.queue_free()
 		preview_cache.erase(oldest)
 
-func _start_import(source: String, license_name: String) -> void:
+func _start_import(source: String, license_name: String, output_identity := "") -> void:
 	_ensure_import_ui()
 	if busy:
 		_status(I18N.t("Another operation is running; wait for cancellation to finish."))
@@ -1533,6 +1534,7 @@ func _start_import(source: String, license_name: String) -> void:
 	settings.set_value("import", "python", import_python.text.strip_edges())
 	settings.save("user://editor_tools.cfg")
 	import_identity = Crypto.new().generate_random_bytes(16).hex_encode()
+	import_layer_identity = import_identity if output_identity == "" else output_identity
 	var job := IMPORT_JOB.new()
 	var accuracy := import_accuracy.text.strip_edges() if not import_accuracy.text.strip_edges().is_empty() else "unknown"
 	import_coordinates_request = {"mode":"local-metres"} if import_coordinate_mode.selected == 0 else {"mode":"wgs84-utm", "origin":[import_origin_lon.value,import_origin_lat.value], "local_origin_m":[import_origin_x.value,import_origin_y.value]}
@@ -1585,7 +1587,7 @@ func _start_import(source: String, license_name: String) -> void:
 		import_coordinates_request.csv = csv_panel.capture()
 	import_coordinates_request.adapter = "facility-csv-v1" if input_format == "csv" else "overture-land-cover-v1" if input_format == "overture-land-cover" else "overture-transportation-v1" if input_format == "overture-transportation" else "overture-buildings-v1" if input_format == "overture" else ("geojson-v1" if input_format == "geojson" else "osm-extract-v1")
 	if input_format not in ["geojson", "csv"]: license_name = IMPORT_LAYER.OVERTURE_LAND_COVER_LICENSE if input_format == "overture-land-cover" else IMPORT_LAYER.OVERTURE_TRANSPORTATION_LICENSE if input_format == "overture-transportation" else IMPORT_LAYER.OVERTURE_LICENSE if input_format == "overture" else IMPORT_LAYER.OSM_LICENSE
-	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, "")
+	var failure := job.start(source, license_name, accuracy, import_python.text.strip_edges(), import_identity, import_coordinates_request, input_format, "", import_layer_identity)
 	if failure != "":
 		_operation_status(I18N.t("Import failed · Use Retry import to adjust settings"), I18N.t("E_IMPORT: ") + I18N.diagnostic(failure))
 		return
@@ -1722,7 +1724,7 @@ func _finish_import(result: Dictionary) -> void:
 		_status(I18N.t("Document changed during import; retry to add the new layer."))
 		return
 	var layer := IMPORT_LAYER.new()
-	var failure := layer.load_value(result.data, import_identity, import_coordinates_request)
+	var failure := layer.load_value(result.data, import_layer_identity, import_coordinates_request)
 	if failure != "":
 		_status(I18N.t("E_IMPORT: ") + I18N.diagnostic(failure))
 		return
@@ -1736,7 +1738,7 @@ func _import_controls_changed() -> void:
 func _import_selection_signature() -> String:
 	return JSON.stringify([import_controls_revision, import_source_format.selected, import_coordinate_mode.selected,
 		import_origin_lon.value, import_origin_lat.value, import_origin_x.value, import_origin_y.value,
-		osm_panel.revision, vertical_panel.revision, import_coordinates_request, import_identity, last_import_source])
+		osm_panel.revision, vertical_panel.revision, import_coordinates_request, import_identity, import_layer_identity, last_import_source])
 
 func _start_native_import(layer: RefCounted, adopting: bool) -> void:
 	if busy:
@@ -1814,7 +1816,7 @@ func _import_review_current() -> bool:
 func _review_controls() -> Array:
 	return [import_controls_revision, import_source_format.selected, import_coordinate_mode.selected,
 		import_origin_lon.value, import_origin_lat.value, import_origin_x.value, import_origin_y.value,
-		osm_panel.revision, vertical_panel.revision, import_identity, last_import_source]
+		osm_panel.revision, vertical_panel.revision, import_identity, import_layer_identity, last_import_source]
 
 func _open_import_details() -> void:
 	if not _import_review_current() or import_selection_signature != _import_selection_signature():

@@ -14,9 +14,10 @@ const READ_BUDGET := 16384
 ## Mirrors osm_stream.REGIONAL_SOURCE_BYTES / REGIONAL_STAGES.
 const REGIONAL_SOURCE_BYTES := 512 * 1024 * 1024
 const REGIONAL_STAGES := ["extract_nodes", "extract_ways", "extract_relations", "extract_members", "extract_write_nodes", "extract_write_ways", "extract_write_relations"]
-const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_water_crossings.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "osm_generalize.py", "osm_roads.py", "road_overrides.py", "regional.py", "osm_sites.py", "osm_furniture.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
+const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_water_crossings.py", "osm_structure_sections.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "osm_generalize.py", "osm_roads.py", "road_overrides.py", "regional.py", "regional_road_conflicts.py", "osm_sites.py", "osm_furniture.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
 var pid := -1
 var identity := ""
+var layer_identity := ""
 var directory := ""
 var output_path := ""
 var stdio: FileAccess
@@ -50,13 +51,15 @@ var _owns_directory := false
 var _child_started := false
 var _attempted := false
 
-func start(source: String, license_name: String, accuracy: String, python: String, token: String, coordinates: Dictionary = {"mode":"local-metres"}, input_format: String = "geojson", source_label: String = "") -> String:
+func start(source: String, license_name: String, accuracy: String, python: String, token: String, coordinates: Dictionary = {"mode":"local-metres"}, input_format: String = "geojson", source_label: String = "", output_identity: String = "") -> String:
 	if _attempted or cancelled: return "ImportJob instances are single use."
 	_attempted = true
 	if input_format not in ["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover", "csv"]: return "Unsupported source format."
 	if input_format != "geojson" and coordinates.get("mode") != "wgs84-utm": return "Geographic source requires explicit WGS84 origins."
 	identity = token
 	if not LAYER._hex(token, 32): return "Invalid import request token."
+	layer_identity = token if output_identity == "" else output_identity
+	if not LAYER._hex(layer_identity, 32): return "Invalid import layer identity."
 	var input := FileAccess.open(source, FileAccess.READ)
 	if input == null: return "Cannot open selected source."
 	var size := input.get_length()
@@ -90,7 +93,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 			return error
 	output_path = directory.path_join("layer.json")
 	var arguments := PackedStringArray(["-B", "-u", directory.path_join("geojson.py"), source, output_path,
-		"--coordinates", str(coordinates.get("mode", "")), "--input-format", input_format, "--license", license_name, "--accuracy", accuracy, "--layer-id", token, "--watch-parent"])
+		"--coordinates", str(coordinates.get("mode", "")), "--input-format", input_format, "--license", license_name, "--accuracy", accuracy, "--layer-id", layer_identity, "--request-id", token, "--watch-parent"])
 	if source_label != "": arguments.append_array(PackedStringArray(["--source-name", source_label]))
 	if coordinates.get("mode") == "wgs84-utm":
 		for key in ["origin", "local_origin_m"]:

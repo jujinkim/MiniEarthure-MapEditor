@@ -87,12 +87,13 @@ smooths the relief, over the whole mosaic so shared cell edges stay identical.
 Relief stays true to scale ÷D. The sampling record adds `ground`
 (`osm-dem-bare-earth-v1`); other maps keep the raw DSM.
 
-**Place zero-base OSM buildings on this DSM (estimated)** is optional. It changes
-only imported OSM buildings whose base is still zero and whose footprint (and every
-part) the mosaic covers fully; the lowest DSM sample at vertices and edge midpoints
-sets the base of each solid (a part keeps its own base when it differs).
+**Place imported buildings on this DSM (estimated)** is optional. It changes
+imported OSM buildings whose base is still zero and regional auxiliary buildings
+whose bases still match their source receipt. The mosaic must cover every part
+fully; the lowest DSM sample at vertices and edge midpoints sets each solid's
+base, retaining auxiliary source floor offsets. A part keeps its own base when it differs.
 This is a disclosed surface estimate (roof/tree bias possible), not surveyed ground.
-Shapes, heights and other bases are unchanged. The receipt
+Shapes, heights and authored or previously grounded bases are unchanged. The receipt
 lists every changed base and uncovered count; terrain and buildings adopt as one Undo.
 
 Imported city water (`import-` water bodies) is fitted after the structures, in

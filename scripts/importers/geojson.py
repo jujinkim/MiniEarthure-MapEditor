@@ -474,6 +474,7 @@ def main():
     parser.add_argument("--accuracy", default="unknown")
     parser.add_argument("--source-name")
     parser.add_argument("--layer-id", required=True)
+    parser.add_argument("--request-id")
     parser.add_argument("--watch-parent", action="store_true")
     parser.add_argument("--input-format", choices=["geojson", "pbf", "osm", "overture", "overture-transportation", "overture-land-cover", "csv"], default="geojson")
     parser.add_argument("--csv-request", type=Path)
@@ -496,7 +497,7 @@ def main():
     args = parser.parse_args()
     if args.osm_radius_km is not None and args.osm_center is None:
         raise ValueError("osm-radius-km needs osm-center")
-    if args.osm_radius_km is None: args.osm_radius_km = 1.5
+    if args.osm_radius_km is None: args.osm_radius_km = 2.0
     circle = None
     if args.osm_center is not None:
         if not args.osm_city or args.osm_bbox is None or args.osm_areas:
@@ -540,7 +541,7 @@ def main():
         projected_bounds(args.osm_bbox, dict(mode=args.coordinates, origin=args.origin, local_origin_m=args.local_origin), region=circle)
     if args.watch_parent:
         watch_parent_lifetime()
-    event = Progress(args.layer_id)
+    event = Progress(args.request_id or args.layer_id)
     supplement = None
     if args.height_supplement is not None:
         from osm_heights import Supplement, read_source
@@ -686,7 +687,15 @@ def main():
                 metadata["places"] = dict(points=len(pois), street=len(street))
                 from osm_furniture import generate as furniture
                 traffic = dict(driving_side=args.osm_driving_side, signal_style=args.osm_signal_style)
-                places, metadata["furniture"] = furniture(trial.layer_id, trial.patches, trial.coordinates, scale, traffic, trial.road_info, trial.school_areas)
+                from shapely.geometry import Polygon, shape
+                frame = Coordinates(options)
+                blockers = []
+                for geometry in candidate.get("regional_building_blockers", []):
+                    g = shape(geometry)
+                    for poly in (g.geoms if g.geom_type == "MultiPolygon" else [g]):
+                        blockers.append(Polygon([frame.point(list(p)) for p in poly.exterior.coords], [[frame.point(list(p)) for p in ring.coords] for ring in poly.interiors]))
+                places, metadata["furniture"] = furniture(trial.layer_id, trial.patches, trial.coordinates, scale, traffic, trial.road_info, trial.school_areas, blockers)
+                metadata["auxiliary_building_obstacles"] = len(blockers)
                 for record in places: trial.add("placements", record)
                 trial.coordinates["osm_traffic"] = traffic
                 trial = finish(trial, osm_counts)

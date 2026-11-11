@@ -8,10 +8,13 @@ from copy import deepcopy
 import hashlib
 import json
 import math
+import base64
+import gzip
+import zlib
 from pathlib import Path
 import re
 
-from shapely.geometry import Point, Polygon, shape
+from shapely.geometry import Point, Polygon, shape, mapping
 from shapely.strtree import STRtree
 
 AXES = {"architecture": "architectures", "climate": "climates", "settlement": "settlements", "terrain": "terrains"}
@@ -33,9 +36,36 @@ BUILDINGS = {"house":"detached", "detached":"detached", "bungalow":"detached", "
     "farm_auxiliary":"barn", "greenhouse":"utility", "service":"utility", "shed":"utility", "garage":"utility",
     "garages":"utility", "research":"research"}
 AMENITIES = {**BUILDINGS, "place_of_worship":"religious", "townhall":"civic", "police":"civic", "courthouse":"civic",
-    "community_centre":"civic", "public_building":"civic", "research_institute":"research"}
+    "community_centre":"civic", "public_building":"civic", "ranger_station":"civic", "bus_station":"station", "research_institute":"research"}
 MATERIALS = {"timber_framing":"wood", "reinforced_concrete":"concrete", "cement_block":"concrete", "steel":"metal",
     "limestone":"stone", "sandstone":"stone", "render":"plaster"}
+
+
+def pack_rows(record, key):
+    """Lossless optional v1 notice storage; reports keep their expanded rows."""
+    if not isinstance(record.get(key),list): return
+    data=canonical(record[key]).encode()
+    if not 65536 <= len(data) <= 32*1024*1024: return
+    record[key+"_blob"]=dict(codec="gzip-base64",bytes=len(data),sha256=hashlib.sha256(data).hexdigest(),
+                            data=base64.b64encode(gzip.compress(data,mtime=0)).decode("ascii"))
+    del record[key]
+
+
+def receipt_rows(record, key):
+    if key+"_blob" not in record:
+        result=record.get(key,[])
+    else:
+        blob=record[key+"_blob"]
+        if key in record or not isinstance(blob,dict) or blob.get("codec") != "gzip-base64": raise ValueError("invalid packed source evidence")
+        size=blob.get("bytes")
+        if not isinstance(size,(int,float)) or size != int(size) or not 0<size<=32*1024*1024 or not isinstance(blob.get("data"),str) or len(blob["data"])>64*1024*1024: raise ValueError("packed source evidence exceeds its budget")
+        compressed=base64.b64decode(blob["data"],validate=True)
+        decoder=zlib.decompressobj(31)
+        data=decoder.decompress(compressed,int(size)+1)
+        if len(data)!=size or not decoder.eof or decoder.unused_data or hashlib.sha256(data).hexdigest()!=blob.get("sha256"): raise ValueError("packed source evidence hash mismatch")
+        result=json.loads(data)
+    if not isinstance(result,list): raise ValueError("invalid source evidence rows")
+    return result
 
 
 def canonical(value):
@@ -99,8 +129,9 @@ def snapshot(descriptor, kind):
 
 
 def validate(request, catalog, source_sha=None, bounds=None, read_sources=True):
-    if not isinstance(request, dict) or request.get("version") != 1 or set(request) - {"version", "profile", "regions", "overrides", "worldcover", "buildings"}:
+    if not isinstance(request, dict) or request.get("version") != 1 or set(request) - {"version", "profile", "regions", "overrides", "worldcover", "buildings", "road_conflicts"}:
         raise ValueError("regional request must use v1 keys")
+    if request.get("road_conflicts", "reject") not in ("reject", "trim_buildings"): raise ValueError("invalid regional road conflict policy")
     profile(request.get("profile", {}), catalog)
     regions = request.get("regions", [])
     if not isinstance(regions, list) or len(regions) > 64: raise ValueError("regional regions must contain at most 64 records")
@@ -226,10 +257,15 @@ def annotate(collection, request, source_sha, catalog, bounds=None):
     """Annotate original polygons before generalization; no network or source mutation."""
     validate(request, catalog, source_sha, bounds)
     result = deepcopy(collection)
+    result["regional_road_conflicts"] = request.get("road_conflicts", "reject")
     overrides = {row["source_id"]: row for row in request.get("overrides", {}).get("objects", [])}
     present = {f["properties"].get("osm_source_id") for f in result["features"]}
     if set(overrides) - present: raise ValueError("regional override source absent from selected extent: " + ", ".join(sorted(set(overrides) - present)))
     auxiliaries = read_buildings(request["buildings"]) if "buildings" in request else []
+    # Transient authoring obstacles: road simplification and generated furniture
+    # must already reserve future supplemental buildings. They are not OSM
+    # features or serialized source records; composition owns dedup/adoption.
+    result["regional_building_blockers"] = [mapping(g) for p,g in auxiliaries if not p.get("is_underground")]
     tree = STRtree([g for p,g in auxiliaries])
     by_id = {}
     for i, (p,g) in enumerate(auxiliaries):

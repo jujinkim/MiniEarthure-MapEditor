@@ -11,7 +11,7 @@ import numpy as np
 import pyproj
 import rasterio
 from rasterio.transform import from_origin
-from shapely.geometry import box, mapping, Polygon, LineString
+from shapely.geometry import box, mapping, Polygon, LineString, Point, MultiPolygon
 from shapely.ops import transform, unary_union
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts/importers"))
@@ -102,6 +102,78 @@ class Regional(unittest.TestCase):
         self.assertTrue(all(f["properties"]["height_m"] in (7,21,55,5,12) for f in buildings))
         layer=convert(candidate,"synthetic","MIT",coordinates=self.options,osm_graph=True,city=True,denominator=3)
         self.assertEqual({p["after"]["style_id"] for p in layer.patches if p["field"]=="buildings"},{f["properties"]["style_id"] for f in buildings})
+    def test_public_amenity_overrides_generic_building_in_sparse_region(self):
+        request=deepcopy(self.request);request["profile"].update(settlement="sparse",architecture="modern")
+        features=[self.feature(i+1,box(i*30,0,i*30+12,15),_city_building="yes",_city_source_tags={"building":"yes","amenity":amenity}) for i,amenity in enumerate(("ranger_station","bus_station"))]
+        annotated,_=self.annotate(features,request)
+        properties=[f["properties"] for f in annotated["features"]]
+        self.assertEqual([p["style_id"].split("/")[2] for p in properties],["civic","station"])
+        self.assertTrue(all(p["_city_regional"]["evidence"]["type"]=="source:amenity" for p in properties))
+
+    def test_authorized_carriageway_cut_preserves_other_geometry_and_discloses_extent(self):
+        request=deepcopy(self.request);request["road_conflicts"]="trim_buildings"
+        features=[self.feature(1,LineString([(0,0),(40,0)]),width_m=4,_city_refs=[1,2],_city_road_tags={"highway":"residential","width":"4","sidewalk":"both"}),
+                  self.feature(2,box(10,1,20,8),_city_building="school",height_m=9,_city_source_tags={"building":"school"}),
+                  self.feature(3,box(25,4,35,10),_city_building="hospital",height_m=18,_city_source_tags={"building":"hospital"})]
+        original=deepcopy(features)
+        annotated,_=self.annotate(features,request);worker=Generalizer(annotated,self.options,scale=3)
+        out,meta=worker.candidate(64)
+        edits=meta["road_footprint_corrections"]
+        self.assertEqual(len(edits),1)
+        self.assertEqual(edits[0]["source_ids"],["way/2"]);self.assertEqual(edits[0]["road_sources"],["way/1"])
+        self.assertAlmostEqual(edits[0]["removed_area_m2"],11.2,places=3)
+        self.assertEqual(edits[0]["clearance_map_cm"],4)
+        self.assertGreater(Polygon(edits[0]["removed_wgs84"]["coordinates"][0]).area,0)
+        buildings=[f for f in out["features"] if f["properties"].get("style_id","").startswith("building/")]
+        self.assertEqual({f["properties"]["height_m"] for f in buildings},{9,18})
+        self.assertEqual({f["properties"]["style_id"].split("/")[2] for f in buildings},{"school","hospital"})
+        self.assertEqual(worker.candidate(64)[1]["road_footprint_corrections"],edits)
+        self.assertEqual(features,original)
+        # A missing policy keeps the original footprint, including a source conflict.
+        strict,_=self.annotate(features);_,strict_meta=Generalizer(strict,self.options,scale=3).candidate(64)
+        self.assertEqual(strict_meta["road_footprint_corrections"],[])
+        covered=self.feature(4,box(10,-1,20,1),_city_building="yes")
+        annotated,_=self.annotate([features[0],covered],request)
+        with self.assertRaisesRegex(ValueError,"entirely inside the carriageway"):
+            Generalizer(annotated,self.options,scale=3).candidate(64)
+
+    def test_narrow_right_angle_reserves_quantized_inner_fillet(self):
+        from regional_road_conflicts import corridors, trim
+        road = dict(properties=dict(width_m=3.75, _city_point_refs=[1,2,3]))
+        index = corridors([(road,LineString([(30,0),(0,0),(0,30)]))],3,lambda f:["way/1"])
+        # Coincident rounded mouths expose the full concave corner fillet;
+        # treating its tiny pre-rounding edge as a tangent misses this area.
+        building = box(2.01,2.01,6,6)
+        result, sources, removed = trim(building,index)
+        self.assertEqual(sources,["way/1"])
+        self.assertGreater(removed.area,0)
+        self.assertFalse(result.covers(Point(2.01,2.01)))
+        self.assertTrue(result.covers(Point(6,6)))
+
+    def test_bridge_collision_edge_keeps_buildings_below_the_deck(self):
+        from regional_road_conflicts import corridors, trim
+        road=dict(properties=dict(width_m=2,road_kind="bridge",elevations_m=[10,10]))
+        index=corridors([(road,LineString([(0,0),(30,0)]))],3,lambda f:["way/1"])
+        building=box(10,1.2,20,5)
+        low,ids,_=trim(building,index,6)
+        self.assertTrue(low.equals(building));self.assertEqual(ids,[])
+        tall,ids,removed=trim(building,index,12)
+        self.assertEqual(ids,["way/1"]);self.assertGreater(removed.area,0)
+        self.assertTrue(tall.covers(Point(15,5)))
+
+    def test_tunnel_ceiling_clearance_preserves_buried_parts_and_cuts_shallow_portal(self):
+        from regional_road_conflicts import corridors, trim
+        road=dict(properties=dict(width_m=2,road_kind="tunnel",elevations_m=[-6,-6],clearance_m=4.5))
+        building=box(10,-2,20,5)
+        index=corridors([(road,LineString([(0,0),(30,0)]))],3,lambda f:["way/1"])
+        retained,ids,_=trim(building,index,9,0)
+        self.assertTrue(retained.equals(building));self.assertEqual(ids,[])
+        road["properties"]["elevations_m"]=[-6,0]
+        index=corridors([(road,LineString([(0,0),(30,0)]))],3,lambda f:["way/1"])
+        cut,ids,removed=trim(building,index,9,0)
+        self.assertEqual(ids,["way/1"]);self.assertGreater(removed.area,0)
+        self.assertGreater(cut.area,0);self.assertTrue(cut.covers(Point(15,5)))
+
     def test_pedestrian_paint_keeps_different_styles_with_shared_physics(self):
         features=[self.feature(1,LineString([(0,0),(30,0)]),width_m=2,surface="concrete",_city_refs=[1,2],_city_road_tags=dict(highway="footway",surface="concrete")),
                   self.feature(2,LineString([(30,0),(60,0)]),width_m=2,surface="concrete",_city_refs=[2,3],_city_road_tags=dict(highway="footway",surface="paving_stones"))]
@@ -166,7 +238,30 @@ class Regional(unittest.TestCase):
         self.assertGreater(generated.area,100000000)
         self.assertTrue(all(p["style_id"]=="ground/pavers" for p in out["surface_areas"] if p["id"].startswith("regional-")))
         self.assertGreater(report["diagnostics"]["regional"]["counts"]["sidewalk_candidate_m2"],0)
+        attribution=next(a for a in out["attributions"] if a["notice"].startswith("{") and json.loads(a["notice"]).get("adapter")==composition.OWNER)
+        self.assertIn("ESA WorldCover",attribution["source"])
+        self.assertIn(request["worldcover"]["license"],attribution["license"])
         with self.assertRaisesRegex(ValueError,"already applied"):composition.compose(out,request,self.catalog)
+    def test_validation_cells_use_the_document_origin(self):
+        request=deepcopy(self.request)
+        doc=self.document(request)
+        doc["bounds"]={"min":[4000,4000],"max":[20000,20000]}
+        doc["cell_size_cm"]=8000
+        _,report=composition.compose(doc,request,self.catalog)
+        self.assertEqual(report["diagnostics"]["metrics"]["cost_cells"],[dict(x=0,y=0)])
+
+    def test_oblique_source_paint_and_partitioned_cover_never_overlap(self):
+        from shapely.strtree import STRtree
+        request=deepcopy(self.request);self.cover(request)
+        doc=self.document(request)
+        doc["surface_areas"][0]["polygon"]=[[12000,5001],[15001,5113],[14777,8179],[12223,8007]]
+        out,_=composition.compose(doc,request,self.catalog)
+        polygons=[Polygon(p["polygon"]) for p in out["surface_areas"]]
+        tree=STRtree(polygons)
+        for i,p in enumerate(polygons):
+            for j in tree.query(p):
+                if j>i:self.assertEqual(p.intersection(polygons[j]).area,0)
+
     def test_duplicate_by_source_id_and_overlap_and_missing_parts_fail_atomically(self):
         request=deepcopy(self.request)
         base=self.document(request);notice=composition.osm_notice(base);frame=composition.Frame(notice)
@@ -183,6 +278,95 @@ class Regional(unittest.TestCase):
         request["buildings"]=self.snapshot(features);doc=self.document(request);before=deepcopy(doc)
         with self.assertRaisesRegex(ValueError,"parts missing"):composition.compose(doc,request,self.catalog)
         self.assertEqual(doc,before)
+    def test_auxiliary_building_cannot_replace_retained_road_space(self):
+        request=deepcopy(self.request)
+        # The source origin maps to [10000,10000], on the existing road.
+        geometry=json.loads(json.dumps(mapping(transform(self.inverse,box(-3,-3,3,3)))))
+        request["buildings"]=self.snapshot([dict(type="Feature",geometry=geometry,properties=dict(id="road-conflict",height=6,sources=[]))])
+        doc=self.document(request);before=deepcopy(doc)
+        out,report=composition.compose(doc,request,self.catalog)
+        self.assertEqual(out["buildings"],doc["buildings"])
+        self.assertEqual(doc,before)
+        receipt=report["diagnostics"]["regional"]
+        self.assertEqual(receipt["counts"]["building_road_conflict"],1)
+        self.assertEqual(receipt["objects"][0]["source_id"],"road-conflict")
+        self.assertEqual(receipt["objects"][0]["road_ids"],["road"])
+
+    def test_small_nonzero_boundary_building_keeps_its_integer_area(self):
+        request=deepcopy(self.request)
+        local=Polygon([[1000,15000],[1006,14997],[1006,14998]])
+        geographic=mapping(transform(self.inverse,shapely_scale(local,3/100,-300,-300)))
+        request["buildings"]=self.snapshot([dict(type="Feature",geometry=geographic,properties=dict(id="boundary-tip",height=6,sources=[]))])
+        out,_=composition.compose(self.document(request),request,self.catalog)
+        building=next(b for b in out["buildings"] if b["id"].startswith("regional-"))
+        self.assertEqual(Polygon(building["footprint"]).area,3)
+
+    def test_point_touching_auxiliary_components_keep_one_source_owner(self):
+        request=deepcopy(self.request)
+        local=MultiPolygon([box(1000,15000,2000,16000),box(2000,16000,3000,17000)])
+        geographic=mapping(transform(self.inverse,shapely_scale(local,3/100,-300,-300)))
+        request["buildings"]=self.snapshot([dict(type="Feature",geometry=geographic,properties=dict(id="multipart",height=6,sources=[]))])
+        out,report=composition.compose(self.document(request),request,self.catalog)
+        buildings=[b for b in out["buildings"] if b["id"].startswith("regional-")]
+        self.assertEqual(len(buildings),1)
+        self.assertEqual(len(buildings[0]["parts"]),1)
+        self.assertEqual(Polygon(buildings[0]["footprint"]).area+Polygon(buildings[0]["parts"][0]["footprint"]).area,local.area)
+        self.assertEqual(report["diagnostics"]["regional"]["counts"]["building_added"],1)
+
+    def test_touching_courtyard_partition_preserves_exact_outline_and_void(self):
+        local=Polygon([(0,0),(2000,0),(2000,2000),(0,2000)],
+                      [[(0,1000),(1000,500),(1000,1500)]])
+        result=composition.building_parts(local)
+        self.assertGreater(len(result),1)
+        self.assertTrue(all(not p.interiors and p.area>0 for p in result))
+        self.assertEqual(sum(p.area for p in result),local.area)
+        self.assertEqual(unary_union(result).symmetric_difference(local).area,0)
+        self.assertEqual([p.wkb for p in result],[p.wkb for p in composition.building_parts(local)])
+
+    def test_source_receipt_compression_is_lossless_bounded_and_hash_checked(self):
+        rows=[dict(source_id=f"way/{i}",evidence=dict(height="source:height"),label="학교") for i in range(1500)]
+        packed=dict(objects=deepcopy(rows));regional.pack_rows(packed,"objects")
+        self.assertNotIn("objects",packed)
+        self.assertEqual(regional.receipt_rows(packed,"objects"),rows)
+        second=dict(objects=deepcopy(rows));regional.pack_rows(second,"objects")
+        self.assertEqual(packed,second)
+        for field,value in (("bytes",33*1024*1024),("bytes",1),("sha256","0"*64),("codec","unknown")):
+            bad=deepcopy(packed);bad["objects_blob"][field]=value
+            with self.assertRaises(ValueError):regional.receipt_rows(bad,"objects")
+        bad=deepcopy(packed);bad["objects"]=[]
+        with self.assertRaises(ValueError):regional.receipt_rows(bad,"objects")
+
+    def test_auxiliary_buildings_respect_rounded_junctions_and_bridge_edges(self):
+        def request_for(local):
+            request=deepcopy(self.request)
+            geometry=mapping(transform(self.inverse,shapely_scale(local,3/100,-300,-300)))
+            request["buildings"]=self.snapshot([dict(type="Feature",geometry=geometry,properties=dict(id="edge-building",height=6,sources=[]))])
+            return request
+        request=request_for(box(10185,9775,10235,9825))
+        doc=self.document(request);road=doc["roads"][0]
+        road["points"]=[[0,0,10000],[10000,0,10000],[10000,0,20000]]
+        road["widths_cm"]=[500,500];road["surfaces"]=["asphalt","asphalt"]
+        out,report=composition.compose(doc,request,self.catalog)
+        self.assertEqual(out["buildings"],doc["buildings"])
+        self.assertEqual(report["diagnostics"]["regional"]["counts"]["building_road_conflict"],1)
+        request=request_for(box(10000,10260,10050,10265))
+        doc=self.document(request);doc["roads"][0]["kind"]="bridge"
+        _,report=composition.compose(doc,request,self.catalog)
+        self.assertEqual(report["diagnostics"]["regional"]["counts"]["building_road_conflict"],1)
+        for point in doc["roads"][0]["points"]:point[1]=400
+        out,report=composition.compose(doc,request,self.catalog)
+        self.assertEqual(report["diagnostics"]["regional"]["counts"]["building_added"],1)
+
+    def test_auxiliary_envelopes_reserve_generated_furniture_space(self):
+        from osm_furniture import Furniture
+        request=deepcopy(self.request)
+        request["buildings"]=self.snapshot([dict(type="Feature",geometry=mapping(transform(self.inverse,box(0,0,10,10))),properties=dict(id="reserved",sources=[]))])
+        result,_=self.annotate([self.feature(1,box(30,0,40,10),_city_building="yes")],request)
+        self.assertEqual(len(result["regional_building_blockers"]),1)
+        furniture=Furniture([],{},3,dict(driving_side="right",signal_style="horizontal"),[box(0,0,1000,1000)])
+        self.assertFalse(furniture.place("test","builtin:bus_shelter",500,500,0,"node/1",steps=0))
+        self.assertTrue(furniture.place("test","builtin:bus_shelter",2500,500,0,"node/2",steps=0))
+
     def test_coarse_natural_cover_creates_no_sidewalk_and_bad_classes_fail(self):
         request=deepcopy(self.request);self.cover(request,30)
         doc=self.document(request);out,report=composition.compose(doc,request,self.catalog)

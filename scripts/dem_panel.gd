@@ -45,7 +45,7 @@ func _ready() -> void:
 	column.add_child(mosaic)
 	mosaic.toggled.connect(_mosaic_changed)
 	ground_buildings = CheckBox.new()
-	ground_buildings.text = I18N.t("Place zero-base OSM buildings on this DSM (estimated)")
+	ground_buildings.text = I18N.t("Place imported buildings on this DSM (estimated)")
 	column.add_child(ground_buildings)
 	ground_buildings.toggled.connect(func(_enabled): invalidate())
 	editor._button(column,"Use imported OSM coordinates and full map extent",use_imported_frame)

@@ -1,5 +1,5 @@
 extends RefCounted
-## Explicit DSM estimate for zero-base OSM buildings. Never structural roads.
+## Explicit DSM estimate for zero-base OSM and source-based regional buildings.
 const TYPES := preload("./import_layer.gd")
 const PROFILE := "osm-dsm-min-perimeter-v1"
 const LIMITS := preload("./limit_warnings.gd")
@@ -22,10 +22,27 @@ static func layers(document: Dictionary) -> Dictionary:
 			if active.has(prefix): result[prefix]=meta.coordinates
 	return result
 
+static func regional_sources(document: Dictionary) -> Dictionary:
+	var result := {}
+	for attribution: Dictionary in document.attributions:
+		var parser := JSON.new()
+		if parser.parse(attribution.notice)!=OK or parser.data is not Dictionary or parser.data.get("adapter")!="mapeditor-regional-v1": continue
+		var decoded := preload("./source_receipt.gd").rows(parser.data,"objects")
+		if not decoded.ok: return {"error":decoded.error}
+		for row: Dictionary in decoded.data:
+			if row.get("record_ids",[]) is not Array or row.get("source_bases_cm",[]) is not Array: return {"error":"Invalid regional source base receipt."}
+			for base: Variant in row.get("source_bases_cm",[]):
+				if not TYPES._finite(base,-1000000,1000000) or float(base)!=floor(float(base)): return {"error":"Invalid regional source base height."}
+			for id: String in row.get("record_ids",[]):
+				if id.begins_with("regional-ov-"): result[id]=row.get("source_bases_cm",[]).duplicate()
+	return {"records":result}
+
 static func prepare(store: RefCounted, records: Array, blobs: Dictionary, options: Dictionary) -> Dictionary:
 	var patches: Array=[]
 	var changes: Array=[]
 	var sources:=layers(store.document)
+	var regional:=regional_sources(store.document)
+	if regional.has("error"): return regional
 	var eligible: Array=[]
 	var skipped:=0
 	var samples:=0
@@ -34,16 +51,27 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 	var high: Array=[low[0]+options.cell_count[0]*size,low[1]+options.cell_count[1]*size]
 	for building: Dictionary in store.document.buildings:
 		var prefix:=str(building.id).left(40)
-		if not sources.has(prefix) or building.base_cm!=0: continue
+		var auxiliary: bool=regional.records.has(building.id)
+		if not auxiliary and (not sources.has(prefix) or building.base_cm!=0): continue
+		if auxiliary and sources.is_empty(): return {"error":"Regional buildings lack their imported coordinate frame."}
+		var frame: Dictionary=sources.values()[0] if auxiliary else sources[prefix]
 		for key in ["mode","origin","local_origin_m"]:
-			if sources[prefix].get(key)!=options.coordinates.get(key): return {"error":"Projection origin conflicts with active imported height data."}
+			if frame.get(key)!=options.coordinates.get(key): return {"error":"Projection origin conflicts with active imported height data."}
+		var source_bases: Array=regional.records[building.id] if auxiliary else []
+		var building_solids: Array=[building]+building.get("parts",[])
+		if source_bases.is_empty():
+			source_bases.resize(building_solids.size()); source_bases.fill(0)
+		if source_bases.size()!=building_solids.size(): return {"error":"Regional building source bases do not match its parts."}
+		var unchanged := true
+		for k in building_solids.size():
+			if int(building_solids[k].get("base_cm",building.base_cm))!=int(source_bases[k]): unchanged=false
+		if not unchanged: continue # Preserve authored or previously grounded bases.
 		# Each solid (footprint, then city building parts) is grounded on its own.
 		var solids: Array=[]
 		var covered:=true
 		var counted:=0
 		var solid_rings: Array=[[building.footprint]+building.get("holes",[])]
 		for part: Dictionary in building.get("parts",[]):
-			if int(part.get("base_cm",0))!=0: covered=false
 			solid_rings.append([part.footprint]+part.get("holes",[]))
 		for rings: Array in solid_rings:
 			var points: Array=[]
@@ -62,7 +90,7 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 			continue
 		samples+=counted
 		if samples>MAX_SAMPLES: return {"error":"Building grounding exceeds 16 million terrain samples."}
-		eligible.append([building,solids])
+		eligible.append([building,solids,source_bases])
 	# MapKit samples the newly reviewed DEM. The thin view excludes road grading;
 	# final candidate admission still validates the full map and all selected cells.
 	var native: RefCounted=store.working_snapshot().fork()
@@ -80,13 +108,14 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 	if not result.ok: return {"error":store.reason(result)}
 	for entry: Array in eligible:
 		var bases: Array=[]
-		for points: Array in entry[1]:
+		for solid_index in entry[1].size():
+			var points: Array=entry[1][solid_index]
 			var base:=1000001
 			for point: Vector2 in points:
 				result=JSON.parse_string(native.height(point))
 				if not result.ok: return {"error":store.reason(result)}
 				base=mini(base,int(result.data.height))
-			bases.append(base)
+			bases.append(base+int(entry[2][solid_index]))
 		var before: Dictionary=entry[0]
 		var after:=before.duplicate(true)
 		after.base_cm=bases[0]
@@ -115,7 +144,7 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 	LIMITS.over(notes, "dem_grounding_samples", samples, WARN_SAMPLES, "Terrain samples for building grounding")
 	return {"patches":patches,"receipt":{"profile":PROFILE,"estimated":true,"samples":samples,"skipped_partial":skipped,"changes":changes,"placements":furniture},"limit_warnings":notes}
 
-static func valid_patch(patch: Dictionary, enabled: bool) -> bool:
+static func valid_patch(patch: Dictionary, enabled: bool, regional: bool = false) -> bool:
 	if enabled and patch.get("field")=="placements" and patch.get("before") is Dictionary and patch.get("after") is Dictionary:
 		# Only the height of an imported placement may change.
 		var moved: Dictionary=patch.after.duplicate(true)
@@ -125,15 +154,17 @@ static func valid_patch(patch: Dictionary, enabled: bool) -> bool:
 	if not enabled or patch.get("field")!="buildings" or patch.get("before") is not Dictionary or patch.get("after") is not Dictionary: return false
 	var before: Dictionary=patch.before
 	var after: Dictionary=patch.after
-	if before.get("base_cm")!=0 or not TYPES._finite(after.get("base_cm"),-1000000,1000000) or not str(patch.get("id","")).begins_with("import-"): return false
+	if (not regional and before.get("base_cm")!=0) or not TYPES._finite(after.get("base_cm"),-1000000,1000000): return false
+	if not str(patch.get("id","")).begins_with("regional-ov-" if regional else "import-"): return false
 	var expected:=before.duplicate(true)
 	expected.base_cm=after.base_cm
 	# City building parts: only each solid's base may change, from zero.
 	if before.get("parts") is Array and after.get("parts") is Array and before.parts.size()==after.parts.size():
 		for k in range(before.parts.size()):
 			var part: Variant=after.parts[k]
-			if part is not Dictionary or int(before.parts[k].get("base_cm",0))!=0: return false
+			if part is not Dictionary or (not regional and int(before.parts[k].get("base_cm",0))!=0): return false
 			if part.has("base_cm"):
 				if not TYPES._finite(part.base_cm,-1000000,1000000): return false
 				expected.parts[k].base_cm=part.base_cm
+			else: expected.parts[k].erase("base_cm")
 	return after==expected and before.get("id")==patch.id

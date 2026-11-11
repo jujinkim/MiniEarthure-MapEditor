@@ -106,6 +106,8 @@ def dimensions(feature):
     """
     p, t = feature["properties"], tags(feature)
     count = p.get("_city_lanes") if p.get("_city_dual") else lanes(t)
+    context_count = p.get("_city_context_lanes") if count is None else None
+    if context_count is not None: count = context_count
     tagged = "width_m" in p and "_city_width_estimate" not in p
     width = float(p.get("width_m", 0)) if tagged or p.get("_city_dual") else 0.0
     median = max(0.0, width - sum(p["_city_carriageway_m"])) if p.get("_city_carriageway_m") else 0.0
@@ -114,7 +116,7 @@ def dimensions(feature):
         value = t.get(key, "")
         if re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", str(value)): shoulder += float(value)
     available = max(.2, width - median - shoulder)
-    basis = "author" if p.get("_city_author_override") else "source_lanes" if count else "class"
+    basis = "author" if p.get("_city_author_override") else "context_buildings" if context_count is not None else "source_lanes" if count else "class"
     if width > 0 and (not count or available / count > 4.5):
         count = max(count or 1, round(available / LANE_M))
         count = _lane_count(count)
@@ -772,6 +774,9 @@ class DualCarriageways:
             a_lanes = dimensions(f)[1]
             b_lanes = dimensions(items[b_run[0]][0])[1]
             p["_city_road_tags"] = {k: v for k, v in tags(f).items() if k not in ("oneway", "dual_carriageway")}
+            # The combined record represents both directions, including on
+            # motorways whose absent oneway tag otherwise implies one-way.
+            p["_city_road_tags"]["oneway"] = "no"
             p["_city_dual"] = True
             p["_city_lanes"] = _lane_count(a_lanes + b_lanes)
             p["_city_forward_lanes"] = a_lanes if self.sign[i] > 0 else b_lanes

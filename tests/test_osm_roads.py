@@ -132,7 +132,7 @@ class Roads(unittest.TestCase):
         self.assertEqual(sum(len(p["_city_sources"]) for p, g in merged), 2 + 2 + 3, "both carriageways and the median rungs")
         for p, g in merged:
             self.assertTrue(all(abs(y - 10) < 0.05 for x, y in g.coords), "midline of both carriageways")
-            self.assertNotIn("oneway", p["_city_road_tags"])
+            self.assertEqual(p["_city_road_tags"]["oneway"], "no")
             self.assertTrue(all(abs(w - (20 + 7)) < 0.05 for w in p["_city_widths_m"]), "source carriageways and median without widening")
         # Every cross street now ends at the moved midline node.
         for x in (0, 100, 200):
@@ -301,6 +301,20 @@ class Roads(unittest.TestCase):
         for ramp in ramps[:-1]:
             line = next(g for p, g in roads if p["_city_sources"] == [ramp])
             self.assertTrue(any(abs(y - 10) < 0.05 for x, y in (line.coords[0], line.coords[-1])), "ramps follow the merged node")
+        self.assert_connected(self.layer(result))
+
+    def test_combined_motorway_is_explicitly_two_way(self):
+        self.pair_between_ramps(highway="motorway")
+        _, result, _, roads = self.run_city()
+        merged = [p for p, _ in roads if p.get("_city_dual")]
+        self.assertTrue(merged)
+        for p in merged:
+            self.assertEqual(osm_roads.oneway(p["_city_road_tags"]), 0)
+            mark = p["_city_markings"]
+            self.assertEqual(mark.get("one_way", 0), 0)
+            self.assertGreater(mark["median_width_cm"], 0)
+            self.assertGreater(mark["forward_lanes"], 0)
+            self.assertLess(mark["forward_lanes"], mark["lanes"])
         self.assert_connected(self.layer(result))
 
     def test_one_real_rung_is_required_below_trunk(self):

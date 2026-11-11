@@ -56,7 +56,7 @@ func setup(owner_ui: Control) -> void:
 	column.add_child(coordinates)
 	latitude = _number(coordinates, "Latitude", -80, 84, 0.000001, 0)
 	longitude = _number(coordinates, "Longitude", -180, 180, 0.000001, 0)
-	radius = _number(coordinates, "Radius (km)", 0.001, 20, 0.001, 1.5)
+	radius = _number(coordinates, "Radius (km)", 0.001, 20, 0.001, 2.0)
 	var options := GridContainer.new()
 	options.columns = 4
 	column.add_child(options)

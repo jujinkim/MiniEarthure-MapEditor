@@ -172,7 +172,7 @@ def projected_bounds(value, coordinates, region=None):
     return [w,s,e,n]
 
 
-def circle_region(center, radius_km=1.5):
+def circle_region(center, radius_km=2.0):
     """WGS84 geodesic disk; chord error <0.4m throughout the 20km limit.
 
     Never shrink requested coverage. The crop admission and source reader retain
@@ -454,4 +454,7 @@ def crop(collection, selected, *, feature_limit=20_000, point_limit=None, region
     result = dict(type="FeatureCollection", features=output)
     if connections: result["osm_connections"] = connections
     if "osm_ground_loops" in collection: result["osm_ground_loops"] = collection["osm_ground_loops"]
+    # Excluded crossings have no retained feature from which to reconstruct
+    # their evidence. Keep the source review across the geometry crop.
+    if "osm_water_crossings" in collection: result["osm_water_crossings"] = collection["osm_water_crossings"]
     return result, meta

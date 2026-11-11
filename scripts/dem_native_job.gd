@@ -1,6 +1,7 @@
 extends "./raster_native_job.gd"
 ## Local DEM request admission; lifecycle and binary commands are shared.
 var ground_layers := {}
+var regional_ground := {}
 var fit_index := {}
 var water_index := {}
 
@@ -24,7 +25,11 @@ func start_dem(store: RefCounted, data: Dictionary, reviewed: Dictionary, destin
 		if output is not Dictionary or not LAYER._hex(output.get("png_sha256"), 64): return "Invalid DEM PNG identity."
 	expected_cells = outputs.size() if not store.document.roads.is_empty() or (ground_buildings and not store.document.buildings.is_empty()) else 0
 	structural = expected_cells > 0
-	if ground_buildings: ground_layers = preload("./dem_building_grounding.gd").layers(store.document)
+	if ground_buildings:
+		ground_layers = preload("./dem_building_grounding.gd").layers(store.document)
+		var sources := preload("./dem_building_grounding.gd").regional_sources(store.document)
+		if sources.has("error"): return sources.error
+		regional_ground = sources.records
 	request = {"kind":"dem", "request":token, "document":store.document.duplicate(true), "project":project_source,
 		"data":data.duplicate(true), "reviewed":reviewed.duplicate(true), "destination":destination,"ground_buildings":ground_buildings,
 		"layer_id":previous.layer_id if adopt else token, "expected_payloads":previous.get("payloads", "")}
@@ -49,4 +54,5 @@ func _additional_patch(patch: Dictionary) -> bool:
 	if patch.get("field") in ["roads", "nodes"]:
 		if fit_index.is_empty(): fit_index = preload("./dem_structure_fit.gd").index(request.document)
 		return preload("./dem_structure_fit.gd").valid_patch(patch,fit_index)
-	return ground_layers.has(str(patch.get("id","")).left(40)) and preload("./dem_building_grounding.gd").valid_patch(patch,request.get("ground_buildings",false))
+	var auxiliary: bool=regional_ground.has(str(patch.get("id","")))
+	return (auxiliary or ground_layers.has(str(patch.get("id","")).left(40))) and preload("./dem_building_grounding.gd").valid_patch(patch,request.get("ground_buildings",false),auxiliary)

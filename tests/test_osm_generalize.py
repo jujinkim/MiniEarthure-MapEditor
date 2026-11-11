@@ -46,6 +46,33 @@ class City(unittest.TestCase):
     def worker(self, scale=8):
         return Generalizer(dict(type="FeatureCollection", features=self.features), self.options, scale=scale)
 
+    def test_road_simplification_keeps_bend_clear_of_source_building(self):
+        self.setup_city()
+        self.add(1, LineString([(0,0),(20,-3.5),(40,0)]), width_m=3.75,
+                 _city_refs=[1,2,3], _city_road_tags=dict(highway="residential",oneway="yes"))
+        self.add(2, box(17,1,23,7), _city_regional={"region":"default"})
+        worker = self.worker(3)
+        feature, geometry = next((f,g) for f,g in worker.features if g.geom_type=="LineString")
+        protected, indices = worker.simplified_line(feature,geometry,4)
+        self.assertEqual(indices,[0,1,2])
+        self.assertTrue(protected.equals(geometry))
+        # With no nearby footprint, the same harmless bend may simplify.
+        worker.source_buildings = []
+        self.assertEqual(worker.simplified_line(feature,geometry,4)[1],[0,2])
+
+    def test_source_building_context_only_reduces_missing_local_dimensions(self):
+        for properties, expected in [({},3.75), ({"width_m":7},7), ({"lanes":"6"},20)]:
+            self.setup_city()
+            props = dict(properties)
+            tags = dict(highway="living_street")
+            if "lanes" in props: tags["lanes"] = props.pop("lanes")
+            self.add(1,LineString([(0,0),(40,0)]),_city_refs=[1,2],_city_road_tags=tags,**props)
+            self.add(2,box(10,3,20,8),_city_regional={"region":"default"})
+            worker=self.worker(3)
+            f,_=next((f,g) for f,g in worker.features if g.geom_type=="LineString")
+            self.assertEqual(f["properties"]["width_m"],expected)
+            self.assertEqual(bool(worker.context_dimensions),not bool(properties))
+
     def test_scale_derives_the_lattice_and_clearances_in_whole_map_centimetres(self):
         from osm_generalize import candidates
         self.setup_city()
@@ -264,6 +291,21 @@ class City(unittest.TestCase):
         for f in output["features"]:
             p=f["properties"]
             if "osm_node_refs" in p: self.assertNotEqual(p["osm_node_refs"][0],p["osm_node_refs"][-1])
+
+    def test_absorbed_sources_do_not_reorder_loop_traversal(self):
+        from osm_loops_fixture import xml
+        from osm_extract import parse
+        self.setup_city();collection,_=parse(xml().encode(),"osm")
+        ring=[]
+        for f in collection["features"]:
+            p=f["properties"]
+            if p.get("osm_way_id")==1:
+                p["osm_way_id"]=20;p["osm_source_id"]="way/20";ring.append(f)
+        ring[-1]["properties"]["_city_sources"]=["way/10","way/20"]
+        out,_=Generalizer(collection,self.options).candidate(0)
+        ranges=[f["properties"]["osm_loop_range"] for f in out["features"] if f["properties"].get("osm_way_id")==20]
+        self.assertEqual(ranges,sorted(ranges))
+        self.assertEqual([ranges[0][0],ranges[-1][1]],[0,4])
 
     def test_buildings_beside_a_park_stay_separate_solids(self):
         self.setup_city()
@@ -1005,7 +1047,7 @@ class CityRules(unittest.TestCase):
         import random
         rng = random.Random(7)
         for k in range(40):  # Oblique footways cut the grass off the lattice.
-            self.add(10 + k, LineString([(rng.uniform(1, 199), rng.uniform(1, 149)), (rng.uniform(1, 199), rng.uniform(1, 149))]), _city_refs=[100 + 2*k, 101 + 2*k], **walk("footway"))
+            self.add(10 + k, LineString([(rng.uniform(1, 199), rng.uniform(1, 149)), (rng.uniform(1, 199), rng.uniform(1, 149))]), _city_refs=[100 + 2*k, 101 + 2*k], **walk("footway"), _city_ground_style="ground/" + ("concrete" if k % 2 else "pavers"))
         worker = self.worker(3)
         out, meta = worker.candidate(0)
         paint = [(f["properties"]["_city_paint"], f["properties"]["_city_sources"], transform(worker.project, shape(f["geometry"]))) for f in out["features"] if "_city_paint" in f["properties"]]

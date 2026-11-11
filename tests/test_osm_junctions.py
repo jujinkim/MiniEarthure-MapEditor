@@ -225,14 +225,14 @@ class LevelStructures(unittest.TestCase):
 <way id="3"><nd ref="3"/><nd ref="4"/><tag k="highway" v="residential"/></way>{cross}
 </osm>""".encode()
 
-    def test_city_draws_a_bridge_crossing_no_road_at_ground_level(self):
+    def test_city_keeps_a_bridge_crossing_no_road_structural(self):
         with self.assertRaisesRegex(ValueError, "explicit vertical geometry"):
             osm.parse(self.osm(False), "osm")
         value, _ = osm.parse(self.osm(False), "osm", city=True)
         bridge = next(f for f in value["features"] if f["properties"]["osm_source_id"] == "way/2")
-        self.assertTrue(bridge["properties"]["_city_level_structure"])
-        self.assertNotIn("road_kind", bridge["properties"])
-        self.assertEqual([f["properties"].get("_city_level_structure", False) for f in value["features"] if f["properties"]["osm_source_id"] != "way/2"], [False, False])
+        self.assertNotIn("_city_level_structure", bridge["properties"])
+        self.assertEqual(bridge["properties"]["_city_estimated_kind"], "bridge")
+        self.assertGreater(max(bridge["properties"]["_city_estimated_m"]), 0)
 
     def test_city_estimates_rather_than_levels_a_bridge_over_a_road(self):
         value, _ = osm.parse(self.osm(True), "osm", city=True)
@@ -285,7 +285,7 @@ class EstimatedStructures(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "way/2: OSM explicit vertical geometry requires ele"):
             osm.parse(self.osm(0.0001), "osm", city=True)
 
-    def test_a_chain_crossing_only_excluded_structures_is_leveled(self):
+    def test_a_bridge_crossing_only_excluded_structures_stays_structural(self):
         value = self.osm()
         root = ET.fromstring(value)
         crossed = root.find("way[@id='6']")
@@ -298,17 +298,15 @@ class EstimatedStructures(unittest.TestCase):
         for way in root.iter("way"):
             ways.append((int(way.get("id")), "road", [int(n.get("ref")) for n in way.iter("nd")], {t.get("k"): t.get("v") for t in way.iter("tag")}))
         estimated, leveled = osm.estimate_structures(ways, nodes, node_tags, set())
-        self.assertEqual((estimated, leveled), ({}, {2}))
+        self.assertEqual(leveled, set())
+        self.assertEqual(estimated[2][1], "bridge")
 
-    def test_a_chain_that_cannot_be_estimated_over_paint_only_is_leveled(self):
-        # Approaches too short for a deck, crossing only a footway (ground
-        # paint): the bridge lies on the ground instead of being excluded.
+    def test_a_bridge_without_sufficient_approaches_is_rejected_even_over_paint(self):
+        # A footway below does not authorize flattening an explicit bridge.
         root = ET.fromstring(self.osm(0.0001))
         root.find("way[@id='6']/tag[@k='highway']").set("v", "footway")
-        value, _ = osm.parse(ET.tostring(root), "osm", city=True)
-        bridge = next(f for f in value["features"] if f["properties"]["osm_source_id"] == "way/2")["properties"]
-        self.assertTrue(bridge["_city_level_structure"])
-        self.assertNotIn("_city_estimated_m", bridge)
+        with self.assertRaisesRegex(ValueError, "way/2: OSM explicit vertical geometry requires ele"):
+            osm.parse(ET.tostring(root), "osm", city=True)
         for change in ("closed", "touches a closed way", "ele", "structure"):
             with self.subTest(change=change):
                 root = ET.fromstring(self.osm(0.0001))
@@ -361,27 +359,28 @@ class EstimatedStructures(unittest.TestCase):
         by_way = {f["properties"]["osm_source_id"]: f["properties"] for f in value["features"]}
         self.assertEqual(by_way["way/2"]["_city_estimated_kind"], "bridge", "the same bridge is estimated when its continuation is kept")
 
-    def test_a_cut_chain_crossing_only_excluded_structures_is_still_leveled(self):
+    def test_a_cut_bridge_reports_missing_approach_even_without_drawn_crossings(self):
         root = ET.fromstring(self.long_bridge(east_tags={"level": "1"}))
         ET.SubElement(root.find("way[@id='6']"), "tag", k="tunnel", v="yes")
         ET.SubElement(root.find("node[@id='7']"), "tag", k="ele", v="10")  # Partial heights: excluded.
-        with self.assertRaisesRegex(ValueError, "way/3: OSM unsupported vertical semantics on road"):
+        with self.assertRaisesRegex(ValueError, "way/2: OSM city structure ends where an excluded way continued it"):
             osm.parse(ET.tostring(root), "osm", city=True)
         ways, nodes, node_tags = self.selection(root)
         present = [w for w in ways if w[0] != 3]
         cut = set()
-        self.assertEqual(osm.estimate_structures(present, nodes, node_tags, set(), {3, 4}, cut), ({}, {2}))
-        self.assertEqual(cut, set())
+        self.assertEqual(osm.estimate_structures(present, nodes, node_tags, set(), {3, 4}, cut), ({}, set()))
+        self.assertEqual(cut, {2})
 
     def test_a_ground_road_excluded_anyway_is_no_crossing(self):
-        # maxheight:physical on a ground road is rejected, so the bridge crosses
-        # nothing drawn and lies on the ground.
+        # Excluding the ground crossing does not flatten an explicit bridge.
         root = ET.fromstring(self.long_bridge())
         ET.SubElement(root.find("way[@id='6']"), "tag", k="maxheight:physical", v="3.5")
         with self.assertRaisesRegex(ValueError, "way/6: OSM physical clearance requires an explicit supported tunnel"):
             osm.parse(ET.tostring(root), "osm", city=True)
         ways, nodes, node_tags = self.selection(root)
-        self.assertEqual(osm.estimate_structures([w for w in ways if w[0] != 6], nodes, node_tags, set()), ({}, {2}))
+        estimated, leveled = osm.estimate_structures([w for w in ways if w[0] != 6], nodes, node_tags, set())
+        self.assertEqual(leveled, set())
+        self.assertEqual(estimated[2][1], "bridge")
 
     def long_bridge(self, east_tags={}):
         # Ground way 1, a 300 m layer-1 bridge (way 2) over way 6 at its middle,

@@ -15,7 +15,10 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 	var regional_job: bool = request.get("generation") is Dictionary and request.generation.has("regional")
 	var modules := ["environment_generation.py","environment_profiles.py","environment_assets.py","environment_layout.py","environment_composition.py","environment_metrics.py","asset_derivatives.py","reference_maps.py","driving_features.py","city_assets.py","driving_school_map.py"]
 	if regional_job: modules = ["regional_composition.py"]
-	if regional_job and failure == "": failure = FILES.write_new(directory.path_join("regional.py"),FileAccess.get_file_as_string("res://scripts/importers/regional.py").to_utf8_buffer())
+	if regional_job:
+		for module: String in ["regional.py","regional_road_conflicts.py","osm_furniture.py"]:
+			if failure != "": break
+			failure = FILES.write_new(directory.path_join(module),FileAccess.get_file_as_string("res://scripts/importers/"+module).to_utf8_buffer())
 	if regional_job and failure == "": failure = FILES.write_new(directory.path_join("kit/godot/regional_catalog.json"),FileAccess.get_file_as_bytes("res://addons/mapkit/godot/regional_catalog.json"))
 	for module: String in modules:
 		if failure != "": break

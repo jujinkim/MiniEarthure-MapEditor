@@ -44,7 +44,13 @@ func run_scale(denominator: int) -> void:
 		var x:=5000+13000*index
 		var id: String="manual" if index==2 else prefix+str(index)
 		patches.append({"field":"buildings","id":id,"before":null,"after":{"id":id,"footprint":[[x,8000],[x+400,8000],[x+400,8400],[x,8400]],"height_cm":600,"base_cm":123 if index==1 else 0,"roof":"flat","material":"concrete","usage":"residential"}})
+	var auxiliary := {"id":"regional-ov-synthetic-0-0","footprint":[[60000,8000],[60400,8000],[60400,8400],[60000,8400]],"height_cm":600,"base_cm":120,"roof":"flat","material":"concrete","usage":"residential",
+		"parts":[{"footprint":[[60500,8000],[60900,8000],[60900,8400],[60500,8400]],"height_cm":400,"base_cm":200}]}
+	patches.append({"field":"buildings","id":auxiliary.id,"before":null,"after":auxiliary})
+	var regional_notice := {"source":"Synthetic auxiliary buildings","license":"CC0","notice":JSON.stringify({"adapter":"mapeditor-regional-v1","objects":[{"record_ids":[auxiliary.id],"source_bases_cm":[120,200]}]})}
+	patches.append({"field":"attributions","id":ui.store.record_id("attributions",regional_notice),"before":null,"after":regional_notice})
 	check(ui.store.apply_command("synthetic city",patches)=="","96-cell synthetic bounds and road")
+	auxiliary = ui.store.document.buildings.filter(func(b): return b.id==auxiliary.id)[0].duplicate(true)
 	ui.csv_panel.use_imported_frame()
 	check(ui.import_coordinate_mode.selected == 1 and ui.import_origin_lon.value == 9.5 and ui.import_origin_lat.value == 55.5 and ui.import_origin_x.value == 0 and ui.import_origin_y.value == 0, "CSV reuses the same source frame without applying map scale twice")
 	var project := scratch.path_join("dem-city-%d" % denominator)
@@ -71,17 +77,17 @@ func run_scale(denominator: int) -> void:
 	check(panel.plan.get("cells",[]).size()==96,"review covers all 96 cells: "+ui.status_label.text)
 	if not panel.plan.is_empty():
 		panel.acquire();await wait_job()
-		check(panel.candidate!=null,"native whole-city DEM review")
+		check(panel.candidate!=null,"native whole-city DEM review: "+ui.status_label.text)
 		check(JSON.stringify(ui.store.document)==before,"review leaves live document unchanged")
 		if panel.candidate!=null:
 			check(panel.candidate.value.heightmaps.size()==96,"all reviewed descriptors present")
 			var grounding: Dictionary=panel.candidate.value.dem.grounding
-			check(grounding.estimated and grounding.changes.size()==2 and grounding.samples==16,"only zero-base imported buildings get explicit perimeter estimates")
+			check(grounding.estimated and grounding.changes.size()==3 and grounding.samples==32,"OSM zero bases and auxiliary source-relative parts get explicit perimeter estimates")
 			var first: Dictionary=panel.candidate.value.heightmaps[0]
 			var subset: Dictionary=panel.plan.options.duplicate(true);subset.cell_count=[1.0,1.0]
 			var grounding_tool:=preload("res://scripts/dem_building_grounding.gd")
 			var partial: Dictionary=grounding_tool.prepare(ui.store,[first],{first.path:FileAccess.get_file_as_bytes(panel.destination+".cell-0.png")},subset)
-			check(not partial.has("error") and partial.receipt.changes.size()==1 and partial.receipt.skipped_partial==1,"partial DEM never grounds an uncovered building")
+			check(not partial.has("error") and partial.receipt.changes.size()==1 and partial.receipt.skipped_partial==2,"partial DEM never grounds an uncovered building")
 			if not partial.has("error"):
 				var base_patch: Dictionary=partial.patches[0]
 				check(grounding_tool.valid_patch(base_patch,true) and not grounding_tool.valid_patch(base_patch,false),"explicit grounding choice gates base patches")
@@ -103,6 +109,11 @@ func run_scale(denominator: int) -> void:
 			var buildings:= {}
 			for building: Dictionary in ui.store.document.buildings: buildings[building.id]=building
 			check(buildings[prefix+"0"].base_cm>0 and buildings[prefix+"0"].height_cm==600 and buildings[prefix+"1"].base_cm==123 and buildings.manual.base_cm==0,"base changes preserve building heights and authored bases")
+			check(buildings[auxiliary.id].base_cm>120 and buildings[auxiliary.id].parts[0].base_cm>200 and buildings[auxiliary.id].height_cm==600 and buildings[auxiliary.id].parts[0].height_cm==400,"auxiliary parts meet terrain while retaining source floor offsets and heights")
+			var aux_patch := {"field":"buildings","id":auxiliary.id,"before":auxiliary,"after":buildings[auxiliary.id]}
+			check(grounding_tool.valid_patch(aux_patch,true,true) and not grounding_tool.valid_patch(aux_patch,true),"auxiliary grounding requires explicit source ownership")
+			aux_patch=aux_patch.duplicate(true); aux_patch.after.parts[0].footprint[0][0]+=1
+			check(not grounding_tool.valid_patch(aux_patch,true,true),"auxiliary grounding cannot move source outlines")
 			check(ui.store.undo()=="" and ui.store.document.heightmaps.is_empty(),"one Undo removes all cells")
 			check(ui.store.document.buildings[0].base_cm==0,"same Undo restores building base")
 			check(ui.store.redo()=="" and ui.store.document.heightmaps.size()==96,"one Redo restores all cells")

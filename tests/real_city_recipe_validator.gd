@@ -99,6 +99,14 @@ func check_inputs() -> void:
 	var recipe := {"version":1, "pbf":"/home/u/src/seoul.osm.pbf", "areas":[{"name":"a"}], "project":"/home/u/out/p", "package":"/home/u/out/m.memap", "python":"/home/u/.venv/bin/python",
 		"dem":"/home/u/dem", "dem_zero_m":20.5, "facilities":{"csv":"/home/u/src/shops.csv", "license":"CC0", "name_column":"n", "latitude_column":"lat", "longitude_column":"lon"}, "full_check":true, "mobile_check":false}
 	var document := synthetic()
+	var source_namespace := RECIPE.layer_identity(recipe,"osm","a".repeat(64))
+	var relocated := recipe.duplicate(true)
+	relocated.pbf = "/another/source.pbf"; relocated.project = "/another/project"; relocated.package = "/another/map.memap"
+	relocated.dem = "/another/tiles"; relocated.python = "/another/python"; relocated.facilities.csv = "/another/facilities.csv"
+	check(RECIPE.layer_identity(relocated,"osm","a".repeat(64)) == source_namespace,"output/source paths do not change source-object namespace")
+	check(RECIPE.layer_identity(recipe,"osm","b".repeat(64)) != source_namespace and RECIPE.layer_identity(recipe,"facilities","a".repeat(64)) != source_namespace,"source bytes and role bind object namespace")
+	relocated.scale = 4
+	check(RECIPE.layer_identity(relocated,"osm","a".repeat(64)) != source_namespace,"generation settings bind object namespace")
 	var values: Dictionary = RECIPE.inputs(recipe, document, false)
 	var digest: String = RECIPE.fingerprint(values)
 	check(digest.length() == 64 and values.sources.size() == 4 and values.osm.size() == 1 and values.osm[0].crop.areas == ["relation/2", "relation/9"] and values.osm[0].scale_denominator == 3 and values.osm[0].pyproj == "3.7.2","inputs from the adopted notices: "+str(values))
@@ -215,8 +223,8 @@ func run() -> void:
 	check(AUTO.cells(jongno, 3, 12800) == 360,"Jongno at 1:3 is 360 cells: "+str(AUTO.cells(jongno, 3, 12800)))
 	var context := {"areas":[{"name":"Osaka","source_id":"relation/2","admin_level":"7","bbox":[135.4,34.6,135.6,34.75],"km2":290.0},{"name":"Chuo","source_id":"relation/3","admin_level":"8","bbox":[135.49,34.66,135.53,34.70],"km2":8.8},{"name":"1-chome","source_id":"relation/4","admin_level":"10","bbox":[135.500,34.668,135.511,34.669],"km2":0.08}],"country":{}}
 	var choice: Dictionary = AUTO.extent(context, [135.5016, 34.669], 3, 12800)
-	check(choice.kind == "circle" and choice.radius_km == 1.5 and choice.center == [135.5016, 34.669], "place search supplies a fixed circle centre")
-	check(AUTO.extent({}, [8.45, 60.42], 1, 12800).radius_km == 1.5, "cell budget never shrinks requested radius")
+	check(choice.kind == "circle" and choice.radius_km == 2.0 and choice.center == [135.5016, 34.669], "place search supplies a fixed circle centre")
+	check(AUTO.extent({}, [8.45, 60.42], 1, 12800).radius_km == 2.0, "cell budget never shrinks requested radius")
 	var ui := UI.new()
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
@@ -245,7 +253,7 @@ func run() -> void:
 		"anchors":[{"name":"가상마을","source_id":"node/5","kind":"place=village","tier":2,"point":[9.0001,55.0001],"issue":"","context":japan}]})
 	wizard.project.text = "/tmp/p"; wizard.package.text = "/tmp/m.memap"; wizard.scale.value = 4; wizard.signal_style.select(2)
 	var built: Dictionary = RECIPE.parse(JSON.stringify(wizard.recipe()))
-	check(built.ok and built.recipe.center == [9.0001, 55.0001] and built.recipe.radius_km == 1.5 and built.recipe.scale == 4 and built.recipe.traffic == {"signal_style":"vertical"} and not built.recipe.has("dem"),"wizard recipe: "+str(built))
+	check(built.ok and built.recipe.center == [9.0001, 55.0001] and built.recipe.radius_km == 2.0 and built.recipe.scale == 4 and built.recipe.traffic == {"signal_style":"vertical"} and not built.recipe.has("dem"),"wizard recipe: "+str(built))
 	check(wizard.traffic().driving_side == "left" and wizard.traffic().signal_style == "vertical","automatic side from the country, explicit signals: "+str(wizard.traffic()))
 	wizard.matches.select(1, false); wizard._selected(1, true)
 	check(wizard.matches.get_selected_items() == PackedInt32Array([1]),"a named place is selected alone")
@@ -254,18 +262,42 @@ func run() -> void:
 	check(built.ok and built.recipe.center == [9.0001, 55.0001] and not built.recipe.has("traffic") and not built.recipe.has("areas"),"wizard place recipe: "+str(built))
 	check(wizard.extent().kind == "circle" and wizard.status.text.contains("km"),"the wizard shows the automatic extent: "+wizard.status.text)
 	wizard.hide()
+	var supplemental := scratch.path_join("regional-buildings.json")
+	var coverage := [8.97,54.98,9.03,55.02]
+	var auxiliary_snapshot := {"type":"FeatureCollection","release":"2026-10-21.0","bbox":coverage,"features":[{"type":"Feature","properties":{"id":"synthetic-reserved","height":4,"sources":[]},"geometry":{"type":"Polygon","coordinates":[[[9.001,55.001],[9.0011,55.001],[9.0011,55.0011],[9.001,55.0011],[9.001,55.001]]]}}]}
+	var snapshot_file := FileAccess.open(supplemental,FileAccess.WRITE)
+	snapshot_file.store_string(JSON.stringify(auxiliary_snapshot));snapshot_file.close()
 	# The complete worker path retains high-precision centre/radius provenance.
 	var fixed := {"version":1, "pbf":source, "center":[9.00010012345678,55.00010012345678], "radius_km":1.5,
 		"project":scratch.path_join("circle/project"), "package":scratch.path_join("circle/city.memap"), "full_check":false,
-		"regional":{"version":1,"profile":{"architecture":"nordic_timber","climate":"cold","settlement":"village","terrain":"mountain"}},
+		"regional":{"version":1,"road_conflicts":"trim_buildings","profile":{"architecture":"nordic_timber","climate":"cold","settlement":"village","terrain":"mountain"}},
 		"road_overrides":{"osm_sha256":hash, "ways":[{"source_id":"way/2", "width_m":20, "lanes":6}]},
 		"traffic":{"driving_side":"right", "signal_style":"horizontal"}}
+	fixed.regional.buildings = {"path":supplemental,"sha256":FileAccess.get_sha256(supplemental),"release":"2026-10-21.0","bbox":coverage,"source_url":"https://example.invalid/synthetic","license":"MIT synthetic"}
 	var circular: Dictionary = await runner.run(fixed)
 	check(circular.ok and not ui.store.document.get("play_area", []).is_empty(), "fixed circle worker, adoption and v1 export: " + str(circular.get("status", "")))
 	check(ui.store.document.get("roads", []).any(func(r): return r.get("widths_cm", []).any(func(w): return int(w) == 667) and r.get("markings", {}).get("lanes") == 6), "road correction survives worker, adoption and v1 export")
 	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_road_overrides(o.get("road_overrides", {}), fixed.road_overrides)), "adopted correction enters report fingerprint")
-	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_regional(o.get("regional"), fixed.regional)),"regional inputs enter the report fingerprint")
+	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_regional(o.get("regional"), city.regional_input(fixed.regional))),"regional inputs enter the report fingerprint")
 	check(ui.store.document.get("environment", {}).get("architecture") == "nordic_timber" and circular.has("regional"),"regional worker prepares, applies and exports the selected profile: "+JSON.stringify(circular))
+	check(ui.store.document.buildings.any(func(b): return str(b.id).begins_with("regional-ov-synthetic-reserved-")),"supplemental building survives complete recipe")
+	check(circular.get("road_footprint_corrections") is Array,"recipe exposes the authorized footprint correction receipt")
+	check(ui.store.document.attributions.any(func(a): return str(a.source).contains("Overture Buildings") and str(a.license).contains("MIT synthetic")),"source credits are readable without parsing provenance")
+	for attribution: Dictionary in ui.store.document.attributions:
+		var source_receipt: Variant = JSON.parse_string(attribution.notice)
+		if source_receipt is Dictionary and source_receipt.get("adapter") == "osm-extract-v1":
+			check(source_receipt.coordinates.osm_city.get("auxiliary_building_obstacles") == 1 and not attribution.notice.contains("regional_building_blockers"),"auxiliary envelope is transient; only its count is reported")
+	if circular.ok:
+		var first := ui.store.document.duplicate(true)
+		var repeated := fixed.duplicate(true)
+		repeated.project = scratch.path_join("repeat/project"); repeated.package = scratch.path_join("repeat/city.memap")
+		var repeat_report: Dictionary = await runner.run(repeated)
+		check(repeat_report.ok,"repeat identical recipe in a new destination: "+str(repeat_report.get("status","")))
+		var second := ui.store.document.duplicate(true)
+		for value: Dictionary in [first,second]:
+			value.provenance.erase("first_created");value.provenance.erase("last_edited")
+		var changed: Array = first.keys().filter(func(key): return JSON.stringify(first[key],"",true,true) != JSON.stringify(second.get(key),"",true,true))
+		check(changed.is_empty(),"recipe object identities, placement and classification repeat; changed fields: "+str(changed))
 	# Regional fill shares the owned-worker cancellation/stale-result contract.
 	if circular.ok:
 		check(ui.store.undo() == "", "undo regional composition")

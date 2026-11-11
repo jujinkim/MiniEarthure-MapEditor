@@ -582,6 +582,10 @@ func patches(store: RefCounted) -> Array:
 		if value.coordinates.has("osm_city") and crop is Array and not crop.is_empty() and store.document.get("play_area", []).is_empty():
 			var area := play_area(crop, osm_denominator(), extent if not extent.is_empty() else store.document.bounds)
 			if not area.is_empty(): result.append({"field":"play_area","id":"","before":null,"after":area})
+	if metadata.get("coordinates",{}).get("osm_city") is Dictionary:
+		preload("./source_receipt.gd").pack(metadata.coordinates.osm_city,"groups")
+	if metadata.get("coordinates",{}).get("regional") is Dictionary:
+		preload("./source_receipt.gd").pack(metadata.coordinates.regional,"objects")
 	var attribution := {"source": value.source.name + "#" + value.layer_id, "license": value.source.license, "notice": JSON.stringify(metadata)}
 	result.append({"field": "attributions", "id": store.record_id("attributions", attribution), "before": null, "after": attribution})
 	result.append({"field":"free_roam","id":"","before":store.document.free_roam,"after":true})
