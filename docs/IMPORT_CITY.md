@@ -179,6 +179,10 @@ remainder so lattice points are whole map centimetres.
   carriageway gets its own midline node. Width is both carriageways plus the
   median per segment, `lanes` their sum (up to 16), and `oneway=no` explicitly
   preserves both directions even for motorway records.
+  A proposed merged carriageway that newly covers a source building or water
+  outside the original road space is rejected; both source carriageways remain.
+  This also protects areas beside a diagonal median connector, beyond the
+  strip between the original centrelines.
   Lane count and lane-space changes bound each paired chain. Every
   absorbed way stays in the merged road's sources, as does a road looping back onto
   one merged node (a jughandle U-turn, up to 150 m; a longer loop stops the merge).

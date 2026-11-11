@@ -706,6 +706,26 @@ class DualCarriageways:
         if not midline.is_simple:
             self.reasons['merge_midline'] += 1
             return
+        # Diagonal rungs can create a wide, constant-width segment outside the
+        # original median strip. Do not turn surrounding buildings or water
+        # into carriageway merely to combine two otherwise valid source roads.
+        proposed = shapely.union_all([
+            LineString([a, b]).buffer(width / 2, cap_style="flat")
+            for coords, _, widths in new.values()
+            for a, b, width in zip(coords, coords[1:], widths)
+        ])
+        hits = self.blocker_tree.query(proposed, predicate="intersects")
+        self.spend(len(hits))
+        if len(hits):
+            original = shapely.union_all([
+                items[i][1].buffer(float(items[i][0]["properties"].get("width_m", 8)) / 2,
+                                   cap_style="flat")
+                for i in set(a_run) | absorbed
+            ])
+            added = proposed.difference(original)
+            if any(self.blockers[h].intersection(added).area > 1e-4 for h in hits):
+                self.reasons['merge_external_blocker'] += 1
+                return
         # A B node with side roads but no rung gets a midline node (one-sided T).
         splits = defaultdict(set)
         rungs_b = {b_nodes[j] for _, j, _ in rungs}

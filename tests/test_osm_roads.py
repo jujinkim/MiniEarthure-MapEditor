@@ -268,6 +268,25 @@ class Roads(unittest.TestCase):
         tunnel = [g for p, g in roads if "_city_estimated_m" in p]
         self.assertEqual(len(tunnel), 1, "a structure is never absorbed")
 
+    def test_diagonal_rung_cannot_widen_a_merge_into_an_external_building(self):
+        # Most of the pair is parallel; a diagonal west connector pairs nodes
+        # sixty metres apart along the road. Its broad merged first segment
+        # would reach a building outside both source carriageways and median.
+        self.road([(0, 0), (200, 0)], [100, 101], oneway="yes", width_m=7.0)
+        self.road([(200, 0), (400, 0)], [101, 102], oneway="yes", width_m=7.0)
+        self.road([(400, 10), (200, 10)], [202, 201], oneway="yes", width_m=7.0)
+        self.road([(200, 10), (60, 10)], [201, 200], oneway="yes", width_m=7.0)
+        for a, b, refs in [((0, 0), (60, 10), [100, 200]),
+                           ((200, 0), (200, 10), [101, 201]),
+                           ((400, 0), (400, 10), [102, 202])]:
+            self.road([a, b], refs, highway="residential", width_m=7.0)
+        building = self.add(box(100, 18, 110, 28), height_m=10)
+        worker, result, meta, roads = self.run_city()
+        self.assertEqual(meta["road_rules"].get("dual_merged_pairs", 0), 0)
+        self.assertNotIn(building, meta["trimmed_building_sources"])
+        self.assertIn(building, meta["source_ids"])
+        self.assert_connected(self.layer(result))
+
     def pair_between_ramps(self, highway="trunk", rung=False, slip=False, north=20):
         """A eastwards at y=0 (ramp nodes at x=0 and 400), B westwards at y=north
         (ramp nodes at x=390 and 10): no median link unless `rung`."""
