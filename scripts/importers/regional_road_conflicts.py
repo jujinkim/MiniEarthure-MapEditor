@@ -14,10 +14,21 @@ def junction(arms, unit, joint):
     road planner's exposed-mouth rule; an arm hidden inside the hull cannot
     create a new exterior lobe. Units are source metres per map centimetre.
     """
+    # The native planner rounds displacement before adding the authored node.
+    # Work in integer map centimetres so translated/negative coordinates cannot
+    # change which mouths coincide, and thereby suppress a corner fillet.
+    source_unit = unit
+    def nearest(value):
+        return int(math.copysign(math.floor(abs(value)+.5),value))
+    arms = [(tuple(nearest(v/unit) for v in at),
+             tuple(nearest(v/unit) for v in other), nearest(2*half/unit)/2, ids)
+            for at,other,half,ids in arms]
+    unit = 1
+    joint = Furniture.__new__(Furniture)
+    joint.scale = 1
     radius = max(a[2] for a in arms)
-    def round_value(value):
-        return math.copysign(math.floor(abs(value)/unit+.5),value)*unit
-    def point(x,y):return (round_value(x),round_value(y))
+    round_value = nearest
+    def point(x,y):return (nearest(x),nearest(y))
     mouths, directions = [], []
     for at, other, half, _ in arms:
         dx, dy = other[0]-at[0], other[1]-at[1]
@@ -25,7 +36,7 @@ def junction(arms, unit, joint):
         ux,uy = dx/length,dy/length
         directions.append((ux,uy,length))
         back = min(radius,length*.4)
-        centre=point(at[0]+ux*back,at[1]+uy*back)
+        centre=(at[0]+nearest(ux*back),at[1]+nearest(uy*back))
         offset=point(-uy*half,ux*half)
         mouths.append([point(centre[0]+offset[0]*sign,centre[1]+offset[1]*sign) for sign in (-1,1)])
     points = [p for mouth in mouths for p in mouth]
@@ -33,7 +44,7 @@ def junction(arms, unit, joint):
         at=arms[0][0];ux,uy,_=directions[0]
         points += [(at[0]-ux*radius-uy*radius*sign,at[1]-uy*radius+ux*radius*sign) for sign in (-1,1)]
     hull = MultiPoint(points).convex_hull
-    if hull.geom_type != "Polygon": return hull
+    if hull.geom_type != "Polygon": return shapely.affinity.scale(hull,source_unit,source_unit,origin=(0,0))
     ring=list(hull.exterior.coords)[:-1]
     if not hull.exterior.is_ccw:ring.reverse()
     exposed={i for i,m in enumerate(mouths) if any(a in m and ring[(k+1)%len(ring)] in m for k,a in enumerate(ring))}
@@ -80,7 +91,8 @@ def junction(arms, unit, joint):
     polygon=Polygon(rounded)
     # Only the derived approach envelope is unioned; original source buildings
     # are never repaired. Native validation remains authoritative.
-    return polygon if polygon.is_valid else shapely.make_valid(polygon)
+    polygon = polygon if polygon.is_valid else shapely.make_valid(polygon)
+    return shapely.affinity.scale(polygon,source_unit,source_unit,origin=(0,0))
 
 
 def corridors(roads, scale, source_ids):

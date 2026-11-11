@@ -150,6 +150,24 @@ class Regional(unittest.TestCase):
         self.assertFalse(result.covers(Point(2.01,2.01)))
         self.assertTrue(result.covers(Point(6,6)))
 
+    def test_road_corner_rounding_is_translation_invariant_on_map_lattice(self):
+        from regional_road_conflicts import corridors, trim
+        from shapely.affinity import translate
+        # Odd map-centimetre widths put mouth offsets on half-centimetres.
+        # Rounding absolute negative positions would hide a concave fillet.
+        road = {"properties":{"width_m":3.75}}
+        line = LineString([(4.86,0),(0,0),(0,27.72)])
+        building = box(-2.01,-2.85,-1.41,-.12)
+        reference = None
+        for dx,dy in [(0,0),(27.12,-1263.45),(1563.12,272.55),(-100.02,100.02)]:
+            index=corridors([(road,translate(line,dx,dy))],3,lambda f:["way/1"])
+            result,ids,removed=trim(translate(building,dx,dy),index)
+            self.assertEqual(ids,["way/1"])
+            self.assertGreater(removed.area,.8)
+            local=translate(result,-dx,-dy)
+            if reference is None:reference=local
+            else:self.assertLess(reference.symmetric_difference(local).area,1e-8)
+
     def test_bridge_collision_edge_keeps_buildings_below_the_deck(self):
         from regional_road_conflicts import corridors, trim
         road=dict(properties=dict(width_m=2,road_kind="bridge",elevations_m=[10,10]))

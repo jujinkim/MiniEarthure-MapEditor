@@ -101,7 +101,9 @@ neighbour median, then a conservative type/profile estimate. Randomness chooses
 neither building type nor storey count. Regional footprints retain their source outline by default. Explicit
 `road_conflicts: "trim_buildings"` permits only partial carriageway-conflict cuts,
 with a four-map-centimetre rounding margin for native mouth, offset, intersection, curve and building
-quantization; sidewalks do not enlarge the cut. Bridge collision edges include the
+quantization. Junction mouths use integer map centimetres and round displacement
+before adding the node, matching native corners at negative and translated coordinates.
+Sidewalks do not enlarge the cut. Bridge collision edges include the
 shared 20-map-centimetre rail outset. A building with the required 50-map-centimetre
 roof clearance below a deck retains its footprint. Height inference precedes this check. Buildings above tunnels retain their
 footprint only when native validation confirms 50 map centimetres between every
