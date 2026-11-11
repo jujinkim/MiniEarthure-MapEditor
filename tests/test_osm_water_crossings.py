@@ -55,7 +55,7 @@ class SourceWaterTests(unittest.TestCase):
         nodes = {1:(9.,55.), 2:(9.01,55.)}
         for kind,width in [("river",12), ("canal",8), ("ditch",1.5)]:
             _,water,_ = classify([(1,"waterway",[1,2],dict(waterway=kind))],nodes,[])
-            metric = transform(lambda x,y:(x,y*110540),water)
+            metric = transform(lambda x,y:(x,y*110540.0),water)
             self.assertAlmostEqual(metric.bounds[3]-metric.bounds[1],width,places=5)
 
     def test_insufficient_bridge_ramp_is_rejected(self):
