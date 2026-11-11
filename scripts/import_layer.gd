@@ -129,6 +129,8 @@ func _load(raw: Variant, expected_id: String, requested: Dictionary, notes: Arra
 	LIMITS.over(notes, "import_layer_bytes", layer_bytes, WARN_CITY_BYTES if city else WARN_BYTES, "ImportLayer size in bytes")
 	var vertical_error: String = preload("./import_vertical.gd").validate(raw, requested, notes)
 	if vertical_error != "": return vertical_error
+	var override_error: String = preload("./import_city.gd").road_override_receipt(raw, requested)
+	if override_error != "": return override_error
 	var height_error: String = preload("./import_height_supplement.gd").validate(raw, requested, notes)
 	if height_error != "": return height_error
 	if raw.adapter == "osm-extract-v1" and (source.license != OSM_LICENSE or raw.coordinates.mode != "wgs84-utm"): return "OSM requires geographic coordinates and ODbL attribution."
@@ -540,12 +542,13 @@ func patches(store: RefCounted) -> Array:
 	if value.adapter == "osm-extract-v1":
 		var denominator := osm_denominator()
 		result = preload("./import_units.gd").osm_patches(value.patches,value.coordinates.has("osm_city"),int(store.document.get("terrain_base_cm",0)),denominator)
-		preload("./import_units.gd").widen_roads(result,store.document.get("buildings",[]),value.coordinates.get("osm_pedestrian_roads",[]))
+		if not value.coordinates.has("osm_city"):
+			preload("./import_units.gd").widen_roads(result,store.document.get("buildings",[]),value.coordinates.get("osm_pedestrian_roads",[]))
 		var structure_ends: Array = []
 		var separated: int = preload("./import_units.gd").separate_junctions(result, store, structure_ends)
 		if not structure_ends.is_empty():
 			LIMITS.note(limit_warnings, "structure_end_separated", structure_ends.size(), 0, "Bridge or tunnel ends left unjoined at a junction the road planner cannot build (bridge ends keep a deck cap)")
-		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": denominator, "profile": preload("./import_units.gd").profile(denominator), "road_width_floor_cm": preload("./import_units.gd").ROAD_WIDTH_FLOOR_CM}
+		metadata.authored_units = {"metres_per_unit": 1, "source_denominator": denominator, "profile": preload("./import_units.gd").profile(denominator), "road_width_floor_cm": 0 if value.coordinates.has("osm_city") else preload("./import_units.gd").ROAD_WIDTH_FLOOR_CM}
 		if separated > 0: metadata.authored_units.separated_junctions = separated
 		if value.coordinates.has("osm_city"): metadata.authored_units.quantization_cleanup = "adjacent-equal-vertices-v1"
 		metadata.authored_regions = preload("./import_regions.gd").scaled(value.coordinates.get("generation_regions", []),denominator)
@@ -736,7 +739,7 @@ func summary() -> String:
 	if value.is_empty(): return I18N.t("No import candidate.")
 	var text := preload("./import_review_text.gd")
 	var coordinates := {}
-	for key in ["osm_city", "osm_review", "csv", "mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
+	for key in ["road_overrides", "osm_city", "osm_review", "csv", "mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
 		if value.coordinates.has(key): coordinates[key] = value.coordinates[key]
 	var estimates := ""
 	var count := 0

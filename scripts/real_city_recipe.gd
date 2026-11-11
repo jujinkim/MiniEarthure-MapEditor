@@ -9,7 +9,7 @@ extends RefCounted
 ## file. The Editor's own steps keep every limit and review.
 const AUTO := preload("./real_city_auto.gd")
 const VERSION := 1
-const KEYS := ["version","pbf","areas","bbox","place","center","radius_km","scale","cell_cm","traffic","python","facilities","dem","dem_zero_m","project","package","full_check","mobile_check"]
+const KEYS := ["version","pbf","areas","bbox","place","center","radius_km","scale","cell_cm","traffic","python","facilities","dem","dem_zero_m","road_overrides","project","package","full_check","mobile_check"]
 const FACILITY_KEYS := ["csv","license","encoding","name_column","latitude_column","longitude_column","category","source_url","accuracy"]
 const ENCODINGS := ["utf-8","cp949","euc-kr"]
 const MOBILE_BYTES := 1536 * 1024 * 1024
@@ -57,6 +57,10 @@ static func parse(text: String, base := "") -> Dictionary:
 	var traffic: Variant = recipe.get("traffic", {})
 	if traffic is not Dictionary or traffic.keys().any(func(k): return k not in ["driving_side","signal_style"]) or str(traffic.get("driving_side","right")) not in ["right","left"] or str(traffic.get("signal_style","horizontal")) not in ["horizontal","vertical"]:
 		return _error("traffic: driving_side right or left, signal_style horizontal or vertical")
+	var overrides: Variant = recipe.get("road_overrides")
+	if recipe.has("road_overrides"):
+		var override_error: String = preload("./import_city.gd").road_override_error(overrides)
+		if override_error != "": return _error(override_error)
 	var facilities: Variant = recipe.get("facilities")
 	if facilities != null:
 		if facilities is not Dictionary: return _error("facilities is an object")
@@ -274,6 +278,7 @@ static func inputs(recipe: Dictionary, document: Dictionary, dem_skipped: bool) 
 			"units_profile":units.get("profile", "")}
 		for key in ["pyproj", "proj"]:
 			if coordinates.has(key): block[key] = coordinates[key]
+		if coordinates.has("road_overrides"): block.road_overrides = coordinates.road_overrides.request
 		osm.append(block)
 	osm.sort_custom(func(a, b): return JSON.stringify(a, "", true) < JSON.stringify(b, "", true))
 	var traffic: Variant = document.get("traffic")
@@ -412,7 +417,9 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 	report.crop = {"bbox":panel.bbox(), "origin":[ui.import_origin_lon.value, ui.import_origin_lat.value], "local_origin_m":[ui.import_origin_x.value, ui.import_origin_y.value]}
 	if panel.error() != "": report.error = panel.error(); return _fail("crop")
 	_say("Importing OSM (review)")
+	panel.road_overrides = recipe.get("road_overrides", {}).duplicate(true)
 	ui._start_import(recipe.pbf, ui.IMPORT_LAYER.OSM_LICENSE)
+	panel.road_overrides = {}
 	await _wait(_busy, 3000000)
 	if ui.pending_import == null: return _fail("osm_review")
 	if ui.import_exclusions.visible: ui.import_exclusions.button_pressed = true

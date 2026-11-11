@@ -480,6 +480,7 @@ def main():
     parser.add_argument("--osm-review-exclusions", action="store_true")
     parser.add_argument("--vertical-request", type=Path)
     parser.add_argument("--height-supplement", type=Path)
+    parser.add_argument("--road-overrides", type=Path)
     args = parser.parse_args()
     if args.osm_radius_km is not None and args.osm_center is None:
         raise ValueError("osm-radius-km needs osm-center")
@@ -604,6 +605,12 @@ def main():
         options.update(origin=args.origin, local_origin_m=args.local_origin)
     elif args.origin is not None or args.local_origin is not None:
         raise ValueError("local-metre mode must not specify geographic origins")
+    overrides_meta = None
+    if args.road_overrides is not None:
+        if not args.osm_city or captured_source is None:
+            raise ValueError("road_overrides requires a captured city OSM snapshot")
+        from road_overrides import apply
+        value, overrides_meta = apply(value, strict_json(args.road_overrides.read_bytes()), captured_source.sha256)
     city_meta = None
     encoded = None
     if args.osm_city:
@@ -637,6 +644,7 @@ def main():
                 if metadata["source_ids"] != trial.coordinates.pop("city_source_ids"):
                     raise ValueError("City source table changed during conversion")
                 trial.coordinates["osm_city"] = metadata
+                if overrides_meta is not None: trial.coordinates["road_overrides"] = overrides_meta
                 trial.coordinates["vertical"] = vertical.metadata
                 trial.coordinates["osm_stream"] = osm_stream
                 if supplement is not None: trial.coordinates["osm_height_supplement"] = supplement.metadata

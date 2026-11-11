@@ -21,6 +21,11 @@ The wizard provides latitude, longitude and radius; search fills the centre.
 The circle uses WGS84 distances, keeps its full requested radius, and is stored
 in existing v1 `play_area` rings with less than 1m source-distance approximation
 error. Source coverage, projection and memory failures are reported explicitly.
+Optional `road_overrides` supplies `{osm_sha256, ways: [{source_id, width_m, lanes}]}`.
+Each unique OSM `way/<id>` correction must match the captured PBF SHA-256 and
+a selected vehicle road; all targets are checked before any change. The report
+retains original and corrected dimensions, and the request enters the input
+fingerprint. A missing target, malformed value or changed snapshot fails generation.
 Recipe keys
 outside that list are refused; paths are relative to the recipe file. Every step
 keeps its review and limits; a step that fails stops the run with `failed_step` and
@@ -118,42 +123,32 @@ remainder so lattice points are whole map centimetres.
 ## Roads and vegetation
 
 - Compatible ordinary ground chains join where exactly two driving roads meet
-  (painted ways do not count). Chains continue across width, lane, name and ref
-  changes with per-segment widths; highway class, structure, access, surface,
-  oneway and sidewalk changes still break them. Building trims, gap-filling
+  (painted ways do not count). Chains keep per-segment widths, lane count,
+  painted lane width, directional split and median boundaries; names, refs and
+  speeds may vary. Highway class, structure, access, surface, oneway and sidewalk
+  changes break them. Directional records are never reversed during joining. Building trims, gap-filling
   barriers and junction clearance use each segment's own width (and sidewalk). Simplification keeps junction positions,
   semantic boundaries and crossings; coincident independent IDs are not welded.
   Ordered source positions and traversal ranges are retained. Structures and
   explicit heights keep the exact rules.
 - Equal adjacent centimetre vertices are removed after the single 1:D quantization;
   nonempty holes are never discarded.
-- Vehicle roads take game road-class profiles in map centimetres (the car is
-  about 61 cm wide), applied after dual carriageways merge on their source widths:
-  lanes × 120 cm + both edges, at least the class floor. Lanes come from `lanes`
-  (capped per class) or the class default; `width` tags do not set vehicle roads.
-  One-way roads use half the default and maximum lanes (at least one). Painted
-  lanes are always 120 cm; the rest of the width is shoulder, so minor classes
-  get wide edges, and estimated bridges and tunnels add 60 cm per side
-  (source-height structures keep their class width: their junction mouths are
-  separated by the source geometry).
-
-  | Class | Default / max lanes | Edge | Floor |
-  | --- | --- | --- | --- |
-  | motorway, trunk | 4 / 8 | 40 | 520 |
-  | primary | 4 / 8 | 30 | 500 |
-  | secondary | 4 / 6 | 30 | 500 |
-  | tertiary | 2 / 4 | 30 | 300 |
-  | unclassified, residential, road, busway | 2 / 2 | 80 | 400 |
-  | living_street | 2 / 2 | 65 | 370 |
-  | service | 1 / 2 | 60 | 240 |
-  | track | 1 / 1 | 50 | 220 |
-  | `*_link` | 1 / 2 | 25–30 | 200 |
-
-  A one-way floor is max(one lane + edges, half the floor + one edge). A merged
-  road keeps its source median gap plus two one-way profile carriageways. Walking
-  ways and other classes keep `width` or lane estimates (lanes × 3.25 m + 0.5 m,
-  else class estimates), widened to at least 20 map cm (0.2·D source m); source
-  surfaces map to game materials.
+- Explicit source `width` sets the carriageway width before the single 1:D
+  adoption. `lanes` takes precedence over the sum of `lanes:forward`,
+  `lanes:backward` and `lanes:both_ways`; valid counts are never capped by class.
+  Directional counts preserve an asymmetric two-way paint split. If lanes are
+  absent, or the available width per lane exceeds 4.5 m, the lane estimate uses
+  3.25 source metres. Counts beyond the supported 16 fail explicitly.
+  With no source width, estimate lanes × 3.25 m + 0.5 m edges plus tagged
+  `shoulder:left:width` / `shoulder:right:width`. Default lanes are four for
+  motorway/trunk/primary/secondary, two for tertiary/residential/unclassified/
+  living streets/road/busway, and one for service/track/links; one-way defaults
+  halve the two-way value with a minimum of one.
+  Merged medians and tagged shoulders are excluded from painted lane space;
+  sidewalks are separate. The report distinguishes source and estimated widths,
+  source lanes, width-based lane estimates and author corrections. Walking ways
+  keep explicit width or their pedestrian defaults. The v1 quantization minimum
+  is 20 map cm; city adoption applies no extra vehicle-width floor.
 - Dual carriageways (one-way motorway, trunk, primary, secondary or tertiary
   pairs, not links or roundabouts) merge into one two-way road. A pair runs
   anti-parallel (direction dot < −0.9) with the same class and, where both are
@@ -173,7 +168,8 @@ remainder so lattice points are whole map centimetres.
   midline: the first carriageway's nodes move to it with every incident road, the
   second's rung nodes are renamed to them and a side road meeting only the second
   carriageway gets its own midline node. Width is both carriageways plus the
-  median per segment (then profiled as above), `lanes` their sum (at most 8), `oneway` is removed. Every
+  median per segment, `lanes` their sum (up to 16), and `oneway` is removed.
+  Lane count and lane-space changes bound each paired chain. Every
   absorbed way stays in the merged road's sources, as does a road looping back onto
   one merged node (a jughandle U-turn, up to 150 m; a longer loop stops the merge).
   Merging stops a lead length (8 m) before any structure anchor, explicit-height

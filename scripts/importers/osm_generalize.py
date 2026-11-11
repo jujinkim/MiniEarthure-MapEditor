@@ -529,7 +529,7 @@ class Generalizer:
                 geometry, kept = self.simplified_line(f, g, min(4.0, gap / 4))
                 ordinary.append((deepcopy(f), geometry, kept, len(g.coords)))
         # Per ordinary piece: simplified segment widths, vertex source refs,
-        # lane count (voted by length along a chain) and sidewalk.
+        # lane count and sidewalk.
         extras = []
         for feature, geometry, kept, count in ordinary:
             p = feature["properties"]
@@ -547,16 +547,16 @@ class Generalizer:
             if refs:
                 endpoints[(walks[index], refs[0])].append((index, 0))
                 endpoints[(walks[index], refs[-1])].append((index, 1))
-        # Chains continue across width, lane, speed, name and ref changes
-        # (per-segment widths; lanes and speed voted by length); class, structure,
+        # Chains preserve lane count, painted width and median boundaries; speed,
+        # name and ref may vary (speed voted by length). Class, structure,
         # access, surface, oneway, sidewalk and paint still break (one sidewalk
         # per road record).
-        ignored = ("name", "ref", "lanes", "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway", "maxspeed")
+        ignored = ("name", "ref", "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway", "maxspeed")
         def signature(feature):
             p = feature["properties"]
             return json.dumps({k:v for k,v in p.items() if not k.startswith("_city") and k not in ("osm_source_id", "width_m")}
                               | {"tags":{k:v for k,v in p.get("_city_road_tags", {}).items() if k not in ignored}, "paint":p.get("_city_ground_paint"),
-                                 "sidewalk":p.get("_city_sidewalk_m", 0)}, sort_keys=True)
+                                 "sidewalk":p.get("_city_sidewalk_m", 0), "lanes":p.get("_city_lanes"), "lane_width":p.get("_city_lane_width_m"), "median":p.get("_city_median_m"), "forward":p.get("_city_forward_lanes")}, sort_keys=True)
         signatures = [signature(f) for f,g in ordinary]
         seen, output = set(), []
         for index, (feature, geometry) in enumerate(ordinary):
@@ -590,6 +590,9 @@ class Generalizer:
                             break  # Never create a self-loop that the native road contract cannot express.
                         new_points, new_widths, new_prefs = list(shape_j.coords), list(extras[j][0]), list(extras[j][1])
                         if end == side:
+                            t = p.get("_city_road_tags", {})
+                            if osm_roads.oneway(t) or p.get("_city_forward_lanes") or any(k in t for k in ("lanes:forward", "lanes:backward")):
+                                break  # Directional metadata is relative to the original points.
                             new_points.reverse(); new_widths.reverse(); new_prefs.reverse()
                         if (new_points[-1] if side == 0 else new_points[0]) != points[0 if side == 0 else -1]:
                             break

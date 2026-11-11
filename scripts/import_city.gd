@@ -17,6 +17,50 @@ const LAMP_KEY := "streetlights"
 ## Streetlight skips the summary reports apart from "no free spot".
 const LAMP_UNPLACED := ["_covered", "_reach", "_median", "_spacing", "_limit"]
 
+## Author corrections are tied to one immutable OSM snapshot, before optimization.
+static func road_override_error(value: Variant) -> String:
+	if value is not Dictionary or value.size() != 2 or not value.has_all(["osm_sha256", "ways"]): return "road_overrides needs osm_sha256 and ways"
+	if value.osm_sha256 is not String or RegEx.create_from_string("^[0-9a-f]{64}$").search(value.osm_sha256) == null: return "road_overrides requires the exact source SHA-256"
+	if value.ways is not Array or value.ways.is_empty() or value.ways.size() > 10000: return "road_overrides ways must contain 1..10000 records"
+	var seen := {}
+	for row: Variant in value.ways:
+		if row is not Dictionary or row.size() != 3 or not row.has_all(["source_id", "width_m", "lanes"]): return "road override needs source_id, width_m and lanes"
+		if row.source_id is not String or RegEx.create_from_string("^way/[1-9][0-9]*$").search(row.source_id) == null or seen.has(row.source_id): return "road override source IDs must be unique OSM ways"
+		seen[row.source_id] = true
+		if (row.lanes is not int and row.lanes is not float) or not is_finite(float(row.lanes)) or float(row.lanes) != floorf(float(row.lanes)) or row.lanes < 1 or row.lanes > 16: return "road override lanes must be an integer in 1..16"
+		if (row.width_m is not int and row.width_m is not float) or not is_finite(float(row.width_m)) or row.width_m < 0.2 or row.width_m > 200: return "road override width_m must be finite and in .2..200"
+	return ""
+
+static func same_road_overrides(a: Variant, b: Variant) -> bool:
+	if road_override_error(a) != "" or road_override_error(b) != "": return false
+	if a.osm_sha256 != b.osm_sha256 or a.ways.size() != b.ways.size(): return false
+	var rows := {}
+	for row: Dictionary in a.ways: rows[row.source_id] = row
+	for row: Dictionary in b.ways:
+		if not rows.has(row.source_id): return false
+		var other: Dictionary = rows[row.source_id]
+		if float(row.width_m) != float(other.width_m) or int(row.lanes) != int(other.lanes): return false
+	return true
+
+static func road_override_receipt(raw: Dictionary, requested: Dictionary) -> String:
+	if not requested.has("road_overrides") and not raw.coordinates.has("road_overrides"): return ""
+	var receipt: Variant = raw.coordinates.get("road_overrides")
+	if receipt is not Dictionary or receipt.size() != 2 or not receipt.has_all(["request", "applied"]): return "Missing road override receipt."
+	if raw.adapter != "osm-extract-v1" or not raw.coordinates.has("osm_city"): return "Road overrides require a city OSM import."
+	var error := road_override_error(receipt.request)
+	if error != "": return error
+	if (not requested.is_empty() and not same_road_overrides(requested.get("road_overrides"), receipt.request)) or receipt.request.osm_sha256 != raw.source.sha256: return "Road overrides differ from the captured source/request."
+	if receipt.applied is not Array or receipt.applied.size() < receipt.request.ways.size(): return "Incomplete road override receipt."
+	var wanted := {}
+	for row: Dictionary in receipt.request.ways: wanted[row.source_id] = row
+	var found := {}
+	for row: Variant in receipt.applied:
+		if row is not Dictionary or not row.has_all(["source_id", "width_m", "lanes", "original_width_m", "original_lanes"]) or not wanted.has(row.source_id): return "Invalid applied road override."
+		if row.width_m != wanted[row.source_id].width_m or row.lanes != wanted[row.source_id].lanes: return "Applied road override differs from the request."
+		found[row.source_id] = true
+	if found.size() != wanted.size(): return "Incomplete road override receipt."
+	return ""
+
 ## A source-metre value of `cm` whole map centimetres at 1:denominator.
 static func _map_cm(value: Variant, cm: int, denominator: int) -> bool:
 	return (value is int or value is float) and absf(float(value) - cm * denominator / 100.0) < 1e-9
@@ -174,7 +218,7 @@ static func validate(raw: Dictionary, requested: Dictionary, boundary: Script, n
 ## of a marked road plus its two-arm neighbours per cell, at display time.
 ## Checked for whole records (any cell size) on the adopted 1:D vertices.
 const PAINT_SEGMENTS := 128
-const PAINT_ROAD_FLOOR_CM := 150.0
+const PAINT_ROAD_FLOOR_CM := 1.0
 
 static func _map_point(point: Array, denominator: int) -> Vector2:
 	return Vector2(roundi(float(point[0]) / denominator), roundi(float(point[2]) / denominator))

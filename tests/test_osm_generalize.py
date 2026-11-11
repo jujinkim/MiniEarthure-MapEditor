@@ -414,9 +414,9 @@ class City(unittest.TestCase):
                 self.setup_city()
                 structure = dict(road_kind=kind, elevations_m=[6.0 if kind == "bridge" else -6.0]*2, osm_way_id=1, osm_node_refs=[1, 2], width_m=6, _city_road_tags=dict(highway="residential"))
                 self.add(1, LineString([(0, 0), (100, 0)]), **structure)
-                # Residential 400 map cm source-height structure at 1:8: within 16 + 1.6 + 0.8 m.
-                self.add(2, box(20, 16, 40, 40), height_m=12, _city_layer_building=True)
-                self.add(3, box(60, 16, 80, 40), height_m=12)
+                # Explicit 6 m source width: within its 3 m half-width plus safety corridor.
+                self.add(2, box(20, 4, 40, 40), height_m=12, _city_layer_building=True)
+                self.add(3, box(60, 4, 80, 40), height_m=12)
                 self.add(4, box(45, -3, 55, 3), height_m=12, _city_layer_building=True)
                 review = Review(True)
                 out, meta = Generalizer(dict(type="FeatureCollection", features=self.features), self.options, review).candidate(0)
@@ -509,7 +509,7 @@ class City(unittest.TestCase):
         from osm_review import Review
         self.setup_city()
         self.add(1,LineString([(0,0),(150,3),(300,0)]),width_m=6,_city_refs=[1,2,3],_city_road_tags=dict(highway="residential"))
-        self.add(2,box(146,-16.4,154,-14.2))  # Inside the straightened (4 m tolerance) 32 m 1:8 profile road only.
+        self.add(2,box(146,-3.4,154,-1.2))  # Inside the straightened explicit 6 m road only.
         for i in range(12):
             self.add(10+i,box(20+i*14,40,30+i*14,60),height_m=9)
         collection = lambda: dict(type="FeatureCollection",features=deepcopy(self.features))
@@ -1067,7 +1067,7 @@ class CityRules(unittest.TestCase):
         self.assertGreater(len(water), 1, "the lake and the stream on both sides of the road")
         union = unary_union([g for s, g in water])
         self.assertAlmostEqual(union.intersection(box(0, 0, 100, 60)).area, 6000, delta=30, msg="the lake is water")
-        road = LineString([(250, -200), (250, 200)]).buffer(4.5)  # 300 map cm residential profile, 9 m at 1:3.
+        road = LineString([(250, -200), (250, 200)]).buffer(4.0)  # Explicit 8 m source width, scaled once at adoption.
         self.assertLess(union.intersection(road).area, 0.01, "roads cut the water")
         self.assertTrue(any("way/2" in s for s, g in water) and not any("way/3" in s for s, g in water))
         self.assertEqual(meta["water"]["dropped_sources"], ["way/3"], "a waterway wholly under a road is disclosed")

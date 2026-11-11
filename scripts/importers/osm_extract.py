@@ -16,7 +16,7 @@ from osm_review import Review, source_error
 LICENSE = "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.org/copyright"
 # Road tags the city profile reads (chaining breaks, widths, sidewalks, markings,
 # service paint, dual-carriageway merging and speed-limit signs); other tags are omitted.
-CITY_ROAD_TAGS = ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction", "service",
+CITY_ROAD_TAGS = ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "lanes:forward", "lanes:backward", "lanes:both_ways", "shoulder:left:width", "shoulder:right:width", "junction", "service",
                   "bridge", "ford", "tunnel", "embankment", "man_made", "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway", "maxspeed")
 MAX_ENTITIES = 250_000
 MAX_REFS = 200_000

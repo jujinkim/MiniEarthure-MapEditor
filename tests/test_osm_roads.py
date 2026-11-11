@@ -84,32 +84,39 @@ class Roads(unittest.TestCase):
             with self.subTest(scale=scale):
                 worker = Generalizer(dict(type="FeatureCollection", features=self.features), self.options, scale=scale)
                 widths = {f["properties"]["osm_source_id"]: round(f["properties"]["width_m"] * 100 / scale) for f, g in worker.features if g.geom_type == "LineString"}
-                self.assertEqual(widths["way/1"], 500, "three primary lanes: the class floor (map cm)")
-                self.assertEqual(widths["way/2"], 2 * osm_roads.LANE_CM + 2 * 80, "residential: two 120 cm lanes and 80 cm shoulders")
-                self.assertEqual(widths["way/3"], 500, "a tagged width does not set a vehicle road")
-                self.assertEqual(widths["way/4"], 6 * osm_roads.LANE_CM + 60)
-                self.assertEqual(widths["way/5"], 8 * osm_roads.LANE_CM + 60, "lanes capped per class")
-                self.assertEqual(widths["way/6"], osm_roads.LANE_CM + 2 * 60, "service: one lane and 60 cm shoulders")
-                self.assertEqual(widths["way/7"], osm_roads.LANE_CM + 2 * 80, "a one-way residential lane keeps the class shoulders")
-                self.assertEqual(widths["way/8"], round(200 / scale), "walking ways keep their source width")
-                self.assertEqual(worker.road_rules["profile_tagged_width_ignored"], 2)
+                expected = {"way/1": 10.25, "way/2": 7.0, "way/3": 5.0, "way/4": 20.0,
+                            "way/5": 39.5, "way/6": 3.0, "way/7": 3.75, "way/8": 2.0}
+                for key, metres in expected.items():
+                    self.assertEqual(widths[key], round(metres * 100 / scale), "source metres are scaled only once")
+                self.assertEqual(worker.road_rules["profile_source_width"], 2)
                 self.assertEqual(worker.road_rules["lane_widths"], 3)
 
-    def test_chains_join_across_width_lane_name_and_ref_changes_with_segment_widths(self):
+    def test_directional_lanes_and_wide_lane_estimates(self):
+        self.assertEqual(osm_roads.lanes({"lanes:forward":"4", "lanes:backward":"3"}), 7)
+        self.assertEqual(osm_roads.profile_lanes({"highway":"residential", "lanes":"6"}, False), 6)
+        self.road([(0,0),(50,0)], [1,2], highway="residential", width_m=20.0, lanes="2")
+        self.road([(0,20),(50,20)], [3,4], **{"lanes:forward":"4", "lanes:backward":"3"})
+        worker, _, _, _ = self.run_city()
+        rows = {f["properties"]["osm_source_id"]: f["properties"] for f, _ in worker.features}
+        self.assertEqual(rows["way/1"]["width_m"], 20)
+        self.assertEqual(rows["way/1"]["_city_lanes"], 6)
+        self.assertEqual(rows["way/1"]["_city_lane_width_m"], 3.25)
+        self.assertEqual(rows["way/2"]["_city_lanes"], 7)
+        with self.assertRaisesRegex(ValueError, "cannot truncate"): osm_roads.lanes({"lanes":"17"})
+
+    def test_chains_preserve_lane_and_painted_width_boundaries(self):
         self.road([(0, 0), (40, 0)], [1, 2], lanes="2", name="가")
         self.road([(40, 0), (80, 0)], [2, 3], lanes="4", name="나", ref="7")
         self.road([(80, 0), (120, 0)], [3, 4], width_m=9.0)
         self.road([(120, 0), (160, 0)], [4, 5], surface="concrete")
         self.road([(160, 0), (200, 0)], [5, 6], highway="secondary", surface="concrete")
         worker, result, meta, roads = self.run_city(gap=0)
-        self.assertEqual(meta["after"]["roads"], 3, "surface and class changes still break chains")
-        first = next(p for p, g in roads if "way/1" in p["_city_sources"])
-        self.assertEqual(first["_city_sources"], ["way/1", "way/2", "way/3"])
-        self.assertEqual(first["_city_widths_m"], [15.0, 16.2, 16.2])
-        self.assertEqual(first["_city_lanes"], 4, "lane counts vote by length; a tie takes the larger count")
-        layer = self.layer(result)
-        road = next(p["after"] for p in layer.patches if p["field"] == "roads" and len(p["after"]["points"]) == 4)
-        self.assertEqual(road["widths_cm"], [1500, 1620, 1620], "per-segment profile widths, ÷D at adoption")
+        self.assertEqual(meta["after"]["roads"], 5, "lane and surface boundaries keep separate records")
+        by_source = {p["_city_sources"][0]: p for p, _ in roads}
+        self.assertEqual(by_source["way/1"]["_city_lanes"], 2)
+        self.assertEqual(by_source["way/2"]["_city_lanes"], 4)
+        self.assertEqual(by_source["way/3"]["width_m"], 9)
+        self.assert_connected(self.layer(result))
 
     def test_dual_carriageway_ladder_merges_into_one_two_way_road(self):
         a, b = self.ladder()
@@ -126,7 +133,7 @@ class Roads(unittest.TestCase):
         for p, g in merged:
             self.assertTrue(all(abs(y - 10) < 0.05 for x, y in g.coords), "midline of both carriageways")
             self.assertNotIn("oneway", p["_city_road_tags"])
-            self.assertTrue(all(abs(w - (20 - 7 + 2 * 9)) < 0.05 for w in p["_city_widths_m"]), "two 300 cm profile carriageways and the source median")
+            self.assertTrue(all(abs(w - (20 + 7)) < 0.05 for w in p["_city_widths_m"]), "source carriageways and median without widening")
         # Every cross street now ends at the moved midline node.
         for x in (0, 100, 200):
             south = next(g for q, g in roads if g.coords[0] == (x, -60) or abs(g.coords[0][0] - x) < 0.05 and abs(g.coords[0][1] + 60) < 0.05)
@@ -135,9 +142,28 @@ class Roads(unittest.TestCase):
             self.assertAlmostEqual(north.coords[0][1], 10, places=1)
         layer = self.layer(result)
         self.assert_connected(layer)
-        road = next(q["after"] for q in layer.patches if q["field"] == "roads" and len(set(q["after"]["widths_cm"])) == 1 and q["after"]["widths_cm"][0] == 3100)
+        road = next(q["after"] for q in layer.patches if q["field"] == "roads" and len(set(q["after"]["widths_cm"])) == 1 and q["after"]["widths_cm"][0] == 2700)
         self.assertEqual(road["markings"]["lanes"], 4)
         self.assertTrue(road["markings"]["center_line"], "two-way after merging")
+
+    def test_directional_lane_boundaries_and_median_lane_space(self):
+        self.road([(0,0),(50,0)],[1,2],width_m=23.25,**{"lanes:forward":"4","lanes:backward":"3"})
+        self.road([(100,0),(50,0)],[3,2],width_m=23.25,**{"lanes:forward":"4","lanes:backward":"3"})
+        _,result,_,roads=self.run_city()
+        marks=[p["_city_markings"] for p,g in roads]
+        self.assertEqual(len(marks),2,"reversed source directions are not merged")
+        self.assertTrue(all(m["lanes"]==7 and m["forward_lanes"]==4 for m in marks))
+        self.assert_connected(self.layer(result))
+        self.setUp(); self.ladder()
+        _,result,_,roads=self.run_city()
+        dual=[p for p,g in roads if p.get("_city_dual")]
+        self.assertTrue(dual)
+        for p in dual:
+            mark=p["_city_markings"]
+            self.assertEqual(mark["lanes"],4)
+            self.assertEqual(mark["forward_lanes"],2)
+            self.assertEqual(mark["median_width_cm"],round(13*100/3))
+            self.assertLess(mark["lane_width_cm"]*4+mark["median_width_cm"],p["width_m"]*100/3+1)
 
     def test_one_sided_t_junction_gets_a_midline_node(self):
         def side():
@@ -178,8 +204,8 @@ class Roads(unittest.TestCase):
         self.assertTrue(any(u_turn in p["_city_sources"] for p in merged), "the U-turn link is absorbed")
         self.assertFalse(any(p["_city_sources"] == [u_turn] for p, g in roads))
         ends = Counter(e for p, g in roads for e in p.get("_city_ends", []) if e)
-        self.assertEqual(ends["9"], 0, "past the converge node the merged road continues as the two-way road")
-        self.assertTrue(any(abs(g.coords[-1][0] - 400) < 0.05 for p, g in roads if p.get("_city_dual")))
+        self.assertEqual(ends["9"], 2, "the connected lane-count boundary preserves both records")
+        self.assertTrue(any(abs(g.coords[-1][0] - 400) < 0.05 for p, g in roads), "the continuous road keeps its original far endpoint")
         self.assert_connected(self.layer(result))
 
     def test_structure_pairs_never_merge_and_merging_stops_a_lead_before_anchors(self):
@@ -216,9 +242,8 @@ class Roads(unittest.TestCase):
         synthetic = str(osm_roads.LEAD_REF_BASE + 6)
         self.assertEqual(lead[0]["_city_ends"], [synthetic, "6"], "the dead end's outer level lead")
         self.assertEqual(deck[0]["_city_ends"], ["1", synthetic], "the connected end keeps its deck lead")
-        # Half the deck's own end width + 1 m: residential 400 map cm plus two
-        # 60 cm structure shoulders = 520 map cm = 15.6 m at 1:3.
-        keep = (400 + 2 * osm_roads.STRUCTURE_SHOULDER_CM) * 3 / 100 / 2 + 1.0
+        # Half the estimated two-lane 7 m source width plus 1 m of level deck.
+        keep = 7.0 / 2 + 1.0
         self.assertAlmostEqual(lead[1].coords[0][0], 138 + keep, delta=0.05, msg="the deck keeps a level mouth")
         self.assertEqual(deck[0]["_city_estimated_m"][-2:], [0.0, 0.0])
         layer = self.layer(result)
@@ -229,10 +254,10 @@ class Roads(unittest.TestCase):
     def test_a_short_dead_end_lead_keeps_its_deck_cap(self):
         self.road([(-100, 0), (0, 0)], [9, 1], highway="residential")
         self.road([(75, 50), (75, -50)], [7, 8], highway="residential")
-        self.road([(0, 0), (8, 0), (50, 0), (100, 0), (144, 0), (150, 0)], [1, 2, 3, 4, 5, 6], highway="residential",
+        self.road([(0, 0), (8, 0), (50, 0), (100, 0), (146, 0), (150, 0)], [1, 2, 3, 4, 5, 6], highway="residential",
                   _city_estimated_m=[0.0, 0.0, 6.0, 6.0, 0.0, 0.0], _city_estimated_kind="bridge")
         worker, result, meta, roads = self.run_city()
-        self.assertEqual(meta["road_rules"].get("open_deck_ends", 0), 0, "6 m < 5.5 m mouth + 1 m ground")
+        self.assertEqual(meta["road_rules"].get("open_deck_ends", 0), 0, "4 m lead cannot fit the 4.5 m deck mouth plus ground")
         self.assertFalse(any(p.get("_city_ground_lead") for p, g in roads))
 
     def test_a_structure_between_the_carriageways_blocks_the_merge(self):
@@ -293,12 +318,10 @@ class Roads(unittest.TestCase):
         self.assertEqual(meta["road_rules"]["dual_merged_pairs"], 1, "one real rung plus aligned ends")
         self.assert_connected(self.layer(result))
 
-    def test_rungless_pairs_whose_profiles_overlap_merge(self):
-        # 8.8 m apart: two 300 map cm one-way primary profiles (9 m at 1:3) would overlap.
+    def test_rungless_pairs_keep_source_widths_without_artificial_overlap(self):
         self.pair_between_ramps(highway="primary", north=8.8)
         worker, result, meta, roads = self.run_city()
-        self.assertEqual(meta["road_rules"]["dual_merged_pairs"], 1)
-        self.assertEqual(meta["road_rules"]["dual_overlap_merged_pairs"], 1)
+        self.assertEqual(meta["road_rules"].get("dual_merged_pairs", 0), 0)
         self.assert_connected(self.layer(result))
 
     def test_a_diagonal_turn_link_up_to_three_separations_is_a_rung(self):
@@ -323,8 +346,8 @@ class Roads(unittest.TestCase):
         self.road([(100, 0), (200, 0)], [2, 3], lanes="6")
         building = self.add(box(20, 9, 60, 13), height_m=10)
         worker, result, meta, roads = self.run_city()
-        self.assertEqual(meta["after"]["roads"], 1, "one chain with 15 m and 23.4 m segments")
-        self.assertNotIn(building, worker.excluded_sources, "the 23.4 m segment does not trim along the 15 m one")
+        self.assertEqual(meta["after"]["roads"], 2, "source lane-width boundary keeps both records")
+        self.assertNotIn(building, worker.excluded_sources, "the 20 m segment does not trim along the 7 m one")
         self.assertNotIn(building, meta["trimmed_building_sources"])
         self.assertIn(building, meta["source_ids"])
 
@@ -425,7 +448,7 @@ class Roads(unittest.TestCase):
         self.assertEqual(sidewalk[residential], 2.01, "2 m on the 1:3 lattice: 67 map cm")
         self.assertEqual(sidewalk[tagged_no], 0.0)
         self.assertEqual(sidewalk[service], 0.0, "service roads: no sidewalk")
-        self.assertEqual(sidewalk[separate], 2.49, "to the footway's outer edge (7.5 - 6 + 0.8 m, in 0.25 m steps): 83 map cm")
+        self.assertEqual(sidewalk[separate], 5.49, "to the footway's outer edge (7.5 - 3 + 0.8 m, in 0.25 m steps): 183 map cm")
         self.assertNotIn(footway, sidewalk, "the covered sidewalk footway is absorbed")
         owner = next(f for f, g in worker.features if f["properties"]["osm_source_id"] == separate)
         self.assertIn(footway, owner["properties"]["_city_sources"])

@@ -1559,6 +1559,7 @@ func _start_import(source: String, license_name: String) -> void:
 		if osm_panel.city.button_pressed:
 			import_coordinates_request.osm_city = true
 			import_coordinates_request.osm_scale = osm_panel.denominator()
+			if not osm_panel.road_overrides.is_empty(): import_coordinates_request.road_overrides = osm_panel.road_overrides.duplicate(true)
 			import_coordinates_request.osm_traffic = osm_panel.traffic()
 	if input_format in ["osm", "pbf"] and osm_panel.enabled.button_pressed:
 		if osm_panel.error() != "":

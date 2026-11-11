@@ -14,7 +14,7 @@ const READ_BUDGET := 16384
 ## Mirrors osm_stream.REGIONAL_SOURCE_BYTES / REGIONAL_STAGES.
 const REGIONAL_SOURCE_BYTES := 512 * 1024 * 1024
 const REGIONAL_STAGES := ["extract_nodes", "extract_ways", "extract_relations", "extract_members", "extract_write_nodes", "extract_write_ways", "extract_write_relations"]
-const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_water_crossings.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "osm_generalize.py", "osm_roads.py", "osm_sites.py", "osm_furniture.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
+const MODULES := ["geojson.py", "pbf_places.py", "facility_csv.py", "polygon_geometry.py", "import_layer.py", "projection.py", "vertical.py", "osm_heights.py", "osm_extract.py", "osm_water_crossings.py", "osm_review.py", "osm_area.py", "osm_stream.py", "osm_disk_nodes.py", "osm_generalize.py", "osm_roads.py", "road_overrides.py", "osm_sites.py", "osm_furniture.py", "overture_area.py", "overture_transportation.py", "overture_land_cover.py"]
 var pid := -1
 var identity := ""
 var directory := ""
@@ -134,6 +134,12 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	if coordinates.get("osm_review_exclusions",false):
 		if not streaming: cleanup(); return "Object exclusion review requires PBF streaming."
 		arguments.append("--osm-review-exclusions")
+	if coordinates.has("road_overrides"):
+		if not coordinates.get("osm_city", false): cleanup(); return "Road overrides require a city import."
+		var path := directory.path_join("road-overrides.json")
+		var error: String = files.write(path, JSON.stringify(coordinates.road_overrides), "")
+		if error != "": cleanup(); return error
+		arguments.append_array(["--road-overrides", path])
 	if coordinates.has("vertical"):
 		var vertical_error: String = preload("./import_vertical.gd").options_error(coordinates.vertical, limit_warnings)
 		if input_format not in ["osm", "pbf"] or vertical_error != "":

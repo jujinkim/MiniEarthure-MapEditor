@@ -104,6 +104,11 @@ func check_inputs() -> void:
 	check(digest.length() == 64 and values.sources.size() == 4 and values.osm.size() == 1 and values.osm[0].crop.areas == ["relation/2", "relation/9"] and values.osm[0].scale_denominator == 3 and values.osm[0].pyproj == "3.7.2","inputs from the adopted notices: "+str(values))
 	check(values.sources.map(func(s): return s.role) == ["dem", "dem", "facilities", "osm"] and values.sources.all(func(s): return s.keys() == ["role", "bytes", "sha256"]),"sources by role then hash, without names: "+str(values.sources))
 	check(values.facilities == {"encoding":"utf-8", "category":"", "source_url":"", "accuracy":"unknown", "license":"CC0", "name_column":"n", "latitude_column":"lat", "longitude_column":"lon"} and values.dem == {"zero_m":20.5, "skipped":false} and values.traffic == {"driving_side":"right", "signal_style":"horizontal"},"settings without paths: "+str(values))
+	var corrected := document.duplicate(true)
+	var notice: Dictionary = JSON.parse_string(corrected.attributions[0].notice)
+	notice.coordinates.road_overrides = {"request":{"osm_sha256":"a".repeat(64), "ways":[{"source_id":"way/1", "width_m":20, "lanes":6}]}}
+	corrected.attributions[0].notice = JSON.stringify(notice)
+	check(RECIPE.fingerprint(RECIPE.inputs(recipe, corrected, false)) != digest, "author road corrections affect the input fingerprint")
 	var reversed := document.duplicate(true)
 	reversed.attributions.reverse()
 	check(RECIPE.inputs(recipe, reversed, false) == values,"attribution order does not matter")
@@ -145,6 +150,19 @@ func run() -> void:
 		value.merge(broken[0], true)
 		var result: Dictionary = RECIPE.parse(JSON.stringify(value))
 		check(not result.ok and str(result.error).contains(broken[1]),"refused: "+str(broken[0])+" → "+str(result.get("error")))
+	var corrections := {"osm_sha256":"a".repeat(64), "ways":[{"source_id":"way/1", "width_m":20, "lanes":6}]}
+	check(RECIPE.parse(JSON.stringify(base.merged({"road_overrides":corrections}))).ok, "snapshot-bound road corrections parse")
+	for bad: Variant in [null, {}, {"osm_sha256":"short", "ways":[]}, {"osm_sha256":"a".repeat(64), "ways":[{"source_id":"way/1", "width_m":20, "lanes":17}]}]:
+		check(not RECIPE.parse(JSON.stringify(base.merged({"road_overrides":bad}))).ok, "invalid road correction refused")
+	var receipt := {"request":corrections, "applied":[{"source_id":"way/1", "width_m":20, "lanes":6, "original_width_m":null, "original_lanes":null}]}
+	var raw := {"adapter":"osm-extract-v1", "source":{"sha256":"a".repeat(64)}, "coordinates":{"osm_city":{}, "road_overrides":receipt}}
+	var city := preload("res://scripts/import_city.gd")
+	check(city.road_override_receipt(raw, {"road_overrides":corrections}) == "", "matching receipt accepted")
+	check(city.road_override_receipt(raw, {"osm_city":true}) != "", "unrequested correction refused")
+	raw.source.sha256 = "b".repeat(64)
+	check(city.road_override_receipt(raw, {}) != "", "snapshot mismatch refused")
+	raw.source.sha256 = "a".repeat(64); receipt.applied = []
+	check(city.road_override_receipt(raw, {}) != "", "missing correction receipt refused")
 	check(not RECIPE.parse("[1]").ok,"a recipe is an object")
 	var boxed := base.duplicate(true)
 	boxed.erase("areas"); boxed.bbox = [8.4, 60.39, 8.49, 60.435]
@@ -239,9 +257,12 @@ func run() -> void:
 	# The complete worker path retains high-precision centre/radius provenance.
 	var fixed := {"version":1, "pbf":source, "center":[9.00010012345678,55.00010012345678], "radius_km":1.5,
 		"project":scratch.path_join("circle/project"), "package":scratch.path_join("circle/city.memap"), "full_check":false,
+		"road_overrides":{"osm_sha256":hash, "ways":[{"source_id":"way/2", "width_m":20, "lanes":6}]},
 		"traffic":{"driving_side":"right", "signal_style":"horizontal"}}
 	var circular: Dictionary = await runner.run(fixed)
 	check(circular.ok and not ui.store.document.get("play_area", []).is_empty(), "fixed circle worker, adoption and v1 export: " + str(circular.get("status", "")))
+	check(ui.store.document.get("roads", []).any(func(r): return r.get("widths_cm", []).any(func(w): return int(w) == 667) and r.get("markings", {}).get("lanes") == 6), "road correction survives worker, adoption and v1 export")
+	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_road_overrides(o.get("road_overrides", {}), fixed.road_overrides)), "adopted correction enters report fingerprint")
 	ui.preview_enabled = false
 	wizard.hide()
 	check(FileAccess.get_sha256(source)==hash,"source PBF preserved")
