@@ -268,7 +268,7 @@ class Roads(unittest.TestCase):
         tunnel = [g for p, g in roads if "_city_estimated_m" in p]
         self.assertEqual(len(tunnel), 1, "a structure is never absorbed")
 
-    def test_diagonal_rung_cannot_widen_a_merge_into_an_external_building(self):
+    def test_diagonal_rung_uses_cross_street_separation_without_erasing_buildings(self):
         # Most of the pair is parallel; a diagonal west connector pairs nodes
         # sixty metres apart along the road. Its broad merged first segment
         # would reach a building outside both source carriageways and median.
@@ -282,10 +282,28 @@ class Roads(unittest.TestCase):
             self.road([a, b], refs, highway="residential", width_m=7.0)
         building = self.add(box(100, 18, 110, 28), height_m=10)
         worker, result, meta, roads = self.run_city()
-        self.assertEqual(meta["road_rules"].get("dual_merged_pairs", 0), 0)
+        self.assertEqual(meta["road_rules"].get("dual_merged_pairs", 0), 1)
+        merged = [p for p, _ in roads if p.get("_city_dual")]
+        self.assertTrue(merged)
+        self.assertTrue(all(abs(w-17.0)<.05 for p in merged for w in p["_city_widths_m"]))
+        self.assertTrue(all(p["_city_lanes"]==4 for p in merged))
         self.assertNotIn(building, meta["trimmed_building_sources"])
         self.assertIn(building, meta["source_ids"])
         self.assert_connected(self.layer(result))
+
+    def test_merge_blocks_new_whole_building_loss_and_water_but_keeps_partial_policy(self):
+        merger = osm_roads.DualCarriageways.__new__(osm_roads.DualCarriageways)
+        original, proposed = box(0,0,100,10), box(0,0,100,20)
+        for obstacle, water, blocked in [
+            (box(10,12,20,18), False, True),
+            (box(10,18,20,25), False, False),
+            (box(10,1,20,7), False, False),
+            (box(10,21,20,28), False, False),
+            (box(10,18,20,25), True, True),
+        ]:
+            merger.blockers = [obstacle]
+            merger.water_blockers = [water]
+            self.assertEqual(merger.new_blocker_conflict(proposed,original,[0]),blocked)
 
     def pair_between_ramps(self, highway="trunk", rung=False, slip=False, north=20):
         """A eastwards at y=0 (ramp nodes at x=0 and 400), B westwards at y=north

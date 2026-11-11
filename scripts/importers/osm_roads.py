@@ -404,7 +404,9 @@ class DualCarriageways:
         self.anchor_points = [Point(p) for _, p in sorted(anchors.items(), key=lambda item: str(item[0]))]
         self.anchor_tree = STRtree(self.anchor_points)
         polygons = [(f, g) for f, g in items if g.geom_type != "LineString"]
-        self.blockers = [g for f, g in polygons if not f["properties"].get("osm_region") or f["properties"].get("landuse") in ("water", "wetland")]
+        blockers = [(f, g) for f, g in polygons if not f["properties"].get("osm_region") or f["properties"].get("landuse") in ("water", "wetland")]
+        self.blockers = [g for _, g in blockers]
+        self.water_blockers = [bool(f["properties"].get("osm_region")) for f, _ in blockers]
         self.blocker_tree = STRtree(self.blockers)
         # The median test uses tagged widths; an estimated carriageway counts
         # as one lane, so an inflated estimate cannot hide a pair.
@@ -661,6 +663,12 @@ class DualCarriageways:
         width = lambda i: profile_cm(tags(self.items[i][0]), True, profile_lanes(tags(self.items[i][0]), True), self.scale) * self.scale / 100
         return tags(self.items[a_run[0]][0]).get("highway") in PROFILES and separation < (max(map(width, a_run)) + max(map(width, b_run))) / 2
 
+    def new_blocker_conflict(self, proposed, original, hits):
+        added = proposed.difference(original)
+        return any(self.blockers[h].intersection(added).area > 1e-4 and
+                   (self.water_blockers[h] or self.blockers[h].difference(proposed).area <= 1e-4)
+                   for h in hits)
+
     def merge(self, A, B, a_nodes, b_nodes, position, run):
         items = self.items
         (k_start, j_start, _), (k_end, j_end, _) = run[0][0], run[-1][1]
@@ -684,31 +692,38 @@ class DualCarriageways:
         for i in a_run:
             f, g = items[i]
             refs = f["properties"]["_city_refs"]
-            coords, widths = [], []
+            coords, pairs = [], []
             for ref, point in zip(refs, g.coords):
                 q = partner.get(ref)
                 if q is None:
                     near = b_line.interpolate(b_line.project(Point(point)))
                     q = (near.x, near.y)
                 coords.append(((point[0] + q[0]) / 2, (point[1] + q[1]) / 2))
-                widths.append(math.dist(point, q) + self.width[i] / 2 + wb / 2)
-                # A run whose carriageways part far beyond a median (for example
-                # around a park) between its rungs stays two one-way roads.
-                if math.dist(point, q) - self.width[i] / 2 - wb / 2 > RUNG_FACTOR * MEDIAN_M[1]:
-                    self.reasons['merge_wide'] += 1
-                    return
+                pairs.append((point, q))
             if any(a == b for a, b in zip(coords, coords[1:])):
                 self.reasons['merge_collapsed'] += 1
                 return
-            new[i] = [coords, list(refs), [round(max(a, b), 2) for a, b in zip(widths, widths[1:])]]
+            widths = []
+            for k, (a, b) in enumerate(zip(coords, coords[1:])):
+                dx, dy = b[0]-a[0], b[1]-a[1]
+                length = math.hypot(dx, dy)
+                # A diagonal connector's length along the street is not median
+                # width. Measure both source edges normal to this midline.
+                separation = max(abs((q[0]-p[0])*dy-(q[1]-p[1])*dx)/length
+                                 for p, q in pairs[k:k+2])
+                if separation - self.width[i]/2 - wb/2 > RUNG_FACTOR * MEDIAN_M[1]:
+                    self.reasons['merge_wide'] += 1
+                    return
+                widths.append(round(separation + self.width[i]/2 + wb/2, 2))
+            new[i] = [coords, list(refs), widths]
             moved[refs[0]], moved[refs[-1]] = coords[0], coords[-1]
         midline = LineString([c for n, i in enumerate(a_run) for c in (new[i][0] if n == 0 else new[i][0][1:])])
         if not midline.is_simple:
             self.reasons['merge_midline'] += 1
             return
-        # Diagonal rungs can create a wide, constant-width segment outside the
-        # original median strip. Do not turn surrounding buildings or water
-        # into carriageway merely to combine two otherwise valid source roads.
+        # A merge must not newly erase a whole building or extend into water.
+        # Partial road/building overlaps remain subject to the explicit regional
+        # footprint policy; refusing those can expose a worse original overlap.
         proposed = shapely.union_all([
             LineString([a, b]).buffer(width / 2, cap_style="flat")
             for coords, _, widths in new.values()
@@ -722,8 +737,7 @@ class DualCarriageways:
                                    cap_style="flat")
                 for i in set(a_run) | absorbed
             ])
-            added = proposed.difference(original)
-            if any(self.blockers[h].intersection(added).area > 1e-4 for h in hits):
+            if self.new_blocker_conflict(proposed, original, hits):
                 self.reasons['merge_external_blocker'] += 1
                 return
         # A B node with side roads but no rung gets a midline node (one-sided T).
