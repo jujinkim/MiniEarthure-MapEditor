@@ -21,6 +21,7 @@ func sample(image: Image) -> Color:
 			value+=image.get_pixel(image.get_width()*x/10,image.get_height()*y/10);count+=1
 	return value/float(count)
 func run() -> void:
+	if not wet_bank_binding(): quit(1);return
 	root.size=Vector2i(320,320)
 	var store:=STORE.new();store.new_document();store.document.free_roam=true
 	store.document.bounds={"min":[0,0],"max":[6400,6400]};store.document.cell_size_cm=3200
@@ -69,3 +70,18 @@ func run() -> void:
 		if delta>.045:push_error("near/far water colour seam");quit(1);return
 	print("distant_water_validator: PASS (water colour, quality and release)")
 	quit(0)
+
+func wet_bank_binding() -> bool:
+	# Each cell owns its generated material. Adjacent water levels must remain
+	# independent while every earth batch in a cell shares the same binding.
+	var first := MeshInstance3D.new();var second := MeshInstance3D.new()
+	for mesh in [first,second]:
+		var material := ShaderMaterial.new()
+		material.shader=preload("res://addons/mapkit/godot/atmosphere_surface.gdshader")
+		mesh.material_override=material
+	RENDER._wet_bank({"water_records":[{"body":{"surface_cm":150}},{"body":{"surface_cm":90}}]},first,"dirt")
+	RENDER._wet_bank({"water_records":[{"body":{"surface_cm":400}}]},second,"dirt")
+	var ok := is_equal_approx(float(first.material_override.get_shader_parameter("shore_level_m")),1.5) and is_equal_approx(float(second.material_override.get_shader_parameter("shore_level_m")),4.0)
+	first.free();second.free()
+	if not ok:push_error("water levels leak between cell-owned materials")
+	return ok
