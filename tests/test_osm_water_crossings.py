@@ -50,6 +50,14 @@ class SourceWaterTests(unittest.TestCase):
         self.assertTrue(evidence[1]["ford"])
         self.assertNotIn("bridge",result[0][3])
 
+    def test_waterway_width_uses_the_city_source_defaults(self):
+        from shapely.ops import transform
+        nodes = {1:(9.,55.), 2:(9.01,55.)}
+        for kind,width in [("river",12), ("canal",8), ("ditch",1.5)]:
+            _,water,_ = classify([(1,"waterway",[1,2],dict(waterway=kind))],nodes,[])
+            metric = transform(lambda x,y:(x,y*110540),water)
+            self.assertAlmostEqual(metric.bounds[3]-metric.bounds[1],width,places=5)
+
     def test_insufficient_bridge_ramp_is_rejected(self):
         nodes, ways = self.scene(dict(bridge="yes"))
         nodes[1],nodes[2] = (8.9989,55.),(9.0011,55.)

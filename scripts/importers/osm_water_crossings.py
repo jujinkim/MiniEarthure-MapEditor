@@ -6,6 +6,7 @@ import math
 
 
 def classify(ways, nodes, assembled, consumed=frozenset(), node_tags=None):
+    from osm_extract import CITY_WATERWAYS, metres
     node_tags = node_tags or {}
     water = [shape(f["geometry"]) for f in assembled
              if f["properties"].get("landuse") in ("water", "reservoir", "basin")]
@@ -20,8 +21,11 @@ def classify(ways, nodes, assembled, consumed=frozenset(), node_tags=None):
             polygon = Polygon(points)
             if polygon.is_valid: water.append(polygon)
         elif kind == "waterway" and tags.get("tunnel", "no") in ("no", "0"):
-            try: width = float(tags.get("width", 3))
-            except ValueError: width = 3
+            width = CITY_WATERWAYS.get(tags.get("waterway"), 3.0)
+            if "width" in tags:
+                try: width = metres(tags, "width")
+                except ValueError: pass
+            width = min(max(width, 0.5), 200.0)
             if math.isfinite(width) and 0 < width <= 1000:
                 water.append(transform(inverse, transform(project, LineString(points)).buffer(width / 2)))
     if not water: return ways, None, {}
