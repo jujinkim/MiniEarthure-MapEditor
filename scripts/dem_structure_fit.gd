@@ -35,7 +35,7 @@ static func estimated(document: Dictionary) -> Dictionary:
 			if id is String: result[id] = true
 	return result
 
-static func prepare(store: RefCounted, records: Array, blobs: Dictionary, options: Dictionary) -> Dictionary:
+static func prepare(store: RefCounted, records: Array, blobs: Dictionary, options: Dictionary, water_bodies: Array = []) -> Dictionary:
 	var document: Dictionary = store.document
 	var listed := estimated(document)
 	var roads := {}
@@ -71,6 +71,7 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 			if not incident.has(road[end]): incident[road[end]] = []
 			incident[road[end]].append(road)
 	var fit := new()
+	fit._water = water_bodies if not water_bodies.is_empty() else document.get("water_bodies", [])
 	fit._separation_cm = separation_cm(denominator)
 	fit._max_edit_cm = max_edit_cm(denominator)
 	return fit._run(store, records, blobs, options, roads, structures, nodes, incident)
@@ -78,6 +79,7 @@ static func prepare(store: RefCounted, records: Array, blobs: Dictionary, option
 static func separation_cm(denominator: int) -> int: return ceili(SEPARATION_M * 100.0 / denominator)
 static func max_edit_cm(denominator: int) -> int: return floori(MAX_TERRAIN_EDIT_M * 100.0 / denominator)
 
+var _water: Array = []
 var _separation_cm := 0
 var _max_edit_cm := 0
 var _store: RefCounted
@@ -355,6 +357,7 @@ func _run(store: RefCounted, records: Array, blobs: Dictionary, options: Diction
 		for i in range(road.points.size() - 1): ground_segments.append([road, i, _xz(road.points[i]), _xz(road.points[i + 1])])
 	var ground_buckets := _buckets(ground_segments)
 	var crossings := _structure_crossings(roads, structures, vertex, height)
+	crossings.append_array(_water_constraints(roads.values(), structures, vertex, _water))
 	# A pad level is free within the bounds its crossings put on its samples;
 	# moving it moves the decks rebased on it, so repeat until it settles.
 	var lifted := {}
@@ -558,6 +561,51 @@ func _structure_crossings(roads: Dictionary, structures: Dictionary, vertex: Dic
 			constraints.append({"coefficients":coefficients, "fixed":fixed * direction,
 				"gap":minf(absf(original), _separation_cm), "label":first[0].id + " × " + second[0].id})
 	return constraints
+
+## Water remains fixed. Constrain the underside at both ends of every overlap
+## of the full deck ribbon with source-derived water, including shared cell seams.
+static func _water_constraints(roads: Array, structures: Dictionary, vertex: Dictionary, bodies: Array) -> Array:
+	var constraints: Array = []
+	for road: Dictionary in roads:
+		if road.kind != "bridge": continue
+		for i in range(road.points.size() - 1):
+			var pa := _xz(road.points[i])
+			var pb := _xz(road.points[i + 1])
+			var length := pa.distance_to(pb)
+			if length < .001: continue
+			var half: float = road.widths_cm[i] * .5
+			var span := Rect2(pa, Vector2.ZERO).expand(pb).grow(half + 1.0)
+			for body: Dictionary in bodies:
+				var polygon := PackedVector2Array()
+				for p: Array in body.polygon: polygon.append(Vector2(p[0], p[1]))
+				var bounds := Rect2(polygon[0], Vector2.ZERO)
+				for p in polygon: bounds = bounds.expand(p)
+				if not span.intersects(bounds): continue
+				for expanded: PackedVector2Array in Geometry2D.offset_polygon(polygon, half):
+					var fragments: Array = Array(Geometry2D.intersect_polyline_with_polygon(PackedVector2Array([pa, pb]), expanded))
+					for island: Array in body.get("islands", []):
+						var inner := PackedVector2Array()
+						for p: Array in island: inner.append(Vector2(p[0], p[1]))
+						for dry: PackedVector2Array in Geometry2D.offset_polygon(inner, -half):
+							var remaining: Array = []
+							for fragment: PackedVector2Array in fragments: remaining.append_array(Geometry2D.clip_polyline_with_polygon(fragment, dry))
+							fragments = remaining
+					for piece: PackedVector2Array in fragments:
+						for hit: Vector2 in [piece[0], piece[-1]]:
+							var t := clampf(pa.distance_to(hit) / length, 0.0, 1.0)
+							var coefficients := {}
+							var fixed := -float(body.surface_cm)
+							for end in range(2):
+								var weight := 1.0 - t if end == 0 else t
+								if structures.has(road.id): coefficients[vertex[road.id + "@" + str(i + end)]] = weight
+								else: fixed += weight * road.points[i + end][1]
+							constraints.append({"coefficients":coefficients, "fixed":fixed, "gap":21.0, "label":road.id + " × water " + body.id})
+	return constraints
+
+static func water_error(roads: Array, bodies: Array) -> String:
+	for constraint: Dictionary in _water_constraints(roads, {}, {}, bodies):
+		if constraint.fixed < constraint.gap: return "Bridge underside overlaps water: " + constraint.label
+	return ""
 
 ## Project violated half-spaces onto free interior heights. Junctions and their
 ## level leads remain fixed, shared vertices move once, and centimetre rounding

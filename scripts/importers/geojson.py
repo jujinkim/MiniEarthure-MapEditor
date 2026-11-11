@@ -474,11 +474,35 @@ def main():
     parser.add_argument("--osm-scale", type=int, choices=range(1, 9))
     parser.add_argument("--osm-driving-side", choices=("right", "left"), default="right")
     parser.add_argument("--osm-signal-style", choices=("horizontal", "vertical"), default="horizontal")
+    parser.add_argument("--osm-center", nargs=2, type=float)
+    parser.add_argument("--osm-radius-km", type=float)
     parser.add_argument("--osm-areas", nargs="+", type=int)
     parser.add_argument("--osm-review-exclusions", action="store_true")
     parser.add_argument("--vertical-request", type=Path)
     parser.add_argument("--height-supplement", type=Path)
     args = parser.parse_args()
+    if args.osm_radius_km is not None and args.osm_center is None:
+        raise ValueError("osm-radius-km needs osm-center")
+    if args.osm_radius_km is None: args.osm_radius_km = 1.5
+    circle = None
+    if args.osm_center is not None:
+        if not args.osm_city or args.osm_bbox is None or args.osm_areas:
+            raise ValueError("A centre/radius requires a city bbox without administrative areas")
+        from osm_area import circle_region
+        circle = circle_region(args.osm_center, args.osm_radius_km)
+        import osmium
+        reader = osmium.io.Reader(str(args.source), osmium.osm.NOTHING)
+        try:
+            coverage = reader.header().box()
+            if coverage.valid():
+                w, south, e, north = circle.bounds
+                if w < coverage.bottom_left.lon or south < coverage.bottom_left.lat or e > coverage.top_right.lon or north > coverage.top_right.lat:
+                    raise ValueError("Requested circle exceeds the PBF source coverage")
+        finally:
+            reader.close()
+        from shapely.geometry import box
+        if not box(*args.osm_bbox).covers(circle):
+            raise ValueError("Crop/source coverage does not contain the requested circle")
     if args.height_supplement is not None and args.input_format not in ("osm", "pbf"):
         raise ValueError("height supplements require OSM input")
     if args.vertical_request is not None and args.input_format not in ("osm", "pbf"):
@@ -500,7 +524,7 @@ def main():
     review = Review(args.osm_review_exclusions)
     if args.osm_bbox is not None:
         from osm_area import projected_bounds
-        projected_bounds(args.osm_bbox, dict(mode=args.coordinates, origin=args.origin, local_origin_m=args.local_origin))
+        projected_bounds(args.osm_bbox, dict(mode=args.coordinates, origin=args.origin, local_origin_m=args.local_origin), region=circle)
     if args.watch_parent:
         watch_parent_lifetime()
     event = Progress(args.layer_id)
@@ -554,7 +578,7 @@ def main():
         if args.osm_stream:
             from osm_stream import extract
             value, osm_counts, osm_stream = extract(args.source,args.osm_bbox,args.output.parent,event,supplement,review,city=args.osm_city,areas=args.osm_areas)
-            region = osm_stream.pop("_region", None)
+            region = circle if circle is not None else osm_stream.pop("_region", None)
             stream_points = osm_stream.pop("_points", [])
             captured_source = Source(args.source_name or args.source.name, osm_stream["source_sha256"], osm_stream["source_bytes"], args.license, args.accuracy)
         else:
@@ -570,6 +594,9 @@ def main():
                 value, osm_crop = crop(value, args.osm_bbox, feature_limit=CITY_FEATURES, point_limit=CITY_POINTS, region=region, areas=osm_stream.get("areas"), denominator=scale, review=review)
             else:
                 value, osm_crop = crop(value, args.osm_bbox, region=region, areas=osm_stream.get("areas") if osm_stream else None)
+    if circle is not None and osm_crop:
+        osm_crop.pop("areas", None)
+        osm_crop.update(region="wgs84-circle-v1", center=args.osm_center, radius_km=args.osm_radius_km)
     parse_bytes = osm_stream["selected"]["bytes"] if osm_stream else size
     event("parse", parse_bytes, parse_bytes)
     options = {"mode": args.coordinates}
@@ -623,7 +650,7 @@ def main():
                 trial.coordinates["osm_crop"] = trial_crop
                 if region is not None:
                     from osm_area import play_area
-                    trial.coordinates["osm_play_area"] = play_area(args.osm_bbox, region, options, scale)
+                    trial.coordinates["osm_play_area"] = play_area(args.osm_bbox, region, options, scale, exact=circle is not None)
                 from osm_area import city_points
                 pois, street = city_points(stream_points + landmark_points(candidate), args.osm_bbox, region, options)
                 for index, poi in enumerate(pois):

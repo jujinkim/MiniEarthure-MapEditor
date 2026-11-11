@@ -154,9 +154,9 @@ func run() -> void:
 		boxed.bbox = broken
 		check(not RECIPE.parse(JSON.stringify(boxed)).ok,"refused bbox: "+str(broken))
 	boxed.bbox = [8.4, 60.39, 8.49, 60.435]; boxed.areas = base.areas
-	check(str(RECIPE.parse(JSON.stringify(boxed)).get("error")).contains("one of areas"),"areas and bbox are exclusive")
+	check(str(RECIPE.parse(JSON.stringify(boxed)).get("error")).contains("one of center"),"areas and bbox are exclusive")
 	boxed.erase("areas"); boxed.erase("bbox")
-	check(str(RECIPE.parse(JSON.stringify(boxed)).get("error")).contains("one of areas"),"a recipe needs areas, a place or a bbox")
+	check(str(RECIPE.parse(JSON.stringify(boxed)).get("error")).contains("one of center"),"a recipe needs areas, a place or a bbox")
 	boxed.place = {"name":"Dagali", "source_id":"node/1"}
 	parsed = RECIPE.parse(JSON.stringify(boxed))
 	check(parsed.ok and parsed.recipe.place.name == "Dagali","a place recipe: "+str(parsed))
@@ -176,28 +176,16 @@ func run() -> void:
 	var stopped: Dictionary = await guard._run({"package":outputs, "project":scratch.path_join("none")}, false)
 	check(not stopped.ok and stopped.failed_step == "outputs","an existing package stops the build first: "+str(stopped))
 	DirAccess.remove_absolute(outputs)
-	# A place's automatic area over a package limit is retried as the square, then smaller squares.
-	var area_fail := {"ok":false, "failed_step":"export", "status":"E_LIMIT: manifest or expanded package exceeds limits", "extent":{"kind":"area"}}
+	# A limit failure keeps the requested circle and never retries/shrinks.
 	var retry := Retry.new(null)
-	var square_fail := {"ok":false, "failed_step":"osm_adopt", "status":"Building and placement checks need more work than the game allows; the game refuses maps beyond this", "extent":{"kind":"bbox", "side_m":5000.0}}
-	retry.answers = [area_fail, square_fail, {"ok":true}]
-	var first_project := scratch.path_join("retry-project")
-	DirAccess.make_dir_recursive_absolute(first_project)
-	var retried: Dictionary = await retry.run({"place":{"name":"x"}, "project":first_project, "package":first_project + ".memap"})
-	check(retry.calls == [0.0, 5000.0, 3750.0] and retried.ok and retried.attempts.size() == 2 and retried.attempts[0].failed_step == "export","limit failures retry with shrinking squares: "+str(retry.calls))
-	check(retried.attempts[0].get("project") == first_project + "-attempt-1" and DirAccess.dir_exists_absolute(first_project + "-attempt-1") and not DirAccess.dir_exists_absolute(first_project),"the first attempt's project is kept aside")
-	DirAccess.remove_absolute(first_project + "-attempt-1")
-	retry = Retry.new(null)
-	square_fail.extent.side_m = 2500.0
-	retry.answers = [square_fail, {"ok":true}]
-	await retry.run({"place":{"name":"x"}, "project":"/nonexistent/p", "package":"/nonexistent/m.memap"})
-	check(retry.calls == [0.0],"no square below 2 km: "+str(retry.calls))
-	for case: Array in [[{"areas":[]}, area_fail], [{"place":{"name":"x"}}, {"ok":false, "failed_step":"osm_review", "status":"E_IMPORT_NATIVE: road point out of range", "extent":{"kind":"area"}}]]:
-		retry = Retry.new(null)
-		retry.answers = [case[1], {"ok":true}]
-		case[0].merge({"project":"/nonexistent/p", "package":"/nonexistent/m.memap"})
-		await retry.run(case[0])
-		check(retry.calls == [0.0],"no retry: "+str(case))
+	retry.answers = [{"ok":false, "failed_step":"export", "status":"E_LIMIT"}]
+	var stopped_circle: Dictionary = await retry.run({"center":[9.0,55.0], "radius_km":1.5, "project":"/nonexistent/p", "package":"/nonexistent/m.memap"})
+	check(retry.calls == [0.0] and not stopped_circle.ok, "circle limit failures remain explicit")
+	var circle_recipe := {"version":1, "pbf":"map.pbf", "center":[9.00010012345678,55.00010012345678], "project":"p", "package":"m.memap"}
+	check(RECIPE.parse(JSON.stringify(circle_recipe)).ok, "centre with default radius")
+	for bad in [0, -1, 21, "1.5"]:
+		circle_recipe.radius_km = bad
+		check(not RECIPE.parse(JSON.stringify(circle_recipe)).ok, "invalid radius refused")
 	check_set_aside()
 	check_inputs()
 	# Automatic choices (real_city_auto.gd).
@@ -209,12 +197,8 @@ func run() -> void:
 	check(AUTO.cells(jongno, 3, 12800) == 360,"Jongno at 1:3 is 360 cells: "+str(AUTO.cells(jongno, 3, 12800)))
 	var context := {"areas":[{"name":"Osaka","source_id":"relation/2","admin_level":"7","bbox":[135.4,34.6,135.6,34.75],"km2":290.0},{"name":"Chuo","source_id":"relation/3","admin_level":"8","bbox":[135.49,34.66,135.53,34.70],"km2":8.8},{"name":"1-chome","source_id":"relation/4","admin_level":"10","bbox":[135.500,34.668,135.511,34.669],"km2":0.08}],"country":{}}
 	var choice: Dictionary = AUTO.extent(context, [135.5016, 34.669], 3, 12800)
-	check(choice.kind == "area" and choice.area.source_id == "relation/3","the largest containing area that fits: "+str(choice))
-	choice = AUTO.extent({"areas":[context.areas[2]]}, [135.5016, 34.669], 3, 12800)
-	check(choice.kind == "bbox" and choice.side_m == 5000.0 and choice.cells <= AUTO.MAX_CELLS,"a tiny area gives the 5 km square: "+str(choice))
-	check(absf((choice.bbox[3] - choice.bbox[1]) * AUTO.M_PER_DEGREE - 5000.0) < 1.0 and absf((choice.bbox[0] + choice.bbox[2]) * 0.5 - 135.5016) < 0.000002,"the square is centred on the place")
-	choice = AUTO.extent({}, [8.45, 60.42], 1, 12800)
-	check(choice.kind == "bbox" and choice.side_m < 5000.0 and choice.cells <= AUTO.MAX_CELLS,"at 1:1 the square shrinks to the cell budget: "+str(choice))
+	check(choice.kind == "circle" and choice.radius_km == 1.5 and choice.center == [135.5016, 34.669], "place search supplies a fixed circle centre")
+	check(AUTO.extent({}, [8.45, 60.42], 1, 12800).radius_km == 1.5, "cell budget never shrinks requested radius")
 	var ui := UI.new()
 	root.add_child(ui); ui._ensure_import_ui()
 	await process_frame
@@ -243,14 +227,22 @@ func run() -> void:
 		"anchors":[{"name":"가상마을","source_id":"node/5","kind":"place=village","tier":2,"point":[9.0001,55.0001],"issue":"","context":japan}]})
 	wizard.project.text = "/tmp/p"; wizard.package.text = "/tmp/m.memap"; wizard.scale.value = 4; wizard.signal_style.select(2)
 	var built: Dictionary = RECIPE.parse(JSON.stringify(wizard.recipe()))
-	check(built.ok and built.recipe.areas == [{"name":"가상시","source_id":"relation/1"}] and built.recipe.scale == 4 and built.recipe.traffic == {"signal_style":"vertical"} and not built.recipe.has("dem"),"wizard recipe: "+str(built))
+	check(built.ok and built.recipe.center == [9.0001, 55.0001] and built.recipe.radius_km == 1.5 and built.recipe.scale == 4 and built.recipe.traffic == {"signal_style":"vertical"} and not built.recipe.has("dem"),"wizard recipe: "+str(built))
 	check(wizard.traffic().driving_side == "left" and wizard.traffic().signal_style == "vertical","automatic side from the country, explicit signals: "+str(wizard.traffic()))
 	wizard.matches.select(1, false); wizard._selected(1, true)
 	check(wizard.matches.get_selected_items() == PackedInt32Array([1]),"a named place is selected alone")
 	wizard.signal_style.select(0)
 	built = RECIPE.parse(JSON.stringify(wizard.recipe()))
-	check(built.ok and built.recipe.place == {"name":"가상마을","source_id":"node/5"} and not built.recipe.has("traffic") and not built.recipe.has("areas"),"wizard place recipe: "+str(built))
-	check(wizard.extent().kind == "bbox" and wizard.status.text.contains("km"),"the wizard shows the automatic extent: "+wizard.status.text)
+	check(built.ok and built.recipe.center == [9.0001, 55.0001] and not built.recipe.has("traffic") and not built.recipe.has("areas"),"wizard place recipe: "+str(built))
+	check(wizard.extent().kind == "circle" and wizard.status.text.contains("km"),"the wizard shows the automatic extent: "+wizard.status.text)
+	wizard.hide()
+	# The complete worker path retains high-precision centre/radius provenance.
+	var fixed := {"version":1, "pbf":source, "center":[9.00010012345678,55.00010012345678], "radius_km":1.5,
+		"project":scratch.path_join("circle/project"), "package":scratch.path_join("circle/city.memap"), "full_check":false,
+		"traffic":{"driving_side":"right", "signal_style":"horizontal"}}
+	var circular: Dictionary = await runner.run(fixed)
+	check(circular.ok and not ui.store.document.get("play_area", []).is_empty(), "fixed circle worker, adoption and v1 export: " + str(circular.get("status", "")))
+	ui.preview_enabled = false
 	wizard.hide()
 	check(FileAccess.get_sha256(source)==hash,"source PBF preserved")
 	ui.store.dirty=false

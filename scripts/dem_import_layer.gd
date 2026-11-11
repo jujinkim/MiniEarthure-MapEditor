@@ -110,14 +110,23 @@ func _stage_cells(terrain: RefCounted, result: Dictionary, reviewed: Dictionary,
 		var record := {"cell":{"x":int(expected_cells[index][0]),"y":int(expected_cells[index][1])},"path":"editor/"+output.png_sha256+".png","spacing_cm":int(options.spacing_cm),"offset_cm":int(raster.offset_cm),"step_cm":int(raster.step_cm),"source_accuracy_cm":null}
 		sampled.append(record)
 		sampled_blobs[record.path]=payload.bytes
-	# Estimated city structures assume flat terrain; fit them before staging so
-	# fitted cells, roads and building bases share one candidate and one Undo.
-	var fit: Dictionary = STRUCTURE_FIT.prepare(terrain.store,sampled,sampled_blobs,options) if not doc.roads.is_empty() else {"patches":[],"fitted":{}}
-	if fit.has("error"): return fit.error
-	# Imported city water then takes levels on that terrain; MapKit sinks the
-	# earth basin under it when it generates ground.
-	var water: Dictionary = WATER_FIT.prepare(terrain.store,sampled,sampled_blobs,fit.fitted,options)
+	# Water is fitted from the original DEM, independently of deck terrain cuts.
+	# Both results are validated together before any document/resource adoption.
+	var water: Dictionary = WATER_FIT.prepare(terrain.store,sampled,sampled_blobs,{},options)
 	if water.has("error"): return water.error
+	var bodies: Dictionary = {}
+	for body: Dictionary in doc.water_bodies: bodies[body.id] = body
+	for patch: Dictionary in water.patches:
+		if patch.after == null: bodies.erase(patch.id)
+		else: bodies[patch.id] = patch.after
+	var fit: Dictionary = STRUCTURE_FIT.prepare(terrain.store,sampled,sampled_blobs,options,bodies.values()) if not doc.roads.is_empty() else {"patches":[],"fitted":{}}
+	if fit.has("error"): return fit.error
+	var roads: Dictionary = {}
+	for road: Dictionary in doc.roads: roads[road.id] = road
+	for patch: Dictionary in fit.patches:
+		if patch.field == "roads": roads[patch.id] = patch.after
+	var water_error := STRUCTURE_FIT.water_error(roads.values(), bodies.values())
+	if water_error != "": return water_error
 	fit.fitted.merge(water.fitted,true)
 	for index in range(expected_cells.size()):
 		var record: Dictionary = sampled[index]

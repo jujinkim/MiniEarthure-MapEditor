@@ -162,21 +162,44 @@ def bounds(value):
     return [w, s, e, n]
 
 
-def projected_bounds(value, coordinates):
+def projected_bounds(value, coordinates, region=None):
     """Validate admission before scanning a large source, using the existing CRS/radius."""
     from projection import Coordinates
     w, s, e, n = bounds(value)
     projection = Coordinates(coordinates)
     if projection.mode != "wgs84-utm": raise ValueError("OSM crop requires WGS84 projection")
-    for point in ([w,s], [w,n], [e,s], [e,n]): projection.point(point)
+    for point in (list(region.exterior.coords)[:-1] if region is not None else ([w,s], [w,n], [e,s], [e,n])): projection.point(list(point))
     return [w,s,e,n]
+
+
+def circle_region(center, radius_km=1.5):
+    """WGS84 geodesic disk; chord error <0.4m throughout the 20km limit.
+
+    Never shrink requested coverage. The crop admission and source reader retain
+    their ordinary projection, coverage and memory limits.
+    """
+    import math
+    from pyproj import Geod
+    from shapely.geometry import Polygon
+    if not isinstance(center, list) or len(center) != 2:
+        raise ValueError("center needs [longitude, latitude]")
+    lon = number(center[0], "center longitude", -180, 180)
+    lat = number(center[1], "center latitude", -80, 84)
+    radius = number(radius_km, "radius_km", 0, 20) * 1000
+    if radius <= 0: raise ValueError("radius_km must be positive")
+    geod = Geod(ellps="WGS84")
+    count = min(512, max(64, math.ceil(math.pi / math.acos(1 - min(0.25 / radius, 0.5)))))
+    ring = [geod.fwd(lon, lat, i * 360 / count, radius)[:2] for i in range(count)]
+    if any(abs(x - lon) > 180 or y < -80 or y > 84 for x, y in ring):
+        raise ValueError("Circle crosses supported projection or longitude coverage")
+    return Polygon(ring)
 
 
 PLAY_AREA_RINGS = 16
 PLAY_AREA_VERTICES = 512
 
 
-def play_area(selected, region, options, denominator):
+def play_area(selected, region, options, denominator, *, exact=False):
     """Source-centimetre rings (multiples of D, so ÷D adoption is exact) of the
     crop window rectangle ∩ selected administrative areas: its largest outer
     rings, holes dropped, simplified until each has at most 512 vertices and stays
@@ -193,13 +216,14 @@ def play_area(selected, region, options, denominator):
         projected = shapely.Polygon([coordinates.point([x, y]) for x, y in part.exterior.coords])
         tolerance = 2.0 * denominator
         while True:
-            simple = projected.simplify(tolerance, preserve_topology=True)
+            simple = projected if exact else projected.simplify(tolerance, preserve_topology=True)
             ring = []
             for x, y in list(simple.exterior.coords)[:-1]:
                 point = [round(x / denominator) * denominator, round(y / denominator) * denominator]
                 if not ring or ring[-1] != point: ring.append(point)
             if len(ring) > 1 and ring[0] == ring[-1]: ring.pop()
             if len(ring) <= PLAY_AREA_VERTICES and len(ring) >= 3 and shapely.Polygon(ring).is_valid: break
+            if exact: raise ValueError("Circle cannot be represented on the map centimetre lattice")
             if tolerance > 1e7: ring = []; break
             tolerance *= 2
         if ring: rings.append(ring)

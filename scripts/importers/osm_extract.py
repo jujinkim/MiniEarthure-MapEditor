@@ -17,7 +17,7 @@ LICENSE = "ODbL-1.0; © OpenStreetMap contributors; https://www.openstreetmap.or
 # Road tags the city profile reads (chaining breaks, widths, sidewalks, markings,
 # service paint, dual-carriageway merging and speed-limit signs); other tags are omitted.
 CITY_ROAD_TAGS = ("highway", "name", "ref", "oneway", "access", "vehicle", "motor_vehicle", "lanes", "junction", "service",
-                  "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway", "maxspeed")
+                  "bridge", "ford", "tunnel", "embankment", "man_made", "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "footway", "dual_carriageway", "maxspeed")
 MAX_ENTITIES = 250_000
 MAX_REFS = 200_000
 MAX_FEATURES = 20_000
@@ -337,9 +337,9 @@ CUT_STRUCTURE = "OSM city structure ends where an excluded way continued it; it 
 def level_structures(ways, nodes, node_tags):
     """City profile: structures without source heights that cross no other road.
 
-    A bridge, tunnel or layered way meeting other roads only at shared nodes
-    (a river bridge, culvert or building passage) is drawn at ground level on
-    the flat city map (any 1:D). Ways crossing another road keep needing explicit heights.
+    A tunnel or layered way meeting roads only at shared nodes can retain a
+    disclosed ground-level estimate. Explicit and inferred bridges stay structural,
+    including river crossings with no road below them.
     """
     from shapely.geometry import LineString
     from shapely.strtree import STRtree
@@ -348,7 +348,7 @@ def level_structures(ways, nodes, node_tags):
     def structure(tags):
         return tags.get("bridge", "no") not in ("no", "0") or tags.get("tunnel", "no") not in ("no", "0") or tags.get("layer", "0") != "0"
     candidates = [i for i, (_, refs, tags) in enumerate(roads)
-                  if structure(tags) and not any("ele" in node_tags.get(ref, {}) for ref in refs)]
+                  if structure(tags) and tags.get("bridge", "no") in ("no", "0") and not any("ele" in node_tags.get(ref, {}) for ref in refs)]
     if not candidates:
         return set()
     lines = [LineString([nodes[ref] for ref in refs]) for _, refs, _ in roads]
@@ -382,7 +382,7 @@ SEPARATION_M = 5.0  # Real metres.
 TUNNEL_CLEARANCE_M = 4.5
 
 
-def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cut_chains=None, chain_of=None):
+def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cut_chains=None, chain_of=None, water=None):
     """City profile: estimated heights for structures crossing other roads.
 
     A chain of bridge (or tunnel) ways joined end to end is lifted (or lowered)
@@ -392,8 +392,8 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
     ways have no side roads along them, and every crossing with another road
     keeps 5 m of separation; any other chain is left to the explicit-height rule.
 
-    A chain whose crossings are all with excluded structures is drawn at
-    ground level like a structure crossing nothing; one bending more than 60°
+    A non-bridge chain whose crossings are all with excluded structures can stay
+    at ground level; one bending more than 60°
     at a vertex keeps needing source heights (native structure mouths overlap).
     A chain that cannot be estimated but crosses only open ground walking ways
     (city paint: no closed-road contact, no source heights, not a ramp of an
@@ -500,16 +500,31 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
             turn = math.acos(max(-1.0, min(1.0, (u[0] * v[0] + u[1] * v[1]) / (lu * lv))))
             if turn > math.pi / 3 or min(lu, lv) < 12.0 * math.tan(turn / 2) + 2.0 and turn > math.radians(2): return True
         return False
+    from shapely.ops import transform
+    water_m = transform(lambda x, y: (x * 111320 * math.cos(lat0), y * 110540), water) if water is not None else None
+    def wet_points(path):
+        if water_m is None: return []
+        result = []
+        for way, _ in path:
+            meet = lines[way].intersection(water_m)
+            for part in getattr(meet, "geoms", [meet]):
+                if part.geom_type == "LineString" and part.length > 0.1:
+                    from shapely.geometry import Point
+                    result.extend(Point(p) for p in (part.coords[0], part.coords[-1]))
+        return result
+    def bridge(path):
+        return any(roads[way][1].get("bridge", "no") not in ("no", "0") for way, _ in path)
     absorbed = set()
     result, cut_keys = {}, set()
     for layer, path in chains:
         if not all(plain(way) for way, _ in path): continue
-        if not any(drawn(other) for way, _ in path for other, _ in crossings(way)):
+        if not bridge(path) and not any(drawn(other) for way, _ in path for other, _ in crossings(way)):
             leveled.update(way for way, _ in path)
             continue
         height = DECK_M * abs(layer)
         core = LineString([metres(ref) for ref in vertices(path)])
         cut = [core.project(point) for way, _ in path for _, point in crossings(way) if point is not None]
+        cut += [core.project(point) for point in wet_points(path)]
         ramp = LEAD_M + height / GRADE + 10.0  # Full height just before the first crossing.
         for at_end, need in ((False, ramp - min(cut, default=ramp)), (True, ramp - (core.length - max(cut, default=0.0)))):
             length = 0.0
@@ -556,7 +571,9 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
                         ok = False
                         break
                 if not ok: break
-            if not ok or not checked or key in cut_keys:
+            for point in wet_points(path):
+                if profile(line.project(point)) < SEPARATION_M: ok = False
+            if not ok or (not checked and not bridge(path)) or key in cut_keys:
                 # Crossing nothing drawn, the chain lies on the ground instead;
                 # a cut chain's profile would end where the excluded way was.
                 if ok and not checked: leveled.update(way for way, _ in path if way in candidates)
@@ -596,7 +613,7 @@ def estimate_structures(ways, nodes, node_tags, level, cut_nodes=frozenset(), cu
         members = [way for way, _ in path if way in candidates]
         if any(way in estimated or way in leveled for way in members): continue
         hits = [other for way in members for other, _ in crossings(way) if drawn(other) and other not in members]
-        if hits and all(paint(other) for other in hits):
+        if not bridge(path) and hits and all(paint(other) for other in hits):
             leveled.update(members)
             if cut_chains is not None: cut_chains.difference_update(members)
     return estimated, leveled
@@ -997,6 +1014,10 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     # City structures are estimated over importable roads only: a chain must
     # not ramp through a way that is excluded anyway (structures without their
     # height tags, as if estimated), nor through a relation member.
+    water, water_evidence = None, {}
+    if city:
+        from osm_water_crossings import classify
+        ways, water, water_evidence = classify(ways, nodes, assembled, consumed, node_tags)
     absent = {}
     if city:
         probe = SpatialBudget()
@@ -1016,7 +1037,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
     cut_nodes = {ref for identity, _, references, _ in ways if identity in absent for ref in references}
     cut_chains, chain_of = set(), {}
     level = level_structures(present, nodes, node_tags) if city else set()
-    estimated, leveled = estimate_structures(present, nodes, node_tags, level, cut_nodes, cut_chains, chain_of) if city else ({}, set())
+    estimated, leveled = estimate_structures(present, nodes, node_tags, level, cut_nodes, cut_chains, chain_of, water) if city else ({}, set())
     level |= leveled
     for identity, kind, references, tags in sorted(ways):
         if identity in consumed:
@@ -1024,6 +1045,8 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
         try:
             if absent.get(identity) is not None:
                 raise absent[identity]
+            if water_evidence.get(identity, {}).get("unresolved"):
+                raise ValueError("Unresolved source-water crossing: " + water_evidence[identity]["reason"])
             if identity in cut_chains:
                 raise ValueError(CUT_STRUCTURE)
             if city and kind == "road":
@@ -1040,6 +1063,8 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
                     continue
             else:
                 features.append(way_feature(identity, kind, references, tags, nodes, node_tags, area_members, topology, city=city))
+            if identity in water_evidence:
+                features[-1]["properties"]["_city_water_evidence"] = water_evidence[identity]
             if identity in level:
                 features[-1]["properties"]["_city_level_structure"] = True
             if "way/" + str(identity) in layered and kind == "building":

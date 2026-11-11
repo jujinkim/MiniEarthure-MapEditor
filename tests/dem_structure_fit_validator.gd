@@ -92,6 +92,7 @@ func shared_corners(a: Vector2, b: Vector2, c: Vector2, d: Vector2) -> Array:
 	return keys.keys()
 
 func run() -> void:
+	water_constraints()
 	crossing_constraints()
 	scratch = SCRATCH.fresh("dem_structure_fit_validator")
 	check(FIT.separation_cm(8) == 63 and FIT.max_edit_cm(8) == 800 and FIT.separation_cm(3) == 167 and FIT.max_edit_cm(3) == 2133, "5 m separation and 64 m edit bound follow the map scale")
@@ -270,3 +271,20 @@ func crossing_constraints() -> void:
 func finish() -> void:
 	print("dem_structure_fit_validator: ", "PASS" if failures.is_empty() else failures, "; checks=", checks)
 	quit(0 if failures.is_empty() else 1)
+
+func water_constraints() -> void:
+	var bridge := road("water-bridge", "a", "b", [[0,100,0],[1000,100,0]], "bridge")
+	var body := {"id":"water", "polygon":[[400,-200],[600,-200],[600,200],[400,200]], "surface_cm":90}
+	check(FIT.water_error([bridge], [body]) != "", "immutable deck underside cannot overlap water")
+	var original := bridge.duplicate(true)
+	var solver: RefCounted = FIT.new()
+	solver._max_edit_cm = 100
+	var vertex := {bridge.id + "@0":"a", bridge.id + "@1":"b"}
+	var constraints: Array = FIT._water_constraints([bridge], {bridge.id:bridge}, vertex, [body])
+	var heights := {"a":100, "b":100}
+	var fitted: Dictionary = solver._fit_crossings(constraints, heights, {})
+	check(not fitted.has("error") and heights.a >= 111 and heights.b >= 111, "estimated deck is fitted above fixed water")
+	check(bridge == original and body.surface_cm == 90, "joint fit leaves source and water immutable")
+	heights = {"a":100, "b":100}
+	# Inspect the fixed constraint without invoking the diagnostic failure path.
+	check(FIT._water_constraints([bridge], {}, {}, [body]).all(func(c): return c.coefficients.is_empty() and c.fixed < c.gap), "fixed overlapping deck is atomically infeasible")

@@ -2533,6 +2533,10 @@
     "The project or package already exists; choose new paths": "프로젝트 또는 패키지가 이미 있습니다. 새 경로를 고르세요",
     "DEM cannot be fitted; the map keeps its flat terrain": "DEM을 맞출 수 없어 맵은 평지로 유지됩니다",
     "The extent exceeds the map limits; retrying with a %.1f km square around the place": "범위가 맵 한도를 넘어 장소 주변 %.1f km 정사각형으로 다시 시도합니다",
-    "Cannot keep the earlier attempt's %s at %s": "이전 시도의 %s을(를) %s에 보관할 수 없습니다"
+    "Cannot keep the earlier attempt's %s at %s": "이전 시도의 %s을(를) %s에 보관할 수 없습니다",
+    "Radius (km)": "반경 (km)",
+    "Play area: %s": "플레이 범위: %s",
+    "%.2f km radius · %d cells": "원본 반경 %.2fkm · %d셀",
+    "Choose a PBF and enter a centre and radius, or find a place.": "PBF를 고르고 중심 좌표·반경을 입력하거나 장소를 검색하세요."
   }
 }

@@ -32,6 +32,8 @@ var search_callback := Callable()
 var search_point: Array = []
 ## Places whose exact boundary union clips the import (empty: rectangle crop).
 var selected_areas: Array = []
+## Set only for an explicit real-city circle recipe.
+var circle: Dictionary = {}
 const LIMITS := preload("./limit_warnings.gd")
 ## More areas than WARN_AREAS still combine; the review then shows a warning.
 const MAX_AREAS := preload("./import_layer.gd").MAX_AREAS
@@ -248,6 +250,7 @@ func changed() -> void:
 		if city.button_pressed and not city.disabled and cells > 256: status.text += "\n"+I18N.t("About %d map cells at the current %d cm cell size: the city check warns above 256 cells and refuses more than 16384. Use larger cells, a smaller area or a larger scale number.") % [cells,int(size)]
 
 func open() -> void:
+	circle = {}
 	if ui.busy: return
 	guided = false
 	dialog.title = I18N.t("OSM derived geometry crop")
@@ -332,6 +335,7 @@ func _fit_areas() -> void:
 ## Streams the rectangle [west, south, east, north] (degrees) with its centre as the
 ## import origin; selected areas, when any, still clip it to their boundaries.
 func fit_bbox(b: Array) -> void:
+	circle = {}
 	# Round outward to the UI precision so a boundary is never clipped by rounding.
 	for i in range(4): fields[i].value = (floorf(b[i]*1000000.0) if i < 2 else ceilf(b[i]*1000000.0))/1000000.0
 	enabled.button_pressed = true

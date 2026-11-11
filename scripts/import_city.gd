@@ -301,6 +301,8 @@ static func summary(meta: Dictionary) -> String:
 			_skipped(furniture, func(k: String) -> bool: return k.contains(LAMP_KEY) and not LAMP_UNPLACED.any(func(e: String) -> bool: return k.ends_with(e))),
 			int(furniture.get("skipped_streetlights_covered", 0)), int(furniture.get("skipped_streetlights_reach", 0)) + int(furniture.get("skipped_streetlights_median", 0)),
 			int(furniture.get("skipped_streetlights_spacing", 0)) + int(furniture.get("skipped_streetlights_limit", 0))]
+		for evidence: Dictionary in meta.get("water_crossing_evidence", []).slice(0, 40):
+			result += "%s: %s (%.1f source m)\n" % [evidence.source_id, evidence.reason, evidence.water_length_m]
 		var water: Dictionary = meta.get("water", {})
 		result += I18N.t("Water: %d pieces from %d water areas and %d waterways (ribbons at their width), cut by roads and walking ways; surface level and depth are estimates; %d waterways wholly under roads are not imported.\n") % [int(water.get("pieces", 0)), int(water.get("areas", 0)), int(water.get("waterways", 0)), water.get("dropped_sources", []).size()]
 		var skipped: Dictionary = meta.get("skipped", {})

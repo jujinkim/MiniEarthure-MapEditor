@@ -996,6 +996,8 @@ class Generalizer:
         for f, g in self.features:
             p = f["properties"]
             if g.geom_type != "LineString" or not osm_roads.ground(f, g) or "_city_estimated_m" in p: continue
+            tags = p.get("_city_road_tags", {})
+            if p.get("_city_water_evidence", {}).get("ford") or tags.get("ford", "no") not in ("no", "0") or tags.get("highway") == "ford": continue
             if is_walking(f):
                 cuts.append(g.buffer(float(p.get("width_m", 1.6)) / 2, quad_segs=2))
             elif osm_roads.driving(f, g):
@@ -1403,6 +1405,7 @@ class Generalizer:
                     line_tolerance_m=min(4.0, gap/4), polygon_tolerance_m=min(8.0, gap/4), building_tolerance_m=min(BUILDING_TOLERANCE, gap/4),
                     before=self.before, after=self.counts(items), source_ids=sorted(expected),
                     unmerged_numeric_groups=self.retained_groups, painted_pedestrian_ways=self.paint_ways,
+                    water_crossing_evidence=[f["properties"]["_city_water_evidence"] for f,g in self.features if "_city_water_evidence" in f["properties"]],
                     level_structures=self.level_structures,
                     road_rules=dict(sorted((self.road_rules + self.finish_counts).items())), paint_segment_bound=self.paint_bound,
                     building_heights={key: n for key, flag in sorted(HEIGHT_RULES.items())

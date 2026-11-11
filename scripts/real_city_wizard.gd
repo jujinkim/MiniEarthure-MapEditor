@@ -2,7 +2,7 @@ extends ConfirmationDialog
 ## File → New real-city map: collects a real-city recipe (scripts/real_city_recipe.gd)
 ## and runs it in this Editor, or saves it for the headless
 ## `-- --real-city-recipe recipe.json` build. Both use the same steps. A named place
-## (village, station, campus …) gets the automatic extent of `real_city_auto.gd`;
+## (village, station, campus …) fills the centre; radius remains explicit.
 ## traffic set to Automatic follows the country found in the PBF.
 const I18N := preload("./locale_text.gd")
 const RECIPE := preload("./real_city_recipe.gd")
@@ -13,6 +13,9 @@ var query: LineEdit
 var matches: ItemList
 ## Areas, then named places, as listed in `matches`: {kind: "area"|"place", value}.
 var entries: Array = []
+var latitude: SpinBox
+var longitude: SpinBox
+var radius: SpinBox
 var scale: SpinBox
 var driving_side: OptionButton
 var signal_style: OptionButton
@@ -48,6 +51,12 @@ func setup(owner_ui: Control) -> void:
 	matches.custom_minimum_size.y = 110
 	matches.multi_selected.connect(_selected)
 	column.add_child(matches)
+	var coordinates := GridContainer.new()
+	coordinates.columns = 6
+	column.add_child(coordinates)
+	latitude = _number(coordinates, "Latitude", -80, 84, 0.000001, 0)
+	longitude = _number(coordinates, "Longitude", -180, 180, 0.000001, 0)
+	radius = _number(coordinates, "Radius (km)", 0.001, 20, 0.001, 1.5)
 	var options := GridContainer.new()
 	options.columns = 4
 	column.add_child(options)
@@ -77,7 +86,7 @@ func setup(owner_ui: Control) -> void:
 	mobile_check = CheckBox.new()
 	mobile_check.text = I18N.t("Check that phones can open it (1.5 GiB)")
 	column.add_child(mobile_check)
-	status = ui._label(column, "Choose a PBF, find the area by name and select it.")
+	status = ui._label(column, "Choose a PBF and enter a centre and radius, or find a place.")
 	add_button(I18N.t("Save recipe…"), false, "save_recipe")
 	custom_action.connect(func(action: StringName): if action == "save_recipe": _pick(null, "*.json;Recipe JSON", FileDialog.FILE_MODE_SAVE_FILE))
 	confirmed.connect(_build)
@@ -86,6 +95,14 @@ func setup(owner_ui: Control) -> void:
 	picker.file_selected.connect(_picked)
 	picker.dir_selected.connect(_picked)
 	add_child(picker)
+
+func _number(grid: GridContainer, label: String, low: float, high: float, step: float, value: float) -> SpinBox:
+	ui._label(grid, label)
+	var control := SpinBox.new()
+	control.min_value = low; control.max_value = high; control.step = step; control.value = value
+	control.value_changed.connect(func(_value): if status != null: _describe())
+	grid.add_child(control)
+	return control
 
 func _path_row(grid: GridContainer, label: String, filter: String, mode: int) -> LineEdit:
 	ui._label(grid, label)
@@ -137,7 +154,9 @@ func _found(data: Dictionary) -> void:
 		var item: Dictionary = entry.value
 		if entry.kind == "area": matches.add_item("%s · admin %s · %s" % [item.name, item.admin_level, item.source_id])
 		else: matches.add_item("◆ %s · %s · %s" % [item.name, item.kind, _within(item)])
-	if not entries.is_empty(): matches.select(0)
+	if not entries.is_empty():
+		matches.select(0)
+		_selected(0, true)
 	_describe()
 	if entries.is_empty(): status.text = I18N.t("No matching area or place. Try its local name.")
 	popup_centered(Vector2i(780, 600))
@@ -148,11 +167,16 @@ func _within(anchor: Dictionary) -> String:
 	names.reverse()
 	return ", ".join(names.slice(0, 2)) if not names.is_empty() else str(anchor.source_id)
 
-## A named place is chosen alone; areas combine.
+## One search result fills the centre coordinates.
 func _selected(index: int, selected: bool) -> void:
 	if selected:
 		for other in matches.get_selected_items():
-			if other != index and (entries[index].kind == "place" or entries[other].kind == "place"): matches.deselect(other)
+			if other != index: matches.deselect(other)
+		var item: Dictionary = entries[index].value
+		var point: Array = item.get("point", [])
+		if point.is_empty(): point = [(item.bbox[0] + item.bbox[2]) * .5, (item.bbox[1] + item.bbox[3]) * .5]
+		longitude.value = point[0]
+		latitude.value = point[1]
 	_describe()
 
 func _chosen() -> Array:
@@ -160,10 +184,7 @@ func _chosen() -> Array:
 
 ## The automatic extent of a chosen place, or {} for areas.
 func extent() -> Dictionary:
-	var chosen := _chosen()
-	if chosen.size() != 1 or chosen[0].kind != "place": return {}
-	# The wizard's recipes keep the recipe's default cell size.
-	return AUTO.extent(chosen[0].value.context, chosen[0].value.point, int(scale.value), RECIPE.CELL_CM)
+	return AUTO.circle([longitude.value, latitude.value], radius.value, int(scale.value), RECIPE.CELL_CM)
 
 ## The convention the build will use: the selectors, else the chosen country's.
 func traffic() -> Dictionary:
@@ -174,23 +195,18 @@ func traffic() -> Dictionary:
 	return value
 
 func _describe() -> void:
-	var chosen := _chosen()
-	if chosen.is_empty():
-		status.text = I18N.t("%d matches. Select areas or one place.") % entries.size() if not entries.is_empty() else I18N.t("Choose a PBF, find the area by name and select it.")
-		return
 	var lines: Array[String] = []
 	var choice := extent()
-	if not choice.is_empty(): lines.append(I18N.t("Automatic extent: %s") % AUTO.describe(choice))
+	if not choice.is_empty(): lines.append(I18N.t("Play area: %s") % AUTO.describe(choice))
 	var convention := traffic()
 	lines.append("%s · %s · %s" % [I18N.t("Left-hand traffic" if convention.driving_side == "left" else "Right-hand traffic"), I18N.t("Vertical signals" if convention.signal_style == "vertical" else "Horizontal signals"), convention.country if convention.country != "" else "?"])
 	status.text = "\n".join(lines)
 
 func recipe() -> Dictionary:
-	var chosen := _chosen()
 	var value := {"version":RECIPE.VERSION, "pbf":pbf.text, "scale":int(scale.value),
 		"project":project.text, "package":package.text, "full_check":full_check.button_pressed, "mobile_check":mobile_check.button_pressed}
-	if chosen.size() == 1 and chosen[0].kind == "place": value.place = {"name":chosen[0].value.name, "source_id":chosen[0].value.source_id}
-	else: value.areas = chosen.map(func(e): return {"name":e.value.name, "source_id":e.value.source_id})
+	value.center = [longitude.value, latitude.value]
+	value.radius_km = radius.value
 	var traffic := {}
 	if driving_side.selected > 0: traffic.driving_side = "right" if driving_side.selected == 1 else "left"
 	if signal_style.selected > 0: traffic.signal_style = "horizontal" if signal_style.selected == 1 else "vertical"

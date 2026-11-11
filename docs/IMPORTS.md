@@ -139,7 +139,10 @@ partly outside the DEM keep their flat heights. The notice adds `water_fit`
 streams.
 
 Estimated city bridges and tunnels (`osm_estimated_structures`) assume flat ground,
-so adopting a DEM fits them to the DSM in the same candidate, before grounding:
+so adopting a DEM fits them to the DSM in the same candidate, before grounding.
+Water levels first use the original sampled DEM; deck terrain cuts cannot lower
+them. Bridge undersides must clear these fixed surfaces across their full widths,
+including islands and cell seams. Infeasible joint fits are rejected atomically:
 each ground anchor gets one level terrain pad under its junction fan (overlapping
 pads share the median), level leads and adjoining ground vertices take the pad
 height (a level vertex is inserted when an arm is too short), and each profile keeps

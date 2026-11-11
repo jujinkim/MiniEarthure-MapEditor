@@ -2533,6 +2533,10 @@
     "The project or package already exists; choose new paths": "The project or package already exists; choose new paths",
     "DEM cannot be fitted; the map keeps its flat terrain": "DEM cannot be fitted; the map keeps its flat terrain",
     "The extent exceeds the map limits; retrying with a %.1f km square around the place": "The extent exceeds the map limits; retrying with a %.1f km square around the place",
-    "Cannot keep the earlier attempt's %s at %s": "Cannot keep the earlier attempt's %s at %s"
+    "Cannot keep the earlier attempt's %s at %s": "Cannot keep the earlier attempt's %s at %s",
+    "Radius (km)": "Radius (km)",
+    "Play area: %s": "Play area: %s",
+    "%.2f km radius · %d cells": "%.2f km radius · %d cells",
+    "Choose a PBF and enter a centre and radius, or find a place.": "Choose a PBF and enter a centre and radius, or find a place."
   }
 }

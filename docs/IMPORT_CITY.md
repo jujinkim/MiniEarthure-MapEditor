@@ -14,11 +14,14 @@ same steps (`real_city_recipe.gd`, Editor tool format v1): new free-roam map
 review exclusions and `traffic` → adopt → optional facility CSV (`facilities`) →
 optional Copernicus `dem` folder (mosaic over the imported frame, grounded
 buildings) → save to `project` → Export to `package` (`full_check` default true;
-`mobile_check` opens it under the 1.5 GiB phone budget). The extent is exactly one
-of `areas` (PBF administrative areas found by exact name, optional
-`source_id`/`admin_level`), `place` (a named feature, `{"name", optional
-"source_id"}`, with the automatic extent below) or `bbox` (`[west, south, east,
-north]` degrees, a plain rectangle crop without play-area boundary). Recipe keys
+`mobile_check` opens it under the 1.5 GiB phone budget). The extent is exactly one of `center: [longitude, latitude]` with
+`radius_km` (default 1.5 source km), `place` (a named feature supplying that
+centre), `areas` (explicit administrative union) or `bbox` (explicit rectangle).
+The wizard provides latitude, longitude and radius; search fills the centre.
+The circle uses WGS84 distances, keeps its full requested radius, and is stored
+in existing v1 `play_area` rings with less than 1m source-distance approximation
+error. Source coverage, projection and memory failures are reported explicitly.
+Recipe keys
 outside that list are refused; paths are relative to the recipe file. Every step
 keeps its review and limits; a step that fails stops the run with `failed_step` and
 the status text (exit code 1); an ambiguous name lists `area_candidates` or
@@ -57,7 +60,7 @@ from runs with other inputs; compare `code` to see whether the Editor or MapKit
 code changed. A MapKit native change keeps `input_fingerprint` and
 `editor_scripts` and shows in `code.mapkit`. Reruns of one recipe usually
 differ by code, not by input, so the fingerprint does not name run folders. The
-wizard saves its settings as a recipe. Recommended: 1:3, 128 m cells, one district.
+wizard saves its settings as a recipe. Recommended: 1:3, 128 m cells, 1.5km source radius.
 
 A failed headless run sets its outputs aside before it quits
 (`set_aside_failed`): the package is renamed `<package>-failed` (`.memap-failed`,
@@ -82,16 +85,9 @@ into Editor defaults; explicit values always win.
   short or local name) is exactly the query, settlements before landmarks before
   other features. A recipe `place` takes the `source_id`, else the only candidate of
   the best kind.
-- Extent of a place: the largest administrative area containing it whose bounding
-  box fits 512 cells at the chosen 1:D and cell size and covers at least a quarter
-  of the fallback square; otherwise a square of 5 km source side centred on the
-  place (smaller when 5 km exceeds 512 cells). The wizard shows the choice and its
-  cell count before building. When the chosen extent then fails import, adoption,
-  export or the phone check on a package or game limit (a dense district's source
-  mapping can outgrow the 4 MiB manifest, a dense square the game's work budgets),
-  the build runs again with the square, then with squares of 0.75 × the previous
-  side down to 2 km; each earlier attempt's project and package are kept beside
-  the next with an `-attempt-N` suffix and listed in the report's `attempts`.
+- Extent of a place: a circle of the requested `radius_km` around the selected
+  point, independent of administrative size. The scan rectangle is conservative;
+  geometry and playable bounds use the circle. A failed budget never shrinks it.
 - Traffic: a `traffic` key left out (wizard: **Automatic**) follows the country of
   the area or place: the `driving_side` tag of its country boundary, else the
   Editor's list of left-hand-traffic ISO countries; horizontal signals in Japan,
@@ -233,10 +229,10 @@ remainder so lattice points are whole map centimetres.
   source-height graph, so estimated structures meet flat terrain. Adopting a DEM
   afterwards fits them to it ([IMPORTS](IMPORTS.md) DEM mosaics); importing such a
   city onto a map that already has terrain heightmaps is refused.
-- Bridges, tunnels and layered ways without source heights that cross no other
-  road (river bridges, culverts, building passages) are drawn at ground level on
-  the flat map, counted as estimates in review.
-- Those crossing another road get estimated heights: a chain of bridge (tunnel)
+- Tunnels and layered ways without source heights and without road crossings
+  can retain a disclosed ground-level estimate. Explicit bridges and inferred
+  source-water crossings remain structures.
+- Supported structures get estimated heights: a chain of bridge (tunnel)
   ways joined end to end rises (sinks) 6 m per layer with ramps of at most 8 % and
   an 8 m level lead at each ground anchor. Where the chain is too short, whole
   ground ways continuing it up to a junction or dead end join it as the same
@@ -244,8 +240,8 @@ remainder so lattice points are whole map centimetres.
   roads along them, no closed-road contact and no bend over 60° (a bend of θ needs
   neighbouring segments of 12 m · tan(θ/2) + 2 m, so native structure mouths stay
   separate); every crossing keeps 5 m of separation; tunnels use 4.5 m clearance.
-  A chain crossing only excluded structures is drawn at ground level instead, as is
-  one that cannot be estimated but crosses only open ground walking paint (not a
+  A non-bridge chain crossing only excluded structures can be drawn at ground
+  level, as can a non-bridge chain crossing only open ground walking paint (not a
   closed way or one touching it, a ramp of an estimated chain or a way with source
   heights).
   Estimation sees only importable ways: a way excluded anyway (with its height tags
@@ -393,20 +389,23 @@ remainder so lattice points are whole map centimetres.
   simplifies like other areas (level/4, at most 8 m), partitions on the map lattice,
   drops pieces below one map square metre and keeps source provenance. Buildings
   stand on top and roads keep native precedence.
-- Water: OSM water areas (`natural=water`, `landuse=reservoir|basin`) plus
-  waterway lines (`waterway=river|canal|stream|drain|ditch`, on the ground; culverts
-  and other off-ground ways are skipped) as ribbons of their `width` (else river
-  12, canal 8, stream 3, drain 2, ditch 1.5 m; at least 150 map cm) become
-  `water_bodies`. Ground vehicle roads with their sidewalks and clearance and
-  walking ways are cut out, the union is cut per 128 map m like paint into
-  hole-free pieces of at most 256 vertices (under one map square metre dropped),
-  and each piece maps to the sources it covers. Surfaces are 8 map cm below the
-  ground and 60 cm deep (estimates), so water never floats above its bank; MapKit
-  sinks an earth basin under OSM-city water when it generates ground
-  ([MapKit water](../addons/mapkit/docs/WATER.md#real-city-earth-basins)). A DEM
-  then sets the levels and cuts sloped narrow streams into stretches that step
-  down their course over earth lips ([IMPORTS](IMPORTS.md)). A waterway wholly under roads is
-  disclosed as dropped.
+- Water crossings are decided against original OSM water polygons (including
+  island holes) and open waterway ribbons, before road subtraction. Explicit
+  bridges retain their structure even without a road crossing. Untagged roads
+  crossing water between two land anchors receive a disclosed bridge estimate;
+  tangents and water dead ends require review. Ford, culvert/tunnel and embankment
+  evidence takes precedence; conflicting tags and unresolved geometry are
+  excluded through review. Estimated chains retain connected land approaches,
+  bounded grades and road/structure separation. Review lists source IDs and
+  crossing evidence. Generated road-cut land strips are never land evidence.
+- Water surfaces keep their original source shape through bridge corridors;
+  ground-road subtraction retains explicit embankments and original land passages,
+  while fords keep water continuous. DEM water levels derive from the original
+  sampled terrain. Structure fitting then constrains deck undersides above those
+  fixed levels and preserves signed structure order, source heights and existing
+  edit bounds. Water and structures are one atomic candidate; an infeasible fit
+  is rejected without lowering or cutting water to conceal it.
+
 - Places: tagged standalone OSM nodes inside the crop rectangle are collected
   while streaming. Named ones (stations, attractions, historic sites, hospitals,
   universities, public offices, schools, shopping, parks and sports, worship,

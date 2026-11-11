@@ -15,7 +15,7 @@ func start_local(request: Dictionary, python: String, token: String) -> String:
 	if reservation != "": return reservation
 	var files := FILES.new()
 	# geojson.py imports osm_extract (and its review module) at load time.
-	for module in ["geojson.py", "osm_extract.py", "osm_review.py", "polygon_geometry.py", "import_layer.py", "projection.py", "copernicus_dem.py"]:
+	for module in ["geojson.py", "osm_extract.py", "osm_water_crossings.py", "osm_review.py", "polygon_geometry.py", "import_layer.py", "projection.py", "copernicus_dem.py"]:
 		var code := FileAccess.get_file_as_string("res://scripts/importers/" + module)
 		var error := files.write(directory.path_join(module), code, "") if code != "" else "DEM module missing."
 		if error != "":

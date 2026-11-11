@@ -2533,6 +2533,10 @@
     "The project or package already exists; choose new paths": "プロジェクトまたはパッケージが既にあります。新しいパスを選んでください",
     "DEM cannot be fitted; the map keeps its flat terrain": "DEMを合わせられないため、マップは平地のままです",
     "The extent exceeds the map limits; retrying with a %.1f km square around the place": "範囲がマップ上限を超えたため、地点周辺の %.1f km 正方形で再試行します",
-    "Cannot keep the earlier attempt's %s at %s": "前の試行の %s を %s に保存できません"
+    "Cannot keep the earlier attempt's %s at %s": "前の試行の %s を %s に保存できません",
+    "Radius (km)": "半径 (km)",
+    "Play area: %s": "プレイ範囲: %s",
+    "%.2f km radius · %d cells": "原寸半径 %.2fkm · %dセル",
+    "Choose a PBF and enter a centre and radius, or find a place.": "PBFを選び、中心座標と半径を入力するか場所を検索してください。"
   }
 }
