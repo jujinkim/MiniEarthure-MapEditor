@@ -1181,7 +1181,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
 
 def city_polygon_properties(p, tags, geometry, kind, identity, sites):
     """City profile: site, painted ground, outline and levels of an area or building."""
-    p["_city_source_tags"] = {k: v for k, v in tags.items() if k in ("building", "building:material", "building:levels", "amenity", "shop", "office", "tourism", "industrial", "roof:shape", "roof:material", "roof:colour", "surface", "natural", "landuse", "leisure", "historic")}
+    p["_city_source_tags"] = {k: v for k, v in tags.items() if k in ("building", "building:material", "building:levels", "amenity", "shop", "office", "tourism", "industrial", "roof:shape", "roof:material", "roof:colour", "roof:color", "leaf_type", "genus", "taxon", "surface", "natural", "landuse", "leisure", "historic")}
     if p.get("osm_region") or p.get("landuse") in ("forest", "orchard"):
         ground = city_ground(tags)
         if ground: p["_city_ground"] = ground

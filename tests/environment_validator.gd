@@ -51,6 +51,22 @@ func run() -> void:
 	check(style_error == "","apply region style and split grouped solids atomically: "+style_error)
 	check(ui.store.document.buildings.size() == 2 and ui.store.document.buildings.any(func(b):return b.style_id == "building/farm/detached/wood") and ui.store.document.buildings.any(func(b):return b.style_id == "building/cycladic/detached/whitewash"),"zone boundary keeps both individual footprints and styles")
 	check(ui.store.undo() == "" and ui.store.document.buildings.size() == 1 and ui.store.document.buildings[0].parts.size() == 1,"one undo restores grouped solids and original style")
+	# Explicit source roof facts survive a changed regional default. Context
+	# roofs follow it, and a qualified Cycladic dome keeps its own architecture.
+	for roof_case in [
+		["building/cycladic/detached/whitewash/gabled/metal", "source:roof", "source:roof", "building/farm/detached/wood/gabled/metal"],
+		["building/cycladic/detached/whitewash/flat/whitewash", "context:profile", "context:profile", "building/farm/detached/wood/gabled/metal"],
+		["building/cycladic/religious/whitewash/dome/blue_tile", "source:roof", "source:roof", "building/cycladic/religious/wood/dome/blue_tile"]]:
+		var prior_building: Dictionary = ui.store.document.buildings[0].duplicate(true)
+		var roof_building: Dictionary = prior_building.duplicate(true)
+		roof_building.erase("parts"); roof_building.style_id = roof_case[0]
+		var roof_attribution: Dictionary = attribution.duplicate(true)
+		roof_attribution.notice = JSON.stringify({"adapter":"mapeditor-regional-v1","objects":[{"record_ids":["classified"],"evidence":{"architecture":"context:profile","material":"context:profile","roof_shape":roof_case[1],"roof_material":roof_case[2]}}]})
+		check(ui.store.apply_command("Explicit roof facts",[{"field":"buildings","id":"classified","before":prior_building,"after":roof_building},{"field":"attributions","id":ui.store.record_id("attributions",attribution),"before":attribution,"after":null},{"field":"attributions","id":ui.store.record_id("attributions",roof_attribution),"before":null,"after":roof_attribution}]) == "", "install roof facts")
+		var roof_patches := style.patches(ui.store,original_profile,changed_profile)
+		check(ui.store.apply_command("Reclassify roof",roof_patches) == "", "roof reclassification remains native-valid")
+		check(ui.store.document.buildings[0].style_id == roof_case[3],"source and context roof precedence")
+		check(ui.store.undo() == "" and ui.store.undo() == "", "roof changes undo together with evidence")
 	ui.queue_free()
 	for frame in 6: await process_frame
 	print("environment_validator: ","FAIL" if failed else "PASS")

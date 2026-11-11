@@ -250,7 +250,7 @@ def is_walking(feature, structural=frozenset()):
 
 # City vegetation zones of map-scale city trees (builtin:city_tree): map-cm
 # spacing and density per mille for forests and orchards, parks and lawns.
-CITY_ZONES = {"forest": (500, 750), "park": (700, 450), "lawn": (900, 300)}
+CITY_ZONES = {"scrub": (400, 500), "forest": (500, 750), "park": (700, 450), "lawn": (900, 300)}
 CITY_PARKS = ("park", "garden", "recreation_ground", "village_green")
 CITY_LAWN_M2 = 300.0  # Smaller grass strips keep paint only.
 # Zone trees take MapKit's largest city-tree footprint (200 map cm, validated
@@ -265,11 +265,11 @@ def city_zone(p, geometry, scale):
     lawn area, else None."""
     if geometry.geom_type not in ("Polygon", "MultiPolygon"): return None
     landuse = p.get("landuse")
-    kind = "forest" if landuse in ("forest", "orchard") else "park" if p.get("osm_region") and landuse in CITY_PARKS else \
+    kind = "scrub" if landuse in ("scrub","heath") else "forest" if landuse in ("forest", "orchard") else "park" if p.get("osm_region") and landuse in CITY_PARKS else \
         "lawn" if p.get("osm_region") and landuse == "grass" and geometry.area >= CITY_LAWN_M2 else None
     if kind is None: return None
     spacing, density = CITY_ZONES[kind]
-    return dict(spacing_cm=spacing * scale, density_per_mille=density, tree=dict(CITY_TREE))
+    return dict(spacing_cm=spacing * scale, density_per_mille=density, tree=dict(asset_id="builtin:shrub",radius_cm=42,clearance_cm=30) if kind=="scrub" else dict(CITY_TREE))
 
 class Generalizer:
     def __init__(self, collection, options, review=None, scale=SCALE):

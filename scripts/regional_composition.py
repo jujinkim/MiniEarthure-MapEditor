@@ -201,10 +201,11 @@ def compose(document, request, catalog):
         material = props.get("facade_material")
         material_basis = "auxiliary:material" if material in catalog["materials"] else "context:profile"
         if material not in catalog["materials"]: material = catalog["architectures"][arch]["material"]
-        style = f"building/{arch}/{kind}/{material}"
         shapes_to_add = part_solids(props,local,frame,boundary)
-        record_ids = []
         for part_index, (geometry, part) in enumerate(shapes_to_add):
+            part_roof, _, part_evidence = regional.roof_style({},dict(props,**part),{},arch,kind,catalog)
+            part_style = f"building/{arch}/{kind}/{material}"+part_roof
+            record_ids = []
             for polygon_index, polygon in enumerate(polygons(geometry)):
                 if polygon.area < 4: raise ValueError("Overture footprint collapsed at map scale: " + sid)
                 if len(polygon.interiors) > 16 or sum(len(r.coords)-1 for r in [polygon.exterior, *polygon.interiors]) > 512: raise ValueError("Overture footprint exceeds native polygon budget: " + sid)
@@ -213,13 +214,13 @@ def compose(document, request, catalog):
                 if base >= h: raise ValueError("Overture part has nonpositive solid height: " + sid)
                 record = dict(id=f"regional-ov-{sid}-{part_index}-{polygon_index}", footprint=ring(polygon), base_cm=round(base*100/frame.scale), height_cm=max(1,round((h-base)*100/frame.scale)),
                     usage="industrial" if kind in ("factory", "warehouse", "barn", "utility") else "public" if kind in ("school", "university", "hospital", "civic", "religious", "station", "research") else "commercial" if kind in ("shop", "mixed_use", "office", "hotel", "shopping") else "residential",
-                    material=material if material in ("brick", "wood") else "concrete", roof="flat", style_id=style)
+                    material=material if material in ("brick", "wood") else "concrete", roof="flat", style_id=part_style)
                 if polygon.interiors: record["holes"] = [[[round(x),round(y)] for x,y in r.coords[:-1]] for r in polygon.interiors]
                 doc.setdefault("buildings", []).append(record)
                 record_ids.append(record["id"])
                 added.add(polygon)
                 counts["building_added"] += 1
-        diagnostics.append(dict(source_id=sid, style_id=style, region=region_id, record_ids=record_ids, evidence=dict(type=basis.replace("source:", "auxiliary:"), height=height_basis, material=material_basis, architecture="context:profile")))
+            diagnostics.append(dict(source_id=sid, part_id=part.get("id",sid), style_id=part_style, region=region_id, record_ids=record_ids, evidence=dict(type=basis.replace("source:", "auxiliary:"), height="auxiliary:height" if part.get("height") else height_basis, material=material_basis, architecture="context:profile", **part_evidence)))
     existing = [Polygon(p["polygon"]) for p in doc.get("surface_areas", [])]
     water = [Polygon(p["polygon"], p.get("islands", [])) for p in doc.get("water_bodies", [])]
     roads = []

@@ -82,7 +82,7 @@ profile. Native saved regions contain the resulting axes in map centimetres.
 
 Optional `overrides` contains `osm_sha256` and `objects`. Each object names one
 selected `source_id` and any of `architecture`, `building_type`, `material`,
-`ground`, `height_m`. Targets must exist in that exact PBF snapshot; all are checked
+`ground`, `height_m`, `roof_shape`, `roof_material`. Targets must exist in that exact PBF snapshot; all are checked
 before mutation. Precedence is author correction → specific source information →
 auxiliary information → local context. Countries do not force one building style.
 
@@ -134,3 +134,8 @@ remain user acceptance.
 Sources: [ESA WorldCover data and attribution](https://esa-worldcover.org/en/data-access),
 [Overture buildings](https://docs.overturemaps.org/guides/buildings/),
 [Overture bounded DuckDB queries](https://docs.overturemaps.org/getting-data/duckdb/).
+
+Source roof shape/material selections use the optional building style components
+in [MapKit appearance](../addons/mapkit/spec/APPEARANCE.md). Explicit facts outrank
+profile defaults; a blue Cycladic dome additionally requires a religious building
+and matching dome information. Regional profile edits retain explicit roof facts.

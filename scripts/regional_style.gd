@@ -31,7 +31,7 @@ static func patches(store: RefCounted, before: Dictionary, after: Dictionary) ->
 	var changed_facts := {}
 	for building: Dictionary in store.document.buildings:
 		var style := str(building.get("style_id", "")).split("/")
-		if style.size() != 4 or style[0] != "building" or not facts.has(building.id): continue
+		if not style.size() in [4,6] or style[0] != "building" or not facts.has(building.id): continue
 		var source: Dictionary = facts[building.id]
 		if source.get("architecture") == "author": continue
 		var grouped := {}
@@ -45,6 +45,13 @@ static func patches(store: RefCounted, before: Dictionary, after: Dictionary) ->
 				var material: String = style[3]
 				if str(source.get("material", "")).begins_with("context:"): material = PROFILE.CATALOG.data.architectures[next.architecture].material
 				key = "building/%s/%s/%s" % [next.architecture, style[2], material]
+				if style.size() == 6:
+					var roof: String = PROFILE.CATALOG.data.architectures[next.architecture].roof if str(source.get("roof_shape", "")).begins_with("context:") else style[4]
+					var roof_material: String = PROFILE.CATALOG.data.architectures[next.architecture].roof_material if str(source.get("roof_material", "")).begins_with("context:") else style[5]
+					# A source-qualified blue dome keeps its specific architectural
+					# identity when the surrounding default changes.
+					if roof_material == "blue_tile" and next.architecture != "cycladic": key = "building/%s/%s/%s" % [style[1],style[2],material]
+					key += "/%s/%s" % [roof,roof_material]
 			if not grouped.has(key): grouped[key] = []
 			var part := {"footprint":solid.footprint.duplicate(true),"base_cm":solid.get("base_cm",building.base_cm),"height_cm":solid.get("height_cm",building.height_cm)}
 			if solid.has("holes"): part.holes = solid.holes.duplicate(true)

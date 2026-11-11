@@ -41,6 +41,28 @@ MATERIALS = {"timber_framing":"wood", "reinforced_concrete":"concrete", "cement_
 def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
+def roof_style(tags, aux, author, arch, kind, catalog):
+    """Optional source roof components. A blue dome requires a religious Cycladic dome."""
+    profile = catalog["architectures"][arch]
+    shape = author.get("roof_shape") or tags.get("roof:shape") or aux.get("roof_shape")
+    shape = {"gable":"gabled", "hip":"hipped", "round":"vault", "barrel":"vault", "pyramid":"pyramidal"}.get(shape, shape)
+    material = author.get("roof_material") or tags.get("roof:material") or aux.get("roof_material")
+    material = {"roof_tiles":"clay_tile", "tiles":"clay_tile", "tile":"clay_tile", "slate":"dark_tile", "shingles":"dark_tile", "metal":"metal", "zinc":"metal", "copper":"metal", "steel":"metal"}.get(material, material)
+    evidence = {}
+    if shape in catalog["roof_shapes"]:
+        evidence["roof_shape"] = "author" if "roof_shape" in author else "source:roof" if tags.get("roof:shape") else "auxiliary:roof"
+    else: shape = profile["roof"]; evidence["roof_shape"] = "context:profile"
+    if material in catalog["materials"]:
+        evidence["roof_material"] = "author" if "roof_material" in author else "source:roof" if tags.get("roof:material") else "auxiliary:roof"
+    else: material = profile["roof_material"]; evidence["roof_material"] = "context:profile"
+    blue = str(tags.get("roof:colour", tags.get("roof:color", aux.get("roof_color", "")))).lower() in ("blue", "#0000ff", "#0066cc")
+    if arch == "cycladic" and kind == "religious" and shape == "dome" and blue and "roof_material" not in author:
+        material = "blue_tile"; evidence["roof_material"] = "source:roof_color" if tags.get("roof:colour") or tags.get("roof:color") else "auxiliary:roof_color"
+    if material == "blue_tile" and not (arch == "cycladic" and kind == "religious" and shape == "dome"):
+        raise ValueError("blue dome material requires a Cycladic religious dome")
+    explicit = any(not value.startswith("context:") for value in evidence.values())
+    return ("/"+shape+"/"+material if explicit else ""), shape, evidence
+
 
 def catalogue(path=None):
     path = Path(path) if path else Path(__file__).resolve().parents[2] / "addons/mapkit/godot/regional_catalog.json"
@@ -98,11 +120,11 @@ def validate(request, catalog, source_sha=None, bounds=None, read_sources=True):
         if not isinstance(overrides["objects"], list) or not 1 <= len(overrides["objects"]) <= 10000: raise ValueError("invalid regional override count")
         ids = set()
         for row in overrides["objects"]:
-            if not isinstance(row, dict) or set(row) - {"source_id", "architecture", "building_type", "material", "ground", "height_m"} or len(row) < 2: raise ValueError("invalid regional override")
+            if not isinstance(row, dict) or set(row) - {"source_id", "architecture", "building_type", "material", "ground", "height_m", "roof_shape", "roof_material"} or len(row) < 2: raise ValueError("invalid regional override")
             sid = row.get("source_id", "")
             if not re.fullmatch(r"(?:way|relation)/[1-9][0-9]*", sid) or sid in ids: raise ValueError("invalid/duplicate regional override source")
             ids.add(sid)
-            for key, table in (("architecture", "architectures"), ("building_type", "building_types"), ("material", "materials"), ("ground", "ground")):
+            for key, table in (("architecture", "architectures"), ("building_type", "building_types"), ("material", "materials"), ("ground", "ground"), ("roof_shape", "roof_shapes"), ("roof_material", "materials")):
                 if key in row and row[key] not in catalog[table]: raise ValueError("unknown regional override " + key)
             if "height_m" in row and (isinstance(row["height_m"], bool) or not isinstance(row["height_m"], (int,float)) or not math.isfinite(row["height_m"]) or not .1 <= row["height_m"] <= 1000): raise ValueError("invalid regional height override")
     for key in ("worldcover", "buildings"):
@@ -256,7 +278,10 @@ def annotate(collection, request, source_sha, catalog, bounds=None):
             evidence["material"] = basis
             p["style_id"] = f"building/{arch}/{kind}/{material}"
             p["_city_regional"]["type"] = kind
-            p["_city_regional"]["roof_shape"] = tags.get("roof:shape") or aux.get("roof_shape") or catalog["architectures"][arch]["roof"]
+            suffix, roof_shape, roof_evidence = roof_style(tags, aux, author, arch, kind, catalog)
+            p["style_id"] += suffix
+            evidence.update(roof_evidence)
+            p["_city_regional"]["roof_shape"] = roof_shape
             if aux: p["_city_regional"]["auxiliary_id"] = aux["id"]
         else:
             style, basis = ground(tags)
@@ -276,8 +301,11 @@ def annotate(collection, request, source_sha, catalog, bounds=None):
                 if p.get("osm_region") or p.get("landuse") in ("forest", "orchard"):
                     p["_city_ground"] = dict(kind="explicit" if basis in ("author", "source:surface") else "natural", surface=catalog["ground"][style]["surface"])
             if p.get("landuse") in ("forest", "orchard"):
-                vegetation = "orchard" if p["landuse"] == "orchard" else "conifer" if selected["climate"] in ("cold", "polar") else "deciduous"
+                vegetation = "orchard" if p["landuse"] == "orchard" else "conifer" if tags.get("leaf_type") == "needleleaved" or selected["climate"] in ("cold", "polar") else "palm" if "palm" in str(tags.get("genus",tags.get("taxon",""))).lower() else "deciduous"
+                if tags.get("leaf_type") == "broadleaved" and vegetation == "conifer": vegetation = "deciduous"
                 p["style_id"] = "vegetation/" + vegetation
+            elif p.get("landuse") in ("scrub","heath"):
+                p["style_id"] = "vegetation/"+("polar_scrub" if selected["climate"]=="polar" else "scrub")
             if basis: evidence["ground"] = basis
         if p.get("_city_barrier"):
             kind = tags.get("barrier", p["_city_barrier"]["kind"])
@@ -310,9 +338,11 @@ def finish_building(p, site_kind, near):
             info["evidence"]["height"] = "context:type_profile"
         p["_city_levels_height"] = True
         p["_city_neighbour_height"] = True
-    material = p["style_id"].split("/")[-1]
+    material = p["style_id"].split("/")[3]
     p["material"] = material if material in ("brick", "wood") else "concrete"
     kind = info["type"]
     p["usage"] = "industrial" if kind in ("factory", "warehouse", "barn", "utility") else "public" if kind in ("school", "university", "hospital", "civic", "religious", "station", "research") else "commercial" if kind in ("shop", "mixed_use", "office", "hotel", "shopping") else "residential"
-    p["roof"] = "gable" if info["roof_shape"] in ("gabled", "gable") else "flat"
+    # Source height is the complete envelope. The shared display roof fits inside
+    # it; a native gable would add a second rise above the supplied height.
+    p["roof"] = "flat"
     p["_city_usage_inferred"] = info["evidence"]["type"].startswith("context:")

@@ -61,6 +61,34 @@ class Regional(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"destination exists"):acquisition.acquire([9,55,9.01,55.01],target,self.root/"cache")
         self.assertEqual(original.read_text(),"user data")
 
+    def test_source_roofs_and_blue_dome_require_matching_type(self):
+        suffix, shape, evidence = regional.roof_style({"roof:shape":"dome","roof:colour":"blue"},{},{},"cycladic","religious",self.catalog)
+        self.assertEqual((suffix,shape),("/dome/blue_tile","dome"))
+        self.assertEqual(evidence["roof_shape"],"source:roof")
+        suffix, _, _ = regional.roof_style({"roof:shape":"vault","roof:colour":"blue"},{},{},"cycladic","detached",self.catalog)
+        self.assertEqual(suffix,"/vault/whitewash")
+        suffix, _, evidence = regional.roof_style({"roof:shape":"gabled","roof:material":"roof_tiles"},{},{"roof_shape":"flat","roof_material":"metal"},"venetian","hotel",self.catalog)
+        self.assertEqual(suffix,"/flat/metal")
+        self.assertEqual(evidence["roof_shape"],"author")
+        suffix, _, evidence = regional.roof_style({"roof:shape":"dome","roof:colour":"blue"},{},{"roof_material":"whitewash"},"cycladic","religious",self.catalog)
+        self.assertEqual(suffix,"/dome/whitewash")
+        self.assertEqual(evidence["roof_material"],"author")
+        with self.assertRaisesRegex(ValueError,"religious dome"):
+            regional.roof_style({}, {}, {"roof_shape":"flat","roof_material":"blue_tile"},"cycladic","detached",self.catalog)
+
+    def test_source_vegetation_and_polar_scrub_survive_zone_conversion(self):
+        from osm_generalize import city_zone
+        f=self.feature(1,box(0,0,80,80),landuse="scrub",osm_region=True,_city_source_tags={"natural":"scrub"})
+        request=deepcopy(self.request);request["profile"]["climate"]="polar"
+        value,_=self.annotate([f],request)
+        p=value["features"][0]["properties"]
+        self.assertEqual(p["style_id"],"vegetation/polar_scrub")
+        zone=city_zone(p,box(0,0,80,80),3)
+        self.assertEqual(zone["tree"],dict(asset_id="builtin:shrub",radius_cm=42,clearance_cm=30))
+        forest=self.feature(2,box(0,0,80,80),landuse="forest",_city_source_tags={"natural":"wood","leaf_type":"broadleaved"})
+        value,_=self.annotate([forest],request)
+        self.assertEqual(value["features"][0]["properties"]["style_id"],"vegetation/deciduous")
+
     def test_detailed_types_and_style_boundaries_keep_original_footprints(self):
         features=[self.feature(i+1,box(i*30,20,i*30+12,35),_city_building=kind,_city_source_tags={"building":kind},height_m=height) for i,(kind,height) in enumerate([( "school",7),("hospital",21),("apartments",55),("barn",5),("church",12)])]
         before=deepcopy(features)
