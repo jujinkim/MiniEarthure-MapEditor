@@ -268,7 +268,9 @@ first copies the crop's neighbourhood from the captured bytes into a regional PB
 one of them with all its nodes, every relation with such a member and all member
 ways of those multipolygons; the index and every later pass read that copy, and the
 receipt keeps the original's bytes and hash (`regional` counts in the stream
-metadata). Area boundaries are still read from the whole capture. The review candidate is immutable; source
+metadata). Way membership queries use the sealed sorted node IDs directly, with
+temporary storage proportional to the queried references. Area boundaries are
+still read from the whole capture. The review candidate is immutable; source
 recheck and command preparation run in owned workers, and late or stale results are
 rejected. Adopt adds the whole layer in one Undo command (a command over 16 MiB is
 applied without Undo); Discard releases the candidate. Layer visibility/lock are

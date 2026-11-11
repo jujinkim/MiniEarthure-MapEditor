@@ -70,6 +70,16 @@ class Streaming(unittest.TestCase):
             self.assertEqual(self.source.read_bytes(),original)
             self.assertTrue(all(not (self.directory/n).exists() for n in stream.OWNED_FILES))
 
+    def test_regional_id_membership_preserves_duplicates_and_extreme_ids(self):
+        import numpy as np
+        limits = np.iinfo(np.int64)
+        queries = np.asarray([limits.max, 3, 1, 3, limits.min, 0, 7, 8, limits.max-1], np.int64)
+        for raw in ([], [3], [limits.min, 1, 3, 7, limits.max]):
+            identities = np.asarray(raw, np.int64)
+            for values in (queries, np.zeros(0, np.int64)):
+                np.testing.assert_array_equal(stream._sorted_membership(np, values, identities),
+                                              np.isin(values, identities))
+
     def test_large_city_sources_index_only_the_regional_neighbourhood(self):
         # A way 100 km away is left out of the regional copy; a multipolygon with a
         # member near the crop gets its far member too; the crop result is unchanged.

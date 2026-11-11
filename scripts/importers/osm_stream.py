@@ -461,6 +461,14 @@ def _structure_closure(db, event, size, read_way=None, limits=None):
                 ways=len(admitted), structures=structures, nodes=len(nodes), visits=visits, **(dict(loops=loops) if loops else {}))
 
 
+def _sorted_membership(np, values, identities):
+    """Membership in a sealed sorted int64 ID array, without rebuilding its index."""
+    positions = np.searchsorted(identities, values)
+    found = positions < len(identities)
+    found[found] = identities[positions[found]] == values[found]
+    return found
+
+
 def _regional(path, output, selected, event, size, osmium):
     """Copy every node inside `selected` + REGIONAL_MARGIN_M, every way touching
     one of them with all its nodes, and every relation with such a member;
@@ -487,7 +495,7 @@ def _regional(path, output, selected, event, size, osmium):
     _scan(path, REGIONAL_STAGES[0], event, size, osmium, osmium.osm.NODE, node, block_callback=node_block)
     inside = np.unique(np.concatenate(inside + [np.frombuffer(slow.tobytes(), np.int64)]))
     kept_ways, needed = [], [inside]
-    def touches(refs): return len(refs) and np.isin(refs, inside, assume_unique=False).any()
+    def touches(refs): return len(refs) and _sorted_membership(np, refs, inside).any()
     def way_block(offset, payload):
         blocks = _decode_block(np, payload, ways=True)
         if blocks is None or blocks[1] is None: return None if blocks is None else osmium.filter.IdFilter([])
@@ -498,7 +506,7 @@ def _regional(path, output, selected, event, size, osmium):
         starts = np.concatenate(([0], np.cumsum(lengths)[:-1]))
         hits = np.zeros(len(ids), np.int64)
         full = lengths > 0
-        if full.any(): hits[full] = np.add.reduceat(np.isin(refs, inside).astype(np.int64), starts[full])
+        if full.any(): hits[full] = np.add.reduceat(_sorted_membership(np, refs, inside).astype(np.int64), starts[full])
         for index in np.flatnonzero(hits):
             kept_ways.append(int(ids[index]))
             needed.append(refs[starts[index]:starts[index] + lengths[index]])
