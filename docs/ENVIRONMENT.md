@@ -5,7 +5,11 @@ climate, settlement and terrain. Ordered region polygons can override each axis;
 object-level source facts and author choices retain priority. Application is one
 validated Undo/Redo command, including rejection of unknown catalogue names.
 Optional v1 style IDs travel with their source records; `ground_style_id` is an
-ordinary undoable document value.
+ordinary undoable document value. [Regional source composition](REGIONAL_SOURCES.md)
+classifies real-city objects before grouping and adds pinned local auxiliary data.
+Changing a classified architecture in this panel also changes its style IDs,
+splitting grouped solids across new region boundaries without changing footprints
+or heights. Source materials and explicit object architecture retain priority.
 
 Editor owns `environment_generation.py`, the layout/composition/metrics modules,
 `environment_profiles.py` and `environment_assets.py`. MapKit owns v1 validation,

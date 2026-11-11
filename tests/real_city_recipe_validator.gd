@@ -257,12 +257,34 @@ func run() -> void:
 	# The complete worker path retains high-precision centre/radius provenance.
 	var fixed := {"version":1, "pbf":source, "center":[9.00010012345678,55.00010012345678], "radius_km":1.5,
 		"project":scratch.path_join("circle/project"), "package":scratch.path_join("circle/city.memap"), "full_check":false,
+		"regional":{"version":1,"profile":{"architecture":"nordic_timber","climate":"cold","settlement":"village","terrain":"mountain"}},
 		"road_overrides":{"osm_sha256":hash, "ways":[{"source_id":"way/2", "width_m":20, "lanes":6}]},
 		"traffic":{"driving_side":"right", "signal_style":"horizontal"}}
 	var circular: Dictionary = await runner.run(fixed)
 	check(circular.ok and not ui.store.document.get("play_area", []).is_empty(), "fixed circle worker, adoption and v1 export: " + str(circular.get("status", "")))
 	check(ui.store.document.get("roads", []).any(func(r): return r.get("widths_cm", []).any(func(w): return int(w) == 667) and r.get("markings", {}).get("lanes") == 6), "road correction survives worker, adoption and v1 export")
 	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_road_overrides(o.get("road_overrides", {}), fixed.road_overrides)), "adopted correction enters report fingerprint")
+	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_regional(o.get("regional"), fixed.regional)),"regional inputs enter the report fingerprint")
+	check(ui.store.document.get("environment", {}).get("architecture") == "nordic_timber" and circular.has("regional"),"regional worker prepares, applies and exports the selected profile: "+JSON.stringify(circular))
+	# Regional fill shares the owned-worker cancellation/stale-result contract.
+	if circular.ok:
+		check(ui.store.undo() == "", "undo regional composition")
+		var snapshot: String = ui.store._signature(ui.store.document)
+		var cancelled := preload("res://scripts/generation_native_job.gd").new()
+		check(cancelled.start_generation(ui.store,{"mode":"fill","regional":fixed.regional},OS.get_environment("MINIEARTHURE_PYTHON")) == "", "start regional cancellation")
+		cancelled.cancel()
+		await wait_regional(cancelled)
+		check(cancelled.commit(ui.store) != "" and ui.store._signature(ui.store.document) == snapshot,"cancelled regional worker preserves previous result")
+		cancelled.cleanup()
+		var stale := preload("res://scripts/generation_native_job.gd").new()
+		check(stale.start_generation(ui.store,{"mode":"fill","regional":fixed.regional},OS.get_environment("MINIEARTHURE_PYTHON")) == "", "start regional stale preview")
+		await wait_regional(stale)
+		check(stale.result.get("ok", false),"regional fill review ready: "+str(stale.result.get("error")))
+		var seed: int = ui.store.document.seed
+		check(ui.store.apply_command("Changed seed",[{"field":"seed","before":seed,"after":seed+1}]) == "", "mutate after regional preview")
+		check(ui.store.undo() == "", "restore content with a new command epoch")
+		check(stale.commit(ui.store) != "" and ui.store._signature(ui.store.document) == snapshot,"stale regional preview rejects even after content restoration")
+		stale.cleanup()
 	ui.preview_enabled = false
 	wizard.hide()
 	check(FileAccess.get_sha256(source)==hash,"source PBF preserved")
@@ -271,3 +293,11 @@ func run() -> void:
 	await process_frame
 	print("real_city_recipe_validator: ","FAIL" if failed else "PASS")
 	quit(1 if failed else 0)
+
+func wait_regional(job: RefCounted) -> void:
+	var deadline := Time.get_ticks_msec() + 30000
+	while (not job.done or not job.exited) and Time.get_ticks_msec() < deadline:
+		job.poll()
+		await process_frame
+	if not job.done or not job.exited: job.shutdown()
+	check(job.done and job.exited,"regional worker completed and reaped")

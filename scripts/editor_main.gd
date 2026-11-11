@@ -143,6 +143,7 @@ const HEIGHTMAP_NATIVE_JOB := preload("./heightmap_native_job.gd")
 const ASSET_NATIVE_JOB := preload("./asset_native_job.gd")
 const DEM_NATIVE_JOB := preload("./dem_native_job.gd")
 const IMPORT_NATIVE_JOB := preload("./import_native_job.gd")
+var regional_recipe_job: RefCounted
 var import_job: RefCounted
 var import_selection_signature := ""
 var import_controls_revision := 0
@@ -1315,6 +1316,9 @@ func _start_package(operation: String, destination: String = "") -> void:
 		_status(I18N.diagnostic(error_string(err)))
 
 func _cancel_operation() -> void:
+	if regional_recipe_job != null:
+		regional_recipe_job.cancel()
+		return
 	if file_dialog_lock:
 		dialog.hide()
 		_release_file_dialog_lock()
@@ -1560,6 +1564,7 @@ func _start_import(source: String, license_name: String) -> void:
 			import_coordinates_request.osm_city = true
 			import_coordinates_request.osm_scale = osm_panel.denominator()
 			if not osm_panel.road_overrides.is_empty(): import_coordinates_request.road_overrides = osm_panel.road_overrides.duplicate(true)
+			if not osm_panel.regional.is_empty(): import_coordinates_request.regional = osm_panel.regional.duplicate(true)
 			import_coordinates_request.osm_traffic = osm_panel.traffic()
 	if input_format in ["osm", "pbf"] and osm_panel.enabled.button_pressed:
 		if osm_panel.error() != "":
@@ -1630,6 +1635,7 @@ func _process(_delta: float) -> void:
 	cancel_button.disabled = not busy and pending_import == null and not store.track_edit_busy and store.file_request.is_empty()
 	cancel_button.tooltip_text = I18N.t("Cancel the running operation; keep prior preview and original files.") if busy or store.track_edit_busy else I18N.t("No running operation.")
 	retry_import_button.visible = last_import_source != "" and not busy and pending_import == null
+	if regional_recipe_job != null: return
 	# Density owns its own worker. A queued preview must wait for its cancellation
 	# to drain; the package worker has not been started and cannot be joined yet.
 	if not density_deferred_package.is_empty(): return
@@ -1895,6 +1901,7 @@ func _status(text: String) -> void:
 	if track_workbench!=null and track_workbench.road_tools!=null:track_workbench.road_tools.show_issue(text)
 
 func _exit_tree() -> void:
+	if regional_recipe_job != null: regional_recipe_job.shutdown()
 	store.shutdown_track_edit()
 	if import_job != null: import_job.shutdown()
 	_save_workbench()

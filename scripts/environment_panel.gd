@@ -88,6 +88,15 @@ func _apply() -> void:
 		panel.feedback.text = I18N.t("Regions and light bindings must be JSON arrays.")
 		return
 	var patches := [{"field":"environment","before":before,"after":value}]
+	# Validate profile values before selecting catalogue-dependent modules.
+	var probe: RefCounted = ClassDB.instantiate("MapKitBridge")
+	var candidate: Dictionary = store.document.duplicate(true)
+	candidate.environment = value
+	var validated: Dictionary = JSON.parse_string(probe.validate_document_authoring(JSON.stringify(candidate)))
+	if not validated.get("ok",false):
+		panel.feedback.text = I18N.diagnostic(str(validated.get("error", "Invalid environment")))
+		return
+	patches.append_array(preload("./regional_style.gd").patches(store,before if before is Dictionary else PROFILE.defaults(),value))
 	var failure: String = store.apply_command("Environment design",patches)
 	panel.feedback.text = I18N.t("Environment saved in document · Undo is available") if failure.is_empty() else I18N.diagnostic(failure)
 	if failure.is_empty() and not limits.is_empty(): panel.feedback.text += "\n" + LIMITS.text(limits)

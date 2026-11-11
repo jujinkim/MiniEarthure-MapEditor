@@ -838,7 +838,7 @@ class Generalizer:
                 continue
             p = f["properties"]
             building = not (p.get("osm_region") or p.get("landuse") in ("forest", "orchard"))
-            if building:
+            if building and not p.get("_city_regional"):
                 if index not in self.trim_windows:
                     self.trim_windows[index] = g.buffer(self.max_width/2+self.road_clearance).envelope
                 ids = self.ground_tree.query(self.trim_windows[index])
@@ -882,37 +882,44 @@ class Generalizer:
                     ids = sorted(int(i) for i in tagged.query(g.centroid, predicate="dwithin", distance=osm_sites.NEIGHBOUR_M))
                     self.spend(len(ids))
                     near = [known[i][1:] for i in ids]
-                # Untagged apartment-complex blocks get a seeded storey count
-                # after the landmark test, which keeps the source height, unless
-                # their tagged neighbours are all low (no false towers).
-                tall = osm_sites.complex_height(self.sites, site, p, g, min(source_ids(f)))
-                if tall is not None and osm_sites.low_neighbours(near):
-                    p["_city_complex_gated"] = True
-                    tall = None
-                if tall is not None:
-                    p["height_m"] = tall
-                    p["_city_levels_height"] = True
-                    p["_city_complex_height"] = True
-                # Other untagged buildings take the median of their tagged
-                # same-use neighbours, else seeded storeys of their category
-                # (so low residential blocks can become brick below 12 m).
-                median = osm_sites.neighbour_height(p, usage, near, min(source_ids(f)))
-                if median is not None:
-                    p["height_m"] = median
-                    p["_city_levels_height"] = True
-                    p["_city_neighbour_height"] = True
-                seeded = osm_sites.seeded_height(p, usage, g, min(source_ids(f)))
-                if seeded is not None:
-                    p["height_m"] = seeded
-                    p["_city_levels_height"] = True
-                    p["_city_seeded_height"] = True
-                # The facade (material, use, roof) is part of the record key, so
-                # grouped parts share one appearance (MapKit parts share them).
-                p["material"], p["usage"], p["roof"], p["_city_usage_inferred"] = osm_sites.facade(p, self.sites.kind(site))
+                if p.get("_city_regional"):
+                    from regional import finish_building
+                    finish_building(p, self.sites.kind(site), [(h,u) for h,u in near if u == usage])
+                else:
+                    # Untagged apartment-complex blocks get a seeded storey count
+                    # after the landmark test, which keeps the source height, unless
+                    # their tagged neighbours are all low (no false towers).
+                    tall = osm_sites.complex_height(self.sites, site, p, g, min(source_ids(f)))
+                    if tall is not None and osm_sites.low_neighbours(near):
+                        p["_city_complex_gated"] = True
+                        tall = None
+                    if tall is not None:
+                        p["height_m"] = tall
+                        p["_city_levels_height"] = True
+                        p["_city_complex_height"] = True
+                    # Other untagged buildings take the median of their tagged
+                    # same-use neighbours, else seeded storeys of their category
+                    # (so low residential blocks can become brick below 12 m).
+                    median = osm_sites.neighbour_height(p, usage, near, min(source_ids(f)))
+                    if median is not None:
+                        p["height_m"] = median
+                        p["_city_levels_height"] = True
+                        p["_city_neighbour_height"] = True
+                    seeded = osm_sites.seeded_height(p, usage, g, min(source_ids(f)))
+                    if seeded is not None:
+                        p["height_m"] = seeded
+                        p["_city_levels_height"] = True
+                        p["_city_seeded_height"] = True
+                    # The facade (material, use, roof) is part of the record key, so
+                    # grouped parts share one appearance (MapKit parts share them).
+                    p["material"], p["usage"], p["roof"], p["_city_usage_inferred"] = osm_sites.facade(p, self.sites.kind(site))
                 properties = {k:v for k,v in p.items() if not k.startswith("_city") and k not in ("osm_source_id", "height_m", "base_m")}
+                if p.get("_city_regional"):
+                    properties["regional_zone"] = p["_city_regional"]["region"]
+                    properties["regional_evidence"] = p["_city_regional"]["evidence"]
                 record = json.dumps(["own", source_ids(f)] if protected else [list(site), properties], sort_keys=True)
                 f = dict(f, properties=dict(p, _city_record=record))
-                if protected:
+                if protected or p.get("_city_regional"):
                     # Preserve identity/height, unsimplified. Quantization still
                     # uses the same map-centimetre lattice as other geometry.
                     fixed.extend(self.polygon_group([(f,g)],0,True))
@@ -946,7 +953,7 @@ class Generalizer:
             if self.excluded_sources.intersection(source_ids(f)): continue
             sites[index] = site = self.sites.key(f, g)
             if "_city_building" not in p: p["_city_building"] = p.get("usage", "yes")
-            if osm_sites.low_tagged_height(p):
+            if not p.get("_city_regional") and osm_sites.low_tagged_height(p):
                 del p["height_m"]
                 p["_city_low_height"] = True
             if "height_m" not in p and "_city_levels" in p:
@@ -1079,6 +1086,9 @@ class Generalizer:
         (they stand on top) and roads keep precedence natively.
         """
         areas, water = osm_sites.ground_areas(self.features, tolerance, SURFACES, source_ids)
+        source_styles = {sid: f["properties"]["_city_ground_style"] for f,g in self.features
+                         if f["properties"].get("_city_ground_style") for sid in source_ids(f)}
+        area_styles = [next((source_styles[sid] for sid in sources if sid in source_styles), "") for sources, surface, g, priority in areas]
         self.paint_counts = Counter()
         if not walking and not areas:
             return []
@@ -1116,19 +1126,33 @@ class Generalizer:
             cell = box(i*PAINT_CELL, j*PAINT_CELL, (i+1)*PAINT_CELL, (j+1)*PAINT_CELL)
             self.spend(len(ribbon_ids))
             local = shapely.intersection(shapely.union_all([ribbons[k] for k in ribbon_ids], grid_size=1), cell, grid_size=1)
-            for piece in self.paint_parts(local):
-                sources, surfaces = set(), Counter()
-                for k in tree.query(piece):
-                    self.spend()
-                    area = shapely.intersection(ribbons[k], piece).area
-                    if area > 0:
-                        sources.update(owners[k][0])
-                        surfaces[owners[k][1]] += area
-                if not sources:
-                    continue  # A lattice sliver of a ribbon already covered elsewhere.
-                surface = sorted(surfaces.items(), key=lambda item:(-item[1], item[0]))[0][0]
-                output.append((dict(type="Feature", properties=dict(_city_paint=surface, _city_sources=sorted(sources), osm_source_id=min(sources)), geometry=None), piece))
-                self.paint_counts["pedestrian"] += 1
+            style_groups = defaultdict(list)
+            for k in ribbon_ids:
+                p = walking[k][0]["properties"]
+                style = p.get("_city_ground_style", "")
+                basis = p.get("_city_regional", {}).get("evidence", {}).get("ground", "")
+                priority = 0 if basis == "author" else 1 if basis.startswith("source:") else 2
+                style_groups[(priority, style)].append(k)
+            painted = Polygon()
+            for (_, style), members in sorted(style_groups.items()):
+                region = shapely.intersection(shapely.union_all([ribbons[k] for k in members],grid_size=1),cell,grid_size=1)
+                if not painted.is_empty: region = shapely.difference(region,painted,grid_size=1)
+                for piece in self.paint_parts(region):
+                    sources, surfaces = set(), Counter()
+                    for k in tree.query(piece):
+                        if int(k) not in members: continue
+                        self.spend()
+                        area = shapely.intersection(ribbons[k], piece).area
+                        if area > 0:
+                            sources.update(owners[k][0])
+                            surfaces[owners[k][1]] += area
+                    if not sources: continue
+                    surface = sorted(surfaces.items(), key=lambda item:(-item[1], item[0]))[0][0]
+                    feature = dict(type="Feature", properties=dict(_city_paint=surface, _city_sources=sorted(sources), osm_source_id=min(sources)), geometry=None)
+                    if style: feature["properties"]["style_id"] = style
+                    output.append((feature,piece))
+                    self.paint_counts["pedestrian"] += 1
+                painted = shapely.union(painted,region,grid_size=1)
             taken[(i,j)] = local
         # Lattice overlays may add lower-dimension slivers; keep polygons only.
         areal = lambda g: g if g.geom_type in ("Polygon", "MultiPolygon") else shapely.union_all(parts(g), grid_size=1)
@@ -1141,8 +1165,8 @@ class Generalizer:
             blocked = [areal(shapely.intersection(waters[k], cell, grid_size=1)) for k in water_ids]
             blocked += [areal(taken[(a, b)]) for a in range(i*AREA_FACTOR, (i+1)*AREA_FACTOR) for b in range(j*AREA_FACTOR, (j+1)*AREA_FACTOR) if (a, b) in taken]
             blocked = areal(shapely.union_all(blocked, grid_size=1)) if blocked else None
-            for priority, surface in ((p, s) for p in range(3) for s in osm_sites.AREA_SURFACES):
-                members = [k for k in area_ids if areas[k][1] == surface and areas[k][3] == priority and not clipped[k].is_empty]
+            for priority, surface, style in sorted({(areas[k][3], areas[k][1], area_styles[k]) for k in area_ids}, key=lambda row: (row[0], osm_sites.AREA_SURFACES.index(row[1]), row[2])):
+                members = [k for k in area_ids if areas[k][1] == surface and areas[k][3] == priority and area_styles[k] == style and not clipped[k].is_empty]
                 if not members: continue
                 local = areal(shapely.union_all([clipped[k] for k in members], grid_size=1))
                 if blocked is not None and not blocked.is_empty:
@@ -1158,6 +1182,7 @@ class Generalizer:
                         if shapely.intersection(clipped[k], piece).area > 0: sources.update(areas[k][0])
                     if not sources: continue
                     output.append((dict(type="Feature", properties=dict(_city_paint=surface, _city_sources=sorted(sources), osm_source_id=min(sources)), geometry=None), piece))
+                    if style: output[-1][0]["properties"]["style_id"] = style
                     self.paint_counts[surface] += 1
                 blocked = local if blocked is None else areal(shapely.union(blocked, local, grid_size=1))
         self.paint_ways = len(walking)

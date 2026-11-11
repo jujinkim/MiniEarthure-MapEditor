@@ -61,6 +61,34 @@ static func road_override_receipt(raw: Dictionary, requested: Dictionary) -> Str
 	if found.size() != wanted.size(): return "Incomplete road override receipt."
 	return ""
 
+## Local paths are acquisition details; provenance/fingerprints use content hashes.
+static func regional_input(value: Dictionary) -> Dictionary:
+	var result := value.duplicate(true)
+	for key: String in ["worldcover", "buildings"]:
+		if result.get(key) is Dictionary: result[key].erase("path")
+	return result
+
+static func normalized(value: Variant) -> Variant:
+	if value is float and is_finite(value) and value == floorf(value): return int(value)
+	if value is Array: return value.map(normalized)
+	if value is Dictionary:
+		var result := {}
+		for key: Variant in value: result[key] = normalized(value[key])
+		return result
+	return value
+
+static func same_regional(a: Variant, b: Variant) -> bool:
+	return normalized(a) == normalized(b)
+
+static func regional_receipt(raw: Dictionary, requested: Dictionary) -> String:
+	if not requested.has("regional") and not raw.coordinates.has("regional"): return ""
+	var receipt: Variant = raw.coordinates.get("regional")
+	if raw.adapter != "osm-extract-v1" or not raw.coordinates.has("osm_city") or receipt is not Dictionary or receipt.get("request") is not Dictionary or receipt.get("counts") is not Dictionary or receipt.get("objects") is not Array: return "Missing regional classification receipt."
+	if not requested.is_empty() and (requested.get("regional") is not Dictionary or not same_regional(regional_input(requested.regional), receipt.request)): return "Regional inputs differ from the captured request."
+	if receipt.request.get("version") != 1: return "Regional inputs must use v1."
+	if receipt.request.has("overrides") and receipt.request.overrides.get("osm_sha256") != raw.source.sha256: return "Regional corrections differ from the captured OSM source."
+	return ""
+
 ## A source-metre value of `cm` whole map centimetres at 1:denominator.
 static func _map_cm(value: Variant, cm: int, denominator: int) -> bool:
 	return (value is int or value is float) and absf(float(value) - cm * denominator / 100.0) < 1e-9

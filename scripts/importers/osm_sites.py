@@ -354,7 +354,10 @@ class Barriers:
             kept.append((sid, info, g))
             line = self.gated(g, f["properties"].get("_city_gates", []))
             pieces = [piece for piece in _lines(line) if piece.length >= MIN_EXPLICIT_M]
+            before = len(self.items)
             made = sum(self.emit([sid], info["kind"], info["height_m"], info["thickness_m"], piece, "explicit") for piece in pieces)
+            if info.get("style_id"):
+                for feature, geometry in self.items[before:]: feature["properties"]["style_id"] = info["style_id"]
             if not made:
                 # Wholly inside gates and crossings, or under one map centimetre.
                 self.counts["opened" if line.is_empty or not pieces else "collapsed"] += 1

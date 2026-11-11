@@ -12,13 +12,17 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 	if request.get("request") != identity or request.get("generation") is not Dictionary or request.get("document") is not Dictionary or request.get("python") is not String or request.python.is_empty():
 		failure = "Invalid environment generation request."
 	progress.call("source",0,0)
+	var regional_job: bool = request.get("generation") is Dictionary and request.generation.has("regional")
 	var modules := ["environment_generation.py","environment_profiles.py","environment_assets.py","environment_layout.py","environment_composition.py","environment_metrics.py","asset_derivatives.py","reference_maps.py","driving_features.py","city_assets.py","driving_school_map.py"]
+	if regional_job: modules = ["regional_composition.py"]
+	if regional_job and failure == "": failure = FILES.write_new(directory.path_join("regional.py"),FileAccess.get_file_as_string("res://scripts/importers/regional.py").to_utf8_buffer())
+	if regional_job and failure == "": failure = FILES.write_new(directory.path_join("kit/godot/regional_catalog.json"),FileAccess.get_file_as_bytes("res://addons/mapkit/godot/regional_catalog.json"))
 	for module: String in modules:
 		if failure != "": break
 		failure = FILES.write_new(directory.path_join(module),FileAccess.get_file_as_string("res://scripts/"+module).to_utf8_buffer())
 	if failure == "": failure = FILES.write_new(directory.path_join("kit/godot/driving_templates.json"),FileAccess.get_file_as_bytes("res://addons/mapkit/godot/driving_templates.json"))
 	# Only public library sources are staged. They remain unchanged.
-	for library: String in ["richer-library","arcade-library"]:
+	for library: String in ([] if regional_job else ["richer-library","arcade-library"]):
 		if failure != "": break
 		var base := "res://addons/mapkit/assets/"+library
 		var library_text := FileAccess.get_file_as_string(base.path_join("library.json"))
@@ -35,7 +39,7 @@ static func validate(request: Dictionary, directory: String, identity: String, p
 	var generated := directory.path_join("generated")
 	if failure == "":
 		var messages: Array = []
-		var status := OS.execute(request.python,PackedStringArray(["-B",directory.path_join("environment_generation.py"),directory.path_join("request.json"),generated,"--kit",directory.path_join("kit")]),messages,true)
+		var status := OS.execute(request.python,PackedStringArray(["-B",directory.path_join("regional_composition.py" if regional_job else "environment_generation.py"),directory.path_join("request.json"),generated,"--kit",directory.path_join("kit")]),messages,true)
 		if status != 0: failure = "Environment generation failed: "+str(messages).right(1800)
 	var report := {}
 	var candidate := {}

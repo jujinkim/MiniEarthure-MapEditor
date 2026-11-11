@@ -30,9 +30,11 @@ class OsmTests(unittest.TestCase):
         geometry = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
         p = {}
         osm.city_polygon_properties(p, {"building": "yes", "building:levels": "5", "amenity": "school", "shop": "bakery", "roof:shape": "gabled", "building:flats": "12"}, geometry, "way", 1, {})
+        self.assertEqual(p.pop("_city_source_tags"), {"building":"yes", "building:levels":"5", "amenity":"school", "shop":"bakery", "roof:shape":"gabled"})
         self.assertEqual(p, {"_city_levels": 5, "_city_building": "yes", "_city_amenity": "school", "_city_use": True, "_city_roof": "gabled", "_city_flats": True})
         p = {}
         osm.city_polygon_properties(p, {"building": "house", "roof:shape": "hipped", "building:flats": "x", "office": "yes"}, geometry, "relation", 2, {("r", 2): "relation/9"})
+        self.assertEqual(p.pop("_city_source_tags"), {"building":"house", "roof:shape":"hipped", "office":"yes"})
         self.assertEqual(p, {"_city_building": "house", "_city_use": True, "_city_site_relation": "relation/9"})
         for tag, material in (("timber_framing", "wood"), ("glass", "concrete"), ("brick", "brick")):
             p = {}

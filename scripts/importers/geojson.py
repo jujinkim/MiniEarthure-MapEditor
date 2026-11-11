@@ -95,7 +95,7 @@ def building_facade(properties, projected, layer, city):
         if material not in ("concrete", "brick", "wood"): raise ValueError("City building material must be concrete, brick or wood")
         if properties.get("roof") == "gable" and all(rectangular(rings) for rings in projected): roof = "gable"
     layer.estimate("material_roof")
-    return dict(usage=usage, material=material, roof=roof)
+    return dict(usage=usage, material=material, roof=roof, **({"style_id": properties["style_id"]} if properties.get("style_id") else {}))
 
 
 def city_building(identity, projected, solids, properties, layer, scalar):
@@ -220,7 +220,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 raise ValueError("City barrier requires a current-v1 kind and at least two positions")
             layer.add("barriers", {"id": identity, "kind": barrier["kind"], "line": [list(point(p)) for p in coordinates],
                 "height_cm": round(number(barrier["height_m"], "barrier height", 0.01, 100) * 100),
-                "thickness_cm": round(number(barrier["thickness_m"], "barrier thickness", 0.01, 10) * 100)})
+                "thickness_cm": round(number(barrier["thickness_m"], "barrier thickness", 0.01, 10) * 100), **({"style_id":properties["style_id"]} if properties.get("style_id") else {})})
             layer.estimate("barrier_height" if barrier.get("origin") == "explicit" else "inferred_barrier")
         elif kind in ("LineString", "MultiLineString"):
             lines = [coordinates] if kind == "LineString" else coordinates
@@ -285,6 +285,12 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                     "widths_cm": widths, "surfaces": [surface] * (len(points) - 1), "kind": structure, "clearance_cm": round(clearance * 100) if clearance is not None else None, "sidewalk_cm": sidewalk}
                 if city and osm_graph and isinstance(properties.get("_city_markings"), dict):
                     record["markings"] = dict(properties["_city_markings"])
+                if properties.get("style_id"):
+                    record["style_id"] = properties["style_id"]
+                    if structure in ("bridge", "overpass", "tunnel", "underpass"):
+                        appearance = "bridge" if structure == "bridge" else "elevated" if structure == "overpass" else "tunnel"
+                        record["style_id"] = "road/"+appearance+"/"+properties["style_id"].split("/")[-1]
+                if sidewalk and properties.get("sidewalk_style_id"): record["sidewalk_style_id"] = properties["sidewalk_style_id"]
                 layer.add("roads", record)
                 if estimated:
                     layer.coordinates.setdefault("osm_estimated_structures", []).append(road_id)
@@ -365,7 +371,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                 elif properties.get("_city_paint"):
                     if not (city and osm_graph) or len(rings) > 1 or properties["_city_paint"] not in ("asphalt", "concrete", "dirt", "gravel", "grass"):
                         raise ValueError("City ground paint must be one hole-free current-v1 surface polygon")
-                    layer.add("surface_areas", {"id": part_id, "polygon": polygon, "surface": properties["_city_paint"]})
+                    layer.add("surface_areas", {"id": part_id, "polygon": polygon, "surface": properties["_city_paint"], **({"style_id":properties["style_id"]} if properties.get("style_id") else {})})
                 elif zone:
                     record = {"id": part_id, "polygon": polygon, "kind": properties["landuse"] if properties["landuse"] in ("forest", "orchard") else "forest",
                               "spacing_cm": 3200 if city else 800, "density_per_mille": 750, "exclusions": [hole[:-1] for hole in rings[1:]]}
@@ -373,6 +379,7 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
                         # Map-scale city trees: spacing in source cm (÷D at
                         # adoption), the tree footprint already in map cm.
                         record.update(spacing_cm=int(city_zone["spacing_cm"]), density_per_mille=int(city_zone["density_per_mille"]), tree=dict(city_zone["tree"]))
+                    if properties.get("style_id", "").startswith("vegetation/"): record["style_id"] = properties["style_id"]
                     layer.add("zones", record)
                     layer.estimate("vegetation_spacing_density")
                 else:
@@ -399,6 +406,9 @@ def convert(value, source, license_name, *, layer_id=None, source_bytes=None, ac
             if properties.get("_city_name"): mapping["name"] = properties["_city_name"]
             if properties.get("_city_estimated_height"): mapping["estimated_height"] = True
             if properties.get("_city_names"): mapping["names"] = properties["_city_names"]
+            if properties.get("_city_regional"):
+                mapping["regional"] = dict(properties["_city_regional"])
+                mapping["regional"]["record_ids"] = [p["id"] for p in layer.patches[first_record:] if p["field"] == "buildings"]
             layer.coordinates.setdefault("city_mappings", []).append(mapping)
             if properties.get("_city_estimated_height"):
                 layer.estimate("aggregated_building_height")
@@ -481,6 +491,8 @@ def main():
     parser.add_argument("--vertical-request", type=Path)
     parser.add_argument("--height-supplement", type=Path)
     parser.add_argument("--road-overrides", type=Path)
+    parser.add_argument("--regional-request", type=Path)
+    parser.add_argument("--regional-catalog", type=Path)
     args = parser.parse_args()
     if args.osm_radius_km is not None and args.osm_center is None:
         raise ValueError("osm-radius-km needs osm-center")
@@ -611,6 +623,11 @@ def main():
             raise ValueError("road_overrides requires a captured city OSM snapshot")
         from road_overrides import apply
         value, overrides_meta = apply(value, strict_json(args.road_overrides.read_bytes()), captured_source.sha256)
+    regional_meta = None
+    if args.regional_request is not None:
+        if not args.osm_city or captured_source is None: raise ValueError("regional composition requires a captured city OSM snapshot")
+        from regional import annotate, catalogue
+        value, regional_meta = annotate(value, strict_json(args.regional_request.read_bytes()), captured_source.sha256, catalogue(args.regional_catalog), args.osm_bbox)
     city_meta = None
     encoded = None
     if args.osm_city:
@@ -645,6 +662,7 @@ def main():
                     raise ValueError("City source table changed during conversion")
                 trial.coordinates["osm_city"] = metadata
                 if overrides_meta is not None: trial.coordinates["road_overrides"] = overrides_meta
+                if regional_meta is not None: trial.coordinates["regional"] = regional_meta
                 trial.coordinates["vertical"] = vertical.metadata
                 trial.coordinates["osm_stream"] = osm_stream
                 if supplement is not None: trial.coordinates["osm_height_supplement"] = supplement.metadata

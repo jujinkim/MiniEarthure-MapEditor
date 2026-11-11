@@ -296,6 +296,7 @@ def _samples(line):
 
 def _compatible(p, q):
     a, b = tags(p), tags(q)
+    if any(p["properties"].get(k) != q["properties"].get(k) for k in ("style_id", "sidewalk_style_id")): return False
     if a.get("highway") != b.get("highway"): return False
     return all(a.get(k) == b.get(k) for k in ("name", "ref") if k in a and k in b)
 

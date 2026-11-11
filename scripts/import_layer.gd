@@ -129,6 +129,8 @@ func _load(raw: Variant, expected_id: String, requested: Dictionary, notes: Arra
 	LIMITS.over(notes, "import_layer_bytes", layer_bytes, WARN_CITY_BYTES if city else WARN_BYTES, "ImportLayer size in bytes")
 	var vertical_error: String = preload("./import_vertical.gd").validate(raw, requested, notes)
 	if vertical_error != "": return vertical_error
+	var regional_error: String = preload("./import_city.gd").regional_receipt(raw, requested)
+	if regional_error != "": return regional_error
 	var override_error: String = preload("./import_city.gd").road_override_receipt(raw, requested)
 	if override_error != "": return override_error
 	var height_error: String = preload("./import_height_supplement.gd").validate(raw, requested, notes)
@@ -739,7 +741,7 @@ func summary() -> String:
 	if value.is_empty(): return I18N.t("No import candidate.")
 	var text := preload("./import_review_text.gd")
 	var coordinates := {}
-	for key in ["road_overrides", "osm_city", "osm_review", "csv", "mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
+	for key in ["regional", "road_overrides", "osm_city", "osm_review", "csv", "mode", "source_crs", "target_crs", "origin", "local_origin_m", "quantization_cm", "geojson_collections", "geojson_multilines", "osm_ground_loops", "osm_vertical", "osm_crop", "osm_connections", "osm_stream", "overture", "overture_transportation", "overture_land_cover"]:
 		if value.coordinates.has(key): coordinates[key] = value.coordinates[key]
 	var estimates := ""
 	var count := 0

@@ -12,7 +12,7 @@ It separates larger bounded source work from the smaller output MapKit accepts.
 same steps (`real_city_recipe.gd`, Editor tool format v1): new free-roam map
 (terrain 0, `cell_cm` default 12800) → extent → city import at 1:`scale` with
 review exclusions and `traffic` → adopt → optional facility CSV (`facilities`) →
-optional Copernicus `dem` folder (mosaic over the imported frame, grounded
+optional [regional composition](REGIONAL_SOURCES.md) (`regional`) → optional Copernicus `dem` folder (mosaic over the imported frame, grounded
 buildings) → save to `project` → Export to `package` (`full_check` default true;
 `mobile_check` opens it under the 1.5 GiB phone budget). The extent is exactly one of `center: [longitude, latitude]` with
 `radius_km` (default 1.5 source km), `place` (a named feature supplying that
@@ -22,6 +22,10 @@ The circle uses WGS84 distances, keeps its full requested radius, and is stored
 in existing v1 `play_area` rings with less than 1m source-distance approximation
 error. Source coverage, projection and memory failures are reported explicitly.
 Optional `road_overrides` supplies `{osm_sha256, ways: [{source_id, width_m, lanes}]}`.
+Optional `regional` supplies profiles, source-bound corrections and pinned local
+WorldCover/Overture snapshots; its source priority and grouping rules are described
+in [regional source composition](REGIONAL_SOURCES.md). The building inference and
+road-trimming rules below describe imports without that optional regional input.
 Each unique OSM `way/<id>` correction must match the captured PBF SHA-256 and
 a selected vehicle road; all targets are checked before any change. The report
 retains original and corrected dimensions, and the request enters the input
@@ -39,7 +43,8 @@ succeed; a failed fit stops the build atomically. The report records the chosen
   each DEM tile), the OSM crop `bbox`, sorted area `source_id`s, shapely/GEOS and
   pyproj/PROJ versions, 1:D, the authored-units profile, `cell_size_cm`, the map's
   `driving_side`/`signal_style`, the facility settings without the CSV path and,
-  when the recipe names a `dem` folder, `dem` (`zero_m`, `skipped`). Paths, file
+  when the recipe names a `dem` folder, `dem` (`zero_m`, `skipped`). Regional
+  input descriptors, profiles and corrections are retained under each OSM input. Paths, file
   names and the check-only keys (`full_check`, `mobile_check`) are left out, and
   attribution order does not matter. `source_names` lists the file names beside it, outside the hash.
 - `input_fingerprint`: SHA-256 of `inputs` as JSON with sorted keys and full
@@ -47,7 +52,7 @@ succeed; a failed fit stops the build atomically. The report records the chosen
   was adopted has no fingerprint (`input_fingerprint_reason: "no OSM adopted"`);
   a stop at `outputs` adds none of these fields, because the open map may be the
   user's own.
-- `code`: `editor_scripts`, the SHA-256 of `scripts/*.gd` and
+- `code`: `editor_scripts`, the SHA-256 of `scripts/*.{gd,py}` and
   `scripts/importers/*.py` with the framing of the root
   `scripts/implementation_fingerprint.py` (sorted relative names, CRLF → LF, 8-byte
   little-endian length before each name and content), the `godot` version, and

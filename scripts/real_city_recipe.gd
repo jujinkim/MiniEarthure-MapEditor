@@ -9,7 +9,7 @@ extends RefCounted
 ## file. The Editor's own steps keep every limit and review.
 const AUTO := preload("./real_city_auto.gd")
 const VERSION := 1
-const KEYS := ["version","pbf","areas","bbox","place","center","radius_km","scale","cell_cm","traffic","python","facilities","dem","dem_zero_m","road_overrides","project","package","full_check","mobile_check"]
+const KEYS := ["version","pbf","areas","bbox","place","center","radius_km","scale","cell_cm","traffic","python","facilities","dem","dem_zero_m","road_overrides","regional","project","package","full_check","mobile_check"]
 const FACILITY_KEYS := ["csv","license","encoding","name_column","latitude_column","longitude_column","category","source_url","accuracy"]
 const ENCODINGS := ["utf-8","cp949","euc-kr"]
 const MOBILE_BYTES := 1536 * 1024 * 1024
@@ -61,6 +61,7 @@ static func parse(text: String, base := "") -> Dictionary:
 	if recipe.has("road_overrides"):
 		var override_error: String = preload("./import_city.gd").road_override_error(overrides)
 		if override_error != "": return _error(override_error)
+	if recipe.has("regional") and (recipe.regional is not Dictionary or recipe.regional.get("version") != 1): return _error("regional requires a v1 input object")
 	var facilities: Variant = recipe.get("facilities")
 	if facilities != null:
 		if facilities is not Dictionary: return _error("facilities is an object")
@@ -72,6 +73,10 @@ static func parse(text: String, base := "") -> Dictionary:
 	var resolved := recipe.duplicate(true)
 	for key in ["pbf","dem","project","package"]:
 		if resolved.has(key): resolved[key] = _path(str(resolved[key]), base)
+	for key: String in ["worldcover", "buildings"]:
+		if resolved.get("regional", {}).has(key):
+			if resolved.regional[key] is not Dictionary or resolved.regional[key].get("path") is not String: return _error("regional source needs a local snapshot path")
+			resolved.regional[key].path = _path(str(resolved.regional[key].path), base)
 	if facilities != null: resolved.facilities.csv = _path(str(facilities.csv), base)
 	return {"ok":true, "recipe":resolved}
 
@@ -86,7 +91,7 @@ func _say(text: String) -> void:
 	if progress.is_valid(): progress.call(text)
 
 func _status() -> String:
-	return ui.status_label.text.replace("\n", " | ") if ui != null else ""
+	return ui.status_label.text.replace("\n", " | ") if is_instance_valid(ui) else ""
 
 func _fail(step: String) -> Dictionary:
 	report.ok = false
@@ -103,7 +108,7 @@ func _wait(condition: Callable, limit_ms: int) -> void:
 		await ui.get_tree().process_frame
 
 func _busy() -> bool:
-	return ui != null and (ui.busy or ui.store.editing_locked())
+	return is_instance_valid(ui) and (ui.busy or ui.store.editing_locked())
 
 func _rejects() -> bool:
 	return ui.store.limit_warnings.any(func(e): return e is Dictionary and bool(e.get("runtime_rejects", false)))
@@ -161,7 +166,7 @@ func run(recipe: Dictionary) -> Dictionary:
 	# Requested coverage is fixed. Limits fail visibly without shrinking it.
 	var result: Dictionary = await _run(recipe, 0.0)
 	# The `outputs` stop leaves the open document untouched (possibly the user's map).
-	if ui != null and str(result.get("failed_step", "")) != "outputs":
+	if is_instance_valid(ui) and str(result.get("failed_step", "")) != "outputs":
 		var document: Dictionary = ui.store.document
 		result.inputs = inputs(recipe, document, result.has("dem_skipped"))
 		result.source_names = source_names(document)
@@ -279,6 +284,7 @@ static func inputs(recipe: Dictionary, document: Dictionary, dem_skipped: bool) 
 		for key in ["pyproj", "proj"]:
 			if coordinates.has(key): block[key] = coordinates[key]
 		if coordinates.has("road_overrides"): block.road_overrides = coordinates.road_overrides.request
+		if coordinates.has("regional"): block.regional = coordinates.regional.request
 		osm.append(block)
 	osm.sort_custom(func(a, b): return JSON.stringify(a, "", true) < JSON.stringify(b, "", true))
 	var traffic: Variant = document.get("traffic")
@@ -302,7 +308,7 @@ static func source_names(document: Dictionary) -> Array:
 static var _code := {}
 
 ## Which code ran, apart from the input fingerprint. `editor_scripts` hashes
-## res://scripts/*.gd and res://scripts/importers/*.py with the framing of the root
+## res://scripts/*.{gd,py} and res://scripts/importers/*.py with the framing of the root
 ## scripts/implementation_fingerprint.py. An exported build (script_export_mode 2)
 ## holds tokenized scripts/*.gdc instead of .gd; those bytes are hashed as they are,
 ## so its digest differs from a source checkout. `mapkit` is the loaded MapKit
@@ -315,7 +321,7 @@ static func code_identity() -> Dictionary:
 	if not _code.is_empty(): return _code.duplicate()
 	var files: Array = []
 	var unreadable := ""
-	for folder: Array in [["scripts", ["gd", "gdc"]], ["scripts/importers", ["py"]]]:
+	for folder: Array in [["scripts", ["gd", "gdc", "py"]], ["scripts/importers", ["py"]]]:
 		for file: String in DirAccess.get_files_at("res://" + folder[0]):
 			if file.get_extension() not in folder[1]: continue
 			var name: String = folder[0] + "/" + file
@@ -418,8 +424,10 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 	if panel.error() != "": report.error = panel.error(); return _fail("crop")
 	_say("Importing OSM (review)")
 	panel.road_overrides = recipe.get("road_overrides", {}).duplicate(true)
+	panel.regional = recipe.get("regional", {}).duplicate(true)
 	ui._start_import(recipe.pbf, ui.IMPORT_LAYER.OSM_LICENSE)
 	panel.road_overrides = {}
+	panel.regional = {}
 	await _wait(_busy, 3000000)
 	if ui.pending_import == null: return _fail("osm_review")
 	if ui.import_exclusions.visible: ui.import_exclusions.button_pressed = true
@@ -447,6 +455,37 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 		ui._adopt_import()
 		await _wait(_busy, 1800000)
 		if ui.store.document.get("pois", []).size() <= before or _rejects(): return _fail("facility_adopt")
+	if recipe.has("regional"):
+		_say("Composing regional sources")
+		var saved: String = ui.store.save_project(recipe.project)
+		if saved != "": report.error = saved; return _fail("regional_save")
+		var job := preload("./generation_native_job.gd").new()
+		var failure: String = job.start_generation(ui.store,{"mode":"fill","regional":recipe.regional},ui.import_python_path())
+		if failure != "": report.error = failure; job.cleanup(); return _fail("regional_start")
+		var owner_generation: int = ui.generation
+		var tree: SceneTree = ui.get_tree()
+		var store: RefCounted = ui.store
+		ui.regional_recipe_job = job
+		ui.busy = true
+		store.set_external_lock(true)
+		while not job.done or not job.exited:
+			if not is_instance_valid(ui) or not ui.is_inside_tree() or ui.generation != owner_generation or not job.matches(store): job.cancel()
+			job.poll()
+			await tree.process_frame
+		store.set_external_lock(false)
+		if not is_instance_valid(ui) or not ui.is_inside_tree():
+			job.cleanup()
+			return {"ok":false,"failed_step":"regional_owner_closed"}
+		ui.regional_recipe_job = null
+		ui.busy = false
+		if not job.result.get("ok",false) or job.bundle.is_empty():
+			report.error = job.result.get("error",job.result.get("data", {}).get("error",{}))
+			job.cleanup()
+			return _fail("regional_review")
+		report.regional = job.bundle.report.diagnostics.regional
+		failure = job.commit(ui.store)
+		job.cleanup()
+		if failure != "": report.error = failure; return _fail("regional_apply")
 	if str(recipe.get("dem", "")) != "":
 		# The DEM panel copies reviewed tiles into the saved project.
 		var saved: String = ui.store.save_project(recipe.project)

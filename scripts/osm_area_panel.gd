@@ -35,6 +35,7 @@ var selected_areas: Array = []
 ## Set only for an explicit real-city circle recipe.
 var circle: Dictionary = {}
 var road_overrides: Dictionary = {}
+var regional: Dictionary = {}
 const LIMITS := preload("./limit_warnings.gd")
 ## More areas than WARN_AREAS still combine; the review then shows a warning.
 const MAX_AREAS := preload("./import_layer.gd").MAX_AREAS

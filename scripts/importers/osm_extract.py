@@ -45,7 +45,7 @@ CITY_WATERWAYS = {"river": 12.0, "canal": 8.0, "stream": 3.0, "drain": 2.0, "dit
 CITY_GREEN_LEISURE = ("park", "garden", "playground", "pitch")
 CITY_GREEN_LANDUSE = ("grass", "meadow", "recreation_ground", "village_green", "cemetery", "farmland", "orchard", "forest")
 CITY_GREEN_NATURAL = ("grassland", "scrub", "wood", "heath", "fell")
-CITY_BARE_NATURAL = {"bare_rock": "gravel", "scree": "gravel", "shingle": "gravel", "sand": "dirt", "beach": "dirt"}
+CITY_BARE_NATURAL = {"bare_rock": "gravel", "scree": "gravel", "shingle": "gravel", "sand": "dirt", "beach": "dirt", "wetland": "dirt", "mud": "dirt", "glacier": "concrete"}
 CITY_SITE_AMENITY = ("school", "hospital", "university", "college")
 CITY_SITE_LANDUSE = ("residential", "commercial", "retail", "industrial")
 CITY_PARKING_LEVELS = ("underground", "multi-storey", "rooftop")
@@ -1181,6 +1181,7 @@ def build_features(nodes, node_tags, ways, all_ways, relations, area_members, co
 
 def city_polygon_properties(p, tags, geometry, kind, identity, sites):
     """City profile: site, painted ground, outline and levels of an area or building."""
+    p["_city_source_tags"] = {k: v for k, v in tags.items() if k in ("building", "building:material", "building:levels", "amenity", "shop", "office", "tourism", "industrial", "roof:shape", "roof:material", "roof:colour", "surface", "natural", "landuse", "leisure", "historic")}
     if p.get("osm_region") or p.get("landuse") in ("forest", "orchard"):
         ground = city_ground(tags)
         if ground: p["_city_ground"] = ground
@@ -1232,7 +1233,7 @@ def barrier_features(ways, nodes, node_tags, counts):
             counts["skipped_barriers"] = counts.get("skipped_barriers", 0) + 1
             continue
         counts["barrier_ways"] = counts.get("barrier_ways", 0) + 1
-        properties = dict(osm_source_id="way/" + str(identity), _city_barrier=city_barrier(tags))
+        properties = dict(osm_source_id="way/" + str(identity), _city_barrier=city_barrier(tags), _city_source_tags={k: v for k, v in tags.items() if k in ("barrier", "material", "surface")})
         gates = gate_points(references, nodes, node_tags)
         if gates: properties["_city_gates"] = gates
         output.append(dict(type="Feature", properties=properties, geometry=dict(type="LineString", coordinates=points)))

@@ -50,6 +50,11 @@ static func decode(value: Variant, allow_assets: bool = false, allow_generation:
 			if record is not Dictionary: return {"error":"Invalid prepared document record."}
 	var fields: Array = ["pois","nodes","roads","buildings","zones","heightmaps","attributions","placements","surface_areas","water_bodies","gimmicks","assets","barriers"] if allow_generation else ["assets", "attributions"] if allow_assets else ["pois", "nodes", "roads", "buildings", "zones", "surface_areas", "heightmaps", "attributions", "barriers", "water_bodies", "placements"]
 	for patch: Variant in command.patches:
+		if allow_generation and patch is Dictionary and patch.get("field") in ["environment", "ground_style_id"]:
+			if not patch.has_all(["id", "before", "after"]) or patch.id != "" or patch.after != candidate.get(patch.field): return {"error":"Invalid generated environment value."}
+			for entry: Variant in [patch.before, patch.after]:
+				if entry != null and ((patch.field == "environment" and entry is not Dictionary) or (patch.field == "ground_style_id" and entry is not String)): return {"error":"Invalid generated environment value."}
+			continue
 		if not allow_assets and patch is Dictionary and patch.get("field") == "bounds":
 			if patch.get("id") != "" or patch.get("before") is not Dictionary or patch.get("after") is not Dictionary or patch.get("after") != candidate.get("bounds"):
 				return {"error":"Invalid imported map extent."}
