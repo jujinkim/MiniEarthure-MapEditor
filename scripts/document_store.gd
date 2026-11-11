@@ -20,9 +20,9 @@ const HISTORY_BYTES := 16 * 1024 * 1024
 const UNDO_RELEASED := "This change cannot be undone; earlier Undo history was released."
 const HISTORY_COMMANDS := 200
 const RECORD_FIELDS := ["pois", "nodes", "roads", "buildings", "water_bodies", "surface_areas", "zones", "assets", "placements", "gimmicks", "repetitions", "heightmaps", "attributions", "courses", "grind_lines", "surface_attachments", "barriers"]
-const VALUE_FIELDS := ["map_id", "free_roam", "backdrop", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment", "assembled_track", "ground_surface", "play_area", "traffic"]
+const VALUE_FIELDS := ["map_id", "free_roam", "backdrop", "bounds", "cell_size_cm", "seed", "recipe_version", "theme", "terrain_base_cm", "environment", "assembled_track", "ground_surface", "ground_style_id", "play_area", "traffic"]
 ## Optional map values: absence is a value (Undo restores it).
-const OPTIONAL_VALUES := ["environment", "assembled_track", "backdrop", "ground_surface", "play_area", "traffic"]
+const OPTIONAL_VALUES := ["environment", "assembled_track", "backdrop", "ground_surface", "ground_style_id", "play_area", "traffic"]
 var document: Dictionary = {}
 var project_path := ""
 var undo_stack: Array[Dictionary] = []
@@ -585,7 +585,7 @@ func _candidate_for_patches(patches: Array) -> Dictionary:
 	var overlay := false
 	var assembly: Dictionary = document.get("assembled_track",{})
 	if not assembly.is_empty() and not (assembly.get("authoring",{}) if assembly.get("authoring") is Dictionary else {}).get("terrain_integration",false) and not patches.any(func(p): return p.field in ["assembled_track","track_document"]):
-		overlay = patches.any(func(p): return p.field in ["roads","nodes","buildings","placements","repetitions","zones","surface_areas","water_bodies","heightmaps","pois","gimmicks","environment","barriers","ground_surface"] and p.after != null)
+		overlay = patches.any(func(p): return p.field in ["roads","nodes","buildings","placements","repetitions","zones","surface_areas","water_bodies","heightmaps","pois","gimmicks","environment","barriers","ground_surface","ground_style_id"] and p.after != null)
 		if overlay:
 			# Promote the valid previous track through MapKit before adding scenery.
 			# Promotion and the user's edit share one memento and one Undo owner.
@@ -964,6 +964,7 @@ func _prepare_track(source: Dictionary, record_history := true) -> Dictionary:
 		candidate.free_roam = document.free_roam
 		if document.has("backdrop"): candidate.backdrop = document.backdrop
 		if document.has("ground_surface"): candidate.ground_surface = document.ground_surface
+		if document.has("ground_style_id"): candidate.ground_style_id = document.ground_style_id
 		if document.has("play_area"): candidate.play_area = document.play_area
 		if document.has("traffic"): candidate.traffic = document.traffic
 		candidate.provenance = document.provenance.duplicate(true)

@@ -1,5 +1,12 @@
 # Environment design and generation
 
+The Environment panel uses MapKit's shared regional catalogue for architecture,
+climate, settlement and terrain. Ordered region polygons can override each axis;
+object-level source facts and author choices retain priority. Application is one
+validated Undo/Redo command, including rejection of unknown catalogue names.
+Optional v1 style IDs travel with their source records; `ground_style_id` is an
+ordinary undoable document value.
+
 Editor owns `environment_generation.py`, the layout/composition/metrics modules,
 `environment_profiles.py` and `environment_assets.py`. MapKit owns v1 validation,
 cell geometry, packages and rendering. The authored default worlds are in
