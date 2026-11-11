@@ -37,6 +37,8 @@ crops, wetland and snow. It supplies no individual sidewalk or flowerbed evidenc
 OSM areas, detailed roads, buildings, water and vegetation take precedence. Water
 pixels are not converted to traversable ground. Classification and geometry are
 clipped to the saved playable boundary on the shared map-centimetre lattice.
+The clearance mask unions its buffered components before cover subtraction, so
+nested or overlapping shells retain their combined exclusion and open voids.
 
 Overture snapshots are bounded GeoJSON FeatureCollections with fixed `release`,
 `bbox`, GERS IDs, source references and available height/use/facade/roof information.

@@ -70,6 +70,13 @@ def parts(geometry, cell=6400):
 def ring(polygon): return [[round(x),round(y)] for x,y in polygon.exterior.coords[:-1]]
 
 
+def cover_clearance(geometry):
+    # Buffering narrow gaps may return individually valid components whose
+    # shells overlap. The exclusion is their union; keep its holes and combine
+    # the components before subsequent overlays consume it.
+    return unary_union(polygons(geometry.buffer(2,join_style="mitre")))
+
+
 def building_parts(geometry):
     """Keep exact lattice outlines when a courtyard touches another ring.
 
@@ -295,7 +302,7 @@ def compose(document, request, catalog):
     # Integer cuts can move an oblique edge by a fraction of a centimetre.
     # Keep the same two-map-centimetre clearance as city paint so raster cover
     # cannot overlap a detailed source area after quantization and partitioning.
-    cover_blocked = blocked.buffer(2,join_style="mitre")
+    cover_blocked = cover_clearance(blocked)
     coverage = cover(request["worldcover"], frame, boundary) if "worldcover" in request else []
     by_style = {}
     for code, polygon in coverage:
@@ -312,7 +319,7 @@ def compose(document, request, catalog):
             record = dict(id="regional-cover-"+hashlib.sha256(style.encode()+polygon.wkb).hexdigest()[:24], polygon=ring(polygon), surface=catalog["ground"][style]["surface"], style_id="ground/"+style)
             generated.append(record)
         counts["cover:"+style] = sum(p.area for p in emitted) / 10000
-        if emitted: cover_blocked = cover_blocked.union(unary_union(emitted).buffer(2,join_style="mitre"))
+        if emitted: cover_blocked = cover_blocked.union(cover_clearance(unary_union(emitted)))
     # Sidewalk candidates require a retained building/fence within ten source
     # metres of a road, and built-up cover. Coarse cover alone creates no ribbon.
     built = unary_union(by_style.get("pavers", []))
