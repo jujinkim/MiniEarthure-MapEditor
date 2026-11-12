@@ -23,7 +23,8 @@ export. `free_roam` remains a separate game finish policy.
 The Luna-inspired theme uses ivory `#ECE9D8` panels, white inputs, blue `#245EDB`
 accents and `#B8C2CF` borders; text is 14 px, actions ≥40 px, palette tiles 52 px,
 the menu 28 px. Icon actions have accessible names and tooltips; buttons ≥160 px
-wide show their label beside the icon and clip with an ellipsis. Popups have a 32 px
+wide show their label beside the icon and clip with an ellipsis. Mode tabs use
+compact button faces to stay within the 28 px menu row. Popups have a 32 px
 title bar and an inset 24 px close control. Text follows
 [localization](LOCALIZATION.md).
 

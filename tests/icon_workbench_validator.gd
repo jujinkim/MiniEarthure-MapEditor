@@ -225,7 +225,7 @@ func run() -> void:
 			check(ui.right_dock.get_global_rect().end.x <= window_size.x + 1 and ui.status_label.get_global_rect().end.y <= window_size.y + 1, "docks/footer fit requested window")
 			check(ui.workspace_views.size.x >= 300 and ui.workspace_views.size.y >= 100, "workspace retains usable area")
 			var menu: Control = ui.find_child("MenuRow", true, false)
-			check(menu.get_global_rect().position.y == 4 and menu.size.y == 28, "compact menu keeps four-pixel top margin and 28-pixel row")
+			check(menu.get_global_rect().position.y == 4 and menu.size.y == 28, "compact menu keeps four-pixel top margin and 28-pixel row: %s" % str(menu.get_global_rect()))
 			for tile: Dictionary in (bench.palette_tools.tiles if not roam else ui.roam_palette.tiles):
 				if not tile.button.is_visible_in_tree(): continue
 				check(tile.button.icon != null and tile.button.size.x >= 52 and tile.button.size.y >= 52, "visible palette has artwork and full tile bounds")

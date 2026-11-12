@@ -64,6 +64,20 @@ static func outline(control: Control) -> void:
 	control.resized.connect(control.queue_redraw)
 	control.queue_redraw()
 
+## Bevelled button faces per state, shared by the theme and compact buttons.
+static func button_faces() -> Dictionary:
+	return {"normal": bevel(Color("ffffff"), Color("e5e4dd")), "hover": bevel(Color("fffdf2"), Color("ffe5a5"), Color("d3a44d")),
+		"pressed": bevel(Color("c0d5f4"), Color("e3efff"), BLUE, true), "hover_pressed": bevel(Color("cfdef5"), Color("edf5ff"), BLUE, true)}
+
+## Button faces with 2 px vertical content margins, for rows held to 28 px.
+static func compact(control: Button) -> void:
+	var faces := button_faces()
+	for state: String in faces:
+		var face: StyleBox = faces[state]
+		face.content_margin_top = 2
+		face.content_margin_bottom = 2
+		control.add_theme_stylebox_override(state, face)
+
 static func bevel(top: Color, bottom: Color, border := BORDER, pressed := false) -> StyleBoxTexture:
 	# Nine-slice artwork is made in memory so even cold source launches have chrome.
 	var pixels := Image.create(16, 16, false, Image.FORMAT_RGBA8)
@@ -121,10 +135,8 @@ static func create_theme() -> Theme:
 		result.set_stylebox("focus", type, focus)
 	result.set_color("default_color", "RichTextLabel", INK)
 	for type in ["Button", "OptionButton"]:
-		result.set_stylebox("normal", type, bevel(Color("ffffff"), Color("e5e4dd")))
-		result.set_stylebox("hover", type, bevel(Color("fffdf2"), Color("ffe5a5"), Color("d3a44d")))
-		result.set_stylebox("pressed", type, bevel(Color("c0d5f4"), Color("e3efff"), BLUE, true))
-		result.set_stylebox("hover_pressed", type, bevel(Color("cfdef5"), Color("edf5ff"), BLUE, true))
+		var faces := button_faces()
+		for state: String in faces: result.set_stylebox(state, type, faces[state])
 		result.set_stylebox("disabled", type, box(Color("e8e7e2"), Color("b6babf")))
 		for state in ["normal", "hover", "pressed", "focus", "hover_pressed"]: result.set_color("icon_" + state + "_color", type, Color.WHITE)
 		result.set_color("icon_disabled_color", type, Color(0.65, 0.68, 0.72, 0.6))

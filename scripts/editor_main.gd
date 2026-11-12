@@ -283,7 +283,9 @@ func _build_ui() -> void:
 		var mode_button := Button.new()
 		mode_button.text = I18N.t(item[1])
 		mode_button.toggle_mode = true
-		mode_button.custom_minimum_size = Vector2(130, 30)
+		mode_button.custom_minimum_size = Vector2(130, 28)
+		# The menu row stays 28 px high (Workbench layout).
+		WORKBENCH_STYLE.compact(mode_button)
 		# Plain text tabs: the Editor's icon styling is for actions.
 		mode_button.set_meta("action_label", item[1])
 		mode_button.set_meta("editor_mode", item[0])
