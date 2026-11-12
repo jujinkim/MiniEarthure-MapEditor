@@ -1,0 +1,257 @@
+{
+ "format": "miniearthure-city-part",
+ "version": 1,
+ "id": "low-rise-block",
+ "name": "Low-rise block",
+ "license": "MIT",
+ "attributions": [],
+ "footprint": [
+  [
+   -4000,
+   -3000
+  ],
+  [
+   4000,
+   -3000
+  ],
+  [
+   4000,
+   3000
+  ],
+  [
+   -4000,
+   3000
+  ]
+ ],
+ "mouths": [],
+ "records": {
+  "buildings": [
+   {
+    "id": "house-1",
+    "footprint": [
+     [
+      -3200,
+      1400
+     ],
+     [
+      -2200,
+      1400
+     ],
+     [
+      -2200,
+      2200
+     ],
+     [
+      -3200,
+      2200
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 700,
+    "usage": "residential",
+    "material": "brick",
+    "roof": "gable"
+   },
+   {
+    "id": "house-2",
+    "footprint": [
+     [
+      -1400,
+      1400
+     ],
+     [
+      -400,
+      1400
+     ],
+     [
+      -400,
+      2200
+     ],
+     [
+      -1400,
+      2200
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 700,
+    "usage": "residential",
+    "material": "wood",
+    "roof": "gable"
+   },
+   {
+    "id": "house-3",
+    "footprint": [
+     [
+      400,
+      1400
+     ],
+     [
+      1400,
+      1400
+     ],
+     [
+      1400,
+      2200
+     ],
+     [
+      400,
+      2200
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 700,
+    "usage": "residential",
+    "material": "brick",
+    "roof": "gable"
+   },
+   {
+    "id": "house-4",
+    "footprint": [
+     [
+      2200,
+      1400
+     ],
+     [
+      3200,
+      1400
+     ],
+     [
+      3200,
+      2200
+     ],
+     [
+      2200,
+      2200
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 700,
+    "usage": "residential",
+    "material": "wood",
+    "roof": "gable"
+   },
+   {
+    "id": "house-5",
+    "footprint": [
+     [
+      -3200,
+      -2200
+     ],
+     [
+      -2200,
+      -2200
+     ],
+     [
+      -2200,
+      -1400
+     ],
+     [
+      -3200,
+      -1400
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 700,
+    "usage": "residential",
+    "material": "brick",
+    "roof": "gable"
+   },
+   {
+    "id": "house-6",
+    "footprint": [
+     [
+      -1400,
+      -2200
+     ],
+     [
+      -400,
+      -2200
+     ],
+     [
+      -400,
+      -1400
+     ],
+     [
+      -1400,
+      -1400
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 700,
+    "usage": "residential",
+    "material": "wood",
+    "roof": "gable"
+   },
+   {
+    "id": "house-7",
+    "footprint": [
+     [
+      400,
+      -2200
+     ],
+     [
+      1400,
+      -2200
+     ],
+     [
+      1400,
+      -1400
+     ],
+     [
+      400,
+      -1400
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 700,
+    "usage": "residential",
+    "material": "brick",
+    "roof": "gable"
+   },
+   {
+    "id": "house-8",
+    "footprint": [
+     [
+      2200,
+      -2200
+     ],
+     [
+      3200,
+      -2200
+     ],
+     [
+      3200,
+      -1400
+     ],
+     [
+      2200,
+      -1400
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 700,
+    "usage": "residential",
+    "material": "wood",
+    "roof": "gable"
+   }
+  ],
+  "barriers": [
+   {
+    "id": "fence",
+    "kind": "fence",
+    "line": [
+     [
+      -3800,
+      0
+     ],
+     [
+      3800,
+      0
+     ]
+    ],
+    "height_cm": 120,
+    "thickness_cm": 10
+   }
+  ]
+ }
+}

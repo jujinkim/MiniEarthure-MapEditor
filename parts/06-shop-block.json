@@ -1,0 +1,185 @@
+{
+ "format": "miniearthure-city-part",
+ "version": 1,
+ "id": "shop-block",
+ "name": "Shopping block",
+ "license": "MIT",
+ "attributions": [],
+ "footprint": [
+  [
+   -4000,
+   -4000
+  ],
+  [
+   4000,
+   -4000
+  ],
+  [
+   4000,
+   4000
+  ],
+  [
+   -4000,
+   4000
+  ]
+ ],
+ "mouths": [],
+ "records": {
+  "buildings": [
+   {
+    "id": "shops-north",
+    "footprint": [
+     [
+      -3600,
+      2000
+     ],
+     [
+      3600,
+      2000
+     ],
+     [
+      3600,
+      3400
+     ],
+     [
+      -3600,
+      3400
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 1100,
+    "usage": "commercial",
+    "material": "concrete",
+    "roof": "flat"
+   },
+   {
+    "id": "shops-south",
+    "footprint": [
+     [
+      -3600,
+      -3400
+     ],
+     [
+      1600,
+      -3400
+     ],
+     [
+      1600,
+      -2000
+     ],
+     [
+      -3600,
+      -2000
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 900,
+    "usage": "commercial",
+    "material": "brick",
+    "roof": "flat"
+   },
+   {
+    "id": "corner-tower",
+    "footprint": [
+     [
+      2000,
+      -3400
+     ],
+     [
+      3600,
+      -3400
+     ],
+     [
+      3600,
+      -2000
+     ],
+     [
+      2000,
+      -2000
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 2400,
+    "usage": "commercial",
+    "material": "concrete",
+    "roof": "flat"
+   }
+  ],
+  "surface_areas": [
+   {
+    "id": "square",
+    "polygon": [
+     [
+      -3600,
+      -1600
+     ],
+     [
+      3600,
+      -1600
+     ],
+     [
+      3600,
+      1600
+     ],
+     [
+      -3600,
+      1600
+     ]
+    ],
+    "surface": "concrete"
+   }
+  ],
+  "placements": [
+   {
+    "id": "tree-1",
+    "asset_id": "builtin:city_tree",
+    "position": [
+     -2800,
+     0,
+     600
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "tree-2",
+    "asset_id": "builtin:city_tree",
+    "position": [
+     0,
+     0,
+     600
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "tree-3",
+    "asset_id": "builtin:city_tree",
+    "position": [
+     2800,
+     0,
+     600
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "bench-1",
+    "asset_id": "builtin:bench",
+    "position": [
+     -1200,
+     0,
+     -900
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "bench-2",
+    "asset_id": "builtin:bench",
+    "position": [
+     1200,
+     0,
+     -900
+    ],
+    "quarter_turns": 0
+   }
+  ]
+ }
+}

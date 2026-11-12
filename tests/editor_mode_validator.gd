@@ -24,8 +24,8 @@ func run() -> void:
 	ui.set_editor_mode("city")
 	await process_frame
 	check(ui.editor_mode == "city" and ui.tool_group == "city" and ui.tool_workspace == "landscape", "city mode opens Map & data on the plan")
-	check(visible_groups(ui) == ["city", "roads", "draw", "scenery", "course"], "city mode groups: " + str(visible_groups(ui)))
-	check(ui.city_panel.visible and not ui.simple_palette.visible and not ui.author_panel.visible and not ui.roam_palette.visible, "Map & data shows only the city panel")
+	check(visible_groups(ui) == ["city", "roads", "draw", "scenery", "parts", "course"], "city mode groups: " + str(visible_groups(ui)))
+	check(ui.city_panel.visible and not ui.parts_panel.visible and not ui.simple_palette.visible and not ui.author_panel.visible and not ui.roam_palette.visible, "Map & data shows only the city panel")
 	check(ui.city_panel.summary.text.contains("0 roads") and ui.selection_label.text.begins_with("CITY MODE"), "city summary and header: " + ui.city_panel.summary.text)
 	ui.show_tool_group("draw")
 	await process_frame
@@ -33,6 +33,9 @@ func run() -> void:
 	ui.show_tool_group("scenery")
 	await process_frame
 	check(not ui.advanced_visible and ui.simple_palette.visible and not ui.roam_palette.visible, "Scenery stays focused")
+	ui.show_tool_group("parts")
+	await process_frame
+	check(ui.editor_mode == "city" and ui.parts_panel.visible and not ui.simple_palette.visible and not ui.roam_palette.visible and not ui.city_panel.visible, "Parts shows only the parts panel")
 	ui.show_tool_group("roads")
 	await process_frame
 	check(ui.editor_mode == "city" and ui.tool_workspace == "track" and ui.selection_label.text.begins_with("CITY MODE"), "city roads edit in 3D within city mode: " + ui.selection_label.text)

@@ -6,7 +6,7 @@ DocumentStore with one history, and switching never changes the map:
 | Mode | Tool groups | Purpose |
 | --- | --- | --- |
 | **Track mode** | Pieces (roads & tracks), Gimmicks, Course | Race tracks from road pieces; Seed Track is an optional start |
-| **City mode** | Data (map & data), Roads, Draw, Scenery, Course | Real places: create from real data ([city sources](CITY_SOURCES.md)), add DEM/CSV/vector data, edit imported roads in 3D, draw on the plan with the full authoring toolset, place scenery |
+| **City mode** | Data (map & data), Roads, Draw, Scenery, Parts, Course | Real places: create from real data ([city sources](CITY_SOURCES.md)), add DEM/CSV/vector data, edit imported roads in 3D, draw on the plan with the full authoring toolset, place scenery and ready-made [city parts](CITY_PARTS.md) |
 
 The start screen groups **Create track** / **Seed track options…** under track mode and
 **New real-city map…** / **Import OSM / PBF** under city mode, plus **Open existing
@@ -50,7 +50,8 @@ document. Reset panels restores the defaults.
 `workspace_commands.gd` owns stable IDs, descriptions, icons, contexts, default keys
 and availability; disabled commands explain why. Ctrl/Cmd+P opens command search.
 Edit → Shortcuts supports search, key capture, clear, conflicts and defaults;
-overlapping bindings cannot save, while separate tool contexts may share a key.
+overlapping bindings cannot save, while separate tool contexts may share a key. Saved
+keys win over defaults added later, which then stay unbound.
 
 | Input | Action |
 | --- | --- |
@@ -61,7 +62,7 @@ overlapping bindings cannot save, while separate tool contexts may share a key.
 | V, Escape | Select, cancel gesture/draft |
 | S | Toggle snap |
 | F | Frame track selection or fit the terrain map |
-| Q/E | Rotate road placement preview by 15° |
+| Q/E | Rotate road placement preview, or an armed city part, by 15° |
 | PageUp / PageDown | Work height ±1 m; Shift uses ±0.1 m |
 | Enter | Confirm the active placement or direct edit |
 | 1–9 | Assigned palette slots |

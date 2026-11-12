@@ -45,7 +45,9 @@ var workspace_tabs: GridContainer
 var editor_mode := "track"
 var mode_tabs: HBoxContainer
 var city_panel: VBoxContainer
-const LANDSCAPE_GROUPS := ["city", "draw", "scenery"]
+## City mode → Parts: built-in and user-library city parts placed on the plan.
+var parts_panel: VBoxContainer
+const LANDSCAPE_GROUPS := ["city", "draw", "scenery", "parts"]
 ## Last tool group per mode, restored when switching back.
 var mode_group := {"track":"roads", "city":"city"}
 var track_workbench: Node
@@ -200,7 +202,7 @@ func _ready() -> void:
 	workspace_tabs.columns = 3
 	left_dock.add_child(workspace_tabs)
 	left_dock.move_child(workspace_tabs,0)
-	for item in [["roads","Pieces","track","Roads & tracks"],["gimmicks","Gimmicks","track",""],["city","Data","city","Map & data"],["roads","Roads","city",""],["draw","Draw","city",""],["scenery","Scenery","city",""],["course","Course","",""]]:
+	for item in [["roads","Pieces","track","Roads & tracks"],["gimmicks","Gimmicks","track",""],["city","Data","city","Map & data"],["roads","Roads","city",""],["draw","Draw","city",""],["scenery","Scenery","city",""],["parts","Parts","city","City parts"],["course","Course","",""]]:
 		var button := Button.new()
 		button.text = I18N.t(item[1])
 		if item[3] != "": button.tooltip_text = I18N.t(item[3])
@@ -219,6 +221,12 @@ func _ready() -> void:
 	left_dock.move_child(city_panel,1)
 	city_panel.build(self)
 	city_panel.hide()
+	parts_panel = preload("./city_parts_panel.gd").new()
+	left_dock.add_child(parts_panel)
+	left_dock.move_child(parts_panel, 2)
+	parts_panel.build(self)
+	parts_panel.hide()
+	canvas.part_tool = parts_panel
 
 	simple_palette = VBoxContainer.new()
 	left_dock.add_child(simple_palette)
@@ -1096,7 +1104,8 @@ func _tool_help(name: String) -> String:
 		"Place":"Click to place the asset chosen in Authoring settings. Select it to change rotation.",
 		"Repeat":"Click a path; right-click to finish. Choose asset and spacing in Authoring settings.",
 		"Entrance":"Select one building first, then draw an entrance polygon; right-click to finish.",
-		"Exclusion":"Select one forest/orchard zone first, then draw an exclusion polygon; right-click to finish."
+		"Exclusion":"Select one forest/orchard zone first, then draw an exclusion polygon; right-click to finish.",
+		"Part":"Click the plan to place the part. Q/E rotate 15°, Shift+wheel 1°; right-click stops."
 	}
 	return str(hints.get(name, "")) + "\nWheel zooms · Middle drag pans"
 
@@ -1159,6 +1168,7 @@ func _cancel_editing() -> void:
 	if spatial != null: spatial.cancel()
 	if course_tools != null: course_tools.cancel()
 	if scenery != null: scenery.cancel()
+	if parts_panel != null: parts_panel.cancel()
 
 func _register_commands() -> void:
 	commands.context_source = func(): return "roam" if tool_workspace == "landscape" else "track"
@@ -1194,6 +1204,8 @@ func _register_commands() -> void:
 		var shortcut: String = {"Select":"V", "Road":"R", "Building":"B", "Forest":"G", "Orchard":"O"}.get(tool, "")
 		commands.register("Create", tool, _set_tool.bind(tool), shortcut, {"id":"tool." + tool.to_snake_case(), "context":"global" if tool == "Select" else "roam", "description":"Select in the active workspace: track pieces in 3D, or free roam objects on the plan." if tool == "Select" else _tool_help(tool), "menu":false})
 	commands.register("Create", "Authoring settings…", func(): author_panel.open(), "", {"context":"roam"})
+	for turn: Array in [["Rotate part left", 15.0, "Q", "rotate_left"], ["Rotate part right", -15.0, "E", "rotate_right"]]:
+		commands.register("Create", turn[0], func(): parts_panel.rotate_by(turn[1]), turn[2], {"id":"parts." + turn[3], "context":"roam", "icon":turn[3], "menu":false, "enabled":func(): return canvas.tool == "Part", "reason":"Choose a part, then click the plan."})
 	commands.register("Create", "Seed Track", _open_track_generator, "", {"id":"create.seed_track", "icon":"generate"})
 	commands.register("Create", "New region", func(): _open_generation("new"), "", {"id":"create.new_region","icon":"generate"})
 	commands.register("Create", "Complete selected area", func(): _open_generation("fill"), "", {"id":"create.complete_area","context":"roam","icon":"generate"})
@@ -2351,6 +2363,9 @@ func show_tool_group(group: String) -> void:
 	set_tool_workspace("landscape" if group in LANDSCAPE_GROUPS else "track")
 	if group in LANDSCAPE_GROUPS and is_instance_valid(selection_label) and canvas != null:
 		selection_label.text = I18N.t("CITY MODE  ·  %s  ·  %d selected") % [I18N.t(canvas.tool), canvas.selected.size()]
+	if is_instance_valid(parts_panel):
+		parts_panel.visible = group == "parts"
+		if parts_panel.visible: parts_panel.refresh()
 	if is_instance_valid(city_panel):
 		city_panel.visible = group == "city"
 		if city_panel.visible: city_panel.refresh()
@@ -2371,7 +2386,7 @@ func show_tool_group(group: String) -> void:
 			commands.button(simple_palette,"edit.delete")
 			_button(simple_palette,"Advanced tools…",open_advanced)
 		return
-	if group in ["course", "city", "draw"]: return
+	if group in ["course", "city", "draw", "parts"]: return
 	var tabs: TabContainer = track_workbench.palette_tools.tabs
 	for i in tabs.get_tab_count():
 		var visible_group := str(tabs.get_child(i).name) == "Driving" if group == "roads" else str(tabs.get_child(i).name) != "Driving"

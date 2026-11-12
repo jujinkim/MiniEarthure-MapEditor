@@ -223,6 +223,14 @@ func load_settings() -> void:
 		for id: String in saved:
 			if index_of(id) < 0 or not saved[id] is Array: continue
 			if saved[id].all(func(code): return code is int and code > 0): bindings[id] = saved[id].duplicate()
+	# Saved keys win over defaults added later: a default that now collides with
+	# a saved key stays unbound instead of discarding every saved binding.
+	for command in commands:
+		if bindings.has(command.id): continue
+		for id: String in bindings:
+			var other: Dictionary = commands[index_of(id)]
+			if other.context != command.context and other.context != "global" and command.context != "global": continue
+			if command.defaults.any(func(code): return code in bindings[id]): bindings[command.id] = []
 	if not conflicts(bindings).is_empty(): bindings.clear()
 	favorites = DEFAULT_FAVORITES.duplicate(true)
 	var slots: Variant = config.get_value("commands", "favorites", {})

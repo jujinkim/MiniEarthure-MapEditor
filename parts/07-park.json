@@ -1,0 +1,297 @@
+{
+ "format": "miniearthure-city-part",
+ "version": 1,
+ "id": "park",
+ "name": "Park",
+ "license": "MIT",
+ "attributions": [],
+ "footprint": [
+  [
+   -4000,
+   -4000
+  ],
+  [
+   4000,
+   -4000
+  ],
+  [
+   4000,
+   4000
+  ],
+  [
+   -4000,
+   4000
+  ]
+ ],
+ "mouths": [],
+ "records": {
+  "surface_areas": [
+   {
+    "id": "lawn-ne",
+    "polygon": [
+     [
+      200,
+      200
+     ],
+     [
+      3800,
+      200
+     ],
+     [
+      3800,
+      3800
+     ],
+     [
+      200,
+      3800
+     ]
+    ],
+    "surface": "grass"
+   },
+   {
+    "id": "lawn-nw",
+    "polygon": [
+     [
+      -3800,
+      200
+     ],
+     [
+      -200,
+      200
+     ],
+     [
+      -200,
+      3800
+     ],
+     [
+      -3800,
+      3800
+     ]
+    ],
+    "surface": "grass"
+   },
+   {
+    "id": "lawn-sw",
+    "polygon": [
+     [
+      -3800,
+      -3800
+     ],
+     [
+      -200,
+      -3800
+     ],
+     [
+      -200,
+      -200
+     ],
+     [
+      -3800,
+      -200
+     ]
+    ],
+    "surface": "grass"
+   },
+   {
+    "id": "lawn-se",
+    "polygon": [
+     [
+      200,
+      -3800
+     ],
+     [
+      3800,
+      -3800
+     ],
+     [
+      3800,
+      -200
+     ],
+     [
+      200,
+      -200
+     ]
+    ],
+    "surface": "grass"
+   },
+   {
+    "id": "path",
+    "polygon": [
+     [
+      -3800,
+      -200
+     ],
+     [
+      -200,
+      -200
+     ],
+     [
+      -200,
+      -3800
+     ],
+     [
+      200,
+      -3800
+     ],
+     [
+      200,
+      -200
+     ],
+     [
+      3800,
+      -200
+     ],
+     [
+      3800,
+      200
+     ],
+     [
+      200,
+      200
+     ],
+     [
+      200,
+      3800
+     ],
+     [
+      -200,
+      3800
+     ],
+     [
+      -200,
+      200
+     ],
+     [
+      -3800,
+      200
+     ]
+    ],
+    "surface": "gravel"
+   }
+  ],
+  "zones": [
+   {
+    "id": "grove-ne",
+    "polygon": [
+     [
+      800,
+      800
+     ],
+     [
+      3400,
+      800
+     ],
+     [
+      3400,
+      3400
+     ],
+     [
+      800,
+      3400
+     ]
+    ],
+    "kind": "orchard",
+    "spacing_cm": 700,
+    "density_per_mille": 800,
+    "exclusions": []
+   },
+   {
+    "id": "grove-sw",
+    "polygon": [
+     [
+      -3400,
+      -3400
+     ],
+     [
+      -800,
+      -3400
+     ],
+     [
+      -800,
+      -800
+     ],
+     [
+      -3400,
+      -800
+     ]
+    ],
+    "kind": "orchard",
+    "spacing_cm": 700,
+    "density_per_mille": 800,
+    "exclusions": []
+   }
+  ],
+  "placements": [
+   {
+    "id": "bench-1",
+    "asset_id": "builtin:bench",
+    "position": [
+     -1200,
+     0,
+     600
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "bench-2",
+    "asset_id": "builtin:bench",
+    "position": [
+     1200,
+     0,
+     -600
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "bench-3",
+    "asset_id": "builtin:bench",
+    "position": [
+     -600,
+     0,
+     -1200
+    ],
+    "quarter_turns": 1
+   },
+   {
+    "id": "bench-4",
+    "asset_id": "builtin:bench",
+    "position": [
+     600,
+     0,
+     1200
+    ],
+    "quarter_turns": 1
+   }
+  ],
+  "barriers": [
+   {
+    "id": "hedge",
+    "kind": "hedge",
+    "line": [
+     [
+      -3900,
+      -3900
+     ],
+     [
+      3900,
+      -3900
+     ],
+     [
+      3900,
+      3900
+     ],
+     [
+      -3900,
+      3900
+     ],
+     [
+      -3900,
+      -3900
+     ]
+    ],
+    "height_cm": 120,
+    "thickness_cm": 60
+   }
+  ]
+ }
+}

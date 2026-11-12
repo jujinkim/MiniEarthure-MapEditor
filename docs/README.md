@@ -12,6 +12,7 @@ validation; update existing sections instead of appending dated change logs.
 | Map authoring tools | [AUTHORING](AUTHORING.md) |
 | Track workspace and Seed Track | [TRACK_AUTHORING](TRACK_AUTHORING.md) |
 | Course authoring | [COURSE_AUTHORING](COURSE_AUTHORING.md) |
+| City parts library | [CITY_PARTS](CITY_PARTS.md) |
 | Driving structures | [DRIVING_GIMMICKS](DRIVING_GIMMICKS.md) |
 | Environment design and generation | [ENVIRONMENT](ENVIRONMENT.md) |
 | World themes and signs | [WORLD_THEME_AUTHORING](WORLD_THEME_AUTHORING.md) |

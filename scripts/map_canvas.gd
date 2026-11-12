@@ -34,6 +34,9 @@ var marquee_additive := false
 var zoom := 1.0
 var pan := Vector2.ZERO
 var density_cells: Array = []
+## City parts panel while the "Part" tool is armed: it draws the ghost and
+## places the part on click (see city_parts_panel.gd).
+var part_tool: Object = null
 
 func _ready() -> void:
 	author.configure(store, self)
@@ -234,6 +237,7 @@ func _draw() -> void:
 		var b := screen([bounds.min[0]+(target.x+1)*cell,bounds.min[1]+(target.y+1)*cell])
 		draw_rect(Rect2(a,b-a).abs(),Color(1.0,0.3,0.1,0.15))
 		draw_rect(Rect2(a,b-a).abs(),Color(1.0,0.3,0.1,0.9),false,2.0)
+	if tool == "Part" and part_tool != null: part_tool.draw_preview(self, brush_cursor)
 	for p in draft: draw_circle(screen([p.x, p.y]), 5.0, Color("c76035"))
 	if draft.size() > 1:
 		var line := PackedVector2Array()
@@ -334,12 +338,16 @@ func _gui_input(event: InputEvent) -> void:
 		accept_event()
 		return
 	if event is InputEventMouseButton:
-		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and event.pressed:
+		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT] and event.pressed and tool == "Part" and event.shift_pressed and part_tool != null:
+			# macOS turns a Shift+vertical wheel into horizontal scrolling.
+			part_tool.rotate_by(1.0 if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_LEFT] else -1.0)
+		elif event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and event.pressed:
 			var anchor := raw_world(event.position)
 			zoom = clampf(zoom * (1.15 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.15), 0.25, 32.0)
 			pan += event.position - screen([anchor.x, anchor.y])
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			if tool == "Select": cancel_interaction()
+			elif tool == "Part" and part_tool != null: part_tool.cancel()
 			else: finish_shape()
 		elif event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
@@ -347,6 +355,8 @@ func _gui_input(event: InputEvent) -> void:
 				var p := world(event.position)
 				if tool == "Course":
 					course_point_selected.emit(p)
+				elif tool == "Part":
+					if part_tool != null: part_tool.place(p)
 				elif tool == "Select":
 					var hit := _hit(raw_world(event.position))
 					_select_at(raw_world(event.position), event.shift_pressed)

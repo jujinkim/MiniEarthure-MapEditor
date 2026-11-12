@@ -1,0 +1,195 @@
+{
+ "format": "miniearthure-city-part",
+ "version": 1,
+ "id": "plaza",
+ "name": "Plaza",
+ "license": "MIT",
+ "attributions": [],
+ "footprint": [
+  [
+   -4000,
+   -4000
+  ],
+  [
+   4000,
+   -4000
+  ],
+  [
+   4000,
+   4000
+  ],
+  [
+   -4000,
+   4000
+  ]
+ ],
+ "mouths": [],
+ "records": {
+  "surface_areas": [
+   {
+    "id": "paving",
+    "polygon": [
+     [
+      2600,
+      0
+     ],
+     [
+      2252,
+      1300
+     ],
+     [
+      1300,
+      2252
+     ],
+     [
+      0,
+      2600
+     ],
+     [
+      -1300,
+      2252
+     ],
+     [
+      -2252,
+      1300
+     ],
+     [
+      -2600,
+      0
+     ],
+     [
+      -2252,
+      -1300
+     ],
+     [
+      -1300,
+      -2252
+     ],
+     [
+      0,
+      -2600
+     ],
+     [
+      1300,
+      -2252
+     ],
+     [
+      2252,
+      -1300
+     ]
+    ],
+    "surface": "concrete"
+   }
+  ],
+  "buildings": [
+   {
+    "id": "hall",
+    "footprint": [
+     [
+      -2000,
+      3200
+     ],
+     [
+      2000,
+      3200
+     ],
+     [
+      2000,
+      3900
+     ],
+     [
+      -2000,
+      3900
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 1500,
+    "usage": "public",
+    "material": "concrete",
+    "roof": "flat"
+   }
+  ],
+  "placements": [
+   {
+    "id": "tree-1",
+    "asset_id": "builtin:city_tree",
+    "position": [
+     1697,
+     0,
+     1697
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "tree-2",
+    "asset_id": "builtin:city_tree",
+    "position": [
+     -1697,
+     0,
+     1697
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "tree-3",
+    "asset_id": "builtin:city_tree",
+    "position": [
+     -1697,
+     0,
+     -1697
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "tree-4",
+    "asset_id": "builtin:city_tree",
+    "position": [
+     1697,
+     0,
+     -1697
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "bench-1",
+    "asset_id": "builtin:bench",
+    "position": [
+     -600,
+     0,
+     0
+    ],
+    "quarter_turns": 1
+   },
+   {
+    "id": "bench-2",
+    "asset_id": "builtin:bench",
+    "position": [
+     600,
+     0,
+     0
+    ],
+    "quarter_turns": 1
+   },
+   {
+    "id": "light-1",
+    "asset_id": "builtin:streetlight",
+    "position": [
+     -3200,
+     0,
+     -3200
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "light-2",
+    "asset_id": "builtin:streetlight",
+    "position": [
+     3200,
+     0,
+     -3200
+    ],
+    "quarter_turns": 0
+   }
+  ]
+ }
+}

@@ -1,0 +1,211 @@
+{
+ "format": "miniearthure-city-part",
+ "version": 1,
+ "id": "apartment-block",
+ "name": "Apartment block",
+ "license": "MIT",
+ "attributions": [],
+ "footprint": [
+  [
+   -4000,
+   -4000
+  ],
+  [
+   4000,
+   -4000
+  ],
+  [
+   4000,
+   4000
+  ],
+  [
+   -4000,
+   4000
+  ]
+ ],
+ "mouths": [],
+ "records": {
+  "buildings": [
+   {
+    "id": "tower-1",
+    "footprint": [
+     [
+      -3200,
+      1600
+     ],
+     [
+      -800,
+      1600
+     ],
+     [
+      -800,
+      2800
+     ],
+     [
+      -3200,
+      2800
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 4500,
+    "usage": "residential",
+    "material": "concrete",
+    "roof": "flat"
+   },
+   {
+    "id": "tower-2",
+    "footprint": [
+     [
+      800,
+      1600
+     ],
+     [
+      3200,
+      1600
+     ],
+     [
+      3200,
+      2800
+     ],
+     [
+      800,
+      2800
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 3600,
+    "usage": "residential",
+    "material": "concrete",
+    "roof": "flat"
+   },
+   {
+    "id": "tower-3",
+    "footprint": [
+     [
+      -3200,
+      -2800
+     ],
+     [
+      -800,
+      -2800
+     ],
+     [
+      -800,
+      -1600
+     ],
+     [
+      -3200,
+      -1600
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 3600,
+    "usage": "residential",
+    "material": "concrete",
+    "roof": "flat"
+   },
+   {
+    "id": "tower-4",
+    "footprint": [
+     [
+      800,
+      -2800
+     ],
+     [
+      3200,
+      -2800
+     ],
+     [
+      3200,
+      -1600
+     ],
+     [
+      800,
+      -1600
+     ]
+    ],
+    "base_cm": 0,
+    "height_cm": 4500,
+    "usage": "residential",
+    "material": "concrete",
+    "roof": "flat"
+   }
+  ],
+  "surface_areas": [
+   {
+    "id": "playground",
+    "polygon": [
+     [
+      -1500,
+      -800
+     ],
+     [
+      1500,
+      -800
+     ],
+     [
+      1500,
+      800
+     ],
+     [
+      -1500,
+      800
+     ]
+    ],
+    "surface": "gravel"
+   }
+  ],
+  "placements": [
+   {
+    "id": "tree-1",
+    "asset_id": "builtin:city_tree",
+    "position": [
+     -2000,
+     0,
+     0
+    ],
+    "quarter_turns": 0
+   },
+   {
+    "id": "tree-2",
+    "asset_id": "builtin:city_tree",
+    "position": [
+     2000,
+     0,
+     0
+    ],
+    "quarter_turns": 0
+   }
+  ],
+  "barriers": [
+   {
+    "id": "hedge",
+    "kind": "hedge",
+    "line": [
+     [
+      -3700,
+      -3700
+     ],
+     [
+      3700,
+      -3700
+     ],
+     [
+      3700,
+      3700
+     ],
+     [
+      -3700,
+      3700
+     ],
+     [
+      -3700,
+      -3700
+     ]
+    ],
+    "height_cm": 120,
+    "thickness_cm": 60
+   }
+  ]
+ }
+}

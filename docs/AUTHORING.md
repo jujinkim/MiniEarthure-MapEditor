@@ -8,6 +8,8 @@ layers and shortcuts.
 
 City mode's **Scenery** offers direct 3D tree/fence/building/GLB placement, movement, rotation
 and delete; shared work height and detailed controls are in [WORKBENCH](WORKBENCH.md).
+City mode's **Parts** places ready-made junctions, blocks and squares on the plan and
+saves selections as user parts ([city parts](CITY_PARTS.md)).
 City mode's **Draw** (also **Advanced tools…** from Scenery) opens the plan drawing
 tools with the assets/environment panels, which build on first opening. Imported-road selection is read-only; explicit curve/height/width edits
 use MapKit and atomically move shared nodes and attachments, rejecting locked
