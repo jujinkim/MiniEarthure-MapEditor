@@ -19,8 +19,9 @@ junctions still fail review. Selection never rewrites geometry or infers height.
 [3D road editing](WORKBENCH.md).
 
 Editor owns the MIT import adapters and document adoption; public MapKit owns native
-geometry validation. Obtain source files separately and choose the source format
-explicitly. Importing never overwrites source files, PBF/DEM, receipts, projects or
+geometry validation. Adapters read local files only: obtain sources separately, or let
+the real-city wizard acquire immutable local snapshots first ([CITY_SOURCES](CITY_SOURCES.md)),
+and choose the source format explicitly. Importing never overwrites source files, PBF/DEM, receipts, projects or
 packages. The automatic OSM city profile is described in [IMPORT_CITY](IMPORT_CITY.md).
 
 ## Contract and units
@@ -53,7 +54,7 @@ units. Undo/Redo/save operate on adopted coordinates and never reapply the facto
 | OSM XML/PBF `osm-extract-v1` | Bounded snapshot or selected-area streaming; supported highways/buildings/vegetation; source-node loops; explicit bridge/tunnel heights with ground anchors | Unsupported tags, missing metric heights without a supplement, heights inferred from `layer`, invalid original topology |
 | Local Overture | Building parts/courtyards, ground transportation with exact spans/connectors, forest land cover; areas ≤0.2° per side (warning above 0.02°) | Structural transportation without metric height/datum/clearance, unbounded selections |
 | PNG heightmap | 16-bit full-cell PNG with explicit extent, offset/step and shared-edge validation | Undeclared units, bad cell edges, arbitrary CRS/resampling |
-| Copernicus COG `copernicus-dem-v1` | One bounded array of local COGs (single file or atomic mosaic) | Remote acquisition, arbitrary raster/nodata/warp profiles |
+| Copernicus COG `copernicus-dem-v1` | One bounded array of local COGs (single file or atomic mosaic) | Remote URLs (the wizard downloads tiles first), arbitrary raster/nodata/warp profiles |
 | Facility CSV `facility-csv-v1` | UTF-8/CP949/EUC-KR, header mapping, WGS84 name/position/category/source | Invalid coordinates become review rows; nothing is geocoded or guessed |
 
 Every whole candidate is validated before adoption. Repeated keys, missing

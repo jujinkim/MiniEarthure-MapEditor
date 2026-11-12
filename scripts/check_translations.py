@@ -23,6 +23,8 @@ NON_DISPLAY.update({key: "headless real-city recipe report.json field" for key i
     "A job is still running; the outputs keep their paths", "Cannot keep the earlier attempt's ", "Cannot keep the failed run's ",
     "MapKitBridge is not registered", "The project folder holds the recipe or report; it keeps its path", "cannot read ",
     "no OSM adopted", "the loaded MapKit library has no build_fingerprint")})
+NON_DISPLAY.update({"User-Agent: MiniEarthure-MapEditor/1 (location picker)": "HTTP client identity", "© OpenStreetMap contributors": "license original",
+    "MiniEarthure maps": "default output folder name"})
 NON_DISPLAY.update({key: "MapKit per-cell budget error matcher" for key in ("chunk triangle budget", "occupancy limit", "occupied solid budget", "road local ", "road sampling limit", "road subdivision work", "sidewalk fragments", "courtyard topology", "water shoreline work")})
 def unique(pairs):
     result = {}

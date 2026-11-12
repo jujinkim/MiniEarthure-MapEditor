@@ -9,7 +9,7 @@ extends RefCounted
 ## file. The Editor's own steps keep every limit and review.
 const AUTO := preload("./real_city_auto.gd")
 const VERSION := 1
-const KEYS := ["version","pbf","areas","bbox","place","center","radius_km","scale","cell_cm","traffic","python","facilities","dem","dem_zero_m","road_overrides","regional","project","package","full_check","mobile_check"]
+const KEYS := ["version","pbf","areas","bbox","place","center","radius_km","shape","scale","cell_cm","traffic","python","facilities","dem","dem_zero_m","road_overrides","regional","project","package","full_check","mobile_check"]
 const FACILITY_KEYS := ["csv","license","encoding","name_column","latitude_column","longitude_column","category","source_url","accuracy"]
 const ENCODINGS := ["utf-8","cp949","euc-kr"]
 const MOBILE_BYTES := 1536 * 1024 * 1024
@@ -34,8 +34,10 @@ static func parse(text: String, base := "") -> Dictionary:
 		if str(recipe.get(key, "")) == "": return _error("Recipe needs " + key)
 	if int(recipe.has("areas")) + int(recipe.has("bbox")) + int(recipe.has("place")) + int(recipe.has("center")) != 1: return _error("Recipe needs one of center, areas, place or bbox")
 	if recipe.has("radius_km") and not (recipe.has("center") or recipe.has("place")): return _error("radius_km needs center or place")
+	if recipe.has("shape") and not (recipe.has("center") or recipe.has("place")): return _error("shape needs center or place")
+	if str(recipe.get("shape", "circle")) not in ["circle", "square"] or (recipe.has("shape") and recipe.shape is not String): return _error("shape: circle or square")
 	var radius: Variant = recipe.get("radius_km", 2.0)
-	if (radius is not float and radius is not int) or not is_finite(float(radius)) or radius <= 0 or radius > 20: return _error("radius_km must be positive and at most 20")
+	if (radius is not float and radius is not int) or not is_finite(float(radius)) or radius <= 0 or radius > AUTO.MAX_RADIUS_KM: return _error("radius_km must be positive and at most 2.5")
 	if recipe.has("center"):
 		var point: Variant = recipe.center
 		if point is not Array or point.size() != 2 or point.any(func(v): return (v is not float and v is not int) or not is_finite(float(v))): return _error("center needs [longitude, latitude]")
@@ -291,6 +293,8 @@ static func inputs(recipe: Dictionary, document: Dictionary, dem_skipped: bool) 
 		var block := {"crop":{"bbox":crop.get("bbox", []), "areas":areas, "center":crop.get("center", []), "radius_km":crop.get("radius_km", 0), "shapely":crop.get("shapely", ""), "geos":crop.get("geos", "")},
 			"scale_denominator":int(city.get("scale_denominator", 0)) if city is Dictionary else int(units.get("source_denominator", 0)),
 			"units_profile":units.get("profile", "")}
+		# Circles keep their earlier fingerprint; only a square adds its shape.
+		if crop.get("region") == "wgs84-square-v1": block.crop.shape = "square"
 		for key in ["pyproj", "proj"]:
 			if coordinates.has(key): block[key] = coordinates[key]
 		if coordinates.has("road_overrides"): block.road_overrides = coordinates.road_overrides.request
@@ -389,7 +393,7 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 	var bbox: Array = recipe.get("bbox", [])
 	var circle: Dictionary = {}
 	if recipe.has("center"):
-		circle = AUTO.circle(recipe.center, float(recipe.get("radius_km", 2.0)), int(recipe.get("scale", 3)), int(ui.store.document.cell_size_cm))
+		circle = AUTO.shaped(str(recipe.get("shape", "circle")), recipe.center, float(recipe.get("radius_km", 2.0)), int(recipe.get("scale", 3)), int(ui.store.document.cell_size_cm))
 		bbox = circle.bbox
 		report.extent = circle.duplicate(true)
 	var country: Variant = {}
@@ -405,7 +409,7 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 		var place: Variant = await _place(recipe)
 		if place == null: return _fail("place")
 		report.place = {"name":place.name, "source_id":place.source_id, "kind":place.kind, "point":place.point}
-		circle = AUTO.circle(place.point, float(recipe.get("radius_km", 2.0)), scale, int(ui.store.document.cell_size_cm))
+		circle = AUTO.shaped(str(recipe.get("shape", "circle")), place.point, float(recipe.get("radius_km", 2.0)), scale, int(ui.store.document.cell_size_cm))
 		report.extent = circle.duplicate(true)
 		report.extent.text = AUTO.describe(circle)
 		bbox = circle.bbox

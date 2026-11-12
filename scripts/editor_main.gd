@@ -1576,6 +1576,7 @@ func _start_import(source: String, license_name: String, output_identity := "") 
 		if not osm_panel.circle.is_empty():
 			import_coordinates_request.osm_center = osm_panel.circle.center
 			import_coordinates_request.osm_radius_km = osm_panel.circle.radius_km
+			if osm_panel.circle.get("kind") == "square": import_coordinates_request.osm_shape = "square"
 		if not osm_panel.selected_areas.is_empty() and osm_panel.streaming.button_pressed: import_coordinates_request.osm_areas = osm_panel.area_ids()
 		if osm_panel.exclusions.button_pressed: import_coordinates_request.osm_review_exclusions = true
 	if input_format == "csv":

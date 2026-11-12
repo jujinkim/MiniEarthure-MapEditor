@@ -195,6 +195,48 @@ def circle_region(center, radius_km=2.0):
     return Polygon(ring)
 
 
+def square_region(center, half_km=2.0, step_m=25.0):
+    """Square of side 2·half_km centred on `center`, axis-aligned in the UTM frame
+    of the centre (the city map frame, whose origin is that centre).
+
+    Each side is densified every `step_m` metres before the inverse projection, so
+    the WGS84 polygon follows the straight projected sides within millimetres; the
+    play area simplifies those collinear points back to the four corners.
+    """
+    import math
+    import pyproj
+    from shapely.geometry import Polygon
+    if not isinstance(center, list) or len(center) != 2:
+        raise ValueError("center needs [longitude, latitude]")
+    lon = number(center[0], "center longitude", -180, 180)
+    lat = number(center[1], "center latitude", -80, 84)
+    half = number(half_km, "radius_km", 0, 20) * 1000
+    if half <= 0: raise ValueError("radius_km must be positive")
+    zone = min(60, math.floor((lon + 180) / 6) + 1)
+    epsg = (32700 if lat < 0 else 32600) + zone
+    pyproj.network.set_network_enabled(False)
+    transformer = pyproj.Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True, allow_ballpark=False, only_best=True)
+    x0, y0 = transformer.transform(lon, lat, errcheck=True)
+    count = max(1, math.ceil(2 * half / step_m))
+    corners = [(-half, -half), (half, -half), (half, half), (-half, half)]
+    ring = []
+    for (ax, ay), (bx, by) in zip(corners, corners[1:] + corners[:1]):
+        for i in range(count):
+            t = i / count
+            ring.append(transformer.transform(x0 + ax + (bx - ax) * t, y0 + ay + (by - ay) * t, direction="INVERSE", errcheck=True))
+    west = -180 + (zone - 1) * 6
+    if any(not west <= x <= west + 6 or y < -80 or y > 84 or (y < 0) != (lat < 0) for x, y in ring):
+        raise ValueError("Square crosses the UTM strip/hemisphere of its centre; move the centre")
+    return Polygon(ring)
+
+
+def extent_region(center, radius_km=2.0, shape="circle"):
+    """The requested real-city extent: geodesic disk or map-frame square."""
+    if shape == "circle": return circle_region(center, radius_km)
+    if shape == "square": return square_region(center, radius_km)
+    raise ValueError("shape must be circle or square")
+
+
 PLAY_AREA_RINGS = 16
 PLAY_AREA_VERTICES = 512
 

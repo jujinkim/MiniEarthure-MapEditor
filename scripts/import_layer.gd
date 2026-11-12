@@ -172,10 +172,11 @@ func _load(raw: Variant, expected_id: String, requested: Dictionary, notes: Arra
 			if not _finite(bbox[i], -180 if i % 2 == 0 else -80, 180 if i % 2 == 0 else 84): return "Invalid OSM crop coordinate."
 		if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]: return "Invalid OSM crop size."
 		if not requested.is_empty() and JSON.stringify(bbox) != JSON.stringify(requested.get("osm_bbox")): return "OSM crop selection changed."
-		if crop.get("region") == "wgs84-circle-v1":
+		if crop.get("region") in ["wgs84-circle-v1", "wgs84-square-v1"]:
 			if crop.get("center") is not Array or crop.center.size() != 2 or not _finite(crop.get("radius_km"), 0.000001, 20): return "Invalid circle crop."
 			if not _finite(crop.center[0], -180, 180) or not _finite(crop.center[1], -80, 84): return "Invalid circle centre."
 			if not requested.is_empty() and (crop.center != requested.get("osm_center") or crop.radius_km != requested.get("osm_radius_km")): return "OSM circle selection changed."
+			if not requested.is_empty() and crop.region != "wgs84-%s-v1" % str(requested.get("osm_shape", "circle")): return "OSM extent shape changed."
 		elif requested.has("osm_center"): return "Missing circle crop."
 		elif requested.has("osm_areas") or crop.has("region"):
 			var expected: Array = requested.get("osm_areas", []).map(func(id): return "relation/%d" % int(id))

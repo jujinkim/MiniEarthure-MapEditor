@@ -111,6 +111,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		arguments.append("--osm-center")
 		for value in coordinates.osm_center: arguments.append(JSON.stringify(value, "", false, true))
 		arguments.append_array(["--osm-radius-km", str(coordinates.osm_radius_km)])
+		if str(coordinates.get("osm_shape", "circle")) == "square": arguments.append_array(["--osm-shape", "square"])
 	if coordinates.has("osm_areas"):
 		if not coordinates.has("osm_stream") or coordinates.osm_areas is not Array or coordinates.osm_areas.is_empty() or coordinates.osm_areas.size() > LAYER.MAX_AREAS:
 			cleanup()

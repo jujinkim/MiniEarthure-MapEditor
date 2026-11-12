@@ -25,6 +25,7 @@ validation; update existing sections instead of appending dated change logs.
 | Memory preview, density, export and regional packages | [PREVIEW_EXPORT](PREVIEW_EXPORT.md) |
 | Supported local imports | [IMPORTS](IMPORTS.md) |
 | Automatic city optimization | [IMPORT_CITY](IMPORT_CITY.md) |
+| Real-city location picker and source download | [CITY_SOURCES](CITY_SOURCES.md) |
 | Regional classification and pinned auxiliary sources | [REGIONAL_SOURCES](REGIONAL_SOURCES.md) |
 | UI languages | [LOCALIZATION](LOCALIZATION.md) |
 

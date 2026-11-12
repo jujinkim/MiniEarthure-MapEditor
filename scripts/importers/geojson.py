@@ -487,6 +487,7 @@ def main():
     parser.add_argument("--osm-signal-style", choices=("horizontal", "vertical"), default="horizontal")
     parser.add_argument("--osm-center", nargs=2, type=float)
     parser.add_argument("--osm-radius-km", type=float)
+    parser.add_argument("--osm-shape", choices=("circle", "square"), default="circle")
     parser.add_argument("--osm-areas", nargs="+", type=int)
     parser.add_argument("--osm-review-exclusions", action="store_true")
     parser.add_argument("--vertical-request", type=Path)
@@ -502,8 +503,8 @@ def main():
     if args.osm_center is not None:
         if not args.osm_city or args.osm_bbox is None or args.osm_areas:
             raise ValueError("A centre/radius requires a city bbox without administrative areas")
-        from osm_area import circle_region
-        circle = circle_region(args.osm_center, args.osm_radius_km)
+        from osm_area import extent_region
+        circle = extent_region(args.osm_center, args.osm_radius_km, args.osm_shape)
         import osmium
         reader = osmium.io.Reader(str(args.source), osmium.osm.NOTHING)
         try:
@@ -511,12 +512,12 @@ def main():
             if coverage.valid():
                 w, south, e, north = circle.bounds
                 if w < coverage.bottom_left.lon or south < coverage.bottom_left.lat or e > coverage.top_right.lon or north > coverage.top_right.lat:
-                    raise ValueError("Requested circle exceeds the PBF source coverage")
+                    raise ValueError(f"Requested {args.osm_shape} exceeds the PBF source coverage")
         finally:
             reader.close()
         from shapely.geometry import box
         if not box(*args.osm_bbox).covers(circle):
-            raise ValueError("Crop/source coverage does not contain the requested circle")
+            raise ValueError(f"Crop/source coverage does not contain the requested {args.osm_shape}")
     if args.height_supplement is not None and args.input_format not in ("osm", "pbf"):
         raise ValueError("height supplements require OSM input")
     if args.vertical_request is not None and args.input_format not in ("osm", "pbf"):
@@ -610,7 +611,7 @@ def main():
                 value, osm_crop = crop(value, args.osm_bbox, region=region, areas=osm_stream.get("areas") if osm_stream else None)
     if circle is not None and osm_crop:
         osm_crop.pop("areas", None)
-        osm_crop.update(region="wgs84-circle-v1", center=args.osm_center, radius_km=args.osm_radius_km)
+        osm_crop.update(region=f"wgs84-{args.osm_shape}-v1", center=args.osm_center, radius_km=args.osm_radius_km)
     parse_bytes = osm_stream["selected"]["bytes"] if osm_stream else size
     event("parse", parse_bytes, parse_bytes)
     options = {"mode": args.coordinates}
@@ -677,7 +678,7 @@ def main():
                 trial.coordinates["osm_crop"] = trial_crop
                 if region is not None:
                     from osm_area import play_area
-                    trial.coordinates["osm_play_area"] = play_area(args.osm_bbox, region, options, scale, exact=circle is not None)
+                    trial.coordinates["osm_play_area"] = play_area(args.osm_bbox, region, options, scale, exact=circle is not None and args.osm_shape == "circle")
                 from osm_area import city_points
                 pois, street = city_points(stream_points + landmark_points(candidate), args.osm_bbox, region, options)
                 for index, poi in enumerate(pois):

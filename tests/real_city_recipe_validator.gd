@@ -209,9 +209,24 @@ func run() -> void:
 	check(retry.calls == [0.0] and not stopped_circle.ok, "circle limit failures remain explicit")
 	var circle_recipe := {"version":1, "pbf":"map.pbf", "center":[9.00010012345678,55.00010012345678], "project":"p", "package":"m.memap"}
 	check(RECIPE.parse(JSON.stringify(circle_recipe)).ok, "centre with default radius")
-	for bad in [0, -1, 21, "1.5"]:
+	for bad in [0, -1, 2.6, 21, "1.5"]:
 		circle_recipe.radius_km = bad
 		check(not RECIPE.parse(JSON.stringify(circle_recipe)).ok, "invalid radius refused")
+	circle_recipe.radius_km = 2.5
+	check(RECIPE.parse(JSON.stringify(circle_recipe)).ok, "2.5 km is the largest radius")
+	for shape: Variant in ["square", "circle"]:
+		circle_recipe.shape = shape
+		check(RECIPE.parse(JSON.stringify(circle_recipe)).ok, "shape accepted: " + str(shape))
+	for shape: Variant in ["hexagon", 1, ""]:
+		circle_recipe.shape = shape
+		check(not RECIPE.parse(JSON.stringify(circle_recipe)).ok, "invalid shape refused: " + str(shape))
+	check(not RECIPE.parse(JSON.stringify({"version":1, "pbf":"map.pbf", "bbox":[9,55,9.1,55.1], "shape":"square", "project":"p", "package":"m.memap"})).ok, "shape needs a centre")
+	circle_recipe.erase("shape")
+	var square: Dictionary = AUTO.shaped("square", [127.0, 37.5], 2.5, 3, 12800)
+	var round: Dictionary = AUTO.shaped("circle", [127.0, 37.5], 2.0, 3, 12800)
+	check(square.kind == "square" and square.bbox[2] - square.bbox[0] > round.bbox[2] - round.bbox[0] and square.cells > round.cells, "square extent scans its corners: " + str(square))
+	check(is_equal_approx(AUTO.area_km2(square), 25.0) and AUTO.estimate(round).level == "normal" and AUTO.estimate(square).level == "high", "load estimate scales with area")
+	check(AUTO.guidance(square).contains("km²") and AUTO.guidance(square).contains("\n"), "square guidance warns: " + AUTO.guidance(square))
 	check_set_aside()
 	check_inputs()
 	# Automatic choices (real_city_auto.gd).
@@ -247,6 +262,9 @@ func run() -> void:
 	# The wizard's recipe parses back unchanged.
 	ui.open_real_city()
 	var wizard: ConfirmationDialog = ui.real_city_wizard
+	check(wizard.downloading() and wizard.auto_box.visible and not wizard.local_box.visible, "the wizard downloads sources by default")
+	check(not wizard.map.network, "headless runs request no map tiles")
+	wizard.source_mode.select(1); wizard._mode_changed()
 	wizard.pbf.text = source
 	var japan := {"areas":[], "country":{"code":"JP","name":"日本","driving_side":"left","basis":"boundary"}}
 	wizard._found({"places":[{"name":"가상시","admin_level":"8","source_id":"relation/1","issue":"","bbox":[9,55,9.0002,55.0002],"context":japan}],
@@ -261,6 +279,46 @@ func run() -> void:
 	built = RECIPE.parse(JSON.stringify(wizard.recipe()))
 	check(built.ok and built.recipe.center == [9.0001, 55.0001] and not built.recipe.has("traffic") and not built.recipe.has("areas"),"wizard place recipe: "+str(built))
 	check(wizard.extent().kind == "circle" and wizard.status.text.contains("km"),"the wizard shows the automatic extent: "+wizard.status.text)
+	wizard.shape.select(1); wizard.radius.value = 9.0; wizard._extent_changed()
+	built = RECIPE.parse(JSON.stringify(wizard.recipe()))
+	check(built.ok and built.recipe.shape == "square" and built.recipe.radius_km == 2.5 and wizard.guidance.text.contains("km²"), "square extent capped at 2.5 km: " + str(built))
+	wizard._pinned(Vector2(9.0002, 55.0003))
+	check(is_equal_approx(wizard.longitude.value, 9.0002) and is_equal_approx(wizard.latitude.value, 55.0003) and wizard.map.pin.distance_to(Vector2(9.0002, 55.0003)) < 0.00001 and wizard.matches.get_selected_items().is_empty(), "a map pin sets the centre")
+	check(wizard.project.text.ends_with("/project") and wizard.package.text.ends_with(".memap"), "unedited outputs follow the chosen location: " + wizard.package.text)
+	wizard._outputs_edited = true
+	wizard.package.text = "/tmp/kept.memap"
+	wizard._pinned(Vector2(9.0001, 55.0001))
+	check(wizard.package.text == "/tmp/kept.memap", "edited outputs are kept")
+	wizard.source_mode.select(0); wizard._mode_changed()
+	wizard.country = {"code":"GB", "driving_side":"", "basis":"boundary"}
+	wizard.signal_style.select(0)
+	check(wizard.recipe().get("traffic") == {"driving_side":"left", "signal_style":"vertical"}, "a downloaded snapshot's country fixes traffic: " + str(wizard.recipe()))
+	wizard.source_mode.select(1); wizard._mode_changed(); wizard.shape.select(0); wizard.radius.value = 2.0
+	# Coverage check and cancellation of the source helper (no network).
+	var JOB := preload("res://scripts/city_source_job.gd")
+	var probe: RefCounted = JOB.new()
+	check(probe.start(ui.import_python.text, "preflight", PackedStringArray(["--extent", JSON.stringify({"center":[9.0001,55.0001], "radius_km":0.05}), "--pbf", source])) == "", "start coverage check")
+	var deadline := Time.get_ticks_msec() + 60000
+	while not probe.done and Time.get_ticks_msec() < deadline:
+		probe.poll()
+		await process_frame
+	check(probe.done and probe.result.get("ok", false) and probe.result.data.has("pbf") and probe.directory == "", "coverage check result and scratch removed: " + str(probe.result))
+	var far: RefCounted = JOB.new()
+	far.start(ui.import_python.text, "preflight", PackedStringArray(["--extent", JSON.stringify({"center":[20.0,55.0], "radius_km":0.5}), "--pbf", source]))
+	deadline = Time.get_ticks_msec() + 60000
+	while not far.done and Time.get_ticks_msec() < deadline:
+		far.poll()
+		await process_frame
+	check(far.result.get("ok", false) and not far.result.data.ok and str(far.result.data.errors).contains("does not cover"), "uncovered extent is reported: " + str(far.result))
+	var stopped_job: RefCounted = JOB.new()
+	stopped_job.start(ui.import_python.text, "preflight", PackedStringArray(["--extent", "{}", "--pbf", source]))
+	stopped_job.cancel()
+	deadline = Time.get_ticks_msec() + 30000
+	while not stopped_job.done and Time.get_ticks_msec() < deadline:
+		stopped_job.poll()
+		await process_frame
+	check(stopped_job.done and not stopped_job.result.ok and stopped_job.directory == "", "cancelled source job leaves no scratch: " + str(stopped_job.result))
+	check(JOB.new().start(ui.import_python.text, "download-everything", PackedStringArray()) != "", "unknown source commands are refused")
 	wizard.hide()
 	var supplemental := scratch.path_join("regional-buildings.json")
 	var coverage := [8.97,54.98,9.03,55.02]
@@ -317,6 +375,13 @@ func run() -> void:
 		check(ui.store.undo() == "", "restore content with a new command epoch")
 		check(stale.commit(ui.store) != "" and ui.store._signature(ui.store.document) == snapshot,"stale regional preview rejects even after content restoration")
 		stale.cleanup()
+	# A square runs the same worker path and stores a four-corner play area.
+	var squared: Dictionary = await runner.run({"version":1, "pbf":source, "center":[9.0001,55.0001], "radius_km":0.5, "shape":"square",
+		"project":scratch.path_join("square/project"), "package":scratch.path_join("square/city.memap"), "full_check":false,
+		"traffic":{"driving_side":"right", "signal_style":"horizontal"}})
+	var square_area: Array = ui.store.document.get("play_area", [])
+	check(squared.ok and square_area.size() == 1 and square_area[0].size() == 4, "square worker stores four corners: " + str(squared.get("status", "")) + " " + str(square_area))
+	check(squared.get("inputs", {}).get("osm", []).any(func(o): return o.crop.get("shape") == "square") and squared.extent.kind == "square", "square shape enters the report fingerprint")
 	ui.preview_enabled = false
 	wizard.hide()
 	check(FileAccess.get_sha256(source)==hash,"source PBF preserved")

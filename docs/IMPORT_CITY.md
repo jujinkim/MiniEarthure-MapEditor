@@ -15,12 +15,19 @@ review exclusions and `traffic` → adopt → optional facility CSV (`facilities
 optional [regional composition](REGIONAL_SOURCES.md) (`regional`) → optional Copernicus `dem` folder (mosaic over the imported frame, grounded
 buildings) → save to `project` → Export to `package` (`full_check` default true;
 `mobile_check` opens it under the 1.5 GiB phone budget). The extent is exactly one of `center: [longitude, latitude]` with
-`radius_km` (default 2 source km), `place` (a named feature supplying that
+`radius_km` (default 2, at most 2.5 source km), `place` (a named feature supplying that
 centre), `areas` (explicit administrative union) or `bbox` (explicit rectangle).
-The wizard provides latitude, longitude and radius; search fills the centre.
+A centred extent has `shape` `circle` (default) or `square` (side 2 × `radius_km`,
+so at most 5 km). The wizard ([CITY_SOURCES](CITY_SOURCES.md)) provides the centre from
+web search, a map pin or typed coordinates, the shape and radius, and either downloaded
+snapshots or local files that pass the same coverage check.
 The circle uses WGS84 distances, keeps its full requested radius, and is stored
 in existing v1 `play_area` rings with less than 1m source-distance approximation
-error. Source coverage, projection and memory failures are reported explicitly.
+error. The square is axis-aligned in the map's UTM frame around the centre (crop
+`region` `wgs84-square-v1`) and stored as its four corners; a square crossing the
+centre's UTM strip is refused. Load guidance scales measured 2km-circle runs by
+source area (`real_city_auto.gd` `estimate`); a larger extent warns that
+generation, loading and phone memory grow with it. Source coverage, projection and memory failures are reported explicitly.
 Optional `road_overrides` supplies `{osm_sha256, ways: [{source_id, width_m, lanes}]}`.
 Optional `regional` supplies profiles, source-bound corrections and pinned local
 WorldCover/Overture snapshots; its source priority and grouping rules are described
