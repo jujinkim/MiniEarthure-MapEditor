@@ -13,8 +13,11 @@ func run() -> void:
 	root.add_child(entry)
 	var editor: Node = entry.get_child(0)
 	for _i in 4: await process_frame
+	var shown := 0
 	for button: Button in editor.workspace_tabs.get_children():
-		assert(button.visible and not button.text.is_empty(),"all four tool groups have visible labels")
+		if button.visible: shown += 1
+		assert(not button.text.is_empty(),"tool groups have labels")
+	assert(editor.editor_mode == "track" and shown == 3 and editor.mode_tabs.get_child_count() == 2,"track mode shows its three tool groups and both modes")
 	var palette: VBoxContainer = editor.track_workbench.palette_tools
 	assert(palette.tabs.get_tab_title(palette.tabs.current_tab) == "Driving")
 	var visible_tools := 0

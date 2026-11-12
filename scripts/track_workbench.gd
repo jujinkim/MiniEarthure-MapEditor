@@ -180,11 +180,11 @@ func refresh() -> void:
 	editor.regional_grouping.visible=not active
 	editor.preview_dock.get_child(0).visible=not active or not editor.store.document.get("heightmaps",[]).is_empty()
 	if active:
-		editor.selection_label.text=I18N.t("ROADS & TRACKS · 3D + navigation plan")
+		editor.selection_label.text=I18N.t("TRACK MODE · 3D + navigation plan") if editor.editor_mode == "track" else I18N.t("CITY MODE · 3D roads and courses")
 		show_hint()
 		editor.status_label.text=I18N.t("Choose a piece to preview, or generate a Seed Track.") if source.get("instances",[]).is_empty() else I18N.t("Draft can be saved · Free roam needs safe geometry; races also need a valid course.")
 	for child in editor.left_dock.get_children():
-		if child!=palette and child!=editor.workspace_tabs and child!=editor.simple_palette and (editor.course_tools == null or child!=editor.course_tools.panel): child.visible=not active and editor.advanced_visible
+		if child!=palette and child!=editor.workspace_tabs and child!=editor.mode_tabs and child!=editor.city_panel and child!=editor.simple_palette and (editor.course_tools == null or child!=editor.course_tools.panel): child.visible=not active and editor.advanced_visible
 	editor.properties.visible=not active
 	editor.apply_button.visible=not active
 	if not active:

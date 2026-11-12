@@ -39,6 +39,15 @@ var start_panel: PanelContainer
 var output_tabs: TabContainer
 var work_controls: VBoxContainer
 var workspace_tabs: GridContainer
+## Track mode (pieces, gimmicks, courses) or city mode (real data, plan
+## drawing, scenery, roads and courses on real places). One document and one
+## history; the mode only chooses a purpose-focused set of tools and panels.
+var editor_mode := "track"
+var mode_tabs: HBoxContainer
+var city_panel: VBoxContainer
+const LANDSCAPE_GROUPS := ["city", "draw", "scenery"]
+## Last tool group per mode, restored when switching back.
+var mode_group := {"track":"roads", "city":"city"}
 var track_workbench: Node
 var track_job: Node
 var track_dialog: AcceptDialog
@@ -188,18 +197,28 @@ func _ready() -> void:
 	add_child(track_workbench)
 	track_workbench.build(self)
 	workspace_tabs = GridContainer.new()
-	workspace_tabs.columns = 2
+	workspace_tabs.columns = 3
 	left_dock.add_child(workspace_tabs)
 	left_dock.move_child(workspace_tabs,0)
-	for item in [["roads","Roads & tracks"],["gimmicks","Gimmicks"],["course","Course"],["scenery","Scenery"]]:
+	for item in [["roads","Pieces","track","Roads & tracks"],["gimmicks","Gimmicks","track",""],["city","Data","city","Map & data"],["roads","Roads","city",""],["draw","Draw","city",""],["scenery","Scenery","city",""],["course","Course","",""]]:
 		var button := Button.new()
 		button.text = I18N.t(item[1])
+		if item[3] != "": button.tooltip_text = I18N.t(item[3])
 		button.toggle_mode = true
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.custom_minimum_size.y = 36
+		button.add_theme_font_size_override("font_size", 13)
+		button.clip_text = true
+		button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		button.set_meta("workspace_group",item[0])
+		button.set_meta("editor_mode",item[2])
 		button.pressed.connect(show_tool_group.bind(item[0]))
 		workspace_tabs.add_child(button)
+	city_panel = preload("./city_panel.gd").new()
+	left_dock.add_child(city_panel)
+	left_dock.move_child(city_panel,1)
+	city_panel.build(self)
+	city_panel.hide()
 
 	simple_palette = VBoxContainer.new()
 	left_dock.add_child(simple_palette)
@@ -256,6 +275,20 @@ func _build_ui() -> void:
 	add_child(commands)
 	_register_commands()
 	commands.menus(title_row)
+	# The mode switch sits beside the menus: it chooses the whole workspace.
+	mode_tabs = HBoxContainer.new()
+	mode_tabs.add_theme_constant_override("separation", 0)
+	title_row.add_child(mode_tabs)
+	for item in [["track","Track mode"],["city","City mode"]]:
+		var mode_button := Button.new()
+		mode_button.text = I18N.t(item[1])
+		mode_button.toggle_mode = true
+		mode_button.custom_minimum_size = Vector2(130, 30)
+		# Plain text tabs: the Editor's icon styling is for actions.
+		mode_button.set_meta("action_label", item[1])
+		mode_button.set_meta("editor_mode", item[0])
+		mode_button.pressed.connect(func(): set_editor_mode(item[0]))
+		mode_tabs.add_child(mode_button)
 	var title := Label.new()
 	title.text = I18N.t("MAP EDITOR")
 	title.add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
@@ -366,7 +399,7 @@ func _build_ui() -> void:
 	WORKBENCH_STYLE.outline(center)
 	selection_label = Label.new()
 	selection_label.add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
-	selection_label.text = I18N.t("2D MAP  ·  Select  ·  0 selected")
+	selection_label.text = I18N.t("CITY MODE  ·  %s  ·  %d selected") % [I18N.t("Select"), 0]
 	center.add_child(selection_label)
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	work_controls = VBoxContainer.new()
@@ -733,6 +766,7 @@ func _continue_document_action() -> void:
 	match request.action:
 		"new":
 			store.new_track(false)
+			editor_mode = "track"
 			show_tool_group("roads")
 			_set_view_mode("3d")
 			_status(I18N.t("New map."))
@@ -740,7 +774,9 @@ func _continue_document_action() -> void:
 		"recover": failure = store.recover(request.path)
 		"close": get_tree().quit()
 	if failure != "": _status(I18N.diagnostic(failure) + I18N.t(" Current document retained. Use Recover to inspect a backup."))
-	elif request.action in ["open", "recover"]: _status(I18N.t("Ready: ") + request.path)
+	elif request.action in ["open", "recover"]:
+		set_editor_mode(document_mode(store.document))
+		_status(I18N.t("Ready: ") + request.path)
 
 func _choose(action: String) -> void:
 	if action == "import": _ensure_import_ui()
@@ -867,7 +903,7 @@ func _selection(ids: Array) -> void:
 	tool_hint.text = I18N.t(canvas.tool) + " · " + I18N.t(_tool_help(canvas.tool))
 	tool_hint.text += I18N.t("\nCancel: ") + commands.shortcut_text("edit.cancel_interaction")
 	tool_hint.tooltip_text = tool_hint.text
-	selection_label.text = I18N.t("2D MAP  ·  %s  ·  %d selected") % [I18N.t(canvas.tool), property_records.size()]
+	selection_label.text = I18N.t("CITY MODE  ·  %s  ·  %d selected") % [I18N.t(canvas.tool), property_records.size()]
 	apply_button.disabled = property_records.is_empty()
 	if tool_workspace == "landscape" and not advanced_visible:
 		apply_button.hide()
@@ -1066,10 +1102,10 @@ func set_tool_workspace(value: String) -> void:
 	if value not in ["track", "landscape"]: return
 	_cancel_editing()
 	tool_workspace = value
-	if value == "landscape": tool_group = "scenery"
-	elif tool_group == "scenery": tool_group = "roads"
-	if is_instance_valid(workspace_tabs):
-		for button: Button in workspace_tabs.get_children(): button.set_pressed_no_signal(button.get_meta("workspace_group") == tool_group)
+	if value == "landscape" and tool_group not in LANDSCAPE_GROUPS: tool_group = "scenery"
+	elif value == "track" and tool_group in LANDSCAPE_GROUPS: tool_group = "roads"
+	if value == "landscape": editor_mode = "city"
+	_sync_mode_tabs()
 	track_workbench.refresh()
 	commands.refresh_buttons()
 
@@ -2235,11 +2271,17 @@ func _show_start() -> void:
 		var box := VBoxContainer.new()
 		start_panel.add_child(box)
 		_label(box,"Build a course and drive")
-		_button(box,"Create track",func(): start_panel.hide(); _request_document_action("new")).custom_minimum_size.x = 440
-		_button(box,"Import OSM / PBF",func(): start_panel.hide(); _guided_osm()).custom_minimum_size.x = 440
-		_button(box,"New real-city map…",func(): start_panel.hide(); open_real_city()).custom_minimum_size.x = 440
+		# Two purposes, one Editor: race tracks from pieces, or real places.
+		for column: Array in [["Track mode", "Race tracks from road pieces, gimmicks and courses.", [["Create track", func(): start_panel.hide(); _request_document_action("new")], ["Seed track options…", func(): start_panel.hide(); _open_track_generator()]]],
+				["City mode", "Real places from OpenStreetMap and terrain data.", [["New real-city map…", func(): start_panel.hide(); open_real_city()], ["Import OSM / PBF", func(): start_panel.hide(); _guided_osm()]]]]:
+			var heading: Label = _label(box, column[0])
+			heading.add_theme_font_size_override("font_size", 17)
+			heading.add_theme_color_override("font_color", WORKBENCH_STYLE.BLUE)
+			_label(box, column[1])
+			var row := HBoxContainer.new()
+			box.add_child(row)
+			for entry: Array in column[2]: _button(row, entry[0], entry[1]).custom_minimum_size.x = 218
 		_button(box,"Open existing project",func(): start_panel.hide(); _choose("open")).custom_minimum_size.x = 440
-		_button(box,"Seed track options…",func(): start_panel.hide(); _open_track_generator()).custom_minimum_size.x = 440
 		_button(box,"Continue editing",func(): start_panel.hide()).custom_minimum_size.x = 440
 	start_panel.show()
 
@@ -2254,6 +2296,7 @@ func open_real_city() -> void:
 func _guided_osm() -> void:
 	_ensure_import_ui()
 	_cancel_editing()
+	editor_mode = "city"
 	show_tool_group("roads")
 	_set_view_mode("3d")
 	import_source_format.select(1)
@@ -2271,13 +2314,47 @@ func open_advanced() -> void:
 	advanced_visible = true
 	if tool_workspace == "track" and tool_group != "course": track_workbench.open_advanced()
 	else:
-		show_tool_group("scenery")
+		show_tool_group("draw")
 		author_panel.open()
 
+## Switches between track and city mode, restoring that mode's last tool group.
+func set_editor_mode(mode: String) -> void:
+	if mode not in ["track", "city"]: return
+	editor_mode = mode
+	show_tool_group(str(mode_group.get(mode, "roads" if mode == "track" else "city")))
+
+## The mode a document opens in: real-data or plan-authored maps are city maps.
+static func document_mode(document: Dictionary) -> String:
+	if not document.get("play_area", []).is_empty(): return "city"
+	for attribution: Variant in document.get("attributions", []):
+		if attribution is Dictionary and str(attribution.get("notice", "")).contains("osm-extract-v1"): return "city"
+	if document.has("assembled_track"): return "track"
+	return "city" if not document.get("roads", []).is_empty() or not document.get("buildings", []).is_empty() else "track"
+
+func _sync_mode_tabs() -> void:
+	if is_instance_valid(mode_tabs):
+		for button: Button in mode_tabs.get_children(): button.set_pressed_no_signal(button.get_meta("editor_mode") == editor_mode)
+	if is_instance_valid(workspace_tabs):
+		for button: Button in workspace_tabs.get_children():
+			button.visible = str(button.get_meta("editor_mode")) in ["", editor_mode]
+			button.set_pressed_no_signal(button.get_meta("workspace_group") == tool_group)
+
 func show_tool_group(group: String) -> void:
+	if group in LANDSCAPE_GROUPS: editor_mode = "city"
+	elif group == "gimmicks": editor_mode = "track"
+	mode_group[editor_mode] = group
 	tool_group = group
-	set_tool_workspace("landscape" if group == "scenery" else "track")
+	# Draw is the full plan toolset; Map & data and Scenery stay focused.
+	if group in LANDSCAPE_GROUPS: advanced_visible = group == "draw"
+	set_tool_workspace("landscape" if group in LANDSCAPE_GROUPS else "track")
+	if group in LANDSCAPE_GROUPS and is_instance_valid(selection_label) and canvas != null:
+		selection_label.text = I18N.t("CITY MODE  ·  %s  ·  %d selected") % [I18N.t(canvas.tool), canvas.selected.size()]
+	if is_instance_valid(city_panel):
+		city_panel.visible = group == "city"
+		if city_panel.visible: city_panel.refresh()
 	if simple_palette == null or course_tools == null: return
+	if group == "draw" and author_panel.tabs.get_tab_count() == 0: author_panel.open()
+	author_panel.visible = group == "draw"
 	simple_palette.visible = group == "scenery" and not advanced_visible
 	course_tools.panel.visible = group == "course"
 	if group == "course": course_tools.open()
@@ -2292,7 +2369,7 @@ func show_tool_group(group: String) -> void:
 			commands.button(simple_palette,"edit.delete")
 			_button(simple_palette,"Advanced tools…",open_advanced)
 		return
-	if group == "course": return
+	if group in ["course", "city", "draw"]: return
 	var tabs: TabContainer = track_workbench.palette_tools.tabs
 	for i in tabs.get_tab_count():
 		var visible_group := str(tabs.get_child(i).name) == "Driving" if group == "roads" else str(tabs.get_child(i).name) != "Driving"

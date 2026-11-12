@@ -468,6 +468,7 @@ func _start_recipe() -> void:
 	ui.preview_enabled = preview
 	if report.ok:
 		ui._status(I18N.t("Real-city map built: %d cells, %s") % [report.cells, parsed.recipe.package])
+		ui.set_editor_mode("city")
 		_finished(parsed.recipe, report)
 	else: ui._status(I18N.t("New real-city map stopped at %s: %s") % [report.failed_step, report.get("error", report.get("status", ""))])
 

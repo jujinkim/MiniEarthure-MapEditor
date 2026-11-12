@@ -6,9 +6,10 @@ layers and shortcuts.
 
 ## Start and draw
 
-**Scenery** offers direct 3D tree/fence/building/GLB placement, movement, rotation
+City mode's **Scenery** offers direct 3D tree/fence/building/GLB placement, movement, rotation
 and delete; shared work height and detailed controls are in [WORKBENCH](WORKBENCH.md).
-Advanced drawing/assets/environment panels build on first opening. Imported-road selection is read-only; explicit curve/height/width edits
+City mode's **Draw** (also **Advanced tools…** from Scenery) opens the plan drawing
+tools with the assets/environment panels, which build on first opening. Imported-road selection is read-only; explicit curve/height/width edits
 use MapKit and atomically move shared nodes and attachments, rejecting locked
 or hidden dependencies. Scenery promotes a standalone track through the existing
 composition path in the same Undo; subsequent track edits retain it.

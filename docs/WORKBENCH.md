@@ -1,9 +1,20 @@
 # Editing workbench
 
-The start screen offers **Create track**, **Import OSM / PBF** and **Open existing
-project**. Seed generation is an optional track starting point. **Roads & tracks**,
-**Gimmicks**, **Course** and **Scenery** edit one DocumentStore; `free_roam` is a
-separate game finish policy.
+One Editor has two purpose-focused modes, switched beside the menus. Both edit one
+DocumentStore with one history, and switching never changes the map:
+
+| Mode | Tool groups | Purpose |
+| --- | --- | --- |
+| **Track mode** | Pieces (roads & tracks), Gimmicks, Course | Race tracks from road pieces; Seed Track is an optional start |
+| **City mode** | Data (map & data), Roads, Draw, Scenery, Course | Real places: create from real data ([city sources](CITY_SOURCES.md)), add DEM/CSV/vector data, edit imported roads in 3D, draw on the plan with the full authoring toolset, place scenery |
+
+The start screen groups **Create track** / **Seed track options…** under track mode and
+**New real-city map…** / **Import OSM / PBF** under city mode, plus **Open existing
+project**. Opening a project picks its mode: a play area or OSM import, or plan roads
+and buildings without a track assembly, open in city mode; everything else in track
+mode. Each mode returns to its last tool group. City → Data summarises the open map
+(1:D scale, roads, buildings, terrain cells, source credits) beside test drive and
+export. `free_roam` remains a separate game finish policy.
 [World authoring](ARCADE_WORLD.md), [track authoring](TRACK_AUTHORING.md) and
 [documents](DOCUMENTS.md) own geometry, commands, history and saving.
 
