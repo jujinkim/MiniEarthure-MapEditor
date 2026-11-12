@@ -28,14 +28,20 @@ error. The square is axis-aligned in the map's UTM frame around the centre (crop
 centre's UTM strip is refused. Load guidance scales measured 2km-circle runs by
 source area (`real_city_auto.gd` `estimate`); a larger extent warns that
 generation, loading and phone memory grow with it. Source coverage, projection and memory failures are reported explicitly.
-Optional `road_overrides` supplies `{osm_sha256, ways: [{source_id, width_m, lanes}]}`.
+Optional `road_overrides` supplies `{osm_sha256, ways: [{source_id, width_m, lanes, segments}]}`
+(width and lanes together, segments, or both). A segment `{from_node, to_node,
+max_displacement_m, points}` re-routes the way between two adjacent source nodes
+through 1–256 `[lon, lat]` points that advance along the segment and stay within
+`max_displacement_m` (≤5 m, measured in the map's UTM frame) of it; source nodes and connections are kept, inserted
+vertices take synthetic refs (never junctions) and keep every vertex through
+generalization.
 Optional `regional` supplies profiles, source-bound corrections and pinned local
 WorldCover/Overture snapshots; its source priority and grouping rules are described
 in [regional source composition](REGIONAL_SOURCES.md). The building inference and
 road-trimming rules below describe imports without that optional regional input.
 Each unique OSM `way/<id>` correction must match the captured PBF SHA-256 and
 a selected vehicle road; all targets are checked before any change. The report
-retains original and corrected dimensions, and the request enters the input
+retains original and corrected dimensions and segment geometry, and the request enters the input
 fingerprint. A missing target, malformed value or changed snapshot fails generation.
 PBF review waits for the source worker to finish, fail or be cancelled, without
 an elapsed-time limit. A long source import retains ownership of its outputs

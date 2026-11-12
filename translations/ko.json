@@ -2537,7 +2537,6 @@
     "Road overrides differ from the captured source/request.": "도로 보정이 확보한 원본 또는 요청과 다릅니다.",
     "Road overrides require a city OSM import.": "도로 보정은 OSM 도시 가져오기에 필요합니다.",
     "road override lanes must be an integer in 1..16": "도로 보정 차선 수는 1~16의 정수여야 합니다",
-    "road override needs source_id, width_m and lanes": "도로 보정에는 source_id, width_m, lanes가 필요합니다",
     "road override source IDs must be unique OSM ways": "도로 보정 원본 ID는 중복 없는 OSM way여야 합니다",
     "road override width_m must be finite and in .2..200": "도로 보정 폭은 0.2~200m의 유한한 값이어야 합니다",
     "road_overrides needs osm_sha256 and ways": "road_overrides에는 osm_sha256과 ways가 필요합니다",
@@ -2671,6 +2670,8 @@
     "Shopping block": "상가 블록",
     "Park": "공원",
     "Parking lot": "주차장",
-    "Plaza": "광장"
+    "Plaza": "광장",
+    "road override needs source_id with width_m and lanes and/or segments": "도로 보정에는 source_id와 함께 width_m·lanes 또는 segments가 필요합니다",
+    "road override segments need 1..16 unique adjacent node pairs, max_displacement_m in (0, 5] and 1..256 [lon, lat] points": "도로 보정 segments에는 서로 다른 인접 노드 쌍 1..16개, (0, 5] 범위의 max_displacement_m, [lon, lat] 점 1..256개가 필요합니다"
   }
 }

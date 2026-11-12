@@ -17,29 +17,56 @@ const LAMP_KEY := "streetlights"
 ## Streetlight skips the summary reports apart from "no free spot".
 const LAMP_UNPLACED := ["_covered", "_reach", "_median", "_spacing", "_limit"]
 
-## Author corrections are tied to one immutable OSM snapshot, before optimization.
+## Author corrections are tied to one immutable OSM snapshot, before optimization:
+## width/lanes per way and/or segments re-routed between two adjacent source nodes.
 static func road_override_error(value: Variant) -> String:
 	if value is not Dictionary or value.size() != 2 or not value.has_all(["osm_sha256", "ways"]): return "road_overrides needs osm_sha256 and ways"
 	if value.osm_sha256 is not String or RegEx.create_from_string("^[0-9a-f]{64}$").search(value.osm_sha256) == null: return "road_overrides requires the exact source SHA-256"
 	if value.ways is not Array or value.ways.is_empty() or value.ways.size() > 10000: return "road_overrides ways must contain 1..10000 records"
 	var seen := {}
 	for row: Variant in value.ways:
-		if row is not Dictionary or row.size() != 3 or not row.has_all(["source_id", "width_m", "lanes"]): return "road override needs source_id, width_m and lanes"
+		var shape := "road override needs source_id with width_m and lanes and/or segments"
+		if row is not Dictionary or not row.has("source_id") or row.keys().any(func(k): return str(k) not in ["source_id", "width_m", "lanes", "segments"]): return shape
+		var dimensions: bool = row.has("width_m") and row.has("lanes")
+		if row.has("width_m") != row.has("lanes") or not (dimensions or row.has("segments")): return shape
 		if row.source_id is not String or RegEx.create_from_string("^way/[1-9][0-9]*$").search(row.source_id) == null or seen.has(row.source_id): return "road override source IDs must be unique OSM ways"
 		seen[row.source_id] = true
-		if (row.lanes is not int and row.lanes is not float) or not is_finite(float(row.lanes)) or float(row.lanes) != floorf(float(row.lanes)) or row.lanes < 1 or row.lanes > 16: return "road override lanes must be an integer in 1..16"
-		if (row.width_m is not int and row.width_m is not float) or not is_finite(float(row.width_m)) or row.width_m < 0.2 or row.width_m > 200: return "road override width_m must be finite and in .2..200"
+		if dimensions:
+			if (row.lanes is not int and row.lanes is not float) or not is_finite(float(row.lanes)) or float(row.lanes) != floorf(float(row.lanes)) or row.lanes < 1 or row.lanes > 16: return "road override lanes must be an integer in 1..16"
+			if (row.width_m is not int and row.width_m is not float) or not is_finite(float(row.width_m)) or row.width_m < 0.2 or row.width_m > 200: return "road override width_m must be finite and in .2..200"
+		if row.has("segments"):
+			var error := _segments_error(row.segments)
+			if error != "": return error
+	return ""
+
+static func _node_id(value: Variant) -> bool:
+	return (value is int or value is float) and is_finite(float(value)) and float(value) == floorf(float(value)) and float(value) >= 1 and float(value) < 1e15
+
+const SEGMENTS_ERROR := "road override segments need 1..16 unique adjacent node pairs, max_displacement_m in (0, 5] and 1..256 [lon, lat] points"
+
+static func _segments_error(segments: Variant) -> String:
+	if segments is not Array or segments.is_empty() or segments.size() > 16: return SEGMENTS_ERROR
+	var pairs := {}
+	for segment: Variant in segments:
+		if segment is not Dictionary or segment.size() != 4 or not segment.has_all(["from_node", "to_node", "max_displacement_m", "points"]): return SEGMENTS_ERROR
+		if not _node_id(segment.from_node) or not _node_id(segment.to_node) or int(segment.from_node) == int(segment.to_node): return SEGMENTS_ERROR
+		var pair := str([mini(int(segment.from_node), int(segment.to_node)), maxi(int(segment.from_node), int(segment.to_node))])
+		if pairs.has(pair): return SEGMENTS_ERROR
+		pairs[pair] = true
+		var limit: Variant = segment.max_displacement_m
+		if (limit is not int and limit is not float) or not is_finite(float(limit)) or float(limit) <= 0 or float(limit) > 5: return SEGMENTS_ERROR
+		if segment.points is not Array or segment.points.is_empty() or segment.points.size() > 256: return SEGMENTS_ERROR
+		for point: Variant in segment.points:
+			if point is not Array or point.size() != 2 or point.any(func(v): return (v is not int and v is not float) or not is_finite(float(v))) or absf(float(point[0])) > 180 or absf(float(point[1])) > 90: return SEGMENTS_ERROR
 	return ""
 
 static func same_road_overrides(a: Variant, b: Variant) -> bool:
 	if road_override_error(a) != "" or road_override_error(b) != "": return false
 	if a.osm_sha256 != b.osm_sha256 or a.ways.size() != b.ways.size(): return false
 	var rows := {}
-	for row: Dictionary in a.ways: rows[row.source_id] = row
+	for row: Dictionary in a.ways: rows[row.source_id] = JSON.stringify(normalized(row), "", true, true)
 	for row: Dictionary in b.ways:
-		if not rows.has(row.source_id): return false
-		var other: Dictionary = rows[row.source_id]
-		if float(row.width_m) != float(other.width_m) or int(row.lanes) != int(other.lanes): return false
+		if rows.get(row.source_id) != JSON.stringify(normalized(row), "", true, true): return false
 	return true
 
 static func road_override_receipt(raw: Dictionary, requested: Dictionary) -> String:
@@ -55,8 +82,10 @@ static func road_override_receipt(raw: Dictionary, requested: Dictionary) -> Str
 	for row: Dictionary in receipt.request.ways: wanted[row.source_id] = row
 	var found := {}
 	for row: Variant in receipt.applied:
-		if row is not Dictionary or not row.has_all(["source_id", "width_m", "lanes", "original_width_m", "original_lanes"]) or not wanted.has(row.source_id): return "Invalid applied road override."
-		if row.width_m != wanted[row.source_id].width_m or row.lanes != wanted[row.source_id].lanes: return "Applied road override differs from the request."
+		if row is not Dictionary or not row.has_all(["source_id", "original_width_m", "original_lanes"]) or not wanted.has(row.source_id): return "Invalid applied road override."
+		var asked: Dictionary = wanted[row.source_id]
+		if asked.has("width_m") and (row.get("width_m") != asked.width_m or row.get("lanes") != asked.lanes): return "Applied road override differs from the request."
+		if asked.has("segments") and (row.get("segments") is not Array or row.segments.size() != asked.segments.size()): return "Applied road override differs from the request."
 		found[row.source_id] = true
 	if found.size() != wanted.size(): return "Incomplete road override receipt."
 	return ""

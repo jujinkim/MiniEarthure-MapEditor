@@ -111,6 +111,11 @@ roof clearance below a deck retains its footprint. Height inference precedes thi
 footprint only when native validation confirms 50 map centimetres between every
 overlapping ceiling face and the building base.
 Shallow tunnel portals use the same authorized partial-conflict cut and report.
+A bend's junction fan takes its highest neighbouring tunnel ceiling (lowest
+neighbouring bridge deck), as native fans interpolate toward the sloping neighbour.
+As in native validation, the exemption is all-or-nothing per building and road: one
+conflicting piece cuts every overlapping piece of that road, so no footprint stays
+wrapped around an exempt stretch.
 The production report records source building/road IDs, original/removed/remaining
 source areas and the removed WGS84 geometry. A completely covered building fails
 instead of disappearing. The policy enters the input fingerprint. Footprints are
@@ -145,7 +150,7 @@ credits also occupy the package attribution fields displayed by the Client;
 structured provenance stays in the accompanying notice. Editor code identity includes
 root Python modules as well as GDScript and importer Python modules.
 
-Large `groups` and `objects` evidence arrays may use an optional `<key>_blob`
+Large `groups`, `road_footprint_corrections` and `objects` evidence arrays may use an optional `<key>_blob`
 inside the v1 notice: `codec: gzip-base64`, exact expanded `bytes`, `sha256` and
 base64 `data`. The JSON array is retained losslessly; source hashes, coordinate
 frames and license credits remain plain. Decoders bound expansion to 32 MiB and

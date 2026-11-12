@@ -192,6 +192,35 @@ class Regional(unittest.TestCase):
         self.assertEqual(ids,["way/1"]);self.assertGreater(removed.area,0)
         self.assertGreater(cut.area,0);self.assertTrue(cut.covers(Point(15,5)))
 
+    def test_tunnel_bend_fan_uses_the_sloping_neighbour_ceiling(self):
+        from regional_road_conflicts import corridors, trim
+        # A buried bend whose next segment climbs to a portal: MapKit's fan at the
+        # bend interpolates toward the shallower neighbour, so it is cut.
+        road=dict(properties=dict(width_m=2,road_kind="tunnel",elevations_m=[-6,-6,-2],clearance_m=4.5))
+        index=corridors([(road,LineString([(0,0),(30,0),(30,30)]))],3,lambda f:["way/1"])
+        beside_bend=box(25,-3,35,-1.05)
+        cut,ids,removed=trim(beside_bend,index,9,0)
+        self.assertEqual(ids,["way/1"]);self.assertGreater(removed.area,0)
+        beside_flat=box(10,-3,20,-1.05)
+        kept,ids,_=trim(beside_flat,index,9,0)
+        self.assertTrue(kept.equals(beside_flat));self.assertEqual(ids,[])
+
+    def test_one_conflicting_tunnel_piece_cuts_every_overlap_of_that_road(self):
+        from regional_road_conflicts import corridors, trim
+        # MapKit's exemption is all-or-nothing per building and road: a footprint
+        # over both the buried stretch and the climbing ramp loses both overlaps,
+        # never keeping a notch wrapped around the exempt part.
+        road=dict(properties=dict(width_m=2,road_kind="tunnel",elevations_m=[-6,-6,0],clearance_m=4.5))
+        index=corridors([(road,LineString([(0,0),(20,0),(40,0)]))],3,lambda f:["way/1"])
+        building=box(5,-4,30,4)
+        cut,ids,removed=trim(building,index,9,0)
+        self.assertEqual(ids,["way/1"])
+        self.assertEqual(cut.geom_type,"MultiPolygon")
+        self.assertFalse(cut.intersects(box(6,-.5,7,.5)))
+        buried=box(5,-4,12,4)  # clear of the bend fan at x=20
+        kept,ids,_=trim(buried,index,9,0)
+        self.assertTrue(kept.equals(buried));self.assertEqual(ids,[])
+
     def test_pedestrian_paint_keeps_different_styles_with_shared_physics(self):
         features=[self.feature(1,LineString([(0,0),(30,0)]),width_m=2,surface="concrete",_city_refs=[1,2],_city_road_tags=dict(highway="footway",surface="concrete")),
                   self.feature(2,LineString([(30,0),(60,0)]),width_m=2,surface="concrete",_city_refs=[2,3],_city_road_tags=dict(highway="footway",surface="paving_stones"))]

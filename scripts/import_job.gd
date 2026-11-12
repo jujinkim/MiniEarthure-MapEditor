@@ -149,7 +149,8 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 	if coordinates.has("road_overrides"):
 		if not coordinates.get("osm_city", false): cleanup(); return "Road overrides require a city import."
 		var path := directory.path_join("road-overrides.json")
-		var error: String = files.write(path, JSON.stringify(coordinates.road_overrides), "")
+		# Full float precision: segment points are exact author WGS84 coordinates.
+		var error: String = files.write(path, JSON.stringify(coordinates.road_overrides, "", true, true), "")
 		if error != "": cleanup(); return error
 		arguments.append_array(["--road-overrides", path])
 	if coordinates.has("vertical"):

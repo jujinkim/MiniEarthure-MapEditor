@@ -585,6 +585,7 @@ func patches(store: RefCounted) -> Array:
 			if not area.is_empty(): result.append({"field":"play_area","id":"","before":null,"after":area})
 	if metadata.get("coordinates",{}).get("osm_city") is Dictionary:
 		preload("./source_receipt.gd").pack(metadata.coordinates.osm_city,"groups")
+		preload("./source_receipt.gd").pack(metadata.coordinates.osm_city,"road_footprint_corrections")
 	if metadata.get("coordinates",{}).get("regional") is Dictionary:
 		preload("./source_receipt.gd").pack(metadata.coordinates.regional,"objects")
 	var attribution := {"source": value.source.name + "#" + value.layer_id, "license": value.source.license, "notice": JSON.stringify(metadata)}

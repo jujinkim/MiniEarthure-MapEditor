@@ -2537,7 +2537,6 @@
 "Road overrides differ from the captured source/request.": "道路補正が取得した原本または要求と異なります。",
 "Road overrides require a city OSM import.": "道路補正にはOSM都市インポートが必要です。",
 "road override lanes must be an integer in 1..16": "道路補正の車線数は1～16の整数にしてください",
-"road override needs source_id, width_m and lanes": "道路補正にはsource_id、width_m、lanesが必要です",
 "road override source IDs must be unique OSM ways": "道路補正の原本IDは重複しないOSM wayにしてください",
 "road override width_m must be finite and in .2..200": "道路補正幅は0.2～200mの有限値にしてください",
 "road_overrides needs osm_sha256 and ways": "road_overridesにはosm_sha256とwaysが必要です",
@@ -2671,6 +2670,8 @@
 "Shopping block": "商店街区",
 "Park": "公園",
 "Parking lot": "駐車場",
-"Plaza": "広場"
+"Plaza": "広場",
+"road override needs source_id with width_m and lanes and/or segments": "道路補正には source_id と width_m・lanes または segments が必要です",
+"road override segments need 1..16 unique adjacent node pairs, max_displacement_m in (0, 5] and 1..256 [lon, lat] points": "道路補正の segments には重複しない隣接ノード対 1..16 件、(0, 5] の max_displacement_m、[lon, lat] 点 1..256 個が必要です"
 }
 }

@@ -523,7 +523,9 @@ class Generalizer:
         """The simplified line and the source vertex index of each kept vertex."""
         p = feature["properties"]
         refs = p.get("_city_refs")
-        if tolerance == 0 or len(geometry.coords) <= 2 or not refs or len(refs) != len(geometry.coords) or "osm_node_refs" in p:
+        # Author-placed geometry (road_overrides segments) keeps every vertex.
+        if tolerance == 0 or len(geometry.coords) <= 2 or not refs or len(refs) != len(geometry.coords) or "osm_node_refs" in p \
+                or p.get("_city_author_geometry"):
             return geometry, list(range(len(geometry.coords)))
         # All source incidence, including junctions inside a way, stays fixed.
         cuts = [0] + [i for i in range(1, len(refs)-1) if self.uses[refs[i]] > 1] + [len(refs)-1]

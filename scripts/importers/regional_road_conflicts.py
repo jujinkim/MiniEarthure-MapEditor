@@ -125,15 +125,19 @@ def corridors(roads, scale, source_ids):
         for i, (a,b) in enumerate(zip(points,points[1:])):
             deck=(a,b,heights[i],heights[i+1],envelope_kind) if structural else None
             add(LineString([a,b]).buffer(widths[i]/2,cap_style="flat"),identities,deck)
+        # MapKit triangulates a bend's fan between its neighbours' heights, so
+        # a fan takes the highest neighbouring tunnel ceiling (lowest bridge deck).
+        extreme=max if kind == "tunnel" else min
         for i in range(1,len(points)-1):
+            fan=extreme(heights[i-1:i+2])
             add(junction([(points[i],points[i-1],widths[i-1]/2,identities),
                           (points[i],points[i+1],widths[i]/2,identities)],scale/100,joint),identities,
-                (points[i],points[i],heights[i],heights[i],envelope_kind) if structural else None)
+                (points[i],points[i],fan,fan,envelope_kind) if structural else None)
         refs = p.get("osm_node_refs",p.get("_city_point_refs",p.get("_city_refs",[])))
         for at, other, half, ref in ((points[0],points[1],widths[0]/2,refs[0] if refs else None),
                                      (points[-1],points[-2],widths[-1]/2,refs[-1] if refs else None)):
             key = ("ref",str(ref)) if ref is not None else ("point",at)
-            height=heights[0] if at==points[0] else heights[-1]
+            height=extreme(heights[:2]) if at==points[0] else extreme(heights[-2:])
             ends.setdefault(key,[]).append((at,other,half,identities,height if structural else None,envelope_kind))
     for arms in ends.values():
         if len(arms)<2: continue
@@ -153,10 +157,11 @@ def corridors(roads, scale, source_ids):
 
 def trim(geometry, index, building_top=math.inf, building_base=0):
     shapes,sources,tree,decks,scale=index
-    ids=[]
+    overlapping,conflicting=[],set()
     for raw in tree.query(geometry):
         i=int(raw);overlap=geometry.intersection(shapes[i])
         if overlap.area<=1e-8:continue
+        overlapping.append(i)
         deck=decks[i]
         if deck is not None:
             a,b,h0,h1,kind=deck;dx,dy=b[0]-a[0],b[1]-a[1];length=dx*dx+dy*dy
@@ -166,7 +171,12 @@ def trim(geometry, index, building_top=math.inf, building_base=0):
             if kind == "tunnel":
                 if max(heights)+.5*scale <= building_base:continue
             elif kind == "bridge" and min(heights)>=building_top+.5*scale:continue
-        ids.append(i)
+        conflicting.update(sources[i])
+    # MapKit exempts a building above or below a structure only when every
+    # overlapping face of that road clears it, so one conflicting piece cuts
+    # every overlapping piece of the same road (no footprint left wrapped
+    # around an exempt stretch).
+    ids=[i for i in overlapping if conflicting.intersection(sources[i])]
     if not ids:return geometry,[],Polygon()
     result=geometry.difference(unary_union([shapes[i] for i in ids]))
     return result,sorted({s for i in ids for s in sources[i]}),geometry.difference(result)

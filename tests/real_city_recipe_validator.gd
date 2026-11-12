@@ -162,6 +162,19 @@ func run() -> void:
 	check(RECIPE.parse(JSON.stringify(base.merged({"road_overrides":corrections}))).ok, "snapshot-bound road corrections parse")
 	for bad: Variant in [null, {}, {"osm_sha256":"short", "ways":[]}, {"osm_sha256":"a".repeat(64), "ways":[{"source_id":"way/1", "width_m":20, "lanes":17}]}]:
 		check(not RECIPE.parse(JSON.stringify(base.merged({"road_overrides":bad}))).ok, "invalid road correction refused")
+	var segment := {"from_node":11, "to_node":12, "max_displacement_m":3, "points":[[135.5013, 34.67998]]}
+	var routed := {"osm_sha256":"a".repeat(64), "ways":[{"source_id":"way/1", "segments":[segment]}]}
+	check(RECIPE.parse(JSON.stringify(base.merged({"road_overrides":routed}))).ok, "segment road corrections parse")
+	for change: Dictionary in [{"max_displacement_m":6}, {"to_node":11}, {"points":[]}, {"points":[[200, 0]]}, {"extra":1}]:
+		var bad_segment := segment.merged(change, true)
+		check(not RECIPE.parse(JSON.stringify(base.merged({"road_overrides":{"osm_sha256":"a".repeat(64), "ways":[{"source_id":"way/1", "segments":[bad_segment]}]}}))).ok, "invalid segment refused: " + str(change))
+	check(not RECIPE.parse(JSON.stringify(base.merged({"road_overrides":{"osm_sha256":"a".repeat(64), "ways":[{"source_id":"way/1", "width_m":20}]}}))).ok, "width without lanes refused")
+	var city_rules := preload("res://scripts/import_city.gd")
+	var routed_raw := {"adapter":"osm-extract-v1", "source":{"sha256":"a".repeat(64)}, "coordinates":{"osm_city":{}, "road_overrides":{"request":routed, "applied":[{"source_id":"way/1", "original_width_m":16.75, "original_lanes":"5", "segments":[{"from_node":11}]}]}}}
+	check(city_rules.road_override_receipt(routed_raw, {"road_overrides":routed}) == "", "segment receipt accepted")
+	routed_raw.coordinates.road_overrides.applied[0].segments = []
+	check(city_rules.road_override_receipt(routed_raw, {"road_overrides":routed}) != "", "missing applied segment refused")
+	check(not city_rules.same_road_overrides(routed, {"osm_sha256":"a".repeat(64), "ways":[{"source_id":"way/1", "segments":[segment.merged({"max_displacement_m":2}, true)]}]}), "different segments differ")
 	var receipt := {"request":corrections, "applied":[{"source_id":"way/1", "width_m":20, "lanes":6, "original_width_m":null, "original_lanes":null}]}
 	var raw := {"adapter":"osm-extract-v1", "source":{"sha256":"a".repeat(64)}, "coordinates":{"osm_city":{}, "road_overrides":receipt}}
 	var city := preload("res://scripts/import_city.gd")
