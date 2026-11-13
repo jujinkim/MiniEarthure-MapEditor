@@ -257,8 +257,22 @@ class Regional(unittest.TestCase):
         one,_=Generalizer(a,self.options,scale=3).candidate(64);two,_=Generalizer(b,self.options,scale=3).candidate(64)
         styles={f["properties"]["style_id"] for f in one["features"]}
         self.assertEqual(styles,{"building/farm/detached/wood","building/korean_modern/lowrise/concrete"})
-        heights=[f["properties"]["height_m"] for f in one["features"]]
-        self.assertEqual(heights,[6,6]);self.assertEqual(one,two)
+        heights={f["properties"]["style_id"]:f["properties"]["height_m"] for f in one["features"]}
+        # A rural house is one storey under its pitched display roof.
+        self.assertEqual(heights,{"building/farm/detached/wood":5,"building/korean_modern/lowrise/concrete":6});self.assertEqual(one,two)
+    def test_rural_houses_and_sheds_take_their_use_defaults(self):
+        request=deepcopy(self.request);request["profile"].update(settlement="rural")
+        features=[self.feature(1,box(0,0,10,10),_city_building="yes"),self.feature(2,box(60,0,80,20),_city_building="yes"),
+            self.feature(3,box(120,0,130,10),_city_building="yes",_city_source_tags={"building":"yes","shop":"convenience"})]
+        annotated,_=self.annotate(features)
+        self.assertEqual([f["properties"]["style_id"] for f in annotated["features"]],["building/korean_modern/lowrise/concrete"]*2+["building/korean_modern/shop/concrete"])
+        annotated,_=self.annotate(features,request)
+        candidate,_=Generalizer(annotated,self.options,scale=3).candidate(64)
+        result={f["properties"]["osm_source_id"]:(f["properties"]["style_id"],f["properties"]["height_m"]) for f in candidate["features"]}
+        self.assertEqual(result,{"way/1":("building/korean_modern/detached/plaster",5),"way/2":("building/korean_modern/warehouse/metal",6),
+            "way/3":("building/korean_modern/shop/concrete",6)})
+        self.assertEqual(regional.use_style(self.catalog,"korean_modern","detached")["roof"],"hipped")
+        self.assertEqual(regional.use_style(self.catalog,"korean_modern","shop")["modules"],self.catalog["architectures"]["korean_modern"]["modules"])
     def document(self, request):
         doc=empty("regional-synthetic",20000,6400);doc["free_roam"]=True
         c=dict(mode="wgs84-utm",axis_order="longitude-latitude",origin=[9,55],local_origin_m=[300,300],target_crs="EPSG:32632",osm_city=dict(scale_denominator=3,source_ids=["way/1"]),osm_crop=dict(bbox=[8.998,54.998,9.002,55.002]),regional=dict(request=regional.input_receipt(request)))

@@ -71,9 +71,35 @@ def receipt_rows(record, key):
 def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
+RURAL = ("rural", "village", "sparse", "wilderness")
+# Untagged rural buildings at least this large (source m²) are sheds, barns or
+# workshops rather than houses.
+RURAL_HOUSE_MAX_M2 = 300
+
+
+def use_style(catalog, arch, kind):
+    """The architecture's catalogue default for one building type: present
+    fields of its optional `uses` entry replace the architecture's."""
+    profile = catalog["architectures"][arch]
+    return {**{key: profile[key] for key in ("material", "roof", "roof_material", "modules")}, **profile.get("uses", {}).get(kind, {})}
+
+
+def source_area_m2(geometry):
+    """Approximate source area of a WGS84 footprint (equirectangular at its latitude)."""
+    return geometry.area * 111320.0 ** 2 * math.cos(math.radians(geometry.representative_point().y))
+
+
+def profile_height(kind, settlement):
+    """Conservative envelope (metres) of an untagged building without tagged neighbours.
+    A rural house is one storey under its pitched display roof."""
+    if kind in ("detached", "farmhouse") and settlement in RURAL: return 5
+    floors = 4 if kind in ("apartment", "residential_tower", "office", "hotel", "hospital") else 1 if kind in ("utility", "research") else 2
+    return 3 * floors
+
+
 def roof_style(tags, aux, author, arch, kind, catalog):
     """Optional source roof components. A blue dome requires a religious Cycladic dome."""
-    profile = catalog["architectures"][arch]
+    profile = use_style(catalog, arch, kind)
     shape = author.get("roof_shape") or tags.get("roof:shape") or aux.get("roof_shape")
     shape = {"gable":"gabled", "hip":"hipped", "round":"vault", "barrel":"vault", "pyramid":"pyramidal"}.get(shape, shape)
     material = author.get("roof_material") or tags.get("roof:material") or aux.get("roof_material")
@@ -197,7 +223,7 @@ def ground(tags):
     return None, None
 
 
-def building_type(tags, height, settlement):
+def building_type(tags, height, settlement, area_m2):
     for field, table in (("amenity", AMENITIES), ("building", BUILDINGS)):
         if tags.get(field) in table:
             kind = table[tags[field]]
@@ -208,7 +234,7 @@ def building_type(tags, height, settlement):
     if tags.get("office"): return "office", "source:office"
     if tags.get("tourism") == "hotel": return "hotel", "source:tourism"
     if tags.get("industrial"): return "factory", "source:industrial"
-    if settlement in ("rural", "village", "sparse", "wilderness"): return "detached", "context:profile"
+    if settlement in RURAL: return ("detached" if area_m2 < RURAL_HOUSE_MAX_M2 else "warehouse"), "context:profile"
     if settlement == "industrial": return "utility", "context:profile"
     return "lowrise", "context:profile"
 
@@ -299,7 +325,7 @@ def annotate(collection, request, source_sha, catalog, bounds=None):
                 p["height_m"] = aux["height"]; evidence["height"] = "auxiliary:height"
             elif aux.get("num_floors"):
                 p["height_m"] = aux["num_floors"] * 3; evidence["height"] = "auxiliary:floors"
-            kind, basis = building_type(tags or {"building": p.get("_city_building", "yes")}, float(p.get("height_m", 0)), selected["settlement"])
+            kind, basis = building_type(tags or {"building": p.get("_city_building", "yes")}, float(p.get("height_m", 0)), selected["settlement"], source_area_m2(geometry))
             if basis == "context:profile" and aux.get("class") in BUILDINGS: kind, basis = BUILDINGS[aux["class"]], "auxiliary:class"
             if "building_type" in author: kind, basis = author["building_type"], "author"
             evidence["type"] = basis
@@ -310,7 +336,7 @@ def annotate(collection, request, source_sha, catalog, bounds=None):
             if "material" in author: material, basis = author["material"], "author"
             elif material in catalog["materials"]: basis = "source:material"
             elif aux.get("facade_material") in catalog["materials"]: material, basis = aux["facade_material"], "auxiliary:material"
-            else: material, basis = catalog["architectures"][arch]["material"], "context:profile"
+            else: material, basis = use_style(catalog, arch, kind)["material"], "context:profile"
             evidence["material"] = basis
             p["style_id"] = f"building/{arch}/{kind}/{material}"
             p["_city_regional"]["type"] = kind
@@ -368,9 +394,7 @@ def finish_building(p, site_kind, near):
             p["height_m"] = heights[middle] if len(heights) % 2 else sum(heights[middle-1:middle+1]) / 2
             info["evidence"]["height"] = "context:neighbour_median"
         else:
-            kind = info["type"]
-            floors = 4 if kind in ("apartment", "residential_tower", "office", "hotel", "hospital") else 1 if kind in ("barn", "utility", "warehouse", "research") else 2
-            p["height_m"] = 3 * floors
+            p["height_m"] = profile_height(info["type"], info["profile"]["settlement"])
             info["evidence"]["height"] = "context:type_profile"
         p["_city_levels_height"] = True
         p["_city_neighbour_height"] = True

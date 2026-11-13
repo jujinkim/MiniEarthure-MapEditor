@@ -25,6 +25,12 @@ static func evidence(document: Dictionary, errors: Array = []) -> Dictionary:
 			for identity: String in row.get("record_ids", []): result[identity] = row.get("evidence", {}).duplicate(true)
 	return result
 
+## The architecture's catalogue default for one building type; present fields of
+## its optional `uses` entry replace the architecture's (as in MapKit and the importer).
+static func use_default(architecture: String, kind: String, field: String) -> String:
+	var profile: Dictionary = PROFILE.CATALOG.data.architectures[architecture]
+	return str(profile.get("uses", {}).get(kind, {}).get(field, profile[field]))
+
 static func centre(solid: Dictionary) -> Vector2:
 	var point := Vector2.ZERO
 	for vertex: Array in solid.footprint: point += Vector2(vertex[0],vertex[1]) / 100.0
@@ -49,11 +55,11 @@ static func patches(store: RefCounted, before: Dictionary, after: Dictionary, er
 			var next := PROFILE.design_at(after, point)
 			if old.architecture != next.architecture:
 				var material: String = style[3]
-				if str(source.get("material", "")).begins_with("context:"): material = PROFILE.CATALOG.data.architectures[next.architecture].material
+				if str(source.get("material", "")).begins_with("context:"): material = use_default(next.architecture, style[2], "material")
 				key = "building/%s/%s/%s" % [next.architecture, style[2], material]
 				if style.size() == 6:
-					var roof: String = PROFILE.CATALOG.data.architectures[next.architecture].roof if str(source.get("roof_shape", "")).begins_with("context:") else style[4]
-					var roof_material: String = PROFILE.CATALOG.data.architectures[next.architecture].roof_material if str(source.get("roof_material", "")).begins_with("context:") else style[5]
+					var roof: String = use_default(next.architecture, style[2], "roof") if str(source.get("roof_shape", "")).begins_with("context:") else style[4]
+					var roof_material: String = use_default(next.architecture, style[2], "roof_material") if str(source.get("roof_material", "")).begins_with("context:") else style[5]
 					# A source-qualified blue dome keeps its specific architectural
 					# identity when the surrounding default changes.
 					if roof_material == "blue_tile" and next.architecture != "cycladic": key = "building/%s/%s/%s" % [style[1],style[2],material]

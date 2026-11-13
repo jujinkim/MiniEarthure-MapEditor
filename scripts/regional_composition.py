@@ -246,10 +246,10 @@ def compose(document, request, catalog):
         selected, region_id = regional.selected_profile(request, geographic.representative_point(), catalog)
         tags = {"building":props.get("class") or "yes"}
         height = props.get("height") or ((props.get("num_floors") or 0)*3)
-        kind, basis = regional.building_type(tags, height, selected["settlement"])
+        kind, basis = regional.building_type(tags, height, selected["settlement"], regional.source_area_m2(geographic))
         if not height:
             nearby = [float(rows[i][0]["height_cm"])*frame.scale/100 for i in tree.query(local.centroid, predicate="dwithin", distance=6000/frame.scale)]
-            height = float(np.median(nearby)) if len(nearby) >= 3 else 6
+            height = float(np.median(nearby)) if len(nearby) >= 3 else regional.profile_height(kind, selected["settlement"])
             height_basis = "context:neighbour_median" if len(nearby) >= 3 else "context:profile"
         else: height_basis = "auxiliary:height" if props.get("height") else "auxiliary:floors"
         from regional_road_conflicts import trim
@@ -266,7 +266,7 @@ def compose(document, request, catalog):
         arch = selected["architecture"]
         material = props.get("facade_material")
         material_basis = "auxiliary:material" if material in catalog["materials"] else "context:profile"
-        if material not in catalog["materials"]: material = catalog["architectures"][arch]["material"]
+        if material not in catalog["materials"]: material = regional.use_style(catalog, arch, kind)["material"]
         shapes_to_add = part_solids(props,local,frame,boundary)
         for part_index, (geometry, part) in enumerate(shapes_to_add):
             part_roof, _, part_evidence = regional.roof_style({},dict(props,**part),{},arch,kind,catalog)

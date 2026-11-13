@@ -99,7 +99,13 @@ School, university, hospital, civic, religious, station, commercial, residential
 industrial and agricultural types keep distinct style IDs. Record grouping keeps
 type, style, region and evidence boundaries. Original heights beat incompatible
 floor counts. Missing heights use source floors, matched auxiliary data, a same-use
-neighbour median, then a conservative type/profile estimate. Randomness chooses
+neighbour median, then a conservative type/profile estimate (rural, village, sparse
+and wilderness houses and farmhouses 5 m: one storey under the pitched display roof;
+utility/research 3 m; apartments, towers, offices, hotels and hospitals 12 m; else 6 m).
+Without a source or auxiliary type, those settlements read a footprint under 300
+source m² as a detached house and a larger one as a warehouse. Context wall
+material, roof shape and roof material come from the architecture's per-type
+catalogue default. Randomness chooses
 neither building type nor storey count. Regional footprints retain their source outline by default. Explicit
 `road_conflicts: "trim_buildings"` permits only partial carriageway-conflict cuts,
 with a four-map-centimetre rounding margin for native mouth, offset, intersection, curve and building
