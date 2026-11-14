@@ -12,15 +12,18 @@ const MAX_RADIUS_KM := 2.5
 const LEFT_HAND := ["AG","AI","AU","BB","BD","BM","BN","BS","BT","BW","CC","CK","CX","CY","DM","FJ","FK","GB","GD","GG","GY","HK","ID","IE","IM","IN","JE","JM","JP","KE","KI","KN","KY","LC","LK","LS","MO","MS","MT","MU","MV","MW","MY","MZ","NA","NF","NP","NR","NU","NZ","PG","PK","PN","SB","SC","SG","SH","SR","SZ","TC","TH","TK","TL","TO","TT","TV","TZ","UG","VC","VG","VI","WS","ZA","ZM","ZW"]
 ## Countries whose signal heads are mostly horizontal; everywhere else vertical.
 const HORIZONTAL_SIGNALS := ["JP","KP","KR","TW"]
+## Countries whose centre lines are mostly white; everywhere else yellow
+## (the Americas, Korea, China, Taiwan, Norway, Finland, Iceland, ...).
+const WHITE_CENTRE := ["AD","AL","AT","AU","BA","BE","BG","BY","CH","CY","CZ","DE","DK","DZ","EE","ES","FR","GB","GG","GR","HK","HR","HU","ID","IE","IM","IN","IT","JE","JP","LI","LT","LU","LV","MA","MC","MD","ME","MK","MT","MY","NL","NZ","PL","PT","RO","RS","RU","SE","SG","SI","SK","SM","TN","TR","UA","VA","XK","ZA"]
 
-## {driving_side, signal_style, country, basis}; an unknown country keeps the
-## Editor's right-hand / horizontal defaults with basis "default".
+## {driving_side, signal_style, centre_line, country, basis}; an unknown country keeps
+## the Editor's right-hand / horizontal / yellow defaults with basis "default".
 static func traffic(country: Variant) -> Dictionary:
 	var code := str(country.get("code", "")) if country is Dictionary else ""
-	if code == "": return {"driving_side":"right", "signal_style":"horizontal", "country":"", "basis":"default"}
+	if code == "": return {"driving_side":"right", "signal_style":"horizontal", "centre_line":"yellow", "country":"", "basis":"default"}
 	var side := str(country.get("driving_side", ""))
 	if side not in ["left", "right"]: side = "left" if code in LEFT_HAND else "right"
-	return {"driving_side":side, "signal_style":"horizontal" if code in HORIZONTAL_SIGNALS else "vertical", "country":code, "basis":str(country.get("basis", ""))}
+	return {"driving_side":side, "signal_style":"horizontal" if code in HORIZONTAL_SIGNALS else "vertical", "centre_line":"white" if code in WHITE_CENTRE else "yellow", "country":code, "basis":str(country.get("basis", ""))}
 
 ## Map cells of a [west, south, east, north] box at 1:scale with cell_cm map cells.
 static func cells(box: Array, scale: int, cell_cm: int) -> int:

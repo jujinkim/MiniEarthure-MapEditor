@@ -356,7 +356,7 @@ def annotate(collection, request, source_sha, catalog, bounds=None):
                 if p.get("road_kind") in ("bridge", "tunnel"): road_type = p["road_kind"]
                 if not style: style, basis = ("compacted_earth" if road_type == "unpaved" else "asphalt"), "context:road"
                 p["style_id"] = f"road/{road_type}/{style}"
-                p["sidewalk_style_id"] = "ground/pavers"
+                p["sidewalk_style_id"] = "ground/" + catalog["architectures"][selected["architecture"]].get("sidewalk", "pavers")
                 p["_city_ground_style"] = "ground/" + style
             elif style:
                 p["_city_ground_style"] = "ground/" + style

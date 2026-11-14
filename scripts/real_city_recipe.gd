@@ -57,8 +57,8 @@ static func parse(text: String, base := "") -> Dictionary:
 	var scale := int(recipe.get("scale", 3))
 	if scale < 1 or scale > 8: return _error("Scale must be 1..8 (1:D)")
 	var traffic: Variant = recipe.get("traffic", {})
-	if traffic is not Dictionary or traffic.keys().any(func(k): return k not in ["driving_side","signal_style"]) or str(traffic.get("driving_side","right")) not in ["right","left"] or str(traffic.get("signal_style","horizontal")) not in ["horizontal","vertical"]:
-		return _error("traffic: driving_side right or left, signal_style horizontal or vertical")
+	if traffic is not Dictionary or traffic.keys().any(func(k): return k not in ["driving_side","signal_style","centre_line"]) or str(traffic.get("driving_side","right")) not in ["right","left"] or str(traffic.get("signal_style","horizontal")) not in ["horizontal","vertical"] or str(traffic.get("centre_line","yellow")) not in ["yellow","white"]:
+		return _error("traffic: driving_side right or left, signal_style horizontal or vertical, centre_line yellow or white")
 	var overrides: Variant = recipe.get("road_overrides")
 	if recipe.has("road_overrides"):
 		var override_error: String = preload("./import_city.gd").road_override_error(overrides)
@@ -305,6 +305,8 @@ static func inputs(recipe: Dictionary, document: Dictionary, dem_skipped: bool) 
 	var result := {"recipe_version":VERSION, "sources":_sources(notices).map(func(s): return {"role":s.role, "bytes":s.bytes, "sha256":s.sha256}), "osm":osm,
 		"cell_size_cm":int(document.get("cell_size_cm", 0)),
 		"traffic":{"driving_side":traffic.get("driving_side", ""), "signal_style":traffic.get("signal_style", "")} if traffic is Dictionary else {}}
+	# White centre lines join the identity; yellow maps keep their earlier one.
+	if traffic is Dictionary and traffic.get("centre_line") == "white": result.traffic.centre_line = "white"
 	var facilities: Variant = recipe.get("facilities")
 	if facilities is Dictionary:
 		var settings := {"encoding":"utf-8", "category":"", "source_url":"", "accuracy":"unknown"}
@@ -414,13 +416,13 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 		report.extent.text = AUTO.describe(circle)
 		bbox = circle.bbox
 		country = place.context.country
-	elif recipe.get("traffic", {}).size() < 2:
+	elif recipe.get("traffic", {}).size() < 3:
 		_say("Finding the country in the PBF")
 		country = (await _search(recipe.pbf, "", [(bbox[0] + bbox[2]) * 0.5, (bbox[1] + bbox[3]) * 0.5])).get("point_context", {}).get("country", {})
 	if not recipe.has("areas"): report.bbox = bbox
 	var traffic: Dictionary = AUTO.traffic(country)
 	traffic.merge(recipe.get("traffic", {}), true)
-	if recipe.get("traffic", {}).size() == 2: traffic.basis = "recipe"
+	if recipe.get("traffic", {}).size() == 3: traffic.basis = "recipe"
 	report.traffic = traffic
 	# OSM city import (File → Import vector → OSM, city optimization, exclusions).
 	var panel: RefCounted = ui.osm_panel
@@ -430,6 +432,7 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 	panel.scale.value = scale
 	panel.driving_side.select(1 if traffic.get("driving_side") == "left" else 0)
 	panel.signal_style.select(1 if traffic.get("signal_style") == "vertical" else 0)
+	panel.centre_line.select(1 if traffic.get("centre_line") == "white" else 0)
 	panel.selected_areas = areas
 	if areas.is_empty(): panel.fit_bbox(bbox)
 	else: panel._fit_areas()

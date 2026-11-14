@@ -208,6 +208,10 @@ func run() -> void:
 		check(RECIPE.parse(JSON.stringify(boxed)).ok,"traffic keys are optional: "+str(traffic))
 	boxed.traffic = {"side":"left"}
 	check(not RECIPE.parse(JSON.stringify(boxed)).ok,"unknown traffic key refused")
+	boxed.traffic = {"centre_line":"white"}
+	check(RECIPE.parse(JSON.stringify(boxed)).ok,"white centre line accepted")
+	boxed.traffic = {"centre_line":"blue"}
+	check(not RECIPE.parse(JSON.stringify(boxed)).ok,"unknown centre line refused")
 	# Earlier output is never built over.
 	var outputs := scratch.path_join("existing.memap")
 	FileAccess.open(outputs, FileAccess.WRITE).store_string("x")
@@ -243,10 +247,11 @@ func run() -> void:
 	check_set_aside()
 	check_inputs()
 	# Automatic choices (real_city_auto.gd).
-	check(AUTO.traffic({"code":"JP","driving_side":"","basis":"subdivision"}) == {"driving_side":"left","signal_style":"horizontal","country":"JP","basis":"subdivision"},"Japan: left, horizontal")
+	check(AUTO.traffic({"code":"JP","driving_side":"","basis":"subdivision"}) == {"driving_side":"left","signal_style":"horizontal","centre_line":"white","country":"JP","basis":"subdivision"},"Japan: left, horizontal, white centre")
+	check(AUTO.traffic({"code":"KR"}).centre_line == "yellow" and AUTO.traffic({"code":"US"}).centre_line == "yellow" and AUTO.traffic({"code":"NO"}).centre_line == "yellow" and AUTO.traffic({"code":"FR"}).centre_line == "white","centre line paint follows the country")
 	check(AUTO.traffic({"code":"NO","driving_side":"","basis":"boundary"}).driving_side == "right" and AUTO.traffic({"code":"NO"}).signal_style == "vertical","Norway: right, vertical")
 	check(AUTO.traffic({"code":"US","driving_side":"left","basis":"boundary"}).driving_side == "left","a driving_side tag on the country wins")
-	check(AUTO.traffic({}) == {"driving_side":"right","signal_style":"horizontal","country":"","basis":"default"},"unknown country keeps the Editor default")
+	check(AUTO.traffic({}) == {"driving_side":"right","signal_style":"horizontal","centre_line":"yellow","country":"","basis":"default"},"unknown country keeps the Editor default")
 	var jongno := [126.948904, 37.565795, 127.023419, 37.632353]
 	check(AUTO.cells(jongno, 3, 12800) == 360,"Jongno at 1:3 is 360 cells: "+str(AUTO.cells(jongno, 3, 12800)))
 	var context := {"areas":[{"name":"Osaka","source_id":"relation/2","admin_level":"7","bbox":[135.4,34.6,135.6,34.75],"km2":290.0},{"name":"Chuo","source_id":"relation/3","admin_level":"8","bbox":[135.49,34.66,135.53,34.70],"km2":8.8},{"name":"1-chome","source_id":"relation/4","admin_level":"10","bbox":[135.500,34.668,135.511,34.669],"km2":0.08}],"country":{}}
@@ -305,7 +310,7 @@ func run() -> void:
 	wizard.source_mode.select(0); wizard._mode_changed()
 	wizard.country = {"code":"GB", "driving_side":"", "basis":"boundary"}
 	wizard.signal_style.select(0)
-	check(wizard.recipe().get("traffic") == {"driving_side":"left", "signal_style":"vertical"}, "a downloaded snapshot's country fixes traffic: " + str(wizard.recipe()))
+	check(wizard.recipe().get("traffic") == {"driving_side":"left", "signal_style":"vertical", "centre_line":"white"}, "a downloaded snapshot's country fixes traffic: " + str(wizard.recipe()))
 	wizard.source_mode.select(1); wizard._mode_changed(); wizard.shape.select(0); wizard.radius.value = 2.0
 	# Coverage check and cancellation of the source helper (no network).
 	var JOB := preload("res://scripts/city_source_job.gd")

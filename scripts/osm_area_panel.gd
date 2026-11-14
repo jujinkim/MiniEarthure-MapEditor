@@ -11,6 +11,7 @@ var city: CheckBox
 var scale: SpinBox
 var driving_side: OptionButton
 var signal_style: OptionButton
+var centre_line: OptionButton
 ## Denominator the automatic origin was placed with; 0 after a manual origin.
 var origin_denominator := 0
 const UNITS := preload("./import_units.gd")
@@ -121,6 +122,9 @@ func setup(owner_ui: Control) -> void:
 	signal_style = OptionButton.new()
 	for label in ["Horizontal signals", "Vertical signals"]: signal_style.add_item(I18N.t(label))
 	traffic_row.add_child(signal_style)
+	centre_line = OptionButton.new()
+	for label in ["Yellow centre line", "White centre line"]: centre_line.add_item(I18N.t(label))
+	traffic_row.add_child(centre_line)
 	ui._label(layout, "City optimization combines compatible road chains, nearby unnamed low buildings and matching vegetation.\nRoad corridors, junctions, courtyards and landmarks are protected. Review before/after counts and approximations.")
 	exclusions = CheckBox.new()
 	exclusions.text = I18N.t("Review and exclude unsupported source objects (PBF streaming)")
@@ -199,7 +203,9 @@ func locked_denominator() -> int:
 ## exact OSM is always 1:8.
 ## Road convention for generated markings and street furniture.
 func traffic() -> Dictionary:
-	return {"driving_side": "left" if driving_side.selected == 1 else "right", "signal_style": "vertical" if signal_style.selected == 1 else "horizontal"}
+	var result := {"driving_side": "left" if driving_side.selected == 1 else "right", "signal_style": "vertical" if signal_style.selected == 1 else "horizontal"}
+	if centre_line.selected == 1: result.centre_line = "white"
+	return result
 
 func denominator() -> int:
 	if not (city.button_pressed and streaming.button_pressed): return UNITS.OSM_DENOMINATOR

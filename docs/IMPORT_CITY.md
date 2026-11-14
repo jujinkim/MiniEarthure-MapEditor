@@ -118,11 +118,15 @@ into Editor defaults; explicit values always win.
 - Traffic: a `traffic` key left out (wizard: **Automatic**) follows the country of
   the area or place: the `driving_side` tag of its country boundary, else the
   Editor's list of left-hand-traffic ISO countries; horizontal signals in Japan,
-  both Koreas and Taiwan, vertical elsewhere. The country is the containing
+  both Koreas and Taiwan, vertical elsewhere; white centre lines in Japan, most of
+  Europe (not Norway, Finland or Iceland), the UK and Ireland, Oceania, India,
+  Southeast Asian Commonwealth states, Turkey, the Maghreb and South Africa, yellow
+  elsewhere. `centre_line` (`yellow`/`white`) is the recipe key; the OSM panel has
+  the same choice, and only white is stored in the document. The country is the containing
   country boundary, else the ISO 3166-2 code of a containing subdivision (regional
   extracts cut country boundaries), else the extract's only country; a `bbox`
-  recipe looks up its centre. An unknown country keeps right-hand traffic and
-  horizontal signals.
+  recipe looks up its centre. An unknown country keeps right-hand traffic,
+  horizontal signals and yellow centre lines.
 
 ## Map scale 1:D
 

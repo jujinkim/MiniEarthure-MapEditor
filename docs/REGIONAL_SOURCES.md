@@ -105,7 +105,8 @@ utility/research 3 m; apartments, towers, offices, hotels and hospitals 12 m; el
 Without a source or auxiliary type, those settlements read a footprint under 300
 source m² as a detached house and a larger one as a warehouse. Context wall
 material, roof shape and roof material come from the architecture's per-type
-catalogue default. Randomness chooses
+catalogue default; road sidewalks take the architecture's catalogue `sidewalk`
+ground at the road's profile (pavers when absent). Randomness chooses
 neither building type nor storey count. Regional footprints retain their source outline by default. Explicit
 `road_conflicts: "trim_buildings"` permits only partial carriageway-conflict cuts,
 with a four-map-centimetre rounding margin for native mouth, offset, intersection, curve and building

@@ -221,6 +221,13 @@ class Regional(unittest.TestCase):
         kept,ids,_=trim(buried,index,9,0)
         self.assertTrue(kept.equals(buried));self.assertEqual(ids,[])
 
+    def test_road_sidewalks_follow_the_architecture_at_the_road(self):
+        road=lambda:[self.feature(1,LineString([(0,0),(40,0)]),width_m=4,_city_refs=[1,2],_city_road_tags={"highway":"residential"})]
+        for architecture,ground in (("european_stone","stone_paving"),("parisian","asphalt"),("korean_modern","pavers")):
+            request=deepcopy(self.request);request["profile"]["architecture"]=architecture
+            out,_=self.annotate(road(),request)
+            self.assertEqual(out["features"][0]["properties"]["sidewalk_style_id"],"ground/"+ground)
+
     def test_pedestrian_paint_keeps_different_styles_with_shared_physics(self):
         features=[self.feature(1,LineString([(0,0),(30,0)]),width_m=2,surface="concrete",_city_refs=[1,2],_city_road_tags=dict(highway="footway",surface="concrete")),
                   self.feature(2,LineString([(30,0),(60,0)]),width_m=2,surface="concrete",_city_refs=[2,3],_city_road_tags=dict(highway="footway",surface="paving_stones"))]

@@ -372,7 +372,7 @@ func _describe() -> void:
 	if job != null: return
 	var convention := traffic()
 	status.text = "%s\n%s · %s · %s" % [I18N.t("Play area: %s") % AUTO.describe(choice), I18N.t("Left-hand traffic" if convention.driving_side == "left" else "Right-hand traffic"),
-		I18N.t("Vertical signals" if convention.signal_style == "vertical" else "Horizontal signals"), convention.country if convention.country != "" else "?"]
+		I18N.t("Vertical signals" if convention.signal_style == "vertical" else "Horizontal signals") + " · " + I18N.t("White centre line" if convention.centre_line == "white" else "Yellow centre line"), convention.country if convention.country != "" else "?"]
 
 # Recipe and build ------------------------------------------------------------
 
@@ -388,7 +388,7 @@ func recipe() -> Dictionary:
 	# A downloaded snapshot holds no country boundary: use the country it reported.
 	if downloading() and str(country.get("code", "")) != "":
 		var automatic: Dictionary = AUTO.traffic(country)
-		convention.merge({"driving_side":automatic.driving_side, "signal_style":automatic.signal_style})
+		convention.merge({"driving_side":automatic.driving_side, "signal_style":automatic.signal_style, "centre_line":automatic.centre_line})
 	if not convention.is_empty(): value.traffic = convention
 	if terrain.button_pressed and dem.text != "": value.dem = dem.text
 	return value
