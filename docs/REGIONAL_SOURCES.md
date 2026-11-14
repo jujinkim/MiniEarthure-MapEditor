@@ -95,7 +95,7 @@ selected `source_id` and any of `architecture`, `building_type`, `material`,
 `ground`, `height_m`, `roof_shape`, `roof_material`. Targets must exist in that exact PBF snapshot; all are checked
 before mutation. Precedence is author correction → specific source information →
 auxiliary information → local context. A country only fills a profile's missing
-`architecture` ([automatic choices](IMPORT_CITY.md#automatic-extent-traffic-and-architecture)); regions, corrections and source tags still win.
+`architecture` and `climate` ([automatic choices](IMPORT_CITY.md#automatic-extent-traffic-architecture-and-climate)); regions, corrections and source tags still win.
 
 OSM building use, material, roof and surface tags are retained before optimization.
 School, university, hospital, civic, religious, station, commercial, residential,

@@ -53,8 +53,9 @@ keeps its review and limits; a step that fails stops the run with `failed_step` 
 the status text (exit code 1); an ambiguous name lists `area_candidates` or
 `place_candidates`. When a recipe requests a DEM, its review and adoption must
 succeed; a failed fit stops the build atomically. The report records the chosen
-`extent`, `place` and `traffic`
-(with its `basis`). It also records what the run was built from and with:
+`extent`, `place`, `traffic`, `architecture` and `climate`
+(each with its `basis`); a failed country lookup keeps the defaults and records
+`country_search_status`. It also records what the run was built from and with:
 
 - `inputs`: the adopted sources as role, bytes and SHA-256 (OSM PBF, facility CSV,
   each DEM tile), the OSM crop `bbox`, sorted area `source_id`s, shapely/GEOS and
@@ -102,7 +103,7 @@ moves neither and records `set_aside_error`. Only those two paths are renamed;
 the folder around them, the recipe and the report keep their names. The wizard keeps a failed map
 open under its paths so it can be fixed and retried.
 
-### Automatic extent, traffic and architecture
+### Automatic extent, traffic, architecture and climate
 
 `real_city_auto.gd` turns the PBF lookup ([IMPORTS](IMPORTS.md#choosing-a-geographic-area))
 into Editor defaults; explicit values always win.
@@ -140,6 +141,21 @@ into Editor defaults; explicit values always win.
   `regional` profile with `road_conflicts: "trim_buildings"` (the architecture
   filled when the wizard knows the country). **Plain city buildings** leaves
   `regional` out; a named architecture overrides the country.
+- Climate: a `regional.profile` without `climate` takes the climate of the
+  country's main cities (`CLIMATES`: Korea, Japan, western/central Europe, the US
+  and Mexico `temperate`; China, India, Argentina `humid`; Southeast Asia, Brazil,
+  the Caribbean and tropical Africa `tropical`; the Middle East, Pakistan and the
+  Sahel `arid`; Southern Europe, Turkey, the Levant, the Maghreb and Chile
+  `mediterranean`; the Nordics, the Baltics, Russia and Canada `cold`; Antarctica,
+  Greenland and Svalbard `polar`). Large or varied countries refine it by the map
+  centre (`CLIMATE_AREAS`, first box wins): e.g. California `mediterranean`, the
+  US Southwest `arid`, Alaska `cold`; Sydney `humid`, Perth `mediterranean`;
+  Beijing `temperate`, Shanghai `humid`; Mumbai `tropical`; Hokkaido `cold`;
+  Provence `mediterranean`; Arctic Canada and Russia `polar`. Climate drives the
+  ground palette, the environment concept and the base ground. An unlisted or
+  unknown country keeps `temperate`; the report's `climate` gives the choice and
+  basis. The wizard's **Climate** selector defaults to **Automatic climate** (the
+  climate filled when the wizard knows the country); a named climate overrides it.
 
 ## Map scale 1:D
 

@@ -37,9 +37,9 @@ network, and nothing contacts a service during play.
 **Save recipe…** writes the same recipe. In download mode it acquires the snapshots
 first, so the recipe names local files and reruns headless without the network.
 Project and package paths default to `Documents/MiniEarthure maps/<place>-<time>/`
-until edited. Traffic and **Architecture** follow the explicit selectors. Otherwise
+until edited. Traffic, **Architecture** and **Climate** follow the explicit selectors. Otherwise
 they follow the country, which comes from the search result or from the snapshot's
-containing boundaries ([automatic choices](IMPORT_CITY.md#automatic-extent-traffic-and-architecture)).
+containing boundaries ([automatic choices](IMPORT_CITY.md#automatic-extent-traffic-architecture-and-climate)).
 
 ## Acquisition (`acquire_city_sources.py`)
 
@@ -65,8 +65,8 @@ Request and failure rules:
 - Leftover `.osm-acquire-*` and `.dem-acquire-*` folders older than six hours are
   removed. Other files are never touched.
 - The country comes from an `is_in` lookup of administrative levels 2–4 (tags only).
-  The snapshot holds no country boundary, so the wizard writes an explicit `traffic`
-  and architecture.
+  The snapshot holds no country boundary, so the wizard writes an explicit `traffic`,
+  architecture and climate.
 
 The downloaded PBF and user PBFs go through the same city import, review, limits and
 fingerprint. The snapshot's SHA-256 is the OSM input identity, so street-furniture

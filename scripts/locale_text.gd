@@ -139,6 +139,7 @@ const BUILTIN_NAMES := {
   "shophouse": "Shophouse row",
   "cold": "Cold climate",
   "humid": "Humid climate",
+  "arid": "Arid",
   "city_center": "City center",
   "city": "Built-up city",
   "suburb": "Suburb",

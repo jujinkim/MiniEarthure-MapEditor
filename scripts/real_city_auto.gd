@@ -1,7 +1,7 @@
 extends RefCounted
 ## Automatic real-city choices from the PBF lookup context (`importers/pbf_places.py`):
-## the country's traffic convention and default architecture, and the map extent
-## around a named place. These
+## the country's traffic convention, default architecture and climate, and the map
+## extent around a named place. These
 ## are Editor defaults, not survey data; explicit wizard and recipe values win.
 ##
 ## Places fill a centre; the default geodesic radius is 2km source distance.
@@ -40,6 +40,52 @@ const ARCHITECTURES := {
 ## The country's catalogue architecture, or "" for an unknown or unlisted country.
 static func architecture(country: Variant) -> String:
 	return str(ARCHITECTURES.get(str(country.get("code", "")) if country is Dictionary else "", ""))
+
+## Catalogue climate of a country's main cities (regional_catalog.json climates),
+## weighted by where people live: Algiers and Casablanca are Mediterranean, Lima
+## arid. A default only, like ARCHITECTURES; countries not listed keep `temperate`.
+const CLIMATES := {
+	"temperate": ["GB","IE","IM","JE","GG","FR","BE","NL","LU","DE","AT","CH","LI","CZ","SK","PL","HU","SI","HR","DK","UA","MD","RO","BG","RS","BA","ME","MK","XK","KR","KP","JP","NZ","GE","AM","AZ","AD","US","MX","ZA","CO","EC","NP","BT","ET","KE","RW","BI","LS","ZW","AU"],
+	"humid": ["CN","TW","HK","MO","IN","AR","UY","PY"],
+	"tropical": ["TH","VN","KH","LA","MM","PH","ID","MY","SG","BN","TL","LK","BD","MV","BR","VE","GY","SR","GT","HN","SV","NI","CR","PA","BZ","CU","DO","HT","JM","PR","BS","TT","BB","AG","DM","GD","KN","LC","VC","KY","TC","VG","VI","AW","CW","NG","GH","CI","GM","GN","GW","SL","LR","TG","BJ","CM","GA","GQ","CG","CD","CF","AO","UG","TZ","MZ","MW","ZM","MG","KM","SC","MU","ST","FJ","PG","SB","VU","WS","TO","KI","TV","NR","PW","FM","MH"],
+	"arid": ["SA","AE","QA","KW","BH","OM","YE","IQ","IR","JO","SY","EG","LY","SD","PK","AF","TM","UZ","TJ","KZ","NE","ML","MR","TD","BF","SN","ER","DJ","SO","NA","BW","EH","PE"],
+	"mediterranean": ["IT","SM","VA","ES","PT","GR","CY","MT","MC","GI","AL","TR","IL","PS","LB","MA","DZ","TN","CL"],
+	"cold": ["NO","SE","FI","IS","FO","EE","LV","LT","RU","BY","CA","MN","KG","BO"],
+	"polar": ["AQ","GL","SJ"]}
+## Countries spanning several climates: [west, south, east, north, climate] boxes in
+## degrees, first match at the map centre wins, else the CLIMATES entry.
+const CLIMATE_AREAS := {
+	"US": [[-180,51,-129,72,"cold"], [-161,18,-154,23,"tropical"], [-124.5,32,-116.8,40,"mediterranean"], [-120,31,-103,42,"arid"], [-82.5,24,-79,27.5,"tropical"], [-100,24,-75,37,"humid"]],
+	"CA": [[-142,66,-50,84,"polar"], [-129,48,-122,50.5,"temperate"]],
+	"RU": [[-180,66,180,82,"polar"]],
+	"AU": [[110,-20,155,-9,"tropical"], [112,-36,121,-30,"mediterranean"], [133,-39,141,-32,"mediterranean"], [148,-37,151,-34.5,"temperate"], [149.5,-35,154,-20,"humid"], [140,-44,150,-36.5,"temperate"], [112,-36.5,154,-20,"arid"]],
+	"CN": [[108,18,112,20.5,"tropical"], [73,36,106,50,"arid"], [73,26,100,36,"cold"], [118,41,135,54,"cold"], [106,34,123,41,"temperate"], [97,20,123,34,"humid"]],
+	"IN": [[72,32.5,81,37,"cold"], [68,24,75.5,30.5,"arid"], [68,6,94,21,"tropical"]],
+	"BR": [[-58,-34,-44,-23.5,"humid"]],
+	"AR": [[-73,-56,-53,-40,"cold"], [-70,-40,-64,-22,"arid"]],
+	"CL": [[-76,-56,-66,-50,"cold"], [-76,-30,-66,-17,"arid"], [-76,-50,-66,-38,"temperate"]],
+	"MX": [[-118,24,-97,33,"arid"], [-92,14,-86,22,"tropical"], [-106,14,-92,18.5,"tropical"]],
+	"ZA": [[16,-35,21,-32.5,"mediterranean"], [16,-32.5,24,-28,"arid"], [29.5,-31,33,-26,"humid"]],
+	"JP": [[122,24,131.5,27.5,"humid"], [139,41.4,146,46,"cold"]],
+	"FR": [[3,41,9.6,44,"mediterranean"]],
+	"ES": [[-10,42.8,-1.5,44,"temperate"]],
+	"IT": [[6.5,44.5,14,47.2,"temperate"]],
+	"KZ": [[46,49,88,56,"cold"], [74,42,81,45,"temperate"]],
+	"MA": [[-17,21,-1,32.5,"arid"]],
+	"DZ": [[-9,18,12,35.5,"arid"]],
+	"TN": [[7,30,12,35,"arid"]],
+	"IL": [[34,29,35.5,31.3,"arid"]]}
+
+## The climate at point ([lon, lat]) in the country, or "" for an unknown or unlisted
+## country. Without a point a multi-climate country takes its CLIMATES entry.
+static func climate(country: Variant, point: Array = []) -> String:
+	var code := str(country.get("code", "")) if country is Dictionary else ""
+	if point.size() == 2:
+		for area: Array in CLIMATE_AREAS.get(code, []):
+			if float(point[0]) >= area[0] and float(point[1]) >= area[1] and float(point[0]) <= area[2] and float(point[1]) <= area[3]: return area[4]
+	for value: String in CLIMATES:
+		if code in CLIMATES[value]: return value
+	return ""
 
 ## {driving_side, signal_style, centre_line, country, basis}; an unknown country keeps
 ## the Editor's right-hand / horizontal / yellow defaults with basis "default".

@@ -43,6 +43,8 @@ var signal_style: OptionButton
 ## Automatic (the country's), plain city buildings without a regional profile, or
 ## one catalogue architecture (CATALOG architectures in order, from item 2).
 var architecture: OptionButton
+## Automatic (the country's at the centre) or one catalogue climate (from item 1).
+var climate: OptionButton
 var dem: LineEdit
 var project: LineEdit
 var package: LineEdit
@@ -164,6 +166,12 @@ func setup(owner_ui: Control) -> void:
 	for id: String in CATALOG.data.architectures: architecture.add_item(I18N.builtin(id))
 	architecture.item_selected.connect(func(_index): _describe())
 	options.add_child(architecture)
+	ui._label(options, "Climate")
+	climate = OptionButton.new()
+	climate.add_item(I18N.t("Automatic climate"))
+	for id: String in CATALOG.data.climates: climate.add_item(I18N.builtin(id))
+	climate.item_selected.connect(func(_index): _describe())
+	options.add_child(climate)
 	var outputs := GridContainer.new()
 	outputs.columns = 3
 	right.add_child(outputs)
@@ -381,16 +389,23 @@ func chosen_architecture() -> String:
 	var automatic: String = AUTO.architecture(country)
 	return automatic if automatic != "" else "modern"
 
+## The catalogue climate the build will use with a regional profile.
+func chosen_climate() -> String:
+	if climate.selected > 0: return CATALOG.data.climates[climate.selected - 1]
+	var automatic: String = AUTO.climate(country, [longitude.value, latitude.value])
+	return automatic if automatic != "" else "temperate"
+
 func _describe() -> void:
 	var choice := extent()
 	guidance.text = AUTO.guidance(choice)
 	if AUTO.estimate(choice).level == "high": guidance.add_theme_color_override("font_color", Color("e8590c"))
 	else: guidance.remove_theme_color_override("font_color")
+	climate.disabled = architecture.selected == 1
 	if job != null: return
 	var convention := traffic()
 	status.text = "%s\n%s · %s · %s" % [I18N.t("Play area: %s") % AUTO.describe(choice), I18N.t("Left-hand traffic" if convention.driving_side == "left" else "Right-hand traffic"),
 		I18N.t("Vertical signals" if convention.signal_style == "vertical" else "Horizontal signals") + " · " + I18N.t("White centre line" if convention.centre_line == "white" else "Yellow centre line"), convention.country if convention.country != "" else "?"]
-	status.text += " · " + (I18N.t("Plain city buildings") if chosen_architecture() == "" else I18N.builtin(chosen_architecture()))
+	status.text += " · " + (I18N.t("Plain city buildings") if chosen_architecture() == "" else I18N.builtin(chosen_architecture()) + " · " + I18N.builtin(chosen_climate()))
 
 # Recipe and build ------------------------------------------------------------
 
@@ -408,11 +423,13 @@ func recipe() -> Dictionary:
 		var automatic: Dictionary = AUTO.traffic(country)
 		convention.merge({"driving_side":automatic.driving_side, "signal_style":automatic.signal_style, "centre_line":automatic.centre_line})
 	if not convention.is_empty(): value.traffic = convention
-	# A regional profile styles the buildings; automatic leaves the architecture to
-	# the recipe's country lookup unless this wizard already knows the country.
+	# A regional profile styles the buildings and ground; automatic leaves the
+	# architecture and climate to the recipe's country lookup unless this wizard
+	# already knows the country.
 	if architecture.selected != 1:
 		var profile := {}
 		if architecture.selected > 1 or AUTO.architecture(country) != "": profile.architecture = chosen_architecture()
+		if climate.selected > 0 or AUTO.climate(country, [longitude.value, latitude.value]) != "": profile.climate = chosen_climate()
 		value.regional = {"version":1, "road_conflicts":"trim_buildings", "profile":profile}
 	if terrain.button_pressed and dem.text != "": value.dem = dem.text
 	return value

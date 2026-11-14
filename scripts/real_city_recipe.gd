@@ -5,7 +5,8 @@ extends RefCounted
 ## or a named `place` centre (`real_city_auto.gd`) → review → adopt → optional facility CSV →
 ## optional Copernicus DEM (structure/water fit, grounded buildings) → save → Export
 ## (optional full 3D check, optional mobile 1.5 GiB open). `traffic` keys and a
-## `regional.profile` architecture left out follow the country found in the PBF. Paths in a recipe file are relative to that
+## `regional.profile` architecture or climate left out follow the country found in
+## the PBF (climate also the map centre's part of a large country). Paths in a recipe file are relative to that
 ## file. The Editor's own steps keep every limit and review.
 const AUTO := preload("./real_city_auto.gd")
 const VERSION := 1
@@ -416,26 +417,34 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 		report.extent.text = AUTO.describe(circle)
 		bbox = circle.bbox
 		country = place.context.country
-	elif recipe.get("traffic", {}).size() < 3 or (recipe.has("regional") and not recipe.regional.get("profile", {}).has("architecture")):
+	elif recipe.get("traffic", {}).size() < 3 or (recipe.has("regional") and not (recipe.regional.get("profile", {}).has("architecture") and recipe.regional.get("profile", {}).has("climate"))):
 		_say("Finding the country in the PBF")
-		country = (await _search(recipe.pbf, "", [(bbox[0] + bbox[2]) * 0.5, (bbox[1] + bbox[3]) * 0.5])).get("point_context", {}).get("country", {})
+		var found := await _search(recipe.pbf, "", [(bbox[0] + bbox[2]) * 0.5, (bbox[1] + bbox[3]) * 0.5])
+		country = found.get("point_context", {}).get("country", {})
+		# A failed lookup keeps the defaults; the report says why.
+		if found.is_empty(): report.country_search_status = ui.osm_panel.place_status.text
 	if not recipe.has("areas"): report.bbox = bbox
 	var traffic: Dictionary = AUTO.traffic(country)
 	traffic.merge(recipe.get("traffic", {}), true)
 	if recipe.get("traffic", {}).size() == 3: traffic.basis = "recipe"
 	report.traffic = traffic
-	# A regional profile without an architecture takes the country's (else `modern`).
+	# A regional profile without an architecture or climate takes the country's
+	# (else `modern` / `temperate`); the climate is the one at the map centre.
 	var regional: Dictionary = recipe.get("regional", {}).duplicate(true)
 	if not regional.is_empty():
 		var profile: Dictionary = regional.get("profile", {})
-		var basis := "recipe"
-		if not profile.has("architecture"):
-			basis = "default"
-			if AUTO.architecture(country) != "":
-				profile.architecture = AUTO.architecture(country)
-				basis = "country"
-			regional.profile = profile
-		report.architecture = {"architecture":str(profile.get("architecture", "modern")), "basis":basis}
+		var box: Array = bbox if bbox.size() == 4 else areas[0].get("bbox", []) if not areas.is_empty() else []
+		var centre: Array = circle.center if not circle.is_empty() else [(float(box[0]) + float(box[2])) * 0.5, (float(box[1]) + float(box[3])) * 0.5] if box.size() == 4 else []
+		var automatic := {"architecture":AUTO.architecture(country), "climate":AUTO.climate(country, centre)}
+		for axis: String in automatic:
+			var basis := "recipe"
+			if not profile.has(axis):
+				basis = "default"
+				if automatic[axis] != "":
+					profile[axis] = automatic[axis]
+					basis = "country"
+			report[axis] = {axis:str(profile.get(axis, "modern" if axis == "architecture" else "temperate")), "basis":basis}
+		regional.profile = profile
 	# OSM city import (File → Import vector → OSM, city optimization, exclusions).
 	var panel: RefCounted = ui.osm_panel
 	ui.import_source_format.select(1); ui.import_source_format.item_selected.emit(1)

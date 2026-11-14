@@ -256,6 +256,24 @@ func run() -> void:
 	check(AUTO.architecture({"code":"JP"}) == "japanese_modern" and AUTO.architecture({"code":"FR"}) == "parisian" and AUTO.architecture({"code":"KR"}) == "korean_modern" and AUTO.architecture({"code":"ZZ"}) == "" and AUTO.architecture({}) == "","architecture follows the country; unlisted countries keep the default")
 	var catalogued: Dictionary = preload("res://addons/mapkit/godot/regional_catalog.json").data.architectures
 	check(AUTO.ARCHITECTURES.values().all(func(a): return catalogued.has(a)),"every country architecture is in the catalogue")
+	var climates: Array = preload("res://addons/mapkit/godot/regional_catalog.json").data.climates
+	var listed := {}
+	for value: String in AUTO.CLIMATES:
+		for code: String in AUTO.CLIMATES[value]:
+			check(climates.has(value) and not listed.has(code),"country climate is catalogued and listed once: "+code)
+			listed[code] = true
+	for code: String in AUTO.CLIMATE_AREAS:
+		check(listed.has(code) and AUTO.CLIMATE_AREAS[code].all(func(a): return climates.has(a[4]) and a[0] < a[2] and a[1] < a[3]),"country climate areas are catalogued boxes: "+code)
+	var places := {"US":{"Los Angeles":[[-118.164,34.067],"mediterranean"], "Grand Canyon":[[-112.108,36.062],"arid"], "New York":[[-74.0,40.71],"temperate"], "Miami":[[-80.19,25.77],"tropical"], "Houston":[[-95.37,29.76],"humid"], "Anchorage":[[-149.9,61.2],"cold"]},
+		"AU":{"Sydney":[[151.2,-33.87],"humid"], "Perth":[[115.86,-31.95],"mediterranean"], "Melbourne":[[144.96,-37.81],"temperate"], "Alice Springs":[[133.88,-23.7],"arid"], "Darwin":[[130.84,-12.46],"tropical"]},
+		"CN":{"Shanghai":[[121.47,31.23],"humid"], "Beijing":[[116.4,39.9],"temperate"], "Harbin":[[126.6,45.75],"cold"], "Urumqi":[[87.6,43.8],"arid"]},
+		"IN":{"New Delhi":[[77.21,28.61],"humid"], "Mumbai":[[72.88,19.08],"tropical"], "Jodhpur":[[73.02,26.24],"arid"]},
+		"JP":{"Osaka":[[135.5,34.67],"temperate"], "Sapporo":[[141.35,43.06],"cold"]}, "FR":{"Paris":[[2.35,48.86],"temperate"], "Marseille":[[5.37,43.3],"mediterranean"]},
+		"KR":{"Seoul":[[127.0,37.57],"temperate"]}, "NO":{"Dagali":[[8.44,60.41],"cold"]}, "EG":{"Cairo":[[31.24,30.04],"arid"]}, "TH":{"Bangkok":[[100.5,13.75],"tropical"]}}
+	for code: String in places:
+		for name: String in places[code]:
+			check(AUTO.climate({"code":code}, places[code][name][0]) == places[code][name][1],"climate at %s: %s" % [name, AUTO.climate({"code":code}, places[code][name][0])])
+	check(AUTO.climate({"code":"US"}) == "temperate" and AUTO.climate({"code":"AQ"}, [0, -80]) == "polar" and AUTO.climate({"code":"ZZ"}, [0, 0]) == "" and AUTO.climate({}) == "","climate without a point, unknown and unlisted countries")
 	var jongno := [126.948904, 37.565795, 127.023419, 37.632353]
 	check(AUTO.cells(jongno, 3, 12800) == 360,"Jongno at 1:3 is 360 cells: "+str(AUTO.cells(jongno, 3, 12800)))
 	var context := {"areas":[{"name":"Osaka","source_id":"relation/2","admin_level":"7","bbox":[135.4,34.6,135.6,34.75],"km2":290.0},{"name":"Chuo","source_id":"relation/3","admin_level":"8","bbox":[135.49,34.66,135.53,34.70],"km2":8.8},{"name":"1-chome","source_id":"relation/4","admin_level":"10","bbox":[135.500,34.668,135.511,34.669],"km2":0.08}],"country":{}}
@@ -300,11 +318,14 @@ func run() -> void:
 	wizard.signal_style.select(0)
 	built = RECIPE.parse(JSON.stringify(wizard.recipe()))
 	check(built.ok and built.recipe.center == [9.0001, 55.0001] and not built.recipe.has("traffic") and not built.recipe.has("areas"),"wizard place recipe: "+str(built))
-	check(wizard.recipe().get("regional") == {"version":1, "road_conflicts":"trim_buildings", "profile":{"architecture":"japanese_modern"}} and wizard.status.text.contains(I18N.builtin("japanese_modern")),"automatic architecture follows the found country: "+str(built.recipe.get("regional"))+" "+wizard.status.text)
+	check(wizard.recipe().get("regional") == {"version":1, "road_conflicts":"trim_buildings", "profile":{"architecture":"japanese_modern", "climate":"temperate"}} and wizard.status.text.contains(I18N.builtin("japanese_modern")) and wizard.status.text.contains(I18N.builtin("temperate")),"automatic architecture follows the found country: "+str(built.recipe.get("regional"))+" "+wizard.status.text)
 	wizard.architecture.select(1); wizard._describe()
 	check(not wizard.recipe().has("regional") and wizard.status.text.contains(I18N.t("Plain city buildings")),"plain city buildings leave the regional profile out")
 	wizard.architecture.select(2 + catalogued.keys().find("parisian"))
-	check(wizard.recipe().regional.profile == {"architecture":"parisian"},"an explicit architecture wins over the country")
+	check(wizard.recipe().regional.profile == {"architecture":"parisian", "climate":"temperate"},"an explicit architecture wins over the country")
+	wizard.climate.select(1 + climates.find("arid")); wizard._describe()
+	check(wizard.recipe().regional.profile.climate == "arid" and wizard.status.text.contains(I18N.builtin("arid")),"an explicit climate wins over the country: "+wizard.status.text)
+	wizard.climate.select(0)
 	wizard.country = {}; wizard.architecture.select(0)
 	check(wizard.recipe().regional.profile == {} and wizard.chosen_architecture() == "modern","an unknown country leaves the architecture to the recipe's lookup")
 	wizard.country = japan.country
@@ -323,7 +344,7 @@ func run() -> void:
 	wizard.country = {"code":"GB", "driving_side":"", "basis":"boundary"}
 	wizard.signal_style.select(0)
 	check(wizard.recipe().get("traffic") == {"driving_side":"left", "signal_style":"vertical", "centre_line":"white"}, "a downloaded snapshot's country fixes traffic: " + str(wizard.recipe()))
-	check(wizard.recipe().regional.profile == {"architecture":"british_terrace"}, "a downloaded snapshot's country fixes the architecture")
+	check(wizard.recipe().regional.profile == {"architecture":"british_terrace", "climate":"temperate"}, "a downloaded snapshot's country fixes the architecture and climate")
 	wizard.source_mode.select(1); wizard._mode_changed(); wizard.shape.select(0); wizard.radius.value = 2.0
 	# Coverage check and cancellation of the source helper (no network).
 	var JOB := preload("res://scripts/city_source_job.gd")
@@ -371,6 +392,7 @@ func run() -> void:
 	check(ui.store.document.get("environment", {}).get("architecture") == "nordic_timber" and circular.has("regional"),"regional worker prepares, applies and exports the selected profile: "+JSON.stringify(circular))
 	check(ui.store.document.get("traffic") == {"driving_side":"right", "signal_style":"horizontal", "centre_line":"white"} and circular.get("inputs", {}).get("traffic", {}).get("centre_line") == "white","a white centre line reaches the document and fingerprint: "+str(ui.store.document.get("traffic")))
 	check(circular.get("architecture") == {"architecture":"nordic_timber", "basis":"recipe"},"an explicit recipe architecture is kept: "+str(circular.get("architecture")))
+	check(circular.get("climate") == {"climate":"cold", "basis":"recipe"} and ui.store.document.get("environment", {}).get("climate") == "cold","an explicit recipe climate is kept: "+str(circular.get("climate")))
 	check(ui.store.document.buildings.any(func(b): return str(b.id).begins_with("regional-ov-synthetic-reserved-")),"supplemental building survives complete recipe")
 	check(circular.get("road_footprint_corrections") is Array,"recipe exposes the authorized footprint correction receipt")
 	check(ui.store.document.attributions.any(func(a): return str(a.source).contains("Overture Buildings") and str(a.license).contains("MIT synthetic")),"source credits are readable without parsing provenance")
