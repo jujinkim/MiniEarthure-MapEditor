@@ -34,7 +34,9 @@ whole candidate. Offline generation never substitutes a different release.
 WorldCover is a single-band WGS84 native 10 m grid, with the eleven published
 classes. It supplies broad cover, including built-up, rock/bare ground, vegetation,
 crops, wetland and snow. It supplies no individual sidewalk or flowerbed evidence.
-OSM areas, detailed roads, buildings, water and vegetation take precedence. Water
+OSM areas, detailed roads, buildings, water and vegetation take precedence (rice
+farmland and `landuse=paddy` read as paddy, vineyards as vineyard, brick surfaces
+as brick paving). Water
 pixels are not converted to traversable ground. Classification and geometry are
 clipped to the saved playable boundary on the shared map-centimetre lattice.
 The clearance mask unions its buffered components before cover subtraction, so

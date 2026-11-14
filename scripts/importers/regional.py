@@ -22,7 +22,8 @@ DEFAULT = dict(architecture="modern", climate="temperate", settlement="city", te
 SURFACES = {"asphalt":"asphalt", "concrete":"concrete", "concrete:plates":"concrete", "paving_stones":"pavers",
     "sett":"stone_paving", "cobblestone":"stone_paving", "pebblestone":"gravel", "gravel":"gravel", "fine_gravel":"gravel",
     "compacted":"compacted_earth", "dirt":"compacted_earth", "earth":"compacted_earth", "ground":"compacted_earth",
-    "sand":"sand", "rock":"rock", "grass":"managed_lawn", "grass_paver":"pavers", "snow":"snow", "ice":"ice"}
+    "sand":"sand", "rock":"rock", "grass":"managed_lawn", "grass_paver":"pavers", "snow":"snow", "ice":"ice",
+    "brick":"brick_paving", "bricks":"brick_paving"}
 BUILDINGS = {"house":"detached", "detached":"detached", "bungalow":"detached", "villa":"detached", "cabin":"detached",
     "terrace":"terraced", "semidetached_house":"terraced", "apartments":"apartment", "dormitory":"apartment",
     "residential":"lowrise", "retail":"shop", "shop":"shop", "kiosk":"shop", "commercial":"mixed_use", "office":"office",
@@ -215,7 +216,8 @@ def ground(tags):
     natural, use = tags.get("natural"), tags.get("landuse")
     for values, style in (({"bare_rock", "scree", "shingle"}, "rock"), ({"sand", "beach"}, "sand"), ({"scrub", "heath"}, "scrub"), ({"wood"}, "forest_floor"), ({"wetland", "mud"}, "wetland"), ({"glacier"}, "ice"), ({"grassland"}, "grassland")):
         if natural in values: return style, "source:natural"
-    styles = {"forest":"forest_floor", "orchard":"orchard", "vineyard":"orchard", "farmland":"cropland", "farmyard":"compacted_earth", "meadow":"grassland", "grass":"managed_lawn", "flowerbed":"managed_lawn", "recreation_ground":"managed_lawn", "village_green":"managed_lawn"}
+    if use == "paddy" or (use == "farmland" and tags.get("crop") in ("rice", "paddy")): return "paddy", "source:landuse"
+    styles = {"forest":"forest_floor", "orchard":"orchard", "vineyard":"vineyard", "farmland":"cropland", "farmyard":"compacted_earth", "meadow":"grassland", "grass":"managed_lawn", "flowerbed":"managed_lawn", "recreation_ground":"managed_lawn", "village_green":"managed_lawn"}
     if use in styles: return styles[use], "source:landuse"
     if tags.get("leisure") in ("park", "garden", "golf_course"): return "managed_lawn", "source:leisure"
     if tags.get("amenity") == "parking": return "asphalt", "context:parking"

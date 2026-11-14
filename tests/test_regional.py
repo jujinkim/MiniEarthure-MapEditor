@@ -221,6 +221,12 @@ class Regional(unittest.TestCase):
         kept,ids,_=trim(buried,index,9,0)
         self.assertTrue(kept.equals(buried));self.assertEqual(ids,[])
 
+    def test_rice_vineyard_and_brick_sources_take_their_ground(self):
+        for tags,ground in (({"landuse":"farmland","crop":"rice"},"paddy"),({"landuse":"paddy"},"paddy"),({"landuse":"vineyard"},"vineyard"),
+                            ({"landuse":"farmland"},"cropland"),({"surface":"bricks"},"brick_paving")):
+            self.assertEqual(regional.ground(tags)[0],ground,tags)
+            self.assertIn(ground,self.catalog["ground"])
+
     def test_road_sidewalks_follow_the_architecture_at_the_road(self):
         road=lambda:[self.feature(1,LineString([(0,0),(40,0)]),width_m=4,_city_refs=[1,2],_city_road_tags={"highway":"residential"})]
         for architecture,ground in (("european_stone","stone_paving"),("parisian","asphalt"),("korean_modern","pavers")):
