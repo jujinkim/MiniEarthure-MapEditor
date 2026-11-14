@@ -134,6 +134,7 @@ func start(source: String, license_name: String, accuracy: String, python: Strin
 		var traffic: Variant = coordinates.get("osm_traffic", {"driving_side":"right", "signal_style":"horizontal"})
 		if traffic is not Dictionary or traffic.get("driving_side") not in ["right", "left"] or traffic.get("signal_style") not in ["horizontal", "vertical"] or traffic.get("centre_line", "white") != "white" or traffic.keys().any(func(k): return k not in ["driving_side", "signal_style", "centre_line"]): cleanup(); return "Invalid city road convention."
 		arguments.append_array(PackedStringArray(["--osm-driving-side", traffic.driving_side, "--osm-signal-style", traffic.signal_style]))
+		if traffic.get("centre_line") == "white": arguments.append_array(PackedStringArray(["--osm-centre-line", "white"]))
 	elif coordinates.has("osm_scale"): cleanup(); return "A city map scale requires automatic city optimization."
 	if coordinates.get("osm_review_exclusions",false):
 		if not streaming: cleanup(); return "Object exclusion review requires PBF streaming."

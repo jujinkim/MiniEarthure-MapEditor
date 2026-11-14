@@ -361,7 +361,7 @@ func run() -> void:
 		"project":scratch.path_join("circle/project"), "package":scratch.path_join("circle/city.memap"), "full_check":false,
 		"regional":{"version":1,"road_conflicts":"trim_buildings","profile":{"architecture":"nordic_timber","climate":"cold","settlement":"village","terrain":"mountain"}},
 		"road_overrides":{"osm_sha256":hash, "ways":[{"source_id":"way/2", "width_m":20, "lanes":6}]},
-		"traffic":{"driving_side":"right", "signal_style":"horizontal"}}
+		"traffic":{"driving_side":"right", "signal_style":"horizontal", "centre_line":"white"}}
 	fixed.regional.buildings = {"path":supplemental,"sha256":FileAccess.get_sha256(supplemental),"release":"2026-10-21.0","bbox":coverage,"source_url":"https://example.invalid/synthetic","license":"MIT synthetic"}
 	var circular: Dictionary = await runner.run(fixed)
 	check(circular.ok and not ui.store.document.get("play_area", []).is_empty(), "fixed circle worker, adoption and v1 export: " + str(circular.get("status", "")))
@@ -369,6 +369,7 @@ func run() -> void:
 	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_road_overrides(o.get("road_overrides", {}), fixed.road_overrides)), "adopted correction enters report fingerprint")
 	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_regional(o.get("regional"), city.regional_input(fixed.regional))),"regional inputs enter the report fingerprint")
 	check(ui.store.document.get("environment", {}).get("architecture") == "nordic_timber" and circular.has("regional"),"regional worker prepares, applies and exports the selected profile: "+JSON.stringify(circular))
+	check(ui.store.document.get("traffic") == {"driving_side":"right", "signal_style":"horizontal", "centre_line":"white"} and circular.get("inputs", {}).get("traffic", {}).get("centre_line") == "white","a white centre line reaches the document and fingerprint: "+str(ui.store.document.get("traffic")))
 	check(circular.get("architecture") == {"architecture":"nordic_timber", "basis":"recipe"},"an explicit recipe architecture is kept: "+str(circular.get("architecture")))
 	check(ui.store.document.buildings.any(func(b): return str(b.id).begins_with("regional-ov-synthetic-reserved-")),"supplemental building survives complete recipe")
 	check(circular.get("road_footprint_corrections") is Array,"recipe exposes the authorized footprint correction receipt")

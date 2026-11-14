@@ -485,6 +485,7 @@ def main():
     parser.add_argument("--osm-scale", type=int, choices=range(1, 9))
     parser.add_argument("--osm-driving-side", choices=("right", "left"), default="right")
     parser.add_argument("--osm-signal-style", choices=("horizontal", "vertical"), default="horizontal")
+    parser.add_argument("--osm-centre-line", choices=("yellow", "white"), default="yellow")
     parser.add_argument("--osm-center", nargs=2, type=float)
     parser.add_argument("--osm-radius-km", type=float)
     parser.add_argument("--osm-shape", choices=("circle", "square"), default="circle")
@@ -688,6 +689,8 @@ def main():
                 metadata["places"] = dict(points=len(pois), street=len(street))
                 from osm_furniture import generate as furniture
                 traffic = dict(driving_side=args.osm_driving_side, signal_style=args.osm_signal_style)
+                # Only white is stored; yellow maps keep their earlier convention.
+                if args.osm_centre_line == "white": traffic["centre_line"] = "white"
                 from shapely.geometry import Polygon, shape
                 frame = Coordinates(options)
                 blockers = []
