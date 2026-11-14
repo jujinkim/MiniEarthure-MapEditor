@@ -39,7 +39,8 @@ func search(source: String, name: String, python: String, token: String, at: Arr
 		if error != "": cleanup(); return error
 	output_path = directory.path_join("layer.json")
 	var arguments := PackedStringArray(["-B", "-u", directory.path_join("pbf_places.py"), source, output_path, "--query", query, "--request", token])
-	if not point.is_empty(): arguments.append_array(["--point", "%.7f,%.7f" % [point[0], point[1]]])
+	# One `--point=` argument: argparse reads a separate western "-118.1,34.0" as an option.
+	if not point.is_empty(): arguments.append("--point=%.7f,%.7f" % [point[0], point[1]])
 	if not _launch(python, arguments):
 		return "Python could not start. Choose a Python 3 executable."
 	deadline_ms = Time.get_ticks_msec() + timeout_seconds * 1000

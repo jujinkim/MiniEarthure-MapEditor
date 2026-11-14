@@ -49,6 +49,16 @@ func run() -> void:
 	check(JOB.validate(value,"가상시",[],[],[9.0,55.0])!="","a point search needs its point context")
 	value.places[0].bbox[2]=-180
 	check(JOB.validate(value,"가상시")!="","forged extent rejected")
+	# A western point (negative longitude) reaches the lookup as one argument.
+	var western := {}
+	ui.osm_panel.search_callback=func(data: Dictionary): western.merge(data)
+	ui.osm_panel.place_query.text=""
+	ui.osm_panel.search_point=[-118.1637578,34.0665834]
+	ui.osm_panel.start_search()
+	await finish(ui)
+	ui.osm_panel.search_callback=Callable()
+	check(western.get("point_context") is Dictionary,"a western point search completes: "+ui.osm_panel.place_status.text)
+	ui.osm_panel.place_query.text="가상시"
 	ui.osm_panel.dialog.hide()
 	ui.osm_panel.start_search()
 	directory=ui.import_job.directory
