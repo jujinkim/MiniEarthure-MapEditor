@@ -178,7 +178,7 @@ reported, never guessed. The same lookup lists up to 16 named features whose nam
 is exactly the query (anchors with their position), and for each area centre and
 anchor the complete administrative boundaries containing it and its country (ISO
 code, `driving_side` tag and basis); above 8 million context references it warns
-and lists none. The real-city wizard uses them ([IMPORT_CITY](IMPORT_CITY.md#automatic-extent-and-traffic)).
+and lists none. The real-city wizard uses them ([IMPORT_CITY](IMPORT_CITY.md#automatic-extent-traffic-and-architecture)).
 
 Selecting a result fills outward-rounded W/S/E/N fields and centres the WGS84
 origin. **Add selected area** combines up to 64 results (warning above eight; for

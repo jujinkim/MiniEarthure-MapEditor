@@ -13,6 +13,7 @@ extends ConfirmationDialog
 const I18N := preload("./locale_text.gd")
 const RECIPE := preload("./real_city_recipe.gd")
 const AUTO := preload("./real_city_auto.gd")
+const CATALOG := preload("res://addons/mapkit/godot/regional_catalog.json")
 const JOB := preload("./city_source_job.gd")
 const MAP := preload("./slippy_map.gd")
 const SOURCE_CACHE := "user://city-sources"
@@ -39,6 +40,9 @@ var agree: CheckBox
 var scale: SpinBox
 var driving_side: OptionButton
 var signal_style: OptionButton
+## Automatic (the country's), plain city buildings without a regional profile, or
+## one catalogue architecture (CATALOG architectures in order, from item 2).
+var architecture: OptionButton
 var dem: LineEdit
 var project: LineEdit
 var package: LineEdit
@@ -154,6 +158,12 @@ func setup(owner_ui: Control) -> void:
 	for label in ["Automatic signals", "Horizontal signals", "Vertical signals"]: signal_style.add_item(I18N.t(label))
 	signal_style.item_selected.connect(func(_index): _describe())
 	options.add_child(signal_style)
+	ui._label(options, "Architecture")
+	architecture = OptionButton.new()
+	for label in ["Automatic architecture", "Plain city buildings"]: architecture.add_item(I18N.t(label))
+	for id: String in CATALOG.data.architectures: architecture.add_item(I18N.builtin(id))
+	architecture.item_selected.connect(func(_index): _describe())
+	options.add_child(architecture)
 	var outputs := GridContainer.new()
 	outputs.columns = 3
 	right.add_child(outputs)
@@ -364,6 +374,13 @@ func traffic() -> Dictionary:
 	if signal_style.selected > 0: value.signal_style = "horizontal" if signal_style.selected == 1 else "vertical"
 	return value
 
+## The catalogue architecture the build will use, "" for plain city buildings.
+func chosen_architecture() -> String:
+	if architecture.selected == 1: return ""
+	if architecture.selected > 1: return CATALOG.data.architectures.keys()[architecture.selected - 2]
+	var automatic: String = AUTO.architecture(country)
+	return automatic if automatic != "" else "modern"
+
 func _describe() -> void:
 	var choice := extent()
 	guidance.text = AUTO.guidance(choice)
@@ -373,6 +390,7 @@ func _describe() -> void:
 	var convention := traffic()
 	status.text = "%s\n%s · %s · %s" % [I18N.t("Play area: %s") % AUTO.describe(choice), I18N.t("Left-hand traffic" if convention.driving_side == "left" else "Right-hand traffic"),
 		I18N.t("Vertical signals" if convention.signal_style == "vertical" else "Horizontal signals") + " · " + I18N.t("White centre line" if convention.centre_line == "white" else "Yellow centre line"), convention.country if convention.country != "" else "?"]
+	status.text += " · " + (I18N.t("Plain city buildings") if chosen_architecture() == "" else I18N.builtin(chosen_architecture()))
 
 # Recipe and build ------------------------------------------------------------
 
@@ -390,6 +408,12 @@ func recipe() -> Dictionary:
 		var automatic: Dictionary = AUTO.traffic(country)
 		convention.merge({"driving_side":automatic.driving_side, "signal_style":automatic.signal_style, "centre_line":automatic.centre_line})
 	if not convention.is_empty(): value.traffic = convention
+	# A regional profile styles the buildings; automatic leaves the architecture to
+	# the recipe's country lookup unless this wizard already knows the country.
+	if architecture.selected != 1:
+		var profile := {}
+		if architecture.selected > 1 or AUTO.architecture(country) != "": profile.architecture = chosen_architecture()
+		value.regional = {"version":1, "road_conflicts":"trim_buildings", "profile":profile}
 	if terrain.button_pressed and dem.text != "": value.dem = dem.text
 	return value
 

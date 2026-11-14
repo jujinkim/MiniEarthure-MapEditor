@@ -1,6 +1,7 @@
 extends RefCounted
 ## Automatic real-city choices from the PBF lookup context (`importers/pbf_places.py`):
-## the country's traffic convention and the map extent around a named place. These
+## the country's traffic convention and default architecture, and the map extent
+## around a named place. These
 ## are Editor defaults, not survey data; explicit wizard and recipe values win.
 ##
 ## Places fill a centre; the default geodesic radius is 2km source distance.
@@ -15,6 +16,30 @@ const HORIZONTAL_SIGNALS := ["JP","KP","KR","TW"]
 ## Countries whose centre lines are mostly white; everywhere else yellow
 ## (the Americas, Korea, China, Taiwan, Norway, Finland, Iceland, ...).
 const WHITE_CENTRE := ["AD","AL","AT","AU","BA","BE","BG","BY","CH","CY","CZ","DE","DK","DZ","EE","ES","FR","GB","GG","GR","HK","HR","HU","ID","IE","IM","IN","IT","JE","JP","LI","LT","LU","LV","MA","MC","MD","ME","MK","MT","MY","NL","NZ","PL","PT","RO","RS","RU","SE","SG","SI","SK","SM","TN","TR","UA","VA","XK","ZA"]
+
+## Catalogue architecture of a country's typical city buildings (regional_catalog.json).
+## A default only: explicit profiles, regions, corrections and source tags win;
+## countries not listed keep the catalogue default (`modern`).
+const ARCHITECTURES := {
+	"KR":"korean_modern", "KP":"korean_modern", "JP":"japanese_modern",
+	"CN":"chinese_modern", "TW":"chinese_modern", "HK":"chinese_modern", "MO":"chinese_modern",
+	"SG":"shophouse", "MY":"shophouse",
+	"TH":"southeast_asian", "VN":"southeast_asian", "KH":"southeast_asian", "LA":"southeast_asian", "MM":"southeast_asian", "PH":"southeast_asian", "ID":"southeast_asian", "BN":"southeast_asian",
+	"IN":"south_asian", "PK":"south_asian", "BD":"south_asian", "LK":"south_asian", "NP":"south_asian",
+	"AE":"middle_eastern", "SA":"middle_eastern", "QA":"middle_eastern", "KW":"middle_eastern", "BH":"middle_eastern", "OM":"middle_eastern", "YE":"middle_eastern", "IQ":"middle_eastern", "IR":"middle_eastern", "JO":"middle_eastern", "SY":"middle_eastern", "LB":"middle_eastern", "IL":"middle_eastern", "PS":"middle_eastern", "EG":"middle_eastern", "LY":"middle_eastern", "TN":"middle_eastern", "DZ":"middle_eastern", "MA":"middle_eastern", "AF":"middle_eastern",
+	"US":"north_american_suburb", "CA":"north_american_suburb", "AU":"north_american_suburb", "NZ":"north_american_suburb",
+	"MX":"latin_colonial", "GT":"latin_colonial", "HN":"latin_colonial", "SV":"latin_colonial", "NI":"latin_colonial", "CR":"latin_colonial", "PA":"latin_colonial", "CU":"latin_colonial", "DO":"latin_colonial", "PR":"latin_colonial", "CO":"latin_colonial", "VE":"latin_colonial", "EC":"latin_colonial", "PE":"latin_colonial", "BO":"latin_colonial", "CL":"latin_colonial", "AR":"latin_colonial", "UY":"latin_colonial", "PY":"latin_colonial", "BR":"latin_colonial",
+	"GB":"british_terrace", "IE":"british_terrace", "IM":"british_terrace", "JE":"british_terrace", "GG":"british_terrace",
+	"FR":"parisian", "MC":"parisian", "NL":"european_brick", "BE":"european_brick", "DK":"european_brick",
+	"DE":"european_stone", "AT":"european_stone", "CH":"european_stone", "LI":"european_stone", "LU":"european_stone", "CZ":"european_stone", "SK":"european_stone", "HU":"european_stone", "PL":"european_stone", "SI":"european_stone", "HR":"european_stone",
+	"IT":"mediterranean", "SM":"mediterranean", "VA":"mediterranean", "ES":"mediterranean", "PT":"mediterranean", "AD":"mediterranean", "GR":"mediterranean", "CY":"mediterranean", "MT":"mediterranean", "TR":"mediterranean",
+	"NO":"nordic_timber", "SE":"nordic_timber", "FI":"nordic_timber", "IS":"nordic_timber", "FO":"nordic_timber", "GL":"nordic_timber",
+	"RU":"east_european_panel", "BY":"east_european_panel", "UA":"east_european_panel", "MD":"east_european_panel", "EE":"east_european_panel", "LV":"east_european_panel", "LT":"east_european_panel", "RO":"east_european_panel", "BG":"east_european_panel", "RS":"east_european_panel", "BA":"east_european_panel", "ME":"east_european_panel", "MK":"east_european_panel", "AL":"east_european_panel", "XK":"east_european_panel", "GE":"east_european_panel", "AM":"east_european_panel", "AZ":"east_european_panel", "KZ":"east_european_panel", "UZ":"east_european_panel", "KG":"east_european_panel", "TJ":"east_european_panel", "TM":"east_european_panel", "MN":"east_european_panel",
+	"AQ":"polar_station"}
+
+## The country's catalogue architecture, or "" for an unknown or unlisted country.
+static func architecture(country: Variant) -> String:
+	return str(ARCHITECTURES.get(str(country.get("code", "")) if country is Dictionary else "", ""))
 
 ## {driving_side, signal_style, centre_line, country, basis}; an unknown country keeps
 ## the Editor's right-hand / horizontal / yellow defaults with basis "default".

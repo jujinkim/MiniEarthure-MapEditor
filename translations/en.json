@@ -2491,6 +2491,8 @@
     "place needs a name": "place needs a name",
     "%d matches. Select areas or one place.": "%d matches. Select areas or one place.",
     "Automatic extent: %s": "Automatic extent: %s",
+    "Automatic architecture": "Automatic architecture",
+    "Plain city buildings": "Plain city buildings",
     "Automatic signals": "Automatic signals",
     "Automatic traffic": "Automatic traffic",
     "No matching area or place. Try its local name.": "No matching area or place. Try its local name.",

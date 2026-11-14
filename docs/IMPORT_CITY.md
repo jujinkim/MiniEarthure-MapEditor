@@ -102,7 +102,7 @@ moves neither and records `set_aside_error`. Only those two paths are renamed;
 the folder around them, the recipe and the report keep their names. The wizard keeps a failed map
 open under its paths so it can be fixed and retried.
 
-### Automatic extent and traffic
+### Automatic extent, traffic and architecture
 
 `real_city_auto.gd` turns the PBF lookup ([IMPORTS](IMPORTS.md#choosing-a-geographic-area))
 into Editor defaults; explicit values always win.
@@ -127,6 +127,19 @@ into Editor defaults; explicit values always win.
   extracts cut country boundaries), else the extract's only country; a `bbox`
   recipe looks up its centre. An unknown country keeps right-hand traffic,
   horizontal signals and yellow centre lines.
+- Architecture: a `regional.profile` without `architecture` takes the country's
+  catalogue architecture (`ARCHITECTURES`: Korea `korean_modern`, Japan
+  `japanese_modern`, China/Taiwan `chinese_modern`, Singapore/Malaysia `shophouse`,
+  France `parisian`, the UK and Ireland `british_terrace`, the Low Countries and
+  Denmark `european_brick`, the Nordics `nordic_timber`, Southern Europe
+  `mediterranean`, the former Eastern Bloc `east_european_panel`, Latin America
+  `latin_colonial`, the US, Canada and Oceania `north_american_suburb`, …); an
+  unlisted or unknown country keeps `modern`. The report's `architecture` gives
+  the choice and its basis (`recipe`, `country`, `default`). The wizard's
+  **Architecture** selector defaults to **Automatic architecture**: it adds a
+  `regional` profile with `road_conflicts: "trim_buildings"` (the architecture
+  filled when the wizard knows the country). **Plain city buildings** leaves
+  `regional` out; a named architecture overrides the country.
 
 ## Map scale 1:D
 

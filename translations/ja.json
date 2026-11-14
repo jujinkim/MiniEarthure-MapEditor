@@ -2491,6 +2491,8 @@
 "place needs a name": "place には name が必要です",
 "%d matches. Select areas or one place.": "%d 件一致。地域または地点を一つ選択。",
 "Automatic extent: %s": "自動範囲: %s",
+"Automatic architecture": "建築: 自動",
+"Plain city buildings": "標準の市街地建物",
 "Automatic signals": "信号: 自動",
 "Automatic traffic": "通行: 自動",
 "No matching area or place. Try its local name.": "一致する地域・地点がありません。現地名で試してください。",

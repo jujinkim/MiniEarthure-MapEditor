@@ -7,6 +7,7 @@ const SCRATCH := preload("res://tests/validator_scratch.gd")
 const UI := preload("res://scripts/editor_main.gd")
 const RECIPE := preload("res://scripts/real_city_recipe.gd")
 const AUTO := preload("res://scripts/real_city_auto.gd")
+const I18N := preload("res://scripts/locale_text.gd")
 ## Per-run scratch folder (tests/validator_scratch.gd), removed on exit.
 var scratch: String = SCRATCH.fresh(get_script().resource_path.get_file().get_basename())
 func _finalize() -> void: SCRATCH.remove(scratch)
@@ -252,6 +253,9 @@ func run() -> void:
 	check(AUTO.traffic({"code":"NO","driving_side":"","basis":"boundary"}).driving_side == "right" and AUTO.traffic({"code":"NO"}).signal_style == "vertical","Norway: right, vertical")
 	check(AUTO.traffic({"code":"US","driving_side":"left","basis":"boundary"}).driving_side == "left","a driving_side tag on the country wins")
 	check(AUTO.traffic({}) == {"driving_side":"right","signal_style":"horizontal","centre_line":"yellow","country":"","basis":"default"},"unknown country keeps the Editor default")
+	check(AUTO.architecture({"code":"JP"}) == "japanese_modern" and AUTO.architecture({"code":"FR"}) == "parisian" and AUTO.architecture({"code":"KR"}) == "korean_modern" and AUTO.architecture({"code":"ZZ"}) == "" and AUTO.architecture({}) == "","architecture follows the country; unlisted countries keep the default")
+	var catalogued: Dictionary = preload("res://addons/mapkit/godot/regional_catalog.json").data.architectures
+	check(AUTO.ARCHITECTURES.values().all(func(a): return catalogued.has(a)),"every country architecture is in the catalogue")
 	var jongno := [126.948904, 37.565795, 127.023419, 37.632353]
 	check(AUTO.cells(jongno, 3, 12800) == 360,"Jongno at 1:3 is 360 cells: "+str(AUTO.cells(jongno, 3, 12800)))
 	var context := {"areas":[{"name":"Osaka","source_id":"relation/2","admin_level":"7","bbox":[135.4,34.6,135.6,34.75],"km2":290.0},{"name":"Chuo","source_id":"relation/3","admin_level":"8","bbox":[135.49,34.66,135.53,34.70],"km2":8.8},{"name":"1-chome","source_id":"relation/4","admin_level":"10","bbox":[135.500,34.668,135.511,34.669],"km2":0.08}],"country":{}}
@@ -296,6 +300,14 @@ func run() -> void:
 	wizard.signal_style.select(0)
 	built = RECIPE.parse(JSON.stringify(wizard.recipe()))
 	check(built.ok and built.recipe.center == [9.0001, 55.0001] and not built.recipe.has("traffic") and not built.recipe.has("areas"),"wizard place recipe: "+str(built))
+	check(wizard.recipe().get("regional") == {"version":1, "road_conflicts":"trim_buildings", "profile":{"architecture":"japanese_modern"}} and wizard.status.text.contains(I18N.builtin("japanese_modern")),"automatic architecture follows the found country: "+str(built.recipe.get("regional"))+" "+wizard.status.text)
+	wizard.architecture.select(1); wizard._describe()
+	check(not wizard.recipe().has("regional") and wizard.status.text.contains(I18N.t("Plain city buildings")),"plain city buildings leave the regional profile out")
+	wizard.architecture.select(2 + catalogued.keys().find("parisian"))
+	check(wizard.recipe().regional.profile == {"architecture":"parisian"},"an explicit architecture wins over the country")
+	wizard.country = {}; wizard.architecture.select(0)
+	check(wizard.recipe().regional.profile == {} and wizard.chosen_architecture() == "modern","an unknown country leaves the architecture to the recipe's lookup")
+	wizard.country = japan.country
 	check(wizard.extent().kind == "circle" and wizard.status.text.contains("km"),"the wizard shows the automatic extent: "+wizard.status.text)
 	wizard.shape.select(1); wizard.radius.value = 9.0; wizard._extent_changed()
 	built = RECIPE.parse(JSON.stringify(wizard.recipe()))
@@ -311,6 +323,7 @@ func run() -> void:
 	wizard.country = {"code":"GB", "driving_side":"", "basis":"boundary"}
 	wizard.signal_style.select(0)
 	check(wizard.recipe().get("traffic") == {"driving_side":"left", "signal_style":"vertical", "centre_line":"white"}, "a downloaded snapshot's country fixes traffic: " + str(wizard.recipe()))
+	check(wizard.recipe().regional.profile == {"architecture":"british_terrace"}, "a downloaded snapshot's country fixes the architecture")
 	wizard.source_mode.select(1); wizard._mode_changed(); wizard.shape.select(0); wizard.radius.value = 2.0
 	# Coverage check and cancellation of the source helper (no network).
 	var JOB := preload("res://scripts/city_source_job.gd")
@@ -356,6 +369,7 @@ func run() -> void:
 	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_road_overrides(o.get("road_overrides", {}), fixed.road_overrides)), "adopted correction enters report fingerprint")
 	check(circular.get("inputs", {}).get("osm", []).any(func(o): return city.same_regional(o.get("regional"), city.regional_input(fixed.regional))),"regional inputs enter the report fingerprint")
 	check(ui.store.document.get("environment", {}).get("architecture") == "nordic_timber" and circular.has("regional"),"regional worker prepares, applies and exports the selected profile: "+JSON.stringify(circular))
+	check(circular.get("architecture") == {"architecture":"nordic_timber", "basis":"recipe"},"an explicit recipe architecture is kept: "+str(circular.get("architecture")))
 	check(ui.store.document.buildings.any(func(b): return str(b.id).begins_with("regional-ov-synthetic-reserved-")),"supplemental building survives complete recipe")
 	check(circular.get("road_footprint_corrections") is Array,"recipe exposes the authorized footprint correction receipt")
 	check(ui.store.document.attributions.any(func(a): return str(a.source).contains("Overture Buildings") and str(a.license).contains("MIT synthetic")),"source credits are readable without parsing provenance")

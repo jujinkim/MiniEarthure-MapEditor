@@ -4,8 +4,8 @@ extends RefCounted
 ## 1:D of an explicit WGS84 centre/radius, named PBF areas, one `bbox` rectangle
 ## or a named `place` centre (`real_city_auto.gd`) → review → adopt → optional facility CSV →
 ## optional Copernicus DEM (structure/water fit, grounded buildings) → save → Export
-## (optional full 3D check, optional mobile 1.5 GiB open). `traffic` keys left out
-## follow the country found in the PBF. Paths in a recipe file are relative to that
+## (optional full 3D check, optional mobile 1.5 GiB open). `traffic` keys and a
+## `regional.profile` architecture left out follow the country found in the PBF. Paths in a recipe file are relative to that
 ## file. The Editor's own steps keep every limit and review.
 const AUTO := preload("./real_city_auto.gd")
 const VERSION := 1
@@ -63,7 +63,7 @@ static func parse(text: String, base := "") -> Dictionary:
 	if recipe.has("road_overrides"):
 		var override_error: String = preload("./import_city.gd").road_override_error(overrides)
 		if override_error != "": return _error(override_error)
-	if recipe.has("regional") and (recipe.regional is not Dictionary or recipe.regional.get("version") != 1): return _error("regional requires a v1 input object")
+	if recipe.has("regional") and (recipe.regional is not Dictionary or recipe.regional.get("version") != 1 or recipe.regional.get("profile", {}) is not Dictionary): return _error("regional requires a v1 input object")
 	var facilities: Variant = recipe.get("facilities")
 	if facilities != null:
 		if facilities is not Dictionary: return _error("facilities is an object")
@@ -416,7 +416,7 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 		report.extent.text = AUTO.describe(circle)
 		bbox = circle.bbox
 		country = place.context.country
-	elif recipe.get("traffic", {}).size() < 3:
+	elif recipe.get("traffic", {}).size() < 3 or (recipe.has("regional") and not recipe.regional.get("profile", {}).has("architecture")):
 		_say("Finding the country in the PBF")
 		country = (await _search(recipe.pbf, "", [(bbox[0] + bbox[2]) * 0.5, (bbox[1] + bbox[3]) * 0.5])).get("point_context", {}).get("country", {})
 	if not recipe.has("areas"): report.bbox = bbox
@@ -424,6 +424,18 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 	traffic.merge(recipe.get("traffic", {}), true)
 	if recipe.get("traffic", {}).size() == 3: traffic.basis = "recipe"
 	report.traffic = traffic
+	# A regional profile without an architecture takes the country's (else `modern`).
+	var regional: Dictionary = recipe.get("regional", {}).duplicate(true)
+	if not regional.is_empty():
+		var profile: Dictionary = regional.get("profile", {})
+		var basis := "recipe"
+		if not profile.has("architecture"):
+			basis = "default"
+			if AUTO.architecture(country) != "":
+				profile.architecture = AUTO.architecture(country)
+				basis = "country"
+			regional.profile = profile
+		report.architecture = {"architecture":str(profile.get("architecture", "modern")), "basis":basis}
 	# OSM city import (File → Import vector → OSM, city optimization, exclusions).
 	var panel: RefCounted = ui.osm_panel
 	ui.import_source_format.select(1); ui.import_source_format.item_selected.emit(1)
@@ -441,7 +453,7 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 	if panel.error() != "": report.error = panel.error(); return _fail("crop")
 	_say("Importing OSM (review)")
 	panel.road_overrides = recipe.get("road_overrides", {}).duplicate(true)
-	panel.regional = recipe.get("regional", {}).duplicate(true)
+	panel.regional = regional.duplicate(true)
 	var osm_identity := layer_identity(recipe,"osm",FileAccess.get_sha256(recipe.pbf))
 	ui.store.apply_command("Recipe identity",[{"field":"map_id","id":"","before":ui.store.document.map_id,"after":"city-"+osm_identity}])
 	ui._start_import(recipe.pbf, ui.IMPORT_LAYER.OSM_LICENSE,osm_identity)
@@ -485,7 +497,7 @@ func _run(recipe: Dictionary, _side_m: float) -> Dictionary:
 		var saved: String = ui.store.save_project(recipe.project)
 		if saved != "": report.error = saved; return _fail("regional_save")
 		var job := preload("./generation_native_job.gd").new()
-		var failure: String = job.start_generation(ui.store,{"mode":"fill","regional":recipe.regional},ui.import_python_path())
+		var failure: String = job.start_generation(ui.store,{"mode":"fill","regional":regional},ui.import_python_path())
 		if failure != "": report.error = failure; job.cleanup(); return _fail("regional_start")
 		var owner_generation: int = ui.generation
 		var tree: SceneTree = ui.get_tree()

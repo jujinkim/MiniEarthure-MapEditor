@@ -2491,6 +2491,8 @@
     "place needs a name": "place에는 name이 필요합니다",
     "%d matches. Select areas or one place.": "%d개 일치. 지역들 또는 장소 하나를 선택하세요.",
     "Automatic extent: %s": "자동 범위: %s",
+    "Automatic architecture": "건축: 자동",
+    "Plain city buildings": "기본 도시 건물",
     "Automatic signals": "신호: 자동",
     "Automatic traffic": "통행: 자동",
     "No matching area or place. Try its local name.": "일치하는 지역이나 장소가 없습니다. 현지 이름으로 찾아 보세요.",

@@ -30,15 +30,16 @@ network, and nothing contacts a service during play.
    - **Use local files** takes the user's PBF and optional Copernicus tile folder.
 4. **Coverage check.** Both sources pass the same `preflight` before anything is
    built. A failure lists what is missing and builds nothing.
-5. **Build.** The recipe runs: import → adopt → DEM → save → export. Afterwards the
+5. **Build.** The recipe runs: import → adopt → regional style (unless **Plain city
+   buildings**) → DEM → save → export. Afterwards the
    map stays open for editing, and **Show exported map** reveals the package.
 
 **Save recipe…** writes the same recipe. In download mode it acquires the snapshots
 first, so the recipe names local files and reruns headless without the network.
 Project and package paths default to `Documents/MiniEarthure maps/<place>-<time>/`
-until edited. Traffic follows the explicit selectors. Otherwise it follows the
-country, which comes from the search result or from the snapshot's containing
-boundaries.
+until edited. Traffic and **Architecture** follow the explicit selectors. Otherwise
+they follow the country, which comes from the search result or from the snapshot's
+containing boundaries ([automatic choices](IMPORT_CITY.md#automatic-extent-traffic-and-architecture)).
 
 ## Acquisition (`acquire_city_sources.py`)
 
@@ -64,7 +65,8 @@ Request and failure rules:
 - Leftover `.osm-acquire-*` and `.dem-acquire-*` folders older than six hours are
   removed. Other files are never touched.
 - The country comes from an `is_in` lookup of administrative levels 2–4 (tags only).
-  The snapshot holds no country boundary, so the wizard writes an explicit `traffic`.
+  The snapshot holds no country boundary, so the wizard writes an explicit `traffic`
+  and architecture.
 
 The downloaded PBF and user PBFs go through the same city import, review, limits and
 fingerprint. The snapshot's SHA-256 is the OSM input identity, so street-furniture
